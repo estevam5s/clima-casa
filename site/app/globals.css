@@ -457,3 +457,5 @@ html.menu-aberto .voltar-topo { opacity: 0; visibility: hidden; }
 .copyright { padding: 35px 0 40px; }
 @media (max-width: 991px) { .copyright { padding-bottom: 90px; } .copyright ul { gap: 12px 20px; } }
 @media (min-width: 992px) { .copyright ul { margin-right: 70px; } }
+.caixa-turnstile:not(:empty) { margin: 12px 0; }
+.formulario .caixa-turnstile:not(:empty) { margin: 0 0 20px; }

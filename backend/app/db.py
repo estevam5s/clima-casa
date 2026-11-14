@@ -35,7 +35,7 @@ def carregar_env() -> dict:
             if "=" in linha and not linha.lstrip().startswith("#"):
                 k, v = linha.split("=", 1)
                 env[k.strip()] = v.strip()
-    env.update({k: v for k, v in os.environ.items() if k.startswith(("SUPABASE_", "TUYA_", "CLIMA_"))})
+    env.update({k: v for k, v in os.environ.items() if k.startswith(("SUPABASE_", "TUYA_", "CLIMA_", "TURNSTILE_"))})
     return env
 
 

@@ -1,3 +1,4 @@
+import { meta } from '@/lib/seo'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Check } from 'lucide-react'
@@ -8,7 +9,7 @@ export const generateStaticParams = () => NOVIDADES.map((n) => ({ slug: n.slug }
 export async function generateMetadata({ params }) {
   const { slug } = await params
   const n = NOVIDADES.find((x) => x.slug === slug)
-  return n ? { title: n.titulo, description: n.resumo } : {}
+  return n ? meta({ titulo: n.titulo, descricao: n.resumo, caminho: `/novidades/${n.slug}`, og: `novidade-${n.slug}`, tipo: 'article', publicado: `${n.data}T12:00:00-03:00` }) : {}
 }
 
 export default async function Novidade({ params }) {

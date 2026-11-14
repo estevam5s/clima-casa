@@ -60,3 +60,7 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* menu lateral: rola sem mostrar a barra (no recolhido ela cortava os ícones) */
+.sem-barra { scrollbar-width: none; -ms-overflow-style: none; }
+.sem-barra::-webkit-scrollbar { display: none; width: 0; height: 0; }

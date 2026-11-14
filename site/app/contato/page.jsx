@@ -1,9 +1,10 @@
+import { meta } from '@/lib/seo'
 import { LogIn, MonitorSmartphone, ShieldCheck } from 'lucide-react'
 import { BannerPagina, Titulo } from '@/components/Secoes'
 import { FormContato } from '@/components/Formularios'
 import { APPS_URL, ENTRAR_URL } from '@/lib/dados'
 
-export const metadata = { title: 'Contato', description: 'Mande uma mensagem: ela chega direto na central de notificações do sistema.' }
+export const metadata = meta({ titulo: 'Contato', descricao: 'Mande uma mensagem: ela chega direto na central de notificações do sistema.', caminho: '/contato', og: 'contato' })
 
 export default function Contato() {
   return (

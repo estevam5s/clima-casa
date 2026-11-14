@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Fingerprint, ShieldCheck, Eye, EyeOff, LoaderCircle, MailCheck, Moon, Sun } from 'lucide-react'
@@ -8,6 +8,7 @@ import { DOWNLOADS, sistemaAtual } from '../apps'
 import IconeMarca from '../components/IconeMarca'
 import { siteComSessao } from '../site'
 import { biometriaDisponivel, entrarComBiometria } from '../webauthn'
+import Turnstile from '../components/Turnstile'
 import Fumaca from '../components/Fumaca'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
@@ -38,6 +39,8 @@ export default function Login() {
   const destino = estadoNav?.de || '/'
   const veio2fa = estadoNav?.etapa === '2fa'
   const [codigo, setCodigo] = useState('')
+  const [robo, setRobo] = useState('')          // token do Turnstile ('' = ainda não, null = desligado)
+  const roboRef = useRef(null)
   const [temBio, setTemBio] = useState(false)
   useEffect(() => { setTemBio(biometriaDisponivel()) }, [])
   const calmo = useReducedMotion()
@@ -106,7 +109,8 @@ export default function Login() {
     try {
       const sb = await supabase()
       // login passa pelo firewall do sistema (conta tentativas por IP e e-mail, bloqueio progressivo)
-      const sessao = await api.post('/api/auth/entrar', { email: email.trim(), senha })
+      if (robo === '') throw new Error('Aguarde a verificação contra robôs terminar e tente de novo.')
+      const sessao = await api.post('/api/auth/entrar', { email: email.trim(), senha, turnstile: robo })
       const { error } = await sb.auth.setSession({ access_token: sessao.access_token, refresh_token: sessao.refresh_token })
       if (error) throw new Error(ERROS[error.message] || error.message)
       try { lembrar ? localStorage.setItem('clima-email', email.trim()) : localStorage.removeItem('clima-email') } catch { /* sem storage */ }
@@ -114,7 +118,7 @@ export default function Login() {
       try { await api.get('/api/sessao') } catch (err) { await sb.auth.signOut(); throw err }
       navegar(destino, { replace: true })
     } catch (err) {
-      setErro(err.message); setOcupado(false)
+      setErro(err.message); setOcupado(false); roboRef.current?.reiniciar()
     }
   }
 
@@ -123,11 +127,10 @@ export default function Login() {
     if (ocupado) return
     setErro(''); setOcupado(true)
     try {
-      const sb = await supabase()
-      const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/redefinir-senha` })
-      if (error) throw new Error(error.message)
+      if (robo === '') throw new Error('Aguarde a verificação contra robôs terminar e tente de novo.')
+      await api.post('/api/auth/esqueci', { email: email.trim(), turnstile: robo, voltar_para: `${window.location.origin}/redefinir-senha` })
       setModo('enviado')
-    } catch (err) { setErro(err.message) } finally { setOcupado(false) }
+    } catch (err) { setErro(err.message); roboRef.current?.reiniciar() } finally { setOcupado(false) }
   }
 
   const meu = sistemaAtual()
@@ -202,6 +205,7 @@ export default function Login() {
                     <input type="checkbox" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
                     Lembrar meu e-mail neste aparelho
                   </motion.label>
+                  <Turnstile key="ts-entrar" ref={roboRef} aoMudar={setRobo} tema={escuro ? 'dark' : 'light'} acao="login" />
                   <AnimatePresence>
                     {erro && <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                       role="alert" className="rounded-[12px] border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-600 dark:text-red-400">{erro}</motion.p>}
@@ -251,6 +255,7 @@ export default function Login() {
                     <label htmlFor="email2" className="text-[13px] font-medium">E-mail</label>
                     <input id="email2" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} autoFocus />
                   </div>
+                  <Turnstile key="ts-esqueci" ref={roboRef} aoMudar={setRobo} tema={escuro ? 'dark' : 'light'} acao="esqueci" />
                   {erro && <p role="alert" className="text-[13px] text-red-600 dark:text-red-400">{erro}</p>}
                   <button type="submit" disabled={ocupado} className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--btn)] text-[15px] font-medium text-[var(--btn-ink)] active:scale-[0.985] disabled:opacity-80">
                     {ocupado ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" /> : 'Enviar link'}

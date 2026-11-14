@@ -21,14 +21,16 @@ no Supabase Auth.
 
 | Recurso | Endereço |
 |---|---|
-| Produção (web/PWA/API) | https://clima-casa-lac.vercel.app (projeto Vercel `clima-casa`, região `cle1`) |
+| Produção (web/PWA/API) | **https://app.zynio.com.br** (projeto Vercel `clima-casa`, região `cle1`); o endereço antigo https://clima-casa-lac.vercel.app continua no ar (apps Android/desktop usam ele) |
 | Código (privado) | https://github.com/estevam5s/clima-casa |
 | Releases (APK, DMG, EXE, AppImage) | https://github.com/estevam5s/clima-casa/releases |
 | Banco, Auth, cron | Supabase, projeto **Arcondicionado**, ref `elyqjdcsbfdvlsxomxen`, região us-east-2 |
 | App celular | https://expo.dev/accounts/estevam5s/projects/clima-casa (Expo SDK 58) |
 | Alexa/Google | https://portal.sinric.pro (dispositivo "Ar do escritório" `6af888eb7d04ce9fd64d6777`) |
 | Painel local do agente | http://localhost:8090 (a porta 8080 do Mac é de outro app; não use) |
-| Site institucional | https://clima-escritorio-site.vercel.app (Next.js em `site/`, projeto Vercel `clima-escritorio-site`, região gru1) |
+| Site institucional | **https://zynio.com.br** (www redireciona; Next.js em `site/`, projeto Vercel `clima-escritorio-site`, região gru1) |
+| Domínio | zynio.com.br no Registro.br (DNS do Registro.br: A @ → 216.198.79.1 e 64.29.17.1; CNAME www e app → vercel-dns) |
+| Bloqueio de bots | Cloudflare Turnstile, widget "Zynio - Clima Escritorio" (hostnames zynio.com.br e subdomínios, os .vercel.app e localhost) |
 
 ---
 
@@ -336,8 +338,8 @@ chamadas pela Lambda (`alexa/lambda/index.mjs`, header `X-Clima-Chave`). Expõe 
 - Google Authenticator: MFA TOTP **nativo do Supabase** (supabase-js `mfa.enroll/challengeAndVerify/unenroll`). Com
   fator verificado, o backend só aceita token `aal2` (resposta 401 com cabeçalho `X-Clima-2FA: necessario` → o login
   pede o código). Admin remove o fator de quem perdeu o celular (`DELETE /api/usuarios/{id}/2fa`).
-- Biometria: passkeys WebAuthn (`webauthn` 3.0.1 no backend, `frontend/src/webauthn.js`). RP ID = host da requisição
-  (produção: clima-casa-lac.vercel.app; dev: localhost). Login com biometria abre a sessão via link mágico emitido no
+- Biometria: passkeys WebAuthn (`webauthn` 3.0.1 no backend, `frontend/src/webauthn.js`). RP ID = `zynio.com.br` quando o
+  host é o domínio novo (vale para app.zynio.com.br), senão o próprio host (clima-casa-lac.vercel.app, localhost). Login com biometria abre a sessão via link mágico emitido no
   servidor e grava o `session_id` em `sessoes_fortes` (vale como segundo fator). Tabelas: `usuarios`, `passkeys`,
   `webauthn_desafios`, `sessoes_fortes`. Perfil (nome, cargo, telefone, bio, foto) agora é por usuário em `usuarios`.
 - Teste de biometria sem sensor: Playwright + CDP `WebAuthn.addVirtualAuthenticator` (já feito, passou).
@@ -389,6 +391,21 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
   animada, modo, ventilação, EXT), faixa de luz e névoa na cor do modo. A temperatura de fora vem de
   `/api/clima-externo` (endereço do projeto → `config.clima_local` → IP de quem abriu o painel).
 - Renomear um aparelho com `sinric_device_id` renomeia também no Sinric (`PUT /api/v1/devices` com o `id` no corpo).
+
+### Turnstile (bloqueio de bots)
+- `backend/app/turnstile.py` confere o token em `/api/auth/entrar`, `/api/auth/esqueci` (o "esqueci a senha" agora passa
+  pelo servidor) e `/api/site/contato`. Chaves: `TURNSTILE_SITE_KEY` (pública, sai em `/api/supabase-config`) e
+  `TURNSTILE_SECRET_KEY` (servidor; `.env` e Vercel). Sem a secreta, a checagem é pulada (dev).
+- Widgets: `frontend/src/components/Turnstile.jsx` (login/esqueci) e `site/components/Turnstile.jsx` (formulários),
+  modo `interaction-only`: invisível para a maioria. CSP libera `https://challenges.cloudflare.com` (script, frame, connect).
+- O app Android entra direto no Supabase e não passa pelo Turnstile (o Supabase-level captcha está desligado de propósito).
+
+### Prévias de compartilhamento (redes sociais)
+- Site: `lib/seo.js` (`meta()`) em cada página: title, description, canonical, Open Graph completo (imagem 1200×630 JPEG com
+  width/height/alt/secure_url), Twitter `summary_large_image`, JSON-LD (Organization, WebSite, SoftwareApplication), manifest e ícones.
+- Banners em `site/public/og/*.jpg` (um por página, ~60–90 KB, bom para WhatsApp) gerados por
+  `node scripts/gerar-og.mjs` a partir de `scripts/og-modelo.html` + capturas reais. **Rode de novo ao mudar textos/telas.**
+- Sistema: meta tags em `frontend/index.html` (com `noindex`) e `frontend/public/og.jpg`.
 
 ### Site institucional (`site/`)
 - Next.js 16 (App Router, JS) + GSAP 3.15 (ScrollSmoother, ScrollTrigger, SplitText) + lucide-react + simple-icons.

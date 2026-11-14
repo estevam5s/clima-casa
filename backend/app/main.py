@@ -57,7 +57,7 @@ app = FastAPI(title="Clima Casa", lifespan=ciclo_de_vida, docs_url=None, redoc_u
 
 
 # Origens do site institucional que podem enviar o formulário de contato (CORS só nesta rota)
-SITE_ORIGENS = {o.strip() for o in os.environ.get("CLIMA_SITE_ORIGENS", "https://clima-escritorio-site.vercel.app,http://localhost:3100").split(",") if o.strip()}
+SITE_ORIGENS = {o.strip() for o in os.environ.get("CLIMA_SITE_ORIGENS", "https://zynio.com.br,https://www.zynio.com.br,https://clima-escritorio-site.vercel.app,http://localhost:3100").split(",") if o.strip()}
 
 
 @app.middleware("http")
@@ -103,8 +103,9 @@ async def cabecalhos(request: Request, chamar):
     if dinamica and "cache-control" not in resp.headers:
         resp.headers["Cache-Control"] = "no-store"
     resp.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
-        "font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'")
+        "default-src 'self'; img-src 'self' data: https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; "
+        "font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com; frame-ancestors 'none'")
     if request.url.scheme == "https":
         resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     return resp

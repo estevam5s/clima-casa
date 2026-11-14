@@ -1,7 +1,8 @@
+import { meta } from '@/lib/seo'
 import { BannerPagina, CartaoNovidade } from '@/components/Secoes'
 import { NOVIDADES } from '@/lib/dados'
 
-export const metadata = { title: 'Novidades', description: 'O que mudou em cada versão do sistema.' }
+export const metadata = meta({ titulo: 'Novidades', descricao: 'O que mudou em cada versão do Clima Escritório.', caminho: '/novidades', og: 'novidades' })
 
 export default function Novidades() {
   return (

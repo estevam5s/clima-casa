@@ -1,3 +1,4 @@
+import { meta } from '@/lib/seo'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Botao from '@/components/Botao'
@@ -8,7 +9,7 @@ export const generateStaticParams = () => TELAS.map((t) => ({ slug: t.slug }))
 export async function generateMetadata({ params }) {
   const { slug } = await params
   const t = TELAS.find((x) => x.slug === slug)
-  return t ? { title: t.titulo, description: t.resumo, openGraph: { images: [`/telas/${t.img}`] } } : {}
+  return t ? meta({ titulo: t.titulo, descricao: t.resumo, caminho: `/telas/${t.slug}`, og: `tela-${t.slug}` }) : {}
 }
 
 export default async function Tela({ params }) {

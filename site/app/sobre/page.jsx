@@ -1,8 +1,9 @@
+import { meta } from '@/lib/seo'
 import Botao from '@/components/Botao'
 import { BannerPagina, SecaoIntegracoes, SecaoProcesso, SecaoTecnologias, Titulo } from '@/components/Secoes'
 import { CONTADORES, ENTRAR_URL, MARCA } from '@/lib/dados'
 
-export const metadata = { title: 'Sobre o sistema', description: `O que é o ${MARCA}, como funciona e com o que ele conversa.` }
+export const metadata = meta({ titulo: 'Sobre o sistema', descricao: 'O que é o Clima Escritório, como funciona do clique ao ar gelado e com o que ele conversa: Alexa, Google, Sinric Pro e Tuya.', caminho: '/sobre', og: 'sobre' })
 
 export default function Sobre() {
   return (

@@ -1,7 +1,10 @@
+import { meta } from '@/lib/seo'
 import Botao from '@/components/Botao'
 import Espiral from '@/components/Espiral'
 import { Tour } from '@/components/Interativos'
 import { SecaoComandos, SecaoFuncionalidades, SecaoIntegracoes, SecaoNovidades, SecaoNumeros, SecaoProcesso, SecaoTecnologias, SecaoTelas } from '@/components/Secoes'
+
+export const metadata = meta({ caminho: '/', og: 'inicio' })
 
 export default function Inicio() {
   return (

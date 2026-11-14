@@ -1,9 +1,10 @@
+import { meta } from '@/lib/seo'
 import { BannerPagina } from '@/components/Secoes'
 import { Acordeao } from '@/components/Interativos'
 import { FormContato } from '@/components/Formularios'
 import { FAQ } from '@/lib/dados'
 
-export const metadata = { title: 'Perguntas frequentes', description: 'Respostas diretas sobre o que o sistema faz e o que ele precisa.' }
+export const metadata = meta({ titulo: 'Perguntas frequentes', descricao: 'O que o sistema faz, o que precisa comprar e como funciona com a Alexa e o Google, em respostas diretas.', caminho: '/faq', og: 'faq' })
 
 export default function Faq() {
   return (

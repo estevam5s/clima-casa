@@ -1,7 +1,8 @@
+import { meta } from '@/lib/seo'
 import { BannerPagina, CartaoFuncionalidade, SecaoProcesso } from '@/components/Secoes'
 import { FUNCIONALIDADES } from '@/lib/dados'
 
-export const metadata = { title: 'Funcionalidades', description: 'Controle por infravermelho, Alexa e Google, agenda, automações, relatórios, segurança e apps.' }
+export const metadata = meta({ titulo: 'Funcionalidades', descricao: 'Controle por infravermelho, Alexa e Google, agenda, automações, relatórios com consumo e custo, segurança com mapa 3D, notificações, marca própria e apps.', caminho: '/funcionalidades', og: 'funcionalidades' })
 
 export default function Funcionalidades() {
   return (

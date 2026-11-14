@@ -304,7 +304,8 @@ def _rp(request: Request) -> tuple[str, str]:
     host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost").split(",")[0].strip()
     nome = host.split(":")[0]
     esquema = "http" if nome in ("localhost", "127.0.0.1") else "https"
-    return nome, f"{esquema}://{host}"
+    rp_id = "zynio.com.br" if nome == "zynio.com.br" or nome.endswith(".zynio.com.br") else nome
+    return rp_id, f"{esquema}://{host}"
 
 
 def _guardar_desafio(tipo: str, desafio: bytes, usuario_id=None) -> str:

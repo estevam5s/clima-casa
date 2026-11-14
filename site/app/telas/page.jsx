@@ -1,7 +1,8 @@
+import { meta } from '@/lib/seo'
 import { BannerPagina, CartaoTela } from '@/components/Secoes'
 import { TELAS } from '@/lib/dados'
 
-export const metadata = { title: 'Telas do sistema', description: 'Capturas reais do painel: 3D, segurança, relatórios, apps, notificações e mais.' }
+export const metadata = meta({ titulo: 'Telas do sistema', descricao: 'Capturas reais do painel: ar em 3D, segurança com globo, relatórios, apps, notificações e mais.', caminho: '/telas', og: 'telas' })
 
 export default function Telas() {
   return (

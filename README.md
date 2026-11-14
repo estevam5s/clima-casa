@@ -8,7 +8,7 @@
 
 O sistema grava os sinais do controle original de cada ar e os reenvia por um transmissor **Tuya SRW-004** (NovaDigital / Smart Life). Em cima disso tem painel web instalável (PWA), apps para Android, macOS, Windows e Linux, **Alexa e Google Home**, agenda semanal, automações com gatilhos e condições, cenas, relatórios com consumo e custo estimados, marca própria (white label) e um firewall de aplicação.
 
-🔗 **Produção:** [clima-casa-lac.vercel.app](https://clima-casa-lac.vercel.app) · 🌐 **Site:** [clima-escritorio-site.vercel.app](https://clima-escritorio-site.vercel.app) · 📦 **Downloads:** [Releases](https://github.com/estevam5s/clima-casa/releases) · 📘 **Manual:** [`docs/MANUAL.md`](docs/MANUAL.md)
+🔗 **Painel:** [app.zynio.com.br](https://app.zynio.com.br) · 🌐 **Site:** [zynio.com.br](https://zynio.com.br) · 📦 **Downloads:** [Releases](https://github.com/estevam5s/clima-casa/releases) · 📘 **Manual:** [`docs/MANUAL.md`](docs/MANUAL.md)
 
 > 🤝 **Vai continuar o projeto (pessoa ou agente)?** Leia o [`CLAUDE.md`](CLAUDE.md) inteiro antes da primeira mudança.
 > Ele tem a arquitetura, as receitas de como mexer e as armadilhas que já aconteceram.

@@ -163,7 +163,7 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores 
         )}
       </div>
       <SeletorProjeto aberta={aberta} />
-      <nav className="-mx-1 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1">
+      <nav className="sem-barra -mx-1 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-1 [mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%-16px),transparent)] py-1">
         {grupos.map((g) => (
           <div key={g.titulo}>
             {aberta

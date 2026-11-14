@@ -27,7 +27,7 @@ def _erro(e: Exception):
 @publico.get("/supabase-config")
 def supabase_config():
     """Dados públicos para o navegador fazer login no Supabase (chave publishable, nunca a secret)."""
-    return {"url": db.ENV["SUPABASE_URL"], "chave": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}
+    return {"url": db.ENV["SUPABASE_URL"], "chave": db.ENV["SUPABASE_PUBLISHABLE_KEY"], "turnstile": db.ENV.get("TURNSTILE_SITE_KEY", "")}
 
 
 @api.get("/sessao")
@@ -1262,6 +1262,7 @@ def salvar_pref_notificacoes(d: PrefNotificacoesIn):
 
 # ---------------- site institucional: contato e novidades (público, com limite por IP) ----------------
 class SiteContatoIn(BaseModel):
+    turnstile: str | None = Field(None, max_length=4096)
     tipo: str = Field(pattern="^(contato|novidades)$")
     nome: str = Field("", max_length=80)
     email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -1275,6 +1276,8 @@ def site_contato(d: SiteContatoIn, request: Request):
     ip = firewall.ip_do_pedido(request)
     if firewall.falhas_recentes(ip, ("site_contato",), 60) >= 5:
         raise HTTPException(429, "Muitas mensagens em pouco tempo. Tente de novo em uma hora.")
+    from .. import turnstile
+    turnstile.exigir(d.turnstile, ip, "/api/site/contato")
     if d.tipo == "contato" and (not d.nome.strip() or len(d.mensagem.strip()) < 5):
         raise HTTPException(400, "Preencha o nome e a mensagem.")
     firewall.registrar(ip, "site_contato", "/api/site/contato", d.tipo)
@@ -1419,9 +1422,37 @@ def remover_avatar():
 
 
 # ---------------- login protegido (conta tentativas por IP e por e-mail) ----------------
+class EsqueciIn(BaseModel):
+    email: str = Field(min_length=3, max_length=200)
+    turnstile: str | None = Field(None, max_length=4096)
+    voltar_para: str = Field("", max_length=300)
+
+
+@publico.post("/auth/esqueci")
+def esqueci_senha(d: EsqueciIn, request: Request):
+    """Envia o link de nova senha (com Turnstile e limite por IP). Responde igual exista ou não a conta."""
+    import httpx
+    from urllib.parse import urlparse
+    from .. import firewall, turnstile
+    ip = firewall.ip_do_pedido(request)
+    turnstile.exigir(d.turnstile, ip, "/api/auth/esqueci")
+    if firewall.falhas_recentes(ip, ("esqueci_senha",), 60) >= 5:
+        raise HTTPException(429, "Muitos pedidos. Tente de novo em uma hora.")
+    firewall.registrar(ip, "esqueci_senha", "/api/auth/esqueci", "")
+    host = urlparse(d.voltar_para).hostname or ""
+    destino = d.voltar_para if host in ("app.zynio.com.br", "clima-casa-lac.vercel.app", "localhost", "127.0.0.1") else "https://app.zynio.com.br/redefinir-senha"
+    try:
+        httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/recover", params={"redirect_to": destino}, timeout=12,
+                   headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}, json={"email": d.email.strip()})
+    except httpx.HTTPError:
+        pass
+    return {"ok": True}
+
+
 class EntrarIn(BaseModel):
     email: str = Field(min_length=3, max_length=200)
     senha: str = Field(min_length=1, max_length=200)
+    turnstile: str | None = Field(None, max_length=4096)
 
 
 def _hash_email(email: str) -> str:
@@ -1438,6 +1469,8 @@ def entrar(d: EntrarIn, request: Request):
     pais = request.headers.get("x-vercel-ip-country", "")
     agente = request.headers.get("user-agent", "")
     marca = _hash_email(d.email)
+    from .. import turnstile
+    turnstile.exigir(d.turnstile, ip, "/api/auth/entrar")
     limite, janela = c["tentativas_login"], c["janela_min"]
     if firewall.falhas_recentes(ip, ("login_falhou",), janela, marca) >= limite:
         raise HTTPException(429, f"Muitas tentativas para este e-mail. Tente de novo em {janela} minutos.")
