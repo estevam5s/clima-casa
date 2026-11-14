@@ -108,7 +108,7 @@ export default function Integracoes() {
             <div className="flex items-center justify-between p-5 pb-3">
               <div>
                 <h2 className="titulo-secao">Dispositivos no Sinric Pro</h2>
-                <p className="text-xs text-muted-foreground">Vincule cada dispositivo de ar-condicionado a um aparelho do Clima Casa</p>
+                <p className="text-xs text-muted-foreground">Vincule cada dispositivo de ar-condicionado a um aparelho do Clima Escritório</p>
               </div>
               <Botao variante="secundario" tamanho="sm" icone={RefreshCw} carregando={carregandoDisp} onClick={buscar}>{disp ? 'Atualizar' : 'Carregar'}</Botao>
             </div>

@@ -160,8 +160,8 @@ export default function Agendamentos() {
   const dias = (d) => (d.length === 7 ? 'Todos os dias' : d.join() === '1,2,3,4,5' ? 'Dias úteis' : d.join() === '0,6' ? 'Fim de semana' : d.map((i) => DIAS[i]).join(', '))
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
-      <Cabecalho titulo="Agenda" descricao="Liga e desliga os aparelhos sozinho nos horários definidos. Precisa do Clima Casa rodando."
+    <div className="w-full">
+      <Cabecalho titulo="Agenda" descricao="Liga e desliga os aparelhos sozinho nos horários definidos. Precisa do Clima Escritório rodando."
         acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Novo agendamento</Botao>} />
       {lista.length > 0 && (() => {
         const prox = proxima(lista)

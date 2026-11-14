@@ -142,8 +142,8 @@ export default function Automacoes() {
     toast('Automação salva.'); recarregar()
   }
   return (
-    <div className="mx-auto w-full max-w-5xl">
-      <Cabecalho titulo="Automações" descricao="Regras que agem sozinhas: quando algo acontece (inclusive pela Alexa), o Clima Casa faz o resto."
+    <div className="w-full">
+      <Cabecalho titulo="Automações" descricao="Regras que agem sozinhas: quando algo acontece (inclusive pela Alexa), o Clima Escritório faz o resto."
         acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Nova automação</Botao>} />
 
       {timers.length > 0 && (
@@ -161,7 +161,7 @@ export default function Automacoes() {
       {autos.length === 0 ? (
         <>
           <Vazio icone={Workflow} titulo="Nenhuma automação" texto="Comece por um modelo pronto e ajuste do seu jeito." />
-          <div className="mt-4 grid justify-center gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),300px))]">
+          <div className="mt-4 grid justify-center gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))]">
             {MODELOS.map((m) => (
               <button key={m.nome} onClick={() => setModal({ modelo: m })} className="cartao p-4 text-left hover:border-primary">
                 <p className="font-medium">{m.nome}</p>

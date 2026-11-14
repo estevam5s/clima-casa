@@ -19,7 +19,7 @@ async function chamar(metodo, caminho, corpo) {
   try {
     r = await fetch(caminho, opcoes)
   } catch {
-    throw new ErroApi(0, 'Sem conexão com o servidor do Clima Casa.')
+    throw new ErroApi(0, 'Sem conexão com o servidor do Clima Escritório.')
   }
   const texto = await r.text()
   let dados = null

@@ -49,7 +49,7 @@ function Destaque({ aparelhos, aoMudar }) {
         </div>
         <div className="flex flex-col p-5">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <select value={ar.id} onChange={(e) => setId(Number(e.target.value))} aria-label="Escolher aparelho"
                 className="-ml-1 w-full truncate rounded-md bg-transparent px-1 text-base font-semibold hover:bg-muted">
                 {aparelhos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
@@ -126,7 +126,7 @@ export default function Painel() {
 
       <motion.div variants={entrar} initial="hidden" animate="show" custom={1}>
         <FaixaMetricas itens={[
-          { rotulo: 'Aparelhos ligados agora', valor: totais.ligados, sufixo: ` de ${totais.aparelhos}`, dica: totais.aparelhos ? `${Math.round((totais.ligados / totais.aparelhos) * 100)}% da casa em uso` : 'nenhum aparelho cadastrado' },
+          { rotulo: 'Aparelhos ligados agora', valor: totais.ligados, sufixo: ` de ${totais.aparelhos}`, dica: totais.aparelhos ? `${Math.round((totais.ligados / totais.aparelhos) * 100)}% do escritório em uso` : 'nenhum aparelho cadastrado' },
           { rotulo: 'Transmissores online', valor: totais.hubs_online, sufixo: ` / ${totais.hubs}`, dica: totais.hubs_online === totais.hubs ? 'todos respondendo' : 'algum transmissor fora da rede', tom: totais.hubs_online === totais.hubs ? 'bom' : 'ruim' },
           { rotulo: 'Comandos nas últimas 24 h', valor: totais.comandos_24h, dica: totais.falhas_24h ? `${totais.falhas_24h} com falha` : 'nenhuma falha', tom: totais.falhas_24h ? 'ruim' : '' },
           { rotulo: 'Agendamentos ativos', valor: totais.agendamentos, dica: `${dados.projetos} projeto${dados.projetos === 1 ? '' : 's'} no total` },

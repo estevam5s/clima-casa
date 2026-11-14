@@ -78,7 +78,7 @@ export default function Atividade() {
   const principal = Object.entries(porOrigem).sort((a, b) => b[1] - a[1])[0]
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       <Cabecalho titulo="Atividade" descricao="Cada comando enviado, quem pediu e se o ar recebeu."
         acoes={<>
           <label className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">

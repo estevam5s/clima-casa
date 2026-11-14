@@ -101,14 +101,14 @@ export default function Cenas() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       <Cabecalho titulo="Cenas" descricao="Um toque executa vários comandos: ligar o quarto em 23° e desligar a sala, por exemplo."
         acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Nova cena</Botao>} />
       {cenas.length === 0 ? (
         <Vazio icone={Sparkles} titulo="Nenhuma cena" texto={aparelhos.length ? 'Crie "Dormir", "Sair de casa" ou "Chegar do trabalho".' : 'Cadastre um aparelho primeiro.'}
           acao={aparelhos.length > 0 && <Botao icone={Plus} onClick={() => setModal({})}>Nova cena</Botao>} />
       ) : (
-        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),340px))]">
+        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
           {cenas.map((c, i) => {
             const I = ICONES[c.icone] || Sparkles
             return (

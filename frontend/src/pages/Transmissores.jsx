@@ -172,7 +172,7 @@ export default function Transmissores() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       <Cabecalho
         titulo="Transmissores"
         descricao="Aparelhos infravermelhos (SRW-004) que mandam os comandos para o ar-condicionado."
@@ -211,7 +211,7 @@ export default function Transmissores() {
         <Vazio icone={Radio} titulo="Nenhum transmissor"
           texto="Pareie o SRW-004 no app Smart Life (Wi-Fi 2.4 GHz), conecte a conta em Configurações e importe por aqui." />
       ) : (
-        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),340px))]">
+        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
           {hubs.map((h) => (
             <motion.div key={h.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="cartao p-4">
               <div className="flex items-start justify-between gap-3">

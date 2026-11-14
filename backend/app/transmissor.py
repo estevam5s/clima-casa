@@ -90,14 +90,25 @@ def descobrir_local(segundos=8) -> list[dict]:
             for ip, d in achados.items()]
 
 
+_falhas_seguidas: dict[str, int] = {}
+FALHAS_PARA_OFFLINE = 3  # o SRW-004 aceita poucas conexões: uma falha isolada não é "offline"
+
+
+def responde(ip: str) -> bool:
+    return porta_aberta(ip, timeout=2.5) or (time.sleep(0.4) is None and porta_aberta(ip, timeout=3))
+
+
 def atualizar_online():
     if PAPEL != "agente":
         return
-    for h in db.consultar("SELECT id, ip FROM hubs"):
-        if h["ip"] and porta_aberta(h["ip"]):
+    for h in db.consultar("SELECT id, ip, online FROM hubs"):
+        if h["ip"] and responde(h["ip"]):
+            _falhas_seguidas[h["id"]] = 0
             db.executar("UPDATE hubs SET online = 1, visto_em = ? WHERE id = ?", (db.agora(), h["id"]))
         else:
-            db.executar("UPDATE hubs SET online = 0 WHERE id = ?", (h["id"],))
+            _falhas_seguidas[h["id"]] = _falhas_seguidas.get(h["id"], 0) + 1
+            if _falhas_seguidas[h["id"]] >= FALHAS_PARA_OFFLINE and h["online"]:
+                db.executar("UPDATE hubs SET online = 0 WHERE id = ?", (h["id"],))
     try:
         autorreparar()
     except Exception:  # noqa: BLE001  (sem rede/sem nuvem: tenta no próximo ciclo)
@@ -384,7 +395,7 @@ def autorreparar(forcar: bool = False) -> list[dict]:
         _ultima_checagem_chave = agora
     resultados, varredura = [], None
     for h in db.consultar("SELECT * FROM hubs"):
-        precisa = forcar or not h["online"] or h["problema"] or checar_chave
+        precisa = forcar or (not h["online"] and _falhas_seguidas.get(h["id"], FALHAS_PARA_OFFLINE) >= FALHAS_PARA_OFFLINE) or h["problema"] or checar_chave
         if not precisa or (not forcar and agora - _ultimo_reparo.get(h["id"], 0) < INTERVALO_REPARO and h["online"]):
             continue
         if not forcar and not h["online"] and agora - _ultimo_reparo.get(h["id"], 0) < INTERVALO_REPARO:

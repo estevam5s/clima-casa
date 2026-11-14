@@ -1012,3 +1012,42 @@ def reparar_hubs():
         return f["resultado"] if isinstance(f["resultado"], dict) else json.loads(f["resultado"])
     except Exception as e:  # noqa: BLE001
         _erro(e)
+
+
+# ---------------- notificações (tudo o que pede atenção, de todas as telas) ----------------
+@api.get("/notificacoes")
+def notificacoes():
+    itens = []
+    agora = db.agora()
+    for a in db.consultar("SELECT al.id, al.mensagem, al.criado_em FROM alertas al WHERE NOT al.resolvido ORDER BY al.id DESC LIMIT 20"):
+        itens.append({"id": f"alerta-{a['id']}", "tipo": "alerta", "gravidade": "alta", "titulo": a["mensagem"],
+                      "detalhe": "Alerta das rotinas do Supabase", "link": "/supabase", "quando": int(a["criado_em"].timestamp()),
+                      "alerta_id": a["id"]})
+    falhas = db.consultar("SELECT t.aparelho_id, max(a.nome) AS nome, count(*) AS n, max(t.quando) AS ultimo, max(t.detalhe) AS detalhe "
+                          "FROM atividade t JOIN aparelhos a ON a.id = t.aparelho_id WHERE t.ok = 0 AND t.quando > ? "
+                          "GROUP BY t.aparelho_id ORDER BY ultimo DESC", (agora - 86400,))
+    for f in falhas:
+        itens.append({"id": f"falha-{f['aparelho_id']}", "tipo": "falha", "gravidade": "media",
+                      "titulo": f"{f['nome']}: {f['n']} comando(s) falharam nas últimas 24 h", "detalhe": f["detalhe"] or "",
+                      "link": f"/aparelhos/{f['aparelho_id']}", "quando": f["ultimo"]})
+    for h in db.consultar("SELECT id, nome, online, problema, visto_em FROM hubs WHERE online = 0 OR problema IS NOT NULL"):
+        itens.append({"id": f"hub-{h['id']}", "tipo": "transmissor", "gravidade": "alta",
+                      "titulo": f"Transmissor {h['nome']} {'com problema' if h['problema'] else 'offline'}",
+                      "detalhe": h["problema"] or "Sem resposta na rede. O agente tenta reconectar sozinho.",
+                      "link": "/transmissores", "quando": h["visto_em"] or agora})
+    if not transmissor.agente_online():
+        itens.append({"id": "agente", "tipo": "agente", "gravidade": "alta", "titulo": "Agente do Mac offline",
+                      "detalhe": "Sem ele os comandos, a Alexa, a agenda e as automações param.", "link": "/configuracoes#agente",
+                      "quando": db.cfg("agente_visto_em") or agora})
+    sinric_cfg, sinric_st = db.cfg("sinric") or {}, db.cfg("sinric_status") or {}
+    if sinric_cfg.get("ativo") and sinric_st.get("dispositivos") and not sinric_st.get("conectado"):
+        itens.append({"id": "sinric", "tipo": "alexa", "gravidade": "media", "titulo": "Alexa/Google desconectado (Sinric Pro)",
+                      "detalhe": sinric_st.get("erro") or "O agente reconecta sozinho em até 30 s.", "link": "/integracoes",
+                      "quando": sinric_st.get("atualizado_em") or agora})
+    for a in db.consultar("SELECT a.id, a.nome FROM aparelhos a WHERE NOT EXISTS (SELECT 1 FROM codigos c WHERE c.aparelho_id = a.id)"):
+        itens.append({"id": f"sem-botoes-{a['id']}", "tipo": "configuracao", "gravidade": "baixa",
+                      "titulo": f"{a['nome']} ainda não tem botões gravados", "detalhe": "Grave os botões do controle original para controlar o ar.",
+                      "link": f"/aparelhos/{a['id']}?aba=botoes", "quando": agora})
+    ordem = {"alta": 0, "media": 1, "baixa": 2}
+    itens.sort(key=lambda x: (ordem[x["gravidade"]], -(x["quando"] or 0)))
+    return {"total": len(itens), "itens": itens}

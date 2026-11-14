@@ -46,7 +46,7 @@ export default function Projetos() {
   const atualizar = () => { recarregar(); recarregarCtx() }
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       <Cabecalho titulo="Projetos" descricao="Cada projeto é um lugar (casa, escritório, loja) com os próprios transmissores, aparelhos e cenas."
         acoes={<Botao icone={Plus} onClick={() => setModal({})}>Novo projeto</Botao>} />
       {dados.length > 0 && (
@@ -60,7 +60,7 @@ export default function Projetos() {
         </div>
       )}
       {dados.length === 0 ? <Vazio icone={FolderKanban} titulo="Nenhum projeto" /> : (
-        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),340px))]">
+        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
           {dados.map((p, i) => (
             <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
               className="cartao group flex flex-col overflow-hidden">

@@ -129,7 +129,7 @@ export default function Configuracoes() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       <Cabecalho titulo="Configurações" descricao="Conta Smart Life, forma de envio, senha, backup e o agente que roda no Mac." />
       <div className="grid gap-8 lg:grid-cols-[200px_1fr]">
         <nav className="hidden lg:block"><div className="sticky top-24 space-y-0.5 text-sm">

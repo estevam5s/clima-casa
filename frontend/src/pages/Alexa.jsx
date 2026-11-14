@@ -24,12 +24,12 @@ function Copiar({ rotulo, valor, segredo }) {
 }
 
 const PASSOS = [
-  ['Deixe o Clima Casa acessível pela internet', 'A Amazon precisa alcançar este computador por HTTPS. Use um túnel (Cloudflare Tunnel ou túnel SSH para a sua VPS) e cole o endereço em "URL pública". O guia alexa/GUIA.md tem os comandos.'],
-  ['Crie a Skill no Alexa Developer Console', 'developer.amazon.com/alexa/console/ask → Create Skill → nome "Clima Casa", idioma Português (BR), modelo Smart Home. Copie o Skill ID.'],
+  ['Deixe o Clima Escritório acessível pela internet', 'A Amazon precisa alcançar este computador por HTTPS. Use um túnel (Cloudflare Tunnel ou túnel SSH para a sua VPS) e cole o endereço em "URL pública". O guia alexa/GUIA.md tem os comandos.'],
+  ['Crie a Skill no Alexa Developer Console', 'developer.amazon.com/alexa/console/ask → Create Skill → nome "Clima Escritório", idioma Português (BR), modelo Smart Home. Copie o Skill ID.'],
   ['Crie a função Lambda na AWS', 'Região us-east-1 (Virgínia). Runtime Node.js 20, cole o código de alexa/lambda/index.mjs e preencha as variáveis CLIMA_URL e CLIMA_CHAVE com os valores abaixo. Adicione o gatilho "Alexa Smart Home" com o Skill ID.'],
   ['Ligue a Skill à Lambda', 'Na Skill, em Smart Home → Default endpoint, cole o ARN da Lambda.'],
   ['Configure a vinculação de conta', 'Em Account Linking: Auth Code Grant, cole as URLs de autorização e de token, o Client ID e o Client Secret abaixo. Authentication scheme: HTTP Basic. Copie as "Alexa Redirect URLs" (não precisa colar aqui).'],
-  ['Ative no app Alexa', 'App Alexa → Mais → Skills → Suas Skills → Dev → Clima Casa → Ativar. Faça login com a senha deste painel e autorize. Depois: "Alexa, descobrir dispositivos".'],
+  ['Ative no app Alexa', 'App Alexa → Mais → Skills → Suas Skills → Dev → Clima Escritório → Ativar. Faça login com a senha deste painel e autorize. Depois: "Alexa, descobrir dispositivos".'],
 ]
 
 export default function Alexa() {
@@ -82,7 +82,7 @@ export default function Alexa() {
           <form onSubmit={salvar} className="cartao space-y-3 p-5">
             <h2 className="text-sm font-semibold">URL pública</h2>
             <input className="campo" placeholder="https://clima.seudominio.com.br" value={valorUrl} onChange={(e) => setUrl(e.target.value)} />
-            <p className="ajuda">Endereço HTTPS que leva até este Clima Casa. Sem ela a Alexa não consegue mandar comandos.</p>
+            <p className="ajuda">Endereço HTTPS que leva até este Clima Escritório. Sem ela a Alexa não consegue mandar comandos.</p>
             <div className="flex justify-end"><Botao type="submit" carregando={salvando} disabled={valorUrl === dados.url_publica}>Salvar</Botao></div>
           </form>
 

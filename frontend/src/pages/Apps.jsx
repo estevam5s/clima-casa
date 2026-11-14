@@ -16,19 +16,19 @@ export default function Apps() {
   }, [])
   const destaque = DOWNLOADS.find((d) => d.id === meu)
   return (
-    <div className="mx-auto w-full max-w-5xl">
-      <Cabecalho titulo="Baixar apps" descricao="O Clima Casa no celular e no computador, com o mesmo login e os mesmos aparelhos." />
+    <div className="w-full">
+      <Cabecalho titulo="Baixar apps" descricao="O Clima Escritório no celular e no computador, com o mesmo login e os mesmos aparelhos." />
       {destaque && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="cartao mb-6 flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center">
           <div className="flex-1">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Recomendado para este aparelho</p>
-            <p className="mt-1 text-xl font-semibold">Clima Casa para {destaque.nome}</p>
+            <p className="mt-1 text-xl font-semibold">Clima Escritório para {destaque.nome}</p>
             <p className="text-sm text-muted-foreground">{destaque.detalhe}</p>
           </div>
           <a href={destaque.url}><Botao icone={Download}>Baixar</Botao></a>
         </motion.div>
       )}
-      <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),310px))]">
+      <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))]">
         {DOWNLOADS.map((d, i) => {
           const I = ICONES[d.id]
           return (

@@ -1,5 +1,5 @@
-// Service worker do Clima Casa: guarda a interface para abrir sem rede. A API nunca vai para o cache.
-const VERSAO = 'clima-casa-v3'
+// Service worker do Clima Escritório: guarda a interface para abrir sem rede. A API nunca vai para o cache.
+const VERSAO = 'clima-escritorio-v4'
 const BASICO = ['/', '/manifest.webmanifest', '/icone-192.png', '/icone-512.png', '/icone.svg']
 
 self.addEventListener('install', (e) => {

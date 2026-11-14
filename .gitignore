@@ -27,3 +27,8 @@ ar-controle/docs/credentials/sistema-admin.md
 ar-controle/docs/credentials/portal.sinric.pro.md
 ar-controle/docs/credentials/outlook.md
 ar-controle/docs/credentials/github.txt
+# credenciais locais: NUNCA versionar
+docs/credentials/
+*.credentials.*
+.sec-scan/
+SECURITY-REPORT.*

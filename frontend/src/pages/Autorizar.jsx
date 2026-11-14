@@ -33,7 +33,7 @@ export default function Autorizar() {
             <h1 className="text-lg font-semibold">Vincular à Alexa</h1>
             <p className="mt-2 text-sm text-muted-foreground dark:text-muted-foreground/70">
               A Alexa poderá ver os aparelhos marcados como "Disponível na Alexa", ligar, desligar e mudar temperatura e modo.
-              Você pode revogar a qualquer momento na tela Alexa do Clima Casa.
+              Você pode revogar a qualquer momento na tela Alexa do Clima Escritório.
             </p>
             {erro && <div className="mt-4"><Aviso>{erro}</Aviso></div>}
             <div className="mt-6 flex gap-2">

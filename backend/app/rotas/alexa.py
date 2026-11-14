@@ -121,9 +121,25 @@ def _oauth_erro(codigo, status=400):
     return JSONResponse({"error": codigo}, status_code=status, headers={"Cache-Control": "no-store"})
 
 
+_tentativas_token: dict[str, list[float]] = {}
+
+
+def _limite_token(ip: str):
+    """Até 20 trocas de token por minuto por IP (a Alexa usa poucas; barra força bruta no client_secret)."""
+    import time as _t
+    agora = _t.time()
+    lista = [x for x in _tentativas_token.get(ip, []) if x > agora - 60]
+    lista.append(agora)
+    _tentativas_token[ip] = lista
+    return len(lista) <= 20
+
+
 @roteador.post("/oauth/token")
 def token(request: Request, grant_type: str = Form(...), code: str = Form(None), refresh_token: str = Form(None),
           redirect_uri: str = Form(None), client_id: str = Form(None), client_secret: str = Form(None)):
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")).split(",")[0].strip()
+    if not _limite_token(ip):
+        return _oauth_erro("slow_down", 429)
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("basic "):
         try:

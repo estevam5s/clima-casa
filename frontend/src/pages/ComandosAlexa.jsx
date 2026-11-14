@@ -22,7 +22,7 @@ export default function ComandosAlexa() {
   const filtra = (f) => f.toLowerCase().includes(q.toLowerCase())
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       <Cabecalho titulo="Comandos de voz" descricao={`${dados.total} comandos prontos para os seus aparelhos, mais as Rotinas da Alexa, que aceitam qualquer frase que você inventar.`} />
       <div className="relative mb-6 max-w-sm">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -78,7 +78,7 @@ export default function ComandosAlexa() {
           </div>
           <div className="cartao p-5 text-sm text-muted-foreground">
             <p className="titulo-secao mb-2 text-foreground">Rotinas com gatilho</p>
-            Além da voz, a Rotina pode começar por horário, nascer/pôr do sol, chegar ou sair de casa (localização do celular) ou um alarme. Combine com as <a href="/automacoes" className="text-primary underline">automações</a> do Clima Casa, como "desligar 3 h depois".
+            Além da voz, a Rotina pode começar por horário, nascer/pôr do sol, chegar ou sair de casa (localização do celular) ou um alarme. Combine com as <a href="/automacoes" className="text-primary underline">automações</a> do Clima Escritório, como "desligar 3 h depois".
           </div>
         </aside>
       </div>

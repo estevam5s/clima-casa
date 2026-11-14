@@ -1,6 +1,6 @@
 {
-  "name": "Clima Casa",
-  "short_name": "Clima Casa",
+  "name": "Clima Escritório",
+  "short_name": "Clima Escritório",
   "description": "Controle dos ar-condicionados por infravermelho, com Alexa e Google Home.",
   "id": "/",
   "start_url": "/",

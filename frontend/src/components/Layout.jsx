@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -8,6 +8,7 @@ import {
 import { api, haQuanto } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
+import { atualizarAba } from '../favicon'
 
 export const GRUPOS = [
   { titulo: 'Visão geral', itens: [
@@ -47,7 +48,7 @@ function Marca({ aberta }) {
         <path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
       </svg>
       <motion.span animate={{ opacity: aberta ? 1 : 0, x: aberta ? 0 : -6 }} transition={{ duration: 0.15 }}
-        className="whitespace-pre text-[15px] font-semibold tracking-tight">Clima Casa</motion.span>
+        className="whitespace-pre text-[15px] font-semibold tracking-tight">Clima Escritório</motion.span>
     </Link>
   )
 }
@@ -207,33 +208,62 @@ function Paleta({ aberta, fechar }) {
   )
 }
 
+const COR_GRAVIDADE = { alta: 'bg-red-500', media: 'bg-amber-500', baixa: 'bg-muted-foreground/50' }
+
 function Notificacoes() {
   const [aberto, setAberto] = useState(false)
-  const [alertas, setAlertas] = useState([])
-  const carregar = () => api.get('/api/alertas').then(setAlertas).catch(() => {})
-  useEffect(() => { carregar(); const t = setInterval(carregar, 60000); return () => clearInterval(t) }, [])
+  const [dados, setDados] = useState({ total: 0, itens: [] })
+  const navegar = useNavigate()
+  const local = useLocation()
+  const ref = useRef(null)
+  const carregar = useCallback(() => api.get('/api/notificacoes').then((d) => { setDados(d); atualizarAba(d.total) }).catch(() => {}), [])
+  useEffect(() => { carregar(); const t = setInterval(carregar, 30000); return () => clearInterval(t) }, [carregar])
+  useEffect(() => { carregar() }, [local.pathname, carregar]) // atualiza ao trocar de tela
+  useEffect(() => {
+    if (!aberto) return
+    const fora = (e) => { if (!ref.current?.contains(e.target)) setAberto(false) }
+    document.addEventListener('mousedown', fora)
+    return () => document.removeEventListener('mousedown', fora)
+  }, [aberto])
+  const total = dados.total
   return (
-    <div className="relative">
-      <button onClick={() => setAberto(!aberto)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Alertas">
+    <div className="relative" ref={ref}>
+      <button onClick={() => setAberto(!aberto)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Notificações (${total})`}>
         <Bell className="h-[18px] w-[18px]" />
-        {alertas.length > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-background" />}
+        <AnimatePresence>
+          {total > 0 && (
+            <motion.span key={total} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+              className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white ring-2 ring-background tabular">
+              {total > 99 ? '99+' : total}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </button>
       <AnimatePresence>
         {aberto && (
-          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            className="absolute right-0 top-11 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-1.5 shadow-xl">
-            <p className="px-2.5 py-2 text-xs font-medium text-muted-foreground">Alertas abertos</p>
-            {alertas.length === 0 && <p className="px-2.5 pb-4 pt-2 text-sm text-muted-foreground">Nenhum alerta aberto.</p>}
-            {alertas.slice(0, 6).map((a) => (
-              <div key={a.id} className="flex gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-muted">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                <div className="min-w-0 flex-1">
-                  <p className="leading-snug">{a.mensagem}</p>
-                  <p className="text-xs text-muted-foreground">{haQuanto(a.criado_em)}</p>
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.14 }}
+            className="absolute right-0 top-11 z-50 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-card shadow-xl"> {/* marca: menu flutua */}
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <p className="text-sm font-semibold">Notificações</p>
+              <span className="text-xs text-muted-foreground">{total ? `${total} pedindo atenção` : 'tudo em ordem'}</span>
+            </div>
+            <div className="max-h-[420px] overflow-y-auto p-1.5">
+              {total === 0 && <p className="px-3 py-8 text-center text-sm text-muted-foreground">Nenhuma pendência. Transmissores, agente e Alexa funcionando.</p>}
+              {dados.itens.map((n) => (
+                <div key={n.id} className="group flex gap-3 rounded-lg px-3 py-2.5 hover:bg-muted">
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${COR_GRAVIDADE[n.gravidade]}`} />
+                  <button className="min-w-0 flex-1 text-left" onClick={() => { setAberto(false); navegar(n.link) }}>
+                    <p className="text-sm leading-snug">{n.titulo}</p>
+                    {n.detalhe && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.detalhe}</p>}
+                    <p className="mt-0.5 text-[11px] text-muted-foreground/80">{haQuanto(n.quando)}</p>
+                  </button>
+                  {n.alerta_id && (
+                    <button className="self-start text-xs text-primary opacity-0 transition-opacity hover:underline group-hover:opacity-100"
+                      onClick={async () => { await api.post(`/api/alertas/${n.alerta_id}/resolver`); carregar() }}>Resolver</button>
+                  )}
                 </div>
-                <button className="self-start text-xs text-primary hover:underline" onClick={async () => { await api.post(`/api/alertas/${a.id}/resolver`); carregar() }}>Resolver</button>
-              </div>
-            ))}
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -279,7 +309,7 @@ export default function Layout() {
       <motion.aside
         className="fixed inset-y-0 left-0 z-40 hidden border-r border-border bg-sidebar md:block"
         initial={false}
-        animate={{ width: aberta ? ABERTA : FECHADA, boxShadow: hover && !fixada ? '12px 0 32px -16px rgb(0 0 0 / 0.25)' : '0 0 0 0 rgb(0 0 0 / 0)' }}
+        animate={{ width: aberta ? ABERTA : FECHADA }}
         transition={MOLA}
         onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       >
@@ -300,7 +330,7 @@ export default function Layout() {
         )}
       </AnimatePresence>
 
-      <motion.div className="min-w-0" initial={false} animate={{ paddingLeft: desktop ? (fixada ? ABERTA : FECHADA) : 0 }} transition={MOLA}>
+      <motion.div className="min-w-0" initial={false} animate={{ paddingLeft: desktop ? (aberta ? ABERTA : FECHADA) : 0 }} transition={MOLA}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
           <button onClick={() => setMovel(true)} className="-ml-1 rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
           <p className="truncate text-[15px] font-semibold">{atual.rotulo}</p>
@@ -316,7 +346,7 @@ export default function Layout() {
             <Notificacoes />
           </div>
         </header>
-        <main className="mx-auto max-w-[1400px] px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        <main className="w-full px-4 pb-16 pt-6 sm:px-6 lg:px-8 2xl:px-10">
           <motion.div key={local.pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <Outlet />
           </motion.div>

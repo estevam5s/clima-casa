@@ -9,3 +9,4 @@ __pycache__
 *.log
 apps
 docs
+docs/credentials
