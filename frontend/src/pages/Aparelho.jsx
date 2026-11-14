@@ -132,6 +132,36 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
   )
 }
 
+// ---------- temporizador ----------
+function Temporizador({ ar }) {
+  const [ativo, setAtivo] = useState(null)
+  const toast = useToast()
+  const carregar = () => api.get('/api/temporizadores').then((l) => setAtivo(l.find((t) => t.aparelho_id === ar.id) || null)).catch(() => {})
+  useEffect(() => { carregar() }, [ar.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const criar = async (min) => {
+    try { await api.post(`/api/aparelhos/${ar.id}/temporizador`, { minutos: min, ligado: false }); toast(`Desliga em ${min >= 60 ? `${min / 60} h` : `${min} min`}.`); carregar() }
+    catch (e) { toast(e.message, 'erro') }
+  }
+  return (
+    <div className="cartao p-4">
+      <h2 className="mb-1 text-sm font-semibold">Desligar automaticamente</h2>
+      {ativo ? (
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span>Desliga às {new Date(ativo.executar_em * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+          <button className="text-xs text-muted-foreground hover:text-foreground" onClick={async () => { await api.del(`/api/aparelhos/${ar.id}/temporizador`); carregar() }}>Cancelar</button>
+        </div>
+      ) : (
+        <>
+          <p className="mb-3 text-xs text-muted-foreground">Funciona mesmo se você ligou pela Alexa.</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {[30, 60, 120, 240].map((m) => <Botao key={m} variante="secundario" tamanho="sm" onClick={() => criar(m)}>{m >= 60 ? `${m / 60} h` : `${m} min`}</Botao>)}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ---------- página ----------
 export default function Aparelho() {
   const { id } = useParams()
@@ -258,6 +288,7 @@ export default function Aparelho() {
           </div>
 
           <div className="space-y-4">
+            <Temporizador ar={ar} />
             <div className="cartao p-4">
               <h2 className="mb-3 text-sm font-semibold">Outros botões</h2>
               {extras.length === 0 ? (

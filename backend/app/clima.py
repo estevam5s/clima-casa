@@ -116,6 +116,9 @@ def aplicar(aparelho_id: int, origem: str, ligado=None, modo=None, temperatura=N
          aparelho_id),
     )
     db.registrar(origem, descricao, aparelho_id=aparelho_id, detalhe=f"via {via}")
+    if bool(a["ligado"]) != bool(novo["ligado"]):  # mudou de desligado↔ligado: avalia automações
+        from . import automacao
+        automacao.evento(aparelho_id, origem, bool(novo["ligado"]))
     return {**aparelho(aparelho_id), "via": via}
 
 

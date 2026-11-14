@@ -101,14 +101,14 @@ export default function Cenas() {
   }
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <Cabecalho titulo="Cenas" descricao="Um toque executa vários comandos: ligar o quarto em 23° e desligar a sala, por exemplo."
         acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Nova cena</Botao>} />
       {cenas.length === 0 ? (
         <Vazio icone={Sparkles} titulo="Nenhuma cena" texto={aparelhos.length ? 'Crie "Dormir", "Sair de casa" ou "Chegar do trabalho".' : 'Cadastre um aparelho primeiro.'}
           acao={aparelhos.length > 0 && <Botao icone={Plus} onClick={() => setModal({})}>Nova cena</Botao>} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),340px))]">
           {cenas.map((c, i) => {
             const I = ICONES[c.icone] || Sparkles
             return (
@@ -142,6 +142,6 @@ export default function Cenas() {
         {modal && <Form inicial={modal.id ? modal : null} aparelhos={aparelhos} projetos={projetos} projetoPadrao={projeto?.id} onFechar={() => setModal(null)}
           aoSalvar={async (f) => { if (modal.id) await api.put(`/api/cenas/${modal.id}`, f); else await api.post('/api/cenas', f); toast('Cena salva.'); recarregar() }} />}
       </Modal>
-    </>
+    </div>
   )
 }

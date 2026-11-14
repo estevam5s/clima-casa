@@ -88,6 +88,15 @@ def _descoberta():
                                 "retrievable": True}},
             ],
         })
+    for c in db.consultar("SELECT id, nome FROM cenas ORDER BY nome"):  # cada cena vira "Alexa, ativar <nome>"
+        endpoints.append({
+            "endpointId": f"cena-{c['id']}", "manufacturerName": "Clima Casa", "friendlyName": c["nome"],
+            "description": "Cena do Clima Casa", "displayCategories": ["SCENE_TRIGGER"], "cookie": {},
+            "capabilities": [
+                {"type": "AlexaInterface", "interface": "Alexa", "version": "3"},
+                {"type": "AlexaInterface", "interface": "Alexa.SceneController", "version": "3", "supportsDeactivation": False},
+            ],
+        })
     return {"event": {"header": _header("Alexa.Discovery", "Discover.Response"), "payload": {"endpoints": endpoints}}}
 
 
@@ -121,6 +130,24 @@ def tratar(evento: dict) -> dict:
         resp = _descoberta()
         db.registrar("alexa", f"Descoberta: {len(resp['event']['payload']['endpoints'])} aparelho(s)")
         return resp
+
+    if ns == "Alexa.SceneController" and nome == "Activate":
+        cena_id = int(diretiva["endpoint"]["endpointId"].removeprefix("cena-"))
+        cena = db.um("SELECT * FROM cenas WHERE id = ?", (cena_id,))
+        if not cena:
+            return _erro(diretiva, "NO_SUCH_ENDPOINT", "Cena não existe mais.")
+        for a in cena["acoes"]:
+            try:
+                clima.aplicar(a["aparelho_id"], f"cena:{cena['nome']}", ligado=a["ligado"], modo=a.get("modo"),
+                              temperatura=a.get("temperatura"), ventilador=a.get("ventilador"))
+            except Exception:  # noqa: BLE001  (falha fica na atividade; a cena segue)
+                pass
+        db.executar("UPDATE cenas SET executada_em = ? WHERE id = ?", (db.agora(), cena_id))
+        db.registrar("alexa", f"Cena ativada por voz: {cena['nome']}")
+        return {"event": {"header": _header("Alexa.SceneController", "ActivationStarted", h.get("correlationToken")),
+                          "endpoint": {"endpointId": diretiva["endpoint"]["endpointId"]},
+                          "payload": {"cause": {"type": "VOICE_INTERACTION"}, "timestamp": _iso()}},
+                "context": {}}
 
     try:
         aparelho_id = _aparelho_id(diretiva["endpoint"]["endpointId"])

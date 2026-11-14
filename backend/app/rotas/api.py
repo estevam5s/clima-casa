@@ -833,3 +833,166 @@ def criar_no_sinric(aid: int):
 def sinric_conectar_alexa():
     from .. import sinric
     return sinric.conectar_alexa()
+
+
+# ---------------- automações e temporizadores ----------------
+class GatilhoIn(BaseModel):
+    tipo: str = Field(pattern="^(ligou|desligou|ligado_ha|horario)$")
+    aparelho_id: int | None = None
+    origem: str = Field("qualquer", pattern="^(qualquer|alexa|sinric|painel|agenda|cena)$")
+    minutos: int | None = Field(None, ge=1, le=1440)
+    hora: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+class CondicoesIn(BaseModel):
+    dias: list[int] = []
+    das: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    ate: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+class AcaoAutoIn(BaseModel):
+    tipo: str = Field(pattern="^(aparelho|cena|desligar_apos)$")
+    aparelho_id: int | None = None
+    cena_id: int | None = None
+    ligado: bool | None = None
+    modo: str | None = None
+    temperatura: int | None = None
+    ventilador: str | None = None
+    minutos: int | None = Field(None, ge=1, le=1440)
+
+
+class AutomacaoIn(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+    ativo: bool = True
+    gatilho: GatilhoIn
+    condicoes: CondicoesIn = CondicoesIn()
+    acoes: list[AcaoAutoIn] = Field(min_length=1, max_length=20)
+
+
+def _validar_auto(d: AutomacaoIn):
+    g = d.gatilho
+    if g.tipo == "horario" and not g.hora:
+        raise HTTPException(400, "Informe o horário do gatilho.")
+    if g.tipo == "ligado_ha" and not g.minutos:
+        raise HTTPException(400, "Informe há quantos minutos o aparelho precisa estar ligado.")
+    for a in d.acoes:
+        if a.tipo == "cena" and not a.cena_id:
+            raise HTTPException(400, "Escolha a cena da ação.")
+        if a.tipo == "aparelho" and not a.aparelho_id and g.tipo == "horario":
+            raise HTTPException(400, "Escolha o aparelho da ação.")
+    return (json.dumps(g.model_dump(exclude_none=True)), json.dumps(d.condicoes.model_dump(exclude_none=True)),
+            json.dumps([a.model_dump(exclude_none=True) for a in d.acoes]))
+
+
+@api.get("/automacoes")
+def listar_automacoes():
+    return db.consultar("SELECT * FROM automacoes ORDER BY nome")
+
+
+@api.post("/automacoes")
+def criar_automacao(d: AutomacaoIn):
+    g, c, a = _validar_auto(d)
+    novo = db.executar("INSERT INTO automacoes (nome, ativo, gatilho, condicoes, acoes, criado_em) "
+                       "VALUES (?, ?, CAST(? AS jsonb), CAST(? AS jsonb), CAST(? AS jsonb), ?)",
+                       (d.nome.strip(), int(d.ativo), g, c, a, db.agora()))
+    db.registrar("painel", f"Automação criada: {d.nome}")
+    return {"id": novo}
+
+
+@api.put("/automacoes/{aid}")
+def editar_automacao(aid: int, d: AutomacaoIn):
+    g, c, a = _validar_auto(d)
+    db.executar("UPDATE automacoes SET nome=?, ativo=?, gatilho=CAST(? AS jsonb), condicoes=CAST(? AS jsonb), acoes=CAST(? AS jsonb) WHERE id=?",
+                (d.nome.strip(), int(d.ativo), g, c, a, aid))
+    return {"ok": True}
+
+
+@api.delete("/automacoes/{aid}")
+def apagar_automacao(aid: int):
+    db.executar("DELETE FROM automacoes WHERE id = ?", (aid,))
+    return {"ok": True}
+
+
+@api.post("/automacoes/{aid}/executar")
+def executar_automacao(aid: int):
+    from .. import automacao
+    auto = db.um("SELECT * FROM automacoes WHERE id = ?", (aid,))
+    if not auto:
+        raise HTTPException(404, "Automação não encontrada.")
+    automacao.executar_acoes(auto, auto["gatilho"].get("aparelho_id"))
+    return {"ok": True}
+
+
+class TemporizadorIn(BaseModel):
+    minutos: int = Field(ge=1, le=1440)
+    ligado: bool = False
+    temperatura: int | None = None
+
+
+@api.post("/aparelhos/{aid}/temporizador")
+def criar_temporizador(aid: int, d: TemporizadorIn):
+    from .. import automacao
+    acao = {"ligado": d.ligado} | ({"temperatura": d.temperatura} if d.temperatura else {})
+    return {"id": automacao.criar_temporizador(aid, d.minutos, acao, "painel")}
+
+
+@api.get("/temporizadores")
+def listar_temporizadores():
+    return db.consultar("SELECT t.*, a.nome AS aparelho_nome FROM temporizadores t JOIN aparelhos a ON a.id = t.aparelho_id ORDER BY t.executar_em")
+
+
+@api.delete("/aparelhos/{aid}/temporizador")
+def cancelar_temporizador(aid: int):
+    db.executar("DELETE FROM temporizadores WHERE aparelho_id = ?", (aid,))
+    db.registrar("painel", "Temporizador cancelado", aparelho_id=aid)
+    return {"ok": True}
+
+
+# ---------------- comandos de voz da Alexa (gerados para cada aparelho) ----------------
+@api.get("/alexa/comandos")
+def comandos_alexa():
+    aparelhos = db.consultar("SELECT a.*, pr.nome AS projeto_nome FROM aparelhos a LEFT JOIN projetos pr ON pr.id = a.projeto_id "
+                             "WHERE a.alexa = 1 ORDER BY a.nome")
+    cenas = db.consultar("SELECT id, nome FROM cenas ORDER BY nome")
+    saida = []
+    for a in aparelhos:
+        n = a["nome"]
+        modos = [m for m in a["modos"].split(",") if m in ("frio", "quente", "auto")]
+        grupos = [
+            ("Ligar e desligar", [f"Alexa, ligar {n}", f"Alexa, desligar {n}", f"Alexa, {n} está ligado?"]),
+            ("Temperatura", [f"Alexa, colocar {n} em {t} graus" for t in range(a["temp_min"], a["temp_max"] + 1)]
+             + [f"Alexa, aumentar a temperatura do {n}", f"Alexa, diminuir a temperatura do {n}",
+                f"Alexa, aumentar {n} em 2 graus", f"Alexa, qual a temperatura do {n}?"]),
+            ("Modo", [f"Alexa, colocar {n} no modo {dict(frio='frio', quente='aquecimento', auto='automático')[m]}" for m in modos]),
+            ("Ventilação", [f"Alexa, colocar a velocidade do {n} em {v}" for v in (1, 2, 3)]
+             + [f"Alexa, aumentar a ventilação do {n}", f"Alexa, diminuir a ventilação do {n}"]),
+        ]
+        saida.append({"id": a["id"], "nome": n, "projeto": a["projeto_nome"], "no_sinric": bool(a["sinric_device_id"]),
+                      "grupos": [{"titulo": t, "frases": f} for t, f in grupos],
+                      "total": sum(len(f) for _, f in grupos)})
+    rotinas = [
+        {"frase": "Alexa, boa noite", "faz": "Ar do quarto em 24°, ventilação baixa, e desliga 3 h depois (automação)"},
+        {"frase": "Alexa, cheguei", "faz": "Liga os ares da casa em 23° no modo frio"},
+        {"frase": "Alexa, estou saindo", "faz": "Desliga todos os ares"},
+        {"frase": "Alexa, está calor", "faz": "Liga o ar do cômodo em 21°, ventilação alta"},
+        {"frase": "Alexa, hora de trabalhar", "faz": "Ar do escritório em 23° de segunda a sexta"},
+    ]
+    return {"aparelhos": saida, "cenas": cenas, "rotinas": rotinas,
+            "total": sum(a["total"] for a in saida)}
+
+
+@api.post("/hubs/importar-todos")
+def importar_todos_hubs():
+    """Importa de uma vez todos os transmissores infravermelhos da conta Smart Life."""
+    try:
+        lista = [d for d in tuya_nuvem.listar_aparelhos() if d["transmissor_ir"]]
+    except Exception as e:  # noqa: BLE001
+        _erro(e)
+    resultado = []
+    for d in lista:
+        try:
+            importar_hub(d["id"])
+            resultado.append({"id": d["id"], "nome": d["nome"], "ok": True})
+        except Exception as e:  # noqa: BLE001
+            resultado.append({"id": d["id"], "nome": d["nome"], "ok": False, "erro": str(getattr(e, "detail", e))})
+    return {"importados": resultado}

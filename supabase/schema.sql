@@ -174,3 +174,31 @@ insert into public.projetos (nome, descricao, criado_em)
   where not exists (select 1 from public.projetos);
 update public.hubs set projeto_id = (select min(id) from public.projetos) where projeto_id is null;
 update public.aparelhos set projeto_id = (select min(id) from public.projetos) where projeto_id is null;
+
+-- v4: automações (gatilho → condições → ações) e temporizadores
+create table if not exists public.automacoes (
+  id bigint generated always as identity primary key,
+  nome text not null,
+  ativo integer not null default 1,
+  gatilho jsonb not null,
+  condicoes jsonb not null default '{}',
+  acoes jsonb not null default '[]',
+  disparos integer not null default 0,
+  ultimo_disparo bigint,
+  criado_em bigint not null
+);
+create table if not exists public.temporizadores (
+  id bigint generated always as identity primary key,
+  aparelho_id bigint not null references public.aparelhos(id) on delete cascade,
+  acao jsonb not null,
+  executar_em bigint not null,
+  origem text not null default 'painel',
+  criado_em bigint not null
+);
+create index if not exists ix_temporizadores_quando on public.temporizadores (executar_em);
+alter table public.automacoes enable row level security;
+alter table public.temporizadores enable row level security;
+drop policy if exists admin_le on public.automacoes;
+create policy admin_le on public.automacoes for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+drop policy if exists admin_le on public.temporizadores;
+create policy admin_le on public.temporizadores for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');

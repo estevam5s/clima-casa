@@ -4,6 +4,7 @@ import { useClima } from '@/lib/contexto';
 import { Cartao, Linha, Tela, Texto } from '@/ui/base';
 
 const ITENS: [string, string, string][] = [
+  ['Automações', 'Regras que agem sozinhas, inclusive pela Alexa', '/mais/automacoes'],
   ['Agenda', 'Horários automáticos', '/mais/agenda'],
   ['Atividade', 'Histórico de todos os comandos', '/mais/atividade'],
   ['Alertas', 'Avisos das rotinas do Supabase', '/mais/alertas'],

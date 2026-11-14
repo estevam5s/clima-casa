@@ -110,9 +110,9 @@ export default function Configuracoes() {
   }
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <Cabecalho titulo="Configurações" />
-      <div className="max-w-3xl space-y-6">
+      <div className="space-y-6">
         <section className="cartao p-5">
           <h2 className="text-sm font-semibold">Conta Smart Life</h2>
           <p className="mb-4 mt-1 text-sm text-muted-foreground">Traz a Local Key dos transmissores e permite enviar comandos pela nuvem quando você está fora de casa.</p>
@@ -150,6 +150,6 @@ export default function Configuracoes() {
           <Botao variante="secundario" icone={Download} onClick={baixarBackup}>Baixar backup</Botao>
         </section>
       </div>
-    </>
+    </div>
   )
 }

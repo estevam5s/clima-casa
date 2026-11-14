@@ -160,14 +160,22 @@ export default function Transmissores() {
   }
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <Cabecalho
         titulo="Transmissores"
         descricao="Aparelhos infravermelhos (SRW-004) que mandam os comandos para o ar-condicionado."
         acoes={<>
           <Botao variante="secundario" icone={RefreshCw} carregando={verificando} onClick={verificar}>Verificar</Botao>
           <Botao variante="secundario" icone={Search} onClick={() => setModal({ tipo: 'procurar' })}>Procurar na rede</Botao>
-          <Botao icone={CloudDownload} onClick={() => setModal({ tipo: 'importar' })}>Importar da conta</Botao>
+          <Botao variante="secundario" icone={CloudDownload} onClick={() => setModal({ tipo: 'importar' })}>Importar um</Botao>
+          <Botao icone={CloudDownload} onClick={async () => {
+            try {
+              const r = await api.post('/api/hubs/importar-todos')
+              const ok = r.importados.filter((x) => x.ok).length
+              toast(r.importados.length ? `${ok} de ${r.importados.length} transmissores importados.` : 'Nenhum transmissor IR na conta Smart Life.', ok === r.importados.length ? 'ok' : 'erro')
+              recarregar()
+            } catch (e) { toast(e.message, 'erro') }
+          }}>Importar todos</Botao>
         </>}
       />
 
@@ -175,7 +183,7 @@ export default function Transmissores() {
         <Vazio icone={Radio} titulo="Nenhum transmissor"
           texto="Pareie o SRW-004 no app Smart Life (Wi-Fi 2.4 GHz), conecte a conta em Configurações e importe por aqui." />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),340px))]">
           {hubs.map((h) => (
             <div key={h.id} className="cartao p-4">
               <div className="flex items-start justify-between gap-3">
@@ -219,6 +227,6 @@ export default function Transmissores() {
           <Botao variante="perigo" onClick={() => remover(modal.hub)}>Remover</Botao>
         </div>
       </Modal>
-    </>
+    </div>
   )
 }

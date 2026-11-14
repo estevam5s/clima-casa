@@ -136,6 +136,10 @@ def processar_fila_uma_vez() -> bool:
                 db.executar("UPDATE hubs SET control_type = ? WHERE id = ?", (tipo, h["id"]))
             _salvar_codigo(dados["aparelho_id"], dados["chave"], dados.get("rotulo", ""), codigo)
             resultado = {"tipo": tipo}
+        elif item["tipo"] == "evento":
+            from . import automacao
+            automacao.processar_evento(dados["aparelho_id"], dados["origem"], dados["ligado"])
+            resultado = {"ok": True}
         elif item["tipo"] == "descobrir":
             resultado = {"aparelhos": descobrir_local(dados.get("segundos", 6))}
     except Exception as e:  # noqa: BLE001

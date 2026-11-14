@@ -4,7 +4,7 @@ import datetime
 import json
 import logging
 
-from . import clima, db, transmissor
+from . import automacao, clima, db, transmissor
 
 log = logging.getLogger("clima.agenda")
 
@@ -30,6 +30,7 @@ async def laco():
     while True:
         try:
             await asyncio.to_thread(_rodar_pendentes, datetime.datetime.now())
+            await asyncio.to_thread(automacao.ciclo)
             if ciclo % 3 == 0:  # status online dos transmissores a cada ~1 min
                 await asyncio.to_thread(transmissor.atualizar_online)
         except Exception as e:  # noqa: BLE001

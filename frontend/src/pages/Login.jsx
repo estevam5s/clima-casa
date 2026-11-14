@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { supabase } from '../supabase'
+import { DOWNLOADS, sistemaAtual } from '../apps'
 import { Aviso, Botao, Carregando } from '../components/ui'
 
 const ERROS = {
@@ -80,6 +81,14 @@ export default function Login() {
           {erro && <Aviso>{erro}</Aviso>}
           <Botao type="submit" carregando={enviando} className="w-full">Entrar</Botao>
         </form>
+        <div className="mt-8 border-t border-border pt-6">
+          <p className="text-sm font-medium">Baixe o app</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {DOWNLOADS.filter((d) => ['android', 'mac-arm', 'windows', 'linux'].includes(d.id)).map((d) => (
+              <a key={d.id} href={d.url} className={`rounded-lg border px-3 py-2 text-center text-xs hover:bg-muted ${sistemaAtual() === d.id ? 'border-primary text-foreground' : 'border-border text-muted-foreground'}`}>{d.nome}</a>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

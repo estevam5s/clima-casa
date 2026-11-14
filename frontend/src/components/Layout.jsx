@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity, AirVent, BarChart3, Bell, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  LogOut, Menu, Mic, Pin, PinOff, Plug, Radio, Search, Settings, Sparkles, X,
+  Download, LogOut, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, Sparkles, Workflow, X,
 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { supabase } from '../supabase'
@@ -18,17 +18,20 @@ export const GRUPOS = [
   { titulo: 'Controle', itens: [
     { para: '/aparelhos', rotulo: 'Aparelhos', icone: AirVent },
     { para: '/cenas', rotulo: 'Cenas', icone: Sparkles },
+    { para: '/automacoes', rotulo: 'Automações', icone: Workflow },
     { para: '/agendamentos', rotulo: 'Agenda', icone: CalendarClock },
     { para: '/transmissores', rotulo: 'Transmissores IR', icone: Radio },
   ] },
   { titulo: 'Integrações', itens: [
     { para: '/integracoes', rotulo: 'Alexa e Google', icone: Plug },
+    { para: '/comandos-alexa', rotulo: 'Comandos de voz', icone: MessageSquareQuote },
     { para: '/alexa', rotulo: 'Skill própria', icone: Mic },
     { para: '/supabase', rotulo: 'Supabase', icone: Database },
   ] },
   { titulo: 'Sistema', itens: [
     { para: '/atividade', rotulo: 'Atividade', icone: Activity },
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
+    { para: '/apps', rotulo: 'Baixar apps', icone: Download },
   ] },
 ]
 const TODAS = GRUPOS.flatMap((g) => g.itens)
@@ -307,6 +310,9 @@ export default function Layout() {
               <kbd className="rounded border border-border px-1.5 text-[10px]">⌘K</kbd>
             </button>
             <button onClick={() => setPaleta(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted sm:hidden" aria-label="Buscar"><Search className="h-[18px] w-[18px]" /></button>
+            <Link to="/apps" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground lg:flex" title="Baixar os apps">
+              <Download className="h-4 w-4" /> Apps
+            </Link>
             <Notificacoes />
           </div>
         </header>

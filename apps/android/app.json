@@ -18,8 +18,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.estevam5s.climacasa",
-      "versionCode": 1
+      "package": "com.estevam5s.climacasa"
     },
     "web": {
       "output": "single",

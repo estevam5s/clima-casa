@@ -88,6 +88,15 @@ export default function Aparelho() {
             {Object.entries(VENTILACAO).map(([k, r]) => <Chip key={k} rotulo={r} ativo={!!ar.ligado && ar.ventilador === k} desabilitado={ocupado} onPress={() => mudar({ ligado: true, ventilador: k })} />)}
           </View>
         </Cartao>
+        <Cartao style={{ gap: 10 }}>
+          <Titulo sub="Funciona mesmo se ligou pela Alexa">Desligar automaticamente</Titulo>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {[30, 60, 120, 240].map((m) => <Chip key={m} rotulo={m >= 60 ? `${m / 60} h` : `${m} min`} onPress={async () => {
+              try { await api.post(`/api/aparelhos/${ar.id}/temporizador`, { minutos: m, ligado: false }); Alert.alert('Temporizador', `Desliga em ${m >= 60 ? `${m / 60} h` : `${m} min`}.`); } catch (e: any) { Alert.alert('Erro', e.message); }
+            }} />)}
+            <Chip rotulo="Cancelar" onPress={async () => { await api.del(`/api/aparelhos/${ar.id}/temporizador`); Alert.alert('Temporizador cancelado'); }} />
+          </View>
+        </Cartao>
         {extras.length > 0 && (
           <Cartao style={{ gap: 10 }}>
             <Titulo>Outros botões</Titulo>

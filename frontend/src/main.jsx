@@ -21,6 +21,9 @@ import Cenas from './pages/Cenas'
 import Relatorios from './pages/Relatorios'
 import Integracoes from './pages/Integracoes'
 import { ProjetoProvider } from './contexto'
+import Automacoes from './pages/Automacoes'
+import ComandosAlexa from './pages/ComandosAlexa'
+import Apps from './pages/Apps'
 
 function Protegido({ children }) {
   const [estado, setEstado] = useState(null)
@@ -66,6 +69,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="cenas" element={<Cenas />} />
             <Route path="relatorios" element={<Relatorios />} />
             <Route path="integracoes" element={<Integracoes />} />
+            <Route path="automacoes" element={<Automacoes />} />
+            <Route path="comandos-alexa" element={<ComandosAlexa />} />
+            <Route path="apps" element={<Apps />} />
             <Route path="configuracoes" element={<Configuracoes />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Route>
