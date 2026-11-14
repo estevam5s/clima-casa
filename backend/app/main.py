@@ -60,6 +60,7 @@ async def cabecalhos(request: Request, chamar):
     # Firewall: listas de IP, país, assinaturas de ataque e limite de taxa (só nas rotas dinâmicas)
     dinamica = request.url.path.startswith(("/api/", "/oauth/", "/alexa/"))
     if dinamica:
+        firewall.definir_contexto(request)
         barrado = await asyncio.to_thread(firewall.verificar, request)
         if barrado:
             return JSONResponse({"detail": barrado[1]}, status_code=barrado[0], headers={"Retry-After": "60"} if barrado[0] == 429 else None)
@@ -71,6 +72,8 @@ async def cabecalhos(request: Request, chamar):
     resp = await chamar(request)
     if dinamica and resp.status_code in (401, 403):
         await asyncio.to_thread(firewall.depois, request, resp.status_code)
+    elif dinamica and resp.status_code < 400 and firewall.config().get("ativo"):
+        await asyncio.to_thread(firewall.registrar_acesso, request, resp.status_code)
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "same-origin"

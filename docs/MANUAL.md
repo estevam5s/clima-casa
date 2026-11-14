@@ -39,7 +39,7 @@ O Clima Casa é formado por cinco peças que trabalham juntas:
 Como um comando chega ao ar:
 
 ```
-Você (painel, app ou "Alexa, ligar o ar do quarto")
+Você (painel, app ou "Alexa, ligar o ar do escritório")
    → Clima Casa (internet)
    → Agente do Mac (rede de casa)
    → Transmissor Smart IR
@@ -111,7 +111,7 @@ Em todos os apps o login é o mesmo do site.
 3. No Smart Life, toque em **+** (canto superior) → **Adicionar dispositivo**.
 4. Escolha a categoria **Controle remoto IR** (ou deixe o app encontrar sozinho pelo Bluetooth/Wi-Fi).
 5. Selecione a rede Wi-Fi de **2,4 GHz** e digite a senha.
-6. Aguarde a conclusão (até 2 minutos). Dê um nome claro, por exemplo **"IR Quarto"** ou **"Smart IR Sala"**.
+6. Aguarde a conclusão (até 2 minutos). Dê um nome claro, por exemplo **"IR Recepção"** ou **"Smart IR Sala"**.
 7. Toque em **Concluído**.
 
 > Não é preciso configurar controles de ar dentro do Smart Life. Os botões são gravados no Clima Casa
@@ -169,7 +169,7 @@ Um **projeto** é um lugar. Cada projeto tem os seus transmissores, aparelhos e 
 1. Abra **Aparelhos → Adicionar aparelho**.
 2. Preencha:
    - **Nome**: é o nome que você vai falar para a Alexa. Prefira nomes curtos e diferentes entre si, como
-     "Ar do quarto", "Ar da sala".
+     "Ar do escritório", "Ar da sala".
    - **Projeto** e **Cômodo**.
    - **Marca** (opcional).
    - **Transmissor**: o Smart IR que fica no mesmo cômodo.
@@ -242,7 +242,7 @@ cômodo, visualização em grade ou lista e o botão **Desligar todos os ligados
 
 ## 8.4 Cenas
 
-Uma cena executa vários comandos com um toque. Exemplo **"Dormir"**: quarto em 24° ventilação baixa e sala
+Uma cena executa vários comandos com um toque. Exemplo **"Reunião"**: sala de reunião em 22° ventilação alta e recepção
 desligada.
 
 1. **Cenas → Nova cena**, dê o nome e escolha um ícone.
@@ -296,6 +296,27 @@ há 4 horas" (sobe para 25°), "Madrugada mais fresca" (às 3h, 24° ventilaçã
   Use **Nunca bloquear meu IP** na rede do escritório para não se trancar do lado de fora.
 - As senhas e chaves das integrações (Smart Life, Sinric, Alexa, chave do transmissor) ficam **cifradas** no banco
   (AES-256-GCM).
+
+## 8.9 Notificações
+
+Clique no sino no canto de cima. As abas separam **Todas**, **Não lidas**, **Importantes** e **Segurança**.
+- Clique numa notificação para abrir a tela relacionada; o ponto verde some (lida).
+- Botões direto na notificação: **Resolver**, **Desbloquear** (IP), **Reconectar agora** (transmissor), **Gravar botões**.
+- **✓✓** marca todas como lidas; a **lixeira** limpa as lidas, as resolvidas ou todas; o **X** limpa uma só.
+- A **engrenagem** escolhe quais tipos aparecem, liga um som para novidades e define quando limpar as resolvidas.
+- Avisos de condição (transmissor offline, ar sem botões) somem sozinhos quando o problema é resolvido.
+
+## 8.10 Segurança
+
+Menu **Sistema → Segurança**. Mostra a nota de segurança, um **globo 3D** com de onde vêm os acessos (verde/azul) e
+os ataques (vermelho), a lista ao vivo, os IPs com nota de risco (bloqueie por 24 h, de vez, ou marque como
+confiável com um clique), países, rotas que tentaram atacar e o que está bloqueado agora. **Relatório** baixa tudo
+em PDF, Word, Excel, CSV, HTML, XML, JSON ou Markdown, com recomendações. A localização vem do IP e é aproximada.
+
+## 8.11 Baixar os apps
+
+**Sistema → Baixar apps** reconhece o seu aparelho e sugere o arquivo certo. Cada app tem "Como instalar" e o
+código SHA-256 para conferir que o arquivo é o original. No celular Android, leia o QR Code.
 
 # 9. Vários ares, vários transmissores
 
@@ -363,11 +384,11 @@ dono de cada conta Alexa (a Amazon exige a autorização dele).
 
 A tela **Comandos de voz** lista todos os comandos possíveis para cada aparelho (com botão de copiar). Exemplos:
 
-- "Alexa, ligar o ar do quarto" / "Alexa, desligar o ar do quarto"
-- "Alexa, colocar o ar do quarto em 23 graus"
-- "Alexa, aumentar a temperatura do ar do quarto" / "Alexa, diminuir…"
-- "Alexa, colocar o ar do quarto no modo frio" (frio, aquecimento ou automático)
-- "Alexa, colocar a velocidade do ar do quarto em 2"
+- "Alexa, ligar o ar do escritório" / "Alexa, desligar o ar do escritório"
+- "Alexa, colocar o ar do escritório em 23 graus"
+- "Alexa, aumentar a temperatura do ar do escritório" / "Alexa, diminuir…"
+- "Alexa, colocar o ar do escritório no modo frio" (frio, aquecimento ou automático)
+- "Alexa, colocar a velocidade do ar do escritório em 2"
 
 ## 10.7 Rotinas da Alexa: frases suas
 

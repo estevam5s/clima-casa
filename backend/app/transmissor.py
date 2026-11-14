@@ -309,6 +309,9 @@ def _registrar_reparo(h: dict, mudancas: list[str]):
     db.executar("UPDATE hubs SET problema = NULL, reparado_em = ?, online = 1, visto_em = ? WHERE id = ?",
                 (db.agora(), db.agora(), h["id"]))
     db.registrar("sistema", f"Transmissor reconfigurado sozinho: {h['nome']}", detalhe="; ".join(mudancas))
+    from . import notificacoes
+    notificacoes.notificar(f"reconfig-{h['id']}", "sistema", "baixa", f"Transmissor {h['nome']} se reconfigurou sozinho",
+                           "; ".join(mudancas), "/transmissores")
 
 
 def _migrar_id(antigo: dict, novo_id: str) -> dict:

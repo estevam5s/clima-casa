@@ -191,6 +191,13 @@ def editar_aparelho(aid: int, d: AparelhoIn):
                 (d.nome.strip(), d.comodo.strip(), d.marca.strip(), d.hub_id, d.temp_min, d.temp_max,
                  ",".join(d.modos), int(d.alexa), temp, modo, d.projeto_id, d.potencia_w, aid))
     db.registrar("painel", "Aparelho editado", aparelho_id=aid)
+    if a.get("sinric_device_id") and (a["nome"] != d.nome.strip() or (a.get("comodo") or "") != d.comodo.strip()):
+        from .. import sinric
+        try:
+            sinric.renomear_dispositivo(a["sinric_device_id"], d.nome.strip(), d.comodo.strip())
+            db.registrar("painel", "Nome atualizado no Sinric Pro (Alexa/Google)", aparelho_id=aid, detalhe=d.nome.strip())
+        except Exception as e:  # noqa: BLE001  (a edição vale mesmo se o Sinric falhar)
+            db.registrar("painel", "Não foi possível renomear no Sinric Pro", ok=False, aparelho_id=aid, detalhe=str(e))
     return clima.aparelho(aid)
 
 
@@ -737,6 +744,30 @@ def executar_cena(cid: int):
     return {"resultados": resultados, "ok": all(r["ok"] for r in resultados)}
 
 
+@api.get("/apps/qr")
+def qr_app(alvo: str = "android", request: Request = None):
+    """QR Code para abrir o download no celular. Só gera para os destinos conhecidos (nada de URL livre)."""
+    import base64
+    import io
+    import qrcode
+    destinos = {"android": "https://github.com/estevam5s/clima-casa/releases/latest/download/ClimaCasa-android.apk",
+                "site": f"https://{request.headers.get('host', 'clima-casa-lac.vercel.app')}/"}
+    if alvo not in destinos:
+        raise HTTPException(400, "Destino inválido.")
+    buf = io.BytesIO()
+    qrcode.make(destinos[alvo], box_size=8, border=2).save(buf, format="PNG")
+    return {"url": destinos[alvo], "qr": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()}
+
+
+@api.get("/clima-externo")
+def clima_externo(request: Request, projeto_id: int | None = None):
+    from .. import clima_externo as ce
+    try:
+        return ce.agora(projeto_id, request)
+    except Exception:  # noqa: BLE001
+        return {"disponivel": False, "motivo": "Serviço de clima indisponível agora."}
+
+
 # ---------------- relatórios ----------------
 @api.get("/relatorios")
 def relatorios(dias: int = 30, projeto_id: int | None = None):
@@ -1015,8 +1046,8 @@ def comandos_alexa():
                       "grupos": [{"titulo": t, "frases": f} for t, f in grupos],
                       "total": sum(len(f) for _, f in grupos)})
     rotinas = [
-        {"frase": "Alexa, boa noite", "faz": "Ar do quarto em 24°, ventilação baixa, e desliga 3 h depois (automação)"},
-        {"frase": "Alexa, cheguei", "faz": "Liga os ares da casa em 23° no modo frio"},
+        {"frase": "Alexa, fim do expediente", "faz": "Desliga todos os ares e confere se ficou algum ligado (cena)"},
+        {"frase": "Alexa, cheguei", "faz": "Liga os ares do escritório em 23° no modo frio"},
         {"frase": "Alexa, estou saindo", "faz": "Desliga todos os ares"},
         {"frase": "Alexa, está calor", "faz": "Liga o ar do cômodo em 21°, ventilação alta"},
         {"frase": "Alexa, hora de trabalhar", "faz": "Ar do escritório em 23° de segunda a sexta"},
@@ -1060,41 +1091,71 @@ def reparar_hubs():
 
 # ---------------- notificações (tudo o que pede atenção, de todas as telas) ----------------
 @api.get("/notificacoes")
-def notificacoes():
-    itens = []
-    agora = db.agora()
-    for a in db.consultar("SELECT al.id, al.mensagem, al.criado_em FROM alertas al WHERE NOT al.resolvido ORDER BY al.id DESC LIMIT 20"):
-        itens.append({"id": f"alerta-{a['id']}", "tipo": "alerta", "gravidade": "alta", "titulo": a["mensagem"],
-                      "detalhe": "Alerta das rotinas do Supabase", "link": "/supabase", "quando": int(a["criado_em"].timestamp()),
-                      "alerta_id": a["id"]})
-    falhas = db.consultar("SELECT t.aparelho_id, max(a.nome) AS nome, count(*) AS n, max(t.quando) AS ultimo, max(t.detalhe) AS detalhe "
-                          "FROM atividade t JOIN aparelhos a ON a.id = t.aparelho_id WHERE t.ok = 0 AND t.quando > ? "
-                          "GROUP BY t.aparelho_id ORDER BY ultimo DESC", (agora - 86400,))
-    for f in falhas:
-        itens.append({"id": f"falha-{f['aparelho_id']}", "tipo": "falha", "gravidade": "media",
-                      "titulo": f"{f['nome']}: {f['n']} comando(s) falharam nas últimas 24 h", "detalhe": f["detalhe"] or "",
-                      "link": f"/aparelhos/{f['aparelho_id']}", "quando": f["ultimo"]})
-    for h in db.consultar("SELECT id, nome, online, problema, visto_em FROM hubs WHERE online = 0 OR problema IS NOT NULL"):
-        itens.append({"id": f"hub-{h['id']}", "tipo": "transmissor", "gravidade": "alta",
-                      "titulo": f"Transmissor {h['nome']} {'com problema' if h['problema'] else 'offline'}",
-                      "detalhe": h["problema"] or "Sem resposta na rede. O agente tenta reconectar sozinho.",
-                      "link": "/transmissores", "quando": h["visto_em"] or agora})
-    if not transmissor.agente_online():
-        itens.append({"id": "agente", "tipo": "agente", "gravidade": "alta", "titulo": "Agente do Mac offline",
-                      "detalhe": "Sem ele os comandos, a Alexa, a agenda e as automações param.", "link": "/configuracoes#agente",
-                      "quando": db.cfg("agente_visto_em") or agora})
-    sinric_cfg, sinric_st = db.cfg("sinric") or {}, db.cfg("sinric_status") or {}
-    if sinric_cfg.get("ativo") and sinric_st.get("dispositivos") and not sinric_st.get("conectado"):
-        itens.append({"id": "sinric", "tipo": "alexa", "gravidade": "media", "titulo": "Alexa/Google desconectado (Sinric Pro)",
-                      "detalhe": sinric_st.get("erro") or "O agente reconecta sozinho em até 30 s.", "link": "/integracoes",
-                      "quando": sinric_st.get("atualizado_em") or agora})
-    for a in db.consultar("SELECT a.id, a.nome FROM aparelhos a WHERE NOT EXISTS (SELECT 1 FROM codigos c WHERE c.aparelho_id = a.id)"):
-        itens.append({"id": f"sem-botoes-{a['id']}", "tipo": "configuracao", "gravidade": "baixa",
-                      "titulo": f"{a['nome']} ainda não tem botões gravados", "detalhe": "Grave os botões do controle original para controlar o ar.",
-                      "link": f"/aparelhos/{a['id']}?aba=botoes", "quando": agora})
-    ordem = {"alta": 0, "media": 1, "baixa": 2}
-    itens.sort(key=lambda x: (ordem[x["gravidade"]], -(x["quando"] or 0)))
-    return {"total": len(itens), "itens": itens}
+def listar_notificacoes(filtro: str = "todas"):
+    from .. import notificacoes
+    r = notificacoes.listar(filtro)
+    ligados = db.um("SELECT count(*) FILTER (WHERE ligado = 1) AS ligados, count(*) AS total FROM aparelhos")
+    hubs = db.um("SELECT count(*) FILTER (WHERE online = 1) AS online, count(*) AS total FROM hubs")
+    r["status"] = {"agente_online": transmissor.agente_online(), "ligados": ligados["ligados"], "aparelhos": ligados["total"],
+                   "hubs_online": hubs["online"], "hubs": hubs["total"]}
+    return r
+
+
+@api.post("/notificacoes/{nid}/lida")
+def marcar_notificacao(nid: int, lida: bool = True):
+    db.executar("UPDATE notificacoes SET lida = ? WHERE id = ?", (lida, nid))
+    return {"ok": True}
+
+
+@api.post("/notificacoes/ler-todas")
+def ler_todas_notificacoes():
+    db.executar("UPDATE notificacoes SET lida = true WHERE NOT lida AND NOT arquivada")
+    return {"ok": True}
+
+
+@api.delete("/notificacoes/{nid}")
+def arquivar_notificacao(nid: int):
+    db.executar("UPDATE notificacoes SET arquivada = true, lida = true WHERE id = ?", (nid,))
+    return {"ok": True}
+
+
+@api.post("/notificacoes/limpar")
+def limpar_notificacoes(somente: str = "todas"):
+    """Arquiva (limpa da lista): todas, só as lidas ou só as resolvidas. Condições ainda ativas voltam se mudarem de estado."""
+    filtro = {"lidas": " AND lida", "resolvidas": " AND resolvida"}.get(somente, "")
+    db.executar(f"UPDATE notificacoes SET arquivada = true, lida = true WHERE NOT arquivada{filtro}")
+    db.registrar("painel", "Notificações limpas", detalhe=somente)
+    return {"ok": True}
+
+
+@api.post("/notificacoes/{nid}/acao")
+def acao_notificacao(nid: int):
+    from .. import notificacoes
+    try:
+        return {"mensagem": notificacoes.executar_acao(nid)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+class PrefNotificacoesIn(BaseModel):
+    tipos_ocultos: list[str] = Field([], max_length=10)
+    som: bool = False
+    contador_so_importantes: bool = False
+    arquivar_resolvidas_h: int = Field(24, ge=0, le=720)
+
+
+@api.get("/notificacoes/historico")
+def historico_notificacoes(limite: int = 200):
+    return db.consultar("SELECT * FROM notificacoes ORDER BY atualizado_em DESC LIMIT ?", (min(limite, 500),))
+
+
+@api.put("/notificacoes/preferencias")
+def salvar_pref_notificacoes(d: PrefNotificacoesIn):
+    from .. import notificacoes
+    dados = d.model_dump()
+    dados["tipos_ocultos"] = [t for t in dados["tipos_ocultos"] if t in notificacoes.TIPOS]
+    db.set_cfg("notificacoes_pref", dados)
+    return dados
 
 
 # ---------------- login protegido (conta tentativas por IP e por e-mail) ----------------
@@ -1136,8 +1197,17 @@ def entrar(d: EntrarIn, request: Request):
     if (usuario.get("app_metadata") or {}).get("role") != "admin":
         firewall.registrar(ip, "login_negado", "/api/auth/entrar", marca, pais, agente)
         raise HTTPException(403, "Esta conta não tem acesso de administrador.")
+    conhecido = firewall.falhas_recentes(ip, ("login_ok",), 30 * 1440) > 0
     if c.get("registrar_logins_ok", True):
         firewall.registrar(ip, "login_ok", "/api/auth/entrar", marca, pais, agente)
+    if not conhecido:
+        from .. import notificacoes
+        cidade = request.headers.get("x-vercel-ip-city", "")
+        from urllib.parse import unquote
+        local = ", ".join(x for x in (unquote(cidade), pais) if x)
+        notificacoes.notificar(f"login-{ip}", "seguranca", "media", "Entrada do administrador por um IP novo",
+                               f"IP {ip}{' · ' + local if local else ''}. Se não foi você, troque a senha e bloqueie o IP.", "/seguranca",
+                               {"rotulo": "Ver segurança", "tipo": "link", "para": "/seguranca"})
     db.registrar("sistema", "Login do administrador", detalhe=f"IP {ip}{' · ' + pais if pais else ''}")
     return {k: dados.get(k) for k in ("access_token", "refresh_token", "expires_in", "expires_at", "token_type")}
 
@@ -1244,6 +1314,32 @@ def eventos_seguranca(tipo: str | None = None, ip: str | None = None, limite: in
     return db.consultar(sql, p)
 
 
+@api.get("/seguranca/resumo")
+def resumo_seguranca(dias: int = 7):
+    from .. import seguranca_relatorio
+    return seguranca_relatorio.resumo(max(1, min(dias, 90)))
+
+
+@api.get("/seguranca/relatorio")
+def relatorio_seguranca(formato: str = "pdf", dias: int = 30):
+    from fastapi.responses import Response
+    from .. import exportar, seguranca_relatorio
+    if formato not in exportar.FORMATOS:
+        raise HTTPException(400, f"Formato inválido. Use: {', '.join(exportar.FORMATOS)}.")
+    corpo, tipo, ext = exportar.FORMATOS[formato](seguranca_relatorio.documento(max(1, min(dias, 90))))
+    db.registrar("painel", "Relatório de segurança exportado", detalhe=formato.upper())
+    return Response(corpo, media_type=tipo,
+                    headers={"Content-Disposition": 'attachment; filename="seguranca-clima-%s.%s"' % (time.strftime("%Y%m%d-%H%M"), ext)})
+
+
+@api.delete("/seguranca/eventos")
+def limpar_eventos_seguranca(dias: int = 30):
+    """Apaga eventos mais antigos que N dias (0 = todos)."""
+    db.executar("DELETE FROM seguranca_eventos WHERE quando < ?", (db.agora() - max(0, dias) * 86400,))
+    db.registrar("painel", "Eventos de segurança apagados", detalhe=f"mais antigos que {dias} dias")
+    return {"ok": True}
+
+
 # ---------------- white label (marca, cores, textos, menu, login) ----------------
 MARCA_PADRAO = {
     "nome": "Clima Escritório", "nome_curto": "Clima", "slogan": "O ar do escritório no ponto certo, antes de você chegar.",
@@ -1260,7 +1356,7 @@ MARCA_PADRAO = {
 _CSS_PROIBIDO = re.compile(r"(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|</style)", re.I)
 _COR = re.compile(r"^#[0-9a-fA-F]{6}$")
 ROTAS_MENU = {"/", "/projetos", "/relatorios", "/aparelhos", "/cenas", "/automacoes", "/agendamentos", "/transmissores",
-              "/integracoes", "/comandos-alexa", "/alexa", "/supabase", "/atividade", "/apps"}
+              "/integracoes", "/comandos-alexa", "/alexa", "/supabase", "/atividade", "/seguranca", "/apps"}
 
 
 def _marca() -> dict:

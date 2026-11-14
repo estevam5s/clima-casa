@@ -4,7 +4,7 @@ A Skill é sua, fica em modo de desenvolvimento e só a sua conta Amazon usa.
 Não precisa passar pela certificação da Amazon.
 
 ```
-"Alexa, ligar ar do quarto"
+"Alexa, ligar ar do escritório"
    → Amazon (Skill Smart Home)
    → AWS Lambda (alexa/lambda/index.mjs)
    → Vercel (clima-casa-lac.vercel.app)
@@ -74,10 +74,10 @@ Clique em **Save**.
 
 ## Comandos
 
-- "Alexa, ligar ar do quarto" e "Alexa, desligar ar do quarto"
-- "Alexa, colocar ar do quarto em 23 graus"
-- "Alexa, aumentar a temperatura do ar do quarto"
-- "Alexa, colocar ar do quarto no modo frio" (frio, quente ou automático)
+- "Alexa, ligar ar do escritório" e "Alexa, desligar ar do escritório"
+- "Alexa, colocar ar do escritório em 23 graus"
+- "Alexa, aumentar a temperatura do ar do escritório"
+- "Alexa, colocar ar do escritório no modo frio" (frio, quente ou automático)
 
 Para mudar a temperatura, o botão daquela temperatura precisa estar gravado. Se não estiver,
 o sistema usa a temperatura gravada mais próxima e informa o valor real para a Alexa.

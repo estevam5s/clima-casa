@@ -32,7 +32,15 @@ function Destaque({ aparelhos, aoMudar }) {
   const [ocupado, setOcupado] = useState(false)
   const toast = useToast()
   const ar = aparelhos.find((a) => a.id === id) || aparelhos[0]
+  const [fora, setFora] = useState(null)
   useEffect(() => { if (!aparelhos.some((a) => a.id === id)) setId(aparelhos[0]?.id) }, [aparelhos, id])
+  useEffect(() => {
+    if (!ar) return undefined
+    const buscar = () => api.get(`/api/clima-externo${ar.projeto_id ? `?projeto_id=${ar.projeto_id}` : ''}`).then(setFora).catch(() => {})
+    buscar()
+    const t = setInterval(buscar, 5 * 60 * 1000) // a temperatura de fora atualiza a cada 5 min
+    return () => clearInterval(t)
+  }, [ar?.projeto_id])
   if (!ar) return null
   const mudar = async (e) => {
     setOcupado(true)
@@ -44,11 +52,20 @@ function Destaque({ aparelhos, aoMudar }) {
       <div className="grid md:grid-cols-[1.25fr_1fr]">
         <div className="relative h-64 border-b border-border md:h-auto md:min-h-[320px] md:border-b-0 md:border-r">
           <Suspense fallback={<div className="h-full animate-pulse bg-muted" />}>
-            <Cena3D key={escuro ? 'escuro' : 'claro'} estado={ar} />
+            <Cena3D key={escuro ? 'escuro' : 'claro'} estado={{ ...ar, externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
           </Suspense>
           <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs backdrop-blur">
             <Ponto ativo={ar.ligado} /> {ar.ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador].toLowerCase()}` : 'Desligado'}
           </div>
+          {fora?.disponivel && (
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} title={`Fonte: ${fora.fonte} · atualizado ${fora.atualizado?.slice(11, 16) || ''}`}
+              className="pointer-events-none absolute bottom-4 left-4 rounded-xl border border-border bg-card/80 px-3 py-2 text-xs backdrop-blur">
+              <p className="text-muted-foreground">Lá fora{fora.cidade ? ` · ${fora.cidade}` : ''}</p>
+              <p className="mt-0.5 flex items-baseline gap-2"><span className="text-lg font-semibold tabular">{Math.round(fora.temperatura)}°</span>
+                <span className="text-muted-foreground">sensação {Math.round(fora.sensacao)}° · {fora.umidade}% · {fora.condicao}</span></p>
+              {ar.ligado && <p className="mt-0.5 text-muted-foreground">Diferença para o ajuste: <span className="tabular text-foreground">{Math.round(fora.temperatura - ar.temperatura)}°</span></p>}
+            </motion.div>
+          )}
         </div>
         <div className="flex flex-col p-5">
           <div className="flex items-start justify-between gap-3">

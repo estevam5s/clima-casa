@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Download, Eye, EyeOff, LoaderCircle, MailCheck, Moon, Sun } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Eye, EyeOff, LoaderCircle, MailCheck, Moon, Sun } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { DOWNLOADS, sistemaAtual } from '../apps'
+import IconeMarca from '../components/IconeMarca'
 import Fumaca from '../components/Fumaca'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
@@ -202,7 +203,7 @@ export default function Login() {
             {DOWNLOADS.filter((d) => ['android', 'mac-arm', 'windows', 'linux'].includes(d.id)).map((d) => (
               <a key={d.id} href={d.url}
                 className={`flex h-11 items-center justify-center gap-2 rounded-[14px] border bg-[var(--field)] text-[13px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.98] ${meu === d.id ? 'border-[var(--accent)]' : 'border-[var(--line)]'}`}>
-                <Download className="h-4 w-4" /> {d.nome.replace(' (Apple Silicon)', '')}
+                <IconeMarca nome={d.plataforma} className="h-4 w-4" /> {d.nome.split(' · ')[0]}
               </a>
             ))}
           </motion.div>

@@ -20,6 +20,7 @@ import RedefinirSenha from './pages/RedefinirSenha'
 import Projetos from './pages/Projetos'
 import Cenas from './pages/Cenas'
 import Relatorios from './pages/Relatorios'
+import Seguranca from './pages/Seguranca'
 import Integracoes from './pages/Integracoes'
 import { ProjetoProvider } from './contexto'
 import { TemaProvider } from './tema'
@@ -74,6 +75,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="projetos" element={<Projetos />} />
             <Route path="cenas" element={<Cenas />} />
             <Route path="relatorios" element={<Relatorios />} />
+            <Route path="seguranca" element={<Seguranca />} />
             <Route path="integracoes" element={<Integracoes />} />
             <Route path="automacoes" element={<Automacoes />} />
             <Route path="comandos-alexa" element={<ComandosAlexa />} />

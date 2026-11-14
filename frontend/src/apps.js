@@ -1,21 +1,44 @@
 // Downloads dos apps: último release do repositório privado no GitHub
 // (abre para quem estiver logado no GitHub com acesso ao repositório).
+// Tamanhos, SHA-256 e versão vêm de release.json (gerado por scripts/gerar-release-json.sh).
+import release from './release.json'
+
 export const REPO = 'https://github.com/estevam5s/clima-casa'
+export const RELEASE = release
 const base = `${REPO}/releases/latest/download`
+const porNome = Object.fromEntries((release.arquivos || []).map((a) => [a.nome, a]))
+
 export const DOWNLOADS = [
-  { id: 'android', nome: 'Android', detalhe: 'APK para celular e tablet', arquivo: 'ClimaCasa-android.apk' },
-  { id: 'mac-arm', nome: 'macOS (Apple Silicon)', detalhe: 'M1, M2, M3, M4…', arquivo: 'ClimaCasa-mac-apple-silicon.dmg' },
-  { id: 'mac-intel', nome: 'macOS (Intel)', detalhe: 'Macs com processador Intel', arquivo: 'ClimaCasa-mac-intel.dmg' },
-  { id: 'windows', nome: 'Windows', detalhe: 'Instalador para Windows 10 e 11', arquivo: 'ClimaCasa-windows.exe' },
-  { id: 'linux', nome: 'Linux', detalhe: 'AppImage (x64)', arquivo: 'ClimaCasa-linux-x64.AppImage' },
-  { id: 'linux-arm', nome: 'Linux ARM', detalhe: 'AppImage (arm64, Raspberry Pi 4/5)', arquivo: 'ClimaCasa-linux-arm64.AppImage' },
-].map((d) => ({ ...d, url: `${base}/${d.arquivo}` }))
+  { id: 'android', plataforma: 'android', nome: 'Android', detalhe: 'APK para celular e tablet', requisitos: 'Android 7.0 ou mais novo', arquivo: 'ClimaCasa-android.apk',
+    passos: ['Baixe o APK no celular (ou leia o QR Code).', 'Abra o arquivo e permita "instalar apps desta fonte" quando o Android pedir.', 'Entre com o mesmo e-mail e senha do painel.'] },
+  { id: 'mac-arm', plataforma: 'mac', nome: 'macOS · Apple Silicon', detalhe: 'M1, M2, M3, M4', requisitos: 'macOS 12 Monterey ou mais novo', arquivo: 'ClimaCasa-mac-apple-silicon.dmg',
+    passos: ['Abra o .dmg e arraste o Clima Escritório para Aplicativos.', 'Na primeira vez, clique com o botão direito no app → Abrir → Abrir (o app não é assinado pela Apple).', 'Ele fica na barra de menus; ⌘1 a ⌘4 trocam de tela.'] },
+  { id: 'mac-intel', plataforma: 'mac', nome: 'macOS · Intel', detalhe: 'Macs com processador Intel', requisitos: 'macOS 12 Monterey ou mais novo', arquivo: 'ClimaCasa-mac-intel.dmg',
+    passos: ['Abra o .dmg e arraste o Clima Escritório para Aplicativos.', 'Na primeira vez, clique com o botão direito no app → Abrir → Abrir.'] },
+  { id: 'windows', plataforma: 'windows', nome: 'Windows', detalhe: 'Instalador para Windows 10 e 11', requisitos: 'Windows 10 ou 11, 64 bits', arquivo: 'ClimaCasa-windows.exe',
+    passos: ['Execute o instalador.', 'Se o SmartScreen avisar, clique em "Mais informações" → "Executar assim mesmo".', 'O app fica na bandeja do sistema e pode iniciar com o Windows.'] },
+  { id: 'linux', plataforma: 'linux', nome: 'Linux · x64', detalhe: 'AppImage, roda em qualquer distribuição', requisitos: 'Ubuntu 20.04+, Fedora 36+ ou equivalente', arquivo: 'ClimaCasa-linux-x64.AppImage',
+    passos: ['Dê permissão de execução: chmod +x ClimaCasa-linux-x64.AppImage', 'Abra com dois cliques ou ./ClimaCasa-linux-x64.AppImage'] },
+  { id: 'linux-arm', plataforma: 'linux', nome: 'Linux · ARM64', detalhe: 'Raspberry Pi 4/5 e outros ARM', requisitos: 'Raspberry Pi OS 64 bits ou equivalente', arquivo: 'ClimaCasa-linux-arm64.AppImage',
+    passos: ['chmod +x ClimaCasa-linux-arm64.AppImage', './ClimaCasa-linux-arm64.AppImage'] },
+].map((d) => ({ ...d, url: `${base}/${d.arquivo}`, ...(porNome[d.arquivo] ? { tamanho: porNome[d.arquivo].tamanho, sha256: porNome[d.arquivo].sha256, baixados: porNome[d.arquivo].downloads } : {}) }))
 
 export function sistemaAtual() {
   const ua = navigator.userAgent
   if (/Android/i.test(ua)) return 'android'
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'ios'
   if (/Mac/i.test(ua)) return 'mac-arm'
   if (/Win/i.test(ua)) return 'windows'
-  if (/Linux/i.test(ua)) return 'linux'
+  if (/Linux/i.test(ua)) return /aarch64|arm/i.test(ua) ? 'linux-arm' : 'linux'
   return null
+}
+
+// Detecta Mac Intel × Apple Silicon quando o navegador informa a arquitetura (Chrome/Edge).
+export async function sistemaDetalhado() {
+  const base = sistemaAtual()
+  if (base !== 'mac-arm' || !navigator.userAgentData?.getHighEntropyValues) return base
+  try {
+    const { architecture } = await navigator.userAgentData.getHighEntropyValues(['architecture'])
+    return architecture === 'x86' ? 'mac-intel' : 'mac-arm'
+  } catch { return base }
 }

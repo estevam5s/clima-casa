@@ -9,7 +9,7 @@ const PASSOS_ALEXA = [
   ['Toque em "Ativar para uso"', 'Entre com a conta do Sinric Pro (a mesma do portal). Várias Alexas podem usar a mesma conta.'],
   ['Pronto', 'Os aparelhos aparecem sozinhos. Se não aparecerem em 1 minuto, diga "Alexa, descobrir dispositivos".'],
 ]
-const COMANDOS = ['Alexa, ligar o ar do quarto', 'Alexa, colocar o ar do quarto em 23 graus', 'Alexa, ar do quarto no modo frio', 'Alexa, desligar o ar do quarto']
+const COMANDOS = ['Alexa, ligar o ar da recepção', 'Alexa, colocar o ar da recepção em 23 graus', 'Alexa, ar da recepção no modo frio', 'Alexa, desligar o ar da recepção']
 
 export default function Integracoes() {
   const { dados, erro, recarregar } = useDados(() => Promise.all([api.get('/api/sinric'), api.get('/api/aparelhos')]))

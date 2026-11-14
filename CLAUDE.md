@@ -26,7 +26,7 @@ no Supabase Auth.
 | Releases (APK, DMG, EXE, AppImage) | https://github.com/estevam5s/clima-casa/releases |
 | Banco, Auth, cron | Supabase, projeto **Arcondicionado**, ref `elyqjdcsbfdvlsxomxen`, região us-east-2 |
 | App celular | https://expo.dev/accounts/estevam5s/projects/clima-casa (Expo SDK 58) |
-| Alexa/Google | https://portal.sinric.pro (dispositivo "Ar do quarto" `6af888eb7d04ce9fd64d6777`) |
+| Alexa/Google | https://portal.sinric.pro (dispositivo "Ar do escritório" `6af888eb7d04ce9fd64d6777`) |
 | Painel local do agente | http://localhost:8090 (a porta 8080 do Mac é de outro app; não use) |
 
 ---
@@ -96,6 +96,10 @@ ar-controle/
 │       ├── cripto.py        AES-256-GCM ("enc:v1:") para segredos em repouso, chave em CLIMA_CHAVE_MESTRA
 │       ├── firewall.py      listas de IP/CIDR, país, assinaturas de ataque, limite de taxa, bloqueio progressivo
 │       ├── relatorio.py     consolida o relatório (montar) + exportadores pdf/docx/xlsx/csv/html/xml/json/md
+│       ├── exportar.py      exportador genérico (resumo + seções de tabela + gráfico) nos mesmos 8 formatos
+│       ├── seguranca_relatorio.py  dados da tela /seguranca (mapa, IPs, países, rotas) e o relatório de segurança
+│       ├── notificacoes.py  central de notificações persistida (condições sincronizadas + eventos)
+│       ├── clima_externo.py temperatura/umidade reais de fora (Open-Meteo, sem chave) para o display do ar
 │       └── rotas/
 │           ├── api.py       toda a API do painel (/api/…)
 │           └── alexa.py     OAuth 2.0 da skill própria + /alexa/diretiva
@@ -230,7 +234,8 @@ booleanos de negócio como 0/1, exceto nas tabelas das rotinas (timestamptz/bool
 | `oauth_codigos`, `oauth_tokens` | OAuth da skill própria (só hashes) |
 | `metricas_diarias`, `alertas`, `backups`, `saude_sistema` | preenchidas pelas rotinas pg_cron |
 | `seguranca_ips` | IP/CIDR `bloqueado`/`permitido`, `automatico`, `ocorrencias`, `expira_em` (firewall) |
-| `seguranca_eventos` | `login_falhou`, `login_ok`, `scanner`, `rate_limit`, `auth_negado`, `ip_bloqueado_auto`… |
+| `seguranca_eventos` | `acesso` (1 por IP a cada 10 min), `login_falhou`, `login_ok`, `scanner`, `rate_limit`, `auth_negado`, `ip_bloqueado_auto`…, com `pais`, `cidade`, `regiao`, `lat`, `lon` (cabeçalhos `x-vercel-ip-*`) |
+| `notificacoes` | central de notificações: `chave` única, tipo, gravidade, título, detalhe, link, `acao` (jsonb), lida/arquivada/resolvida, ocorrências |
 | `cron_log`, `cron_job_registry` | log/registro das rotinas (skill supabase-cron) |
 
 `aparelhos.potencia_w` (padrão 1000) alimenta o consumo estimado dos relatórios.
@@ -247,7 +252,7 @@ como dono via pooler e não passa pelo RLS. O front **não** lê o banco direto:
 | alerta_ligado_12h | :20 de hora em hora | alerta de ar ligado > 12 h; resolve ao desligar |
 | alerta_falhas | */30 min | alerta com 3+ falhas em 1 h |
 | backup_diario | 05:00 UTC | snapshot JSON (mantém 14) |
-| limpar_atividade | 06:30 UTC | atividade > 90 d, alertas resolvidos > 30 d, fila > 1 d |
+| limpar_atividade | 06:30 UTC | atividade > 90 d, alertas resolvidos > 30 d, fila > 1 d, eventos de segurança > 30 d, IPs vencidos, notificações arquivadas > 60 d |
 | limpar_logs_cron | 06:45 UTC | `cron.job_run_details` > 7 d, `cron_log` > 30 d |
 | saude_banco | */6 h | tamanho do banco (limite 500 MB do plano gratuito) |
 | manutencao_semanal | domingo 07:00 UTC | ANALYZE |
@@ -345,9 +350,23 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 | `/alexa` | skill própria (URLs OAuth, chaves, passo a passo) |
 | `/supabase` | rotinas, uso do banco, alertas, gráfico, backups |
 | `/atividade` | linha do tempo por dia, ao vivo, filtros, exportar CSV |
+| `/seguranca` | postura, globo 3D de acessos (Three.js + world-atlas), eventos ao vivo, IPs com risco e ações, países, rotas atacadas, bloqueios, regras e relatório de segurança em 8 formatos |
 | `/configuracoes?aba=` | `geral` (Smart Life, envio), `aparencia` (tema), `marca` (white label, 34 opções), `seguranca` (firewall), `contas` (senha), `sistema` (backup, agente) |
-| `/apps` | downloads (release) e instalação da PWA |
+| `/apps` | downloads com logos reais (simple-icons), detecção do sistema e da arquitetura, tamanho e SHA-256 de cada arquivo, QR Code do APK, PWA, tabela de recursos. Dados do release em `frontend/src/release.json` (**rode `scripts/gerar-release-json.sh` depois de cada release**) |
 | `/oauth/autorizar` | consentimento da vinculação de conta da Alexa |
+
+### Cabeçalho, notificações e 3D
+- O cabeçalho **não repete o título da página**: mostra a barra de status (projeto, agente online, ares ligados,
+  transmissores, data/hora) vinda de `GET /api/notificacoes` → `status`, buscada por `useCentral()` a cada 30 s.
+- Notificações (`components/Notificacoes.jsx`): abas Todas/Não lidas/Importantes/Segurança, marcar lidas, limpar
+  (uma, lidas, resolvidas, todas), ações (resolver alerta, desbloquear IP, reconectar transmissor, abrir tela) e
+  preferências (tipos ocultos, som, contador só importantes, limpar resolvidas depois de X h) salvas no banco.
+  Condições (`cond:*`) se resolvem sozinhas quando o problema some; eventos (IP bloqueado, IP novo no login,
+  transmissor reconfigurado) usam `notificacoes.notificar()`.
+- `Cena3D`: display sempre aceso (desligado = temperatura real de fora + relógio; ligado = ajuste com contagem
+  animada, modo, ventilação, EXT), faixa de luz e névoa na cor do modo. A temperatura de fora vem de
+  `/api/clima-externo` (endereço do projeto → `config.clima_local` → IP de quem abriu o painel).
+- Renomear um aparelho com `sinric_device_id` renomeia também no Sinric (`PUT /api/v1/devices` com o `id` no corpo).
 
 ### Design system (não fugir dele)
 - Tokens HSL em `src/index.css` (`--background`, `--card`, `--muted`, `--border`, `--primary` = teal da marca
@@ -377,6 +396,9 @@ validação vira 422 com "Confira o(s) campo(s): …".
 
 - **Sessão**: `POST /auth/entrar` (login pelo backend, com bloqueio por e-mail/IP), `GET /supabase-config`, `GET /sessao`, `POST /sessao/registrar-login`
 - **Relatórios**: `GET /relatorios/completo?dias=|inicio=&fim=&projeto_id=&aparelho_id=`, `GET /relatorios/exportar?formato=pdf|docx|xlsx|csv|html|xml|json|md&…`
+- **Notificações**: `GET /notificacoes?filtro=todas|nao_lidas|importantes|seguranca` (inclui `status` do cabeçalho), `POST /notificacoes/{id}/lida`, `POST /notificacoes/ler-todas`, `DELETE /notificacoes/{id}` (limpa uma), `POST /notificacoes/limpar?somente=todas|lidas|resolvidas`, `POST /notificacoes/{id}/acao`, `PUT /notificacoes/preferencias`, `GET /notificacoes/historico`
+- **Segurança (tela)**: `GET /seguranca/resumo?dias=`, `GET /seguranca/relatorio?formato=&dias=`, `DELETE /seguranca/eventos?dias=`
+- **Outros**: `GET /clima-externo?projeto_id=`, `GET /apps/qr?alvo=android|site`
 - **Marca e segurança**: `GET /marca` (pública), `PUT /marca`, `GET /marca/historico`, `POST /marca/historico/{i}/restaurar`, `POST /marca/padrao`; `GET|PUT /seguranca`, `GET|POST /seguranca/ips`, `DELETE /seguranca/ips/{id}`, `GET /seguranca/eventos`
 - **Painel e dados**: `GET /painel?projeto_id=`, `GET /metricas?dias=`, `GET /relatorios?dias=&projeto_id=`,
   `GET /atividade?origem=&aparelho_id=&falhas=&antes=&limite=`, `GET /alertas`, `POST /alertas/{id}/resolver`
@@ -479,7 +501,7 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
 
 ## 14. Estado atual e pendências
 
-- Transmissor "Smart IR" (`eb3f5451cddd399055p54z`, 192.168.0.187) online; aparelho "Ar do quarto" vinculado a ele e
+- Transmissor "Smart IR" (`eb3f5451cddd399055p54z`, 192.168.0.187) online; aparelho "Ar do escritório" vinculado a ele e
   ao Sinric. **Nenhum botão IR gravado ainda** — sem isso nenhum comando aciona o ar de verdade.
 - Skill própria da Alexa ainda não criada na Amazon/AWS (opcional; o Sinric já cobre Alexa e Google).
 - Envio pela nuvem Tuya com o Mac desligado não foi validado com este transmissor.

@@ -40,7 +40,7 @@ export default function FormAparelho({ inicial, hubs, aoSalvar, rotuloBotao = 'S
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="rotulo" htmlFor="nome">Nome</label>
-          <input id="nome" className="campo" value={f.nome} onChange={mudar('nome')} placeholder="Ar do quarto" required maxLength={60} />
+          <input id="nome" className="campo" value={f.nome} onChange={mudar('nome')} placeholder="Ar da recepção" required maxLength={60} />
           <p className="ajuda">É o nome que você vai falar para a Alexa.</p>
         </div>
         <div className="sm:col-span-2">
@@ -52,7 +52,7 @@ export default function FormAparelho({ inicial, hubs, aoSalvar, rotuloBotao = 'S
         </div>
         <div>
           <label className="rotulo" htmlFor="comodo">Cômodo</label>
-          <input id="comodo" className="campo" value={f.comodo} onChange={mudar('comodo')} placeholder="Quarto" maxLength={40} />
+          <input id="comodo" className="campo" value={f.comodo} onChange={mudar('comodo')} placeholder="Recepção" maxLength={40} />
         </div>
         <div>
           <label className="rotulo" htmlFor="marca">Marca do ar</label>

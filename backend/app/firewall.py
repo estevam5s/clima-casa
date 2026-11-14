@@ -11,11 +11,13 @@ Ordem de cada requisição (middleware em main.py):
 Os contadores rápidos ficam em memória (por instância); os bloqueios e eventos ficam no Supabase,
 então valem para a Vercel e para o agente ao mesmo tempo.
 """
+import contextvars
 import ipaddress
 import re
 import threading
 import time
 from collections import defaultdict, deque
+from urllib.parse import unquote
 
 from . import db
 
@@ -45,6 +47,33 @@ _cache = {"lista": [], "lista_em": 0.0, "cfg": dict(PADRAO), "cfg_em": 0.0}
 _reqs: dict[str, deque] = defaultdict(deque)
 _estouros: dict[str, int] = defaultdict(int)
 _trava = threading.Lock()
+_vistos: dict[str, float] = {}       # IP → último "acesso" registrado (para não gravar cada requisição)
+_geo = contextvars.ContextVar("clima_geo", default={})
+
+
+def definir_contexto(request):
+    """Guarda a localização do pedido (cabeçalhos da borda da Vercel) para os registros desta requisição."""
+    h = request.headers
+
+    def num(c):
+        try:
+            return float(h.get(c, ""))
+        except ValueError:
+            return None
+    _geo.set({"pais": h.get("x-vercel-ip-country", ""), "cidade": unquote(h.get("x-vercel-ip-city", "")),
+              "regiao": h.get("x-vercel-ip-country-region", ""), "lat": num("x-vercel-ip-latitude"), "lon": num("x-vercel-ip-longitude")})
+
+
+def registrar_acesso(request, status: int):
+    """Grava um evento "acesso" por IP a cada 10 min (alimenta o mapa e o relatório de acessos)."""
+    ip = ip_do_pedido(request)
+    agora = time.time()
+    if agora - _vistos.get(ip, 0) < 600:
+        return
+    _vistos[ip] = agora
+    if len(_vistos) > 5000:
+        _vistos.clear()
+    registrar(ip, "acesso", request.url.path, str(status), agente=request.headers.get("user-agent", ""))
 
 
 def config() -> dict:
@@ -100,9 +129,12 @@ def _casa(ip: str, tipo: str) -> dict | None:
 
 
 def registrar(ip: str, tipo: str, rota: str = "", detalhe: str = "", pais: str = "", agente: str = ""):
+    g = _geo.get()
     try:
-        db.executar("INSERT INTO seguranca_eventos (quando, ip, tipo, rota, detalhe, pais, agente) VALUES (?,?,?,?,?,?,?)",
-                    (db.agora(), ip, tipo, rota[:200], detalhe[:300], pais[:4], agente[:200]))
+        db.executar("INSERT INTO seguranca_eventos (quando, ip, tipo, rota, detalhe, pais, agente, cidade, regiao, lat, lon) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (db.agora(), ip, tipo, rota[:200], detalhe[:300], (pais or g.get("pais", ""))[:4], agente[:200],
+                     g.get("cidade", "")[:80], g.get("regiao", "")[:10], g.get("lat"), g.get("lon")))
     except Exception:  # noqa: BLE001  (registro nunca derruba a requisição)
         pass
 
@@ -129,6 +161,12 @@ def bloqueio_automatico(ip: str, motivo: str):
     bloquear(ip, motivo, degraus[nivel], automatico=True)
     registrar(ip, "ip_bloqueado_auto", detalhe=f"{motivo} · {degraus[nivel]} min")
     db.registrar("sistema", f"IP bloqueado automaticamente: {ip}", ok=False, detalhe=f"{motivo} · {degraus[nivel]} min")
+    from . import notificacoes
+    g = _geo.get()
+    local = ", ".join(x for x in (g.get("cidade"), g.get("pais")) if x)
+    notificacoes.notificar(f"ip-{ip}", "seguranca", "alta", f"IP {ip} bloqueado automaticamente",
+                           f"{motivo}. Bloqueio de {degraus[nivel]} min{' · ' + local if local else ''}.", "/seguranca",
+                           {"rotulo": "Desbloquear", "tipo": "desbloquear_ip", "alvo": ip})
 
 
 def falhas_recentes(ip: str, tipos: tuple[str, ...], minutos: int, detalhe_contem: str | None = None) -> int:

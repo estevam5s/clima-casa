@@ -12,30 +12,74 @@ function tema() {
   return { corpo: escuro ? 0xe9e9ec : 0xfbfbfb, aba: escuro ? 0xd2d2d7 : 0xe6e6ea, parede: escuro ? 0x141416 : 0xf0f0f2, escuro }
 }
 
-// Painel digital do aparelho (textura desenhada em canvas): temperatura e modo.
+// Painel digital do aparelho (textura desenhada em canvas).
+// Ligado: temperatura ajustada (com contagem animada), modo, ventilação e a temperatura de fora.
+// Desligado: modo espera, mostra a temperatura real de fora e o relógio, em brilho baixo.
 function criarPainel() {
   const canvas = document.createElement('canvas')
-  canvas.width = 256; canvas.height = 96
+  canvas.width = 512; canvas.height = 192
   const textura = new THREE.CanvasTexture(canvas)
   textura.colorSpace = THREE.SRGBColorSpace
-  const desenhar = (estado, brilho) => {
+  textura.anisotropy = 4
+  const desenhar = (estado, brilho, mostrada, varredura) => {
     const g = canvas.getContext('2d')
-    g.clearRect(0, 0, 256, 96)
-    g.fillStyle = '#0b0d0f'; g.fillRect(0, 0, 256, 96)
+    g.clearRect(0, 0, 512, 192)
+    g.fillStyle = '#07090b'; g.fillRect(0, 0, 512, 192)
+    const temExt = estado.externa != null
+    const ext = temExt ? `${Math.round(estado.externa)}°` : '--°'
+    g.textBaseline = 'middle'
+    if (brilho < 0.5) {
+      // espera: temperatura de fora + relógio
+      const a = 0.55 * (1 - brilho * 2)
+      g.globalAlpha = a
+      g.fillStyle = '#9fd3ff'; g.shadowColor = '#4ea8ff'; g.shadowBlur = 16
+      g.font = '600 118px ui-monospace, Menlo, monospace'
+      g.fillText(temExt ? ext : `${estado.temperatura ?? '--'}°`, 26, 104)
+      g.shadowBlur = 8; g.font = '600 34px -apple-system, sans-serif'
+      g.fillText(temExt ? 'EXT' : 'AJUSTE', 340, 64)
+      const agora = new Date()
+      g.fillText(`${String(agora.getHours()).padStart(2, '0')}${agora.getSeconds() % 2 ? ':' : ' '}${String(agora.getMinutes()).padStart(2, '0')}`, 340, 112)
+      if (estado.umidade != null) { g.font = '500 26px -apple-system, sans-serif'; g.fillText(`${Math.round(estado.umidade)}%`, 340, 152) }
+    }
     if (brilho > 0.02) {
       const cor = `#${(COR_MODO[estado.modo] ?? 0x4ea8ff).toString(16).padStart(6, '0')}`
-      g.globalAlpha = brilho
-      g.fillStyle = cor; g.shadowColor = cor; g.shadowBlur = 14
-      g.font = '600 62px ui-monospace, Menlo, monospace'; g.textBaseline = 'middle'
-      g.fillText(`${estado.temperatura}°`, 14, 52)
-      g.shadowBlur = 6; g.font = '600 20px -apple-system, sans-serif'
-      g.fillText(NOME_MODO[estado.modo] ?? '', 160, 38)
-      g.fillText(`V${{ baixa: 1, media: 2, alta: 3 }[estado.ventilador] ?? 'A'}`, 160, 66)
-      g.globalAlpha = 1
+      g.globalAlpha = Math.min(1, brilho)
+      g.fillStyle = cor; g.shadowColor = cor; g.shadowBlur = 26
+      g.font = '600 124px ui-monospace, Menlo, monospace'
+      g.fillText(`${mostrada}°`, 22, 104)
+      g.shadowBlur = 10; g.font = '600 38px -apple-system, sans-serif'
+      g.fillText(NOME_MODO[estado.modo] ?? '', 330, 56)
+      g.fillText(`V${{ baixa: 1, media: 2, alta: 3 }[estado.ventilador] ?? 'A'}`, 330, 104)
+      g.font = '500 28px -apple-system, sans-serif'; g.globalAlpha = Math.min(1, brilho) * 0.75
+      if (temExt) g.fillText(`EXT ${ext}`, 330, 150)
+      // barras de potência da ventilação
+      const n = { baixa: 1, media: 2, alta: 3 }[estado.ventilador] ?? 2
+      for (let i = 0; i < 3; i++) { g.globalAlpha = Math.min(1, brilho) * (i < n ? 0.9 : 0.2); g.fillRect(430 + i * 18, 118 - i * 10, 12, 16 + i * 10) }
     }
+    // reflexo que atravessa o vidro do display
+    g.globalAlpha = 0.07; g.shadowBlur = 0
+    const x = varredura * 700 - 100
+    const grad = g.createLinearGradient(x, 0, x + 80, 0)
+    grad.addColorStop(0, 'rgba(255,255,255,0)'); grad.addColorStop(0.5, 'rgba(255,255,255,1)'); grad.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = grad; g.fillRect(0, 0, 512, 192)
+    g.globalAlpha = 1
     textura.needsUpdate = true
   }
   return { textura, desenhar }
+}
+
+// Textura de névoa (gradiente vertical suave) para o jato de ar frio.
+function texturaNevoa() {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 256
+  const g = c.getContext('2d')
+  const gr = g.createLinearGradient(0, 0, 0, 256)
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 256)
+  const lateral = g.createLinearGradient(0, 0, 64, 0)
+  lateral.addColorStop(0, 'rgba(0,0,0,1)'); lateral.addColorStop(0.2, 'rgba(0,0,0,0)'); lateral.addColorStop(0.8, 'rgba(0,0,0,0)'); lateral.addColorStop(1, 'rgba(0,0,0,1)')
+  g.globalCompositeOperation = 'destination-out'; g.fillStyle = lateral; g.fillRect(0, 0, 64, 256)
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace
+  return t
 }
 
 // Ar-condicionado split em 3D, animado o tempo todo. `estado` = { ligado, modo, ventilador, temperatura }.
@@ -78,12 +122,26 @@ export default function Cena3D({ estado, className = '' }) {
     frente.position.set(0, 0.16, 0.46)
     unidade.add(frente)
     const painel = criarPainel()
-    const tela = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.23), new THREE.MeshBasicMaterial({ map: painel.textura, transparent: true }))
-    tela.position.set(1.42, 0.17, 0.495)
+    const tela = new THREE.Mesh(new THREE.PlaneGeometry(0.88, 0.33), new THREE.MeshBasicMaterial({ map: painel.textura, transparent: true }))
+    tela.position.set(1.28, 0.17, 0.495)
     unidade.add(tela)
     const led = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), new THREE.MeshBasicMaterial({ color: 0x3f3f46 }))
     led.position.set(1.84, 0.02, 0.5)
     unidade.add(led)
+    // faixa de luz sob a grelha (cor do modo) e névoa do jato de ar
+    const faixa = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.035), new THREE.MeshBasicMaterial({ color: 0x4ea8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }))
+    faixa.position.set(0, -0.5, 0.47)
+    unidade.add(faixa)
+    const nevoas = []
+    const texNevoa = texturaNevoa()
+    for (let i = 0; i < 3; i++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(3.9 - i * 0.3, 1.6), new THREE.MeshBasicMaterial({ map: texNevoa, color: 0x9fd3ff, transparent: true, opacity: 0,
+        depthWrite: false, blending: t.escuro ? THREE.AdditiveBlending : THREE.NormalBlending, side: THREE.DoubleSide }))
+      m.position.set(0, -1.2, 0.95 + i * 0.12)
+      m.rotation.x = -0.55 - i * 0.12
+      unidade.add(m)
+      nevoas.push(m)
+    }
     // aleta principal (abre ao ligar e faz o swing)
     const pivoAba = new THREE.Group()
     pivoAba.position.set(0, -0.36, 0.44)
@@ -161,6 +219,7 @@ export default function Cena3D({ estado, className = '' }) {
     const relogio = new THREE.Clock()
     let abertura = 0, intensidade = 0, pulso = 0, ultimoLigado = null, quadro
     let ultimoPainel = ''
+    let mostrada = estadoRef.current?.externa ?? estadoRef.current?.temperatura ?? 23
     const cor = new THREE.Color()
     const laco = () => {
       quadro = requestAnimationFrame(laco)
@@ -184,9 +243,23 @@ export default function Cena3D({ estado, className = '' }) {
       if (ligado) led.material.color.setHex(0x22c55e)
       else led.material.color.setRGB(0.35 + 0.5 * (0.5 + 0.5 * Math.sin(tempo * 2.2)), 0.08, 0.08)
 
-      // painel digital (só redesenha quando muda)
-      const chave = `${ligado}|${e.temperatura}|${e.modo}|${e.ventilador}|${Math.round(intensidade * 10)}`
-      if (chave !== ultimoPainel) { painel.desenhar(e, intensidade); ultimoPainel = chave }
+      // painel digital: ao ligar a temperatura "conta" da de fora até a ajustada; reflexo passa a cada ~6 s
+      const alvo = ligado ? (e.temperatura ?? 23) : (e.externa ?? e.temperatura ?? 23)
+      mostrada += (alvo - mostrada) * Math.min(1, dt * (ligado ? 2.2 : 4))
+      const varredura = ((tempo / 6) % 1)
+      const segundo = Math.floor(Date.now() / 1000)
+      const chave = `${ligado}|${Math.round(mostrada)}|${e.modo}|${e.ventilador}|${e.externa}|${e.umidade}|${Math.round(intensidade * 20)}|${Math.round(varredura * 40)}|${segundo}`
+      if (chave !== ultimoPainel) { painel.desenhar(e, intensidade, Math.round(mostrada), varredura); ultimoPainel = chave }
+
+      // faixa de luz e névoa acompanham o modo e a ventilação
+      faixa.material.color.copy(luzModo.color)
+      faixa.material.opacity = intensidade * (0.65 + 0.25 * Math.sin(tempo * 3))
+      nevoas.forEach((m, i) => {
+        m.material.color.copy(luzModo.color).lerp(new THREE.Color(0xffffff), 0.45)
+        m.material.opacity = intensidade * (0.16 - i * 0.035) * (0.75 + 0.25 * Math.sin(tempo * (1.1 + i * 0.4) + i))
+        m.scale.y = 1 + 0.08 * Math.sin(tempo * 0.8 + i) * amp
+        m.position.y = -1.2 - 0.05 * Math.sin(tempo * 0.6 + i)
+      })
 
       cor.setHex(COR_MODO[e.modo] || COR_MODO.frio)
       matP.color.lerp(cor, Math.min(1, dt * 4))

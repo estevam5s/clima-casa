@@ -123,7 +123,7 @@ export default function Alexa() {
           </ol>
           <div className="mt-5 rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
             <p className="mb-1 font-medium">Exemplos de comando</p>
-"Alexa, ligar ar do quarto" · "Alexa, colocar ar do quarto em 23 graus" · "Alexa, aumentar a temperatura do ar do quarto" · "Alexa, desligar ar do quarto"
+"Alexa, ligar ar da recepção" · "Alexa, colocar ar da recepção em 23 graus" · "Alexa, aumentar a temperatura do ar da recepção" · "Alexa, desligar ar da recepção"
           </div>
         </div>
       </div>

@@ -179,7 +179,7 @@ export default function Agendamentos() {
       })()}
       {lista.length === 0 ? (
         <Vazio icone={CalendarClock} titulo="Nenhum agendamento"
-          texto={aparelhos.length ? 'Exemplo: ligar o ar do quarto às 22h em 23°C e desligar às 6h.' : 'Cadastre um aparelho primeiro.'}
+          texto={aparelhos.length ? 'Exemplo: ligar o ar da recepção às 7h30 em 23°C e desligar às 18h.' : 'Cadastre um aparelho primeiro.'}
           acao={aparelhos.length > 0 && <Botao icone={Plus} onClick={() => setModal({})}>Novo agendamento</Botao>} />
       ) : (
         <div className="cartao divide-y divide-border">

@@ -259,6 +259,18 @@ def criar_dispositivo(aparelho: dict) -> str:
     return dados["device"]["id"]
 
 
+def renomear_dispositivo(device_id: str, nome: str, comodo: str = ""):
+    """Troca o nome no Sinric Pro (é o nome que a Alexa e o Google usam). A Alexa atualiza na próxima descoberta."""
+    h = _cabecalho()
+    ids = _descobrir_ids(h)
+    corpo = {"name": nome[:60], "description": f"Ar-condicionado por infravermelho via Clima Escritório{(' · ' + comodo) if comodo else ''}"[:200],
+             "productId": ids["product_id"], "roomId": ids["room_id"], "accessKeyId": ids["access_key_id"], "id": device_id}
+    r = httpx.put(f"{API}/devices", headers=h, json=corpo, timeout=20)  # a API do Sinric atualiza por PUT /devices com o id no corpo
+    dados = r.json() if "json" in r.headers.get("content-type", "") else {}
+    if not dados.get("success"):
+        raise RuntimeError(f"Sinric Pro recusou a troca de nome: {dados.get('message') or r.status_code}")
+
+
 def apagar_dispositivo(device_id: str):
     httpx.delete(f"{API}/devices/{device_id}", headers=_cabecalho(), timeout=20)
 

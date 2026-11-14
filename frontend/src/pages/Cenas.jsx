@@ -102,7 +102,7 @@ export default function Cenas() {
 
   return (
     <div className="w-full">
-      <Cabecalho titulo="Cenas" descricao="Um toque executa vários comandos: ligar o quarto em 23° e desligar a sala, por exemplo."
+      <Cabecalho titulo="Cenas" descricao="Um toque executa vários comandos: ligar a sala de reunião em 23° e desligar a recepção, por exemplo."
         acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Nova cena</Botao>} />
       {cenas.length === 0 ? (
         <Vazio icone={Sparkles} titulo="Nenhuma cena" texto={aparelhos.length ? 'Crie "Dormir", "Sair de casa" ou "Chegar do trabalho".' : 'Cadastre um aparelho primeiro.'}

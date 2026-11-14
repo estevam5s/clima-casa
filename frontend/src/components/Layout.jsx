@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Activity, AirVent, BarChart3, Bell, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, Sparkles, Workflow, X,
+  Activity, AirVent, BarChart3, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
+  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X,
 } from 'lucide-react'
-import { api, haQuanto } from '../api'
+import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
-import { atualizarAba } from '../favicon'
+import Notificacoes, { useCentral } from './Notificacoes'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
 
@@ -33,6 +33,7 @@ export const GRUPOS = [
   ] },
   { titulo: 'Sistema', itens: [
     { para: '/atividade', rotulo: 'Atividade', icone: Activity },
+    { para: '/seguranca', rotulo: 'Segurança', icone: ShieldCheck },
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
   ] },
@@ -221,65 +222,35 @@ function Paleta({ aberta, fechar }) {
   )
 }
 
-const COR_GRAVIDADE = { alta: 'bg-red-500', media: 'bg-amber-500', baixa: 'bg-muted-foreground/50' }
 
-function Notificacoes() {
-  const [aberto, setAberto] = useState(false)
-  const [dados, setDados] = useState({ total: 0, itens: [] })
-  const navegar = useNavigate()
-  const local = useLocation()
-  const ref = useRef(null)
-  const carregar = useCallback(() => api.get('/api/notificacoes').then((d) => { setDados(d); atualizarAba(d.total) }).catch(() => {}), [])
-  useEffect(() => { carregar(); const t = setInterval(carregar, 30000); return () => clearInterval(t) }, [carregar])
-  useEffect(() => { carregar() }, [local.pathname, carregar]) // atualiza ao trocar de tela
-  useEffect(() => {
-    if (!aberto) return
-    const fora = (e) => { if (!ref.current?.contains(e.target)) setAberto(false) }
-    document.addEventListener('mousedown', fora)
-    return () => document.removeEventListener('mousedown', fora)
-  }, [aberto])
-  const total = dados.total
+// Barra de status no lugar do título repetido: lugar atual, agente, ares ligados, transmissores e relógio.
+function BarraStatus({ status }) {
+  const { projeto } = useProjeto()
+  const [agora, setAgora] = useState(new Date())
+  useEffect(() => { const t = setInterval(() => setAgora(new Date()), 15000); return () => clearInterval(t) }, [])
+  const s = status || {}
   return (
-    <div className="relative" ref={ref}>
-      <button onClick={() => setAberto(!aberto)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Notificações (${total})`}>
-        <Bell className="h-[18px] w-[18px]" />
-        <AnimatePresence>
-          {total > 0 && (
-            <motion.span key={total} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-              className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white ring-2 ring-background tabular">
-              {total > 99 ? '99+' : total}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </button>
-      <AnimatePresence>
-        {aberto && (
-          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.14 }}
-            className="absolute right-0 top-11 z-50 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-card shadow-xl"> {/* marca: menu flutua */}
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <p className="text-sm font-semibold">Notificações</p>
-              <span className="text-xs text-muted-foreground">{total ? `${total} pedindo atenção` : 'tudo em ordem'}</span>
-            </div>
-            <div className="max-h-[420px] overflow-y-auto p-1.5">
-              {total === 0 && <p className="px-3 py-8 text-center text-sm text-muted-foreground">Nenhuma pendência. Transmissores, agente e Alexa funcionando.</p>}
-              {dados.itens.map((n) => (
-                <div key={n.id} className="group flex gap-3 rounded-lg px-3 py-2.5 hover:bg-muted">
-                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${COR_GRAVIDADE[n.gravidade]}`} />
-                  <button className="min-w-0 flex-1 text-left" onClick={() => { setAberto(false); navegar(n.link) }}>
-                    <p className="text-sm leading-snug">{n.titulo}</p>
-                    {n.detalhe && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.detalhe}</p>}
-                    <p className="mt-0.5 text-[11px] text-muted-foreground/80">{haQuanto(n.quando)}</p>
-                  </button>
-                  {n.alerta_id && (
-                    <button className="self-start text-xs text-primary opacity-0 transition-opacity hover:underline group-hover:opacity-100"
-                      onClick={async () => { await api.post(`/api/alertas/${n.alerta_id}/resolver`); carregar() }}>Resolver</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
+      <span className="hidden truncate font-medium text-foreground sm:inline">{projeto ? projeto.nome : 'Todos os projetos'}</span>
+      {status && (
+        <>
+          <span className="hidden text-border sm:inline">/</span>
+          <Link to="/configuracoes?aba=sistema" className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Agente do Mac">
+            <span className="relative flex h-2 w-2">
+              {s.agente_online && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />} {/* marca: pulso indica que o agente está vivo */}
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${s.agente_online ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            </span>
+            {s.agente_online ? 'Agente online' : 'Agente offline'}
+          </Link>
+          <Link to="/aparelhos" className="hidden items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted md:flex" title="Ares ligados agora">
+            <AirVent className="h-3.5 w-3.5" /><span className="tabular">{s.ligados}/{s.aparelhos}</span> ligados
+          </Link>
+          <Link to="/transmissores" className="hidden items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted lg:flex" title="Transmissores respondendo">
+            <Radio className="h-3.5 w-3.5" /><span className="tabular">{s.hubs_online}/{s.hubs}</span> transmissores
+          </Link>
+        </>
+      )}
+      <span className="hidden whitespace-nowrap tabular xl:inline">· {agora.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '')}, {agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
     </div>
   )
 }
@@ -344,7 +315,7 @@ export default function Layout() {
   const desktop = useDesktop()
   const local = useLocation()
   const aberta = fixada || hover
-  const atual = TODAS.find((i) => (i.fim ? local.pathname === i.para : local.pathname.startsWith(i.para))) || TODAS[0]
+  const central = useCentral()
 
   useEffect(() => setMovel(false), [local.pathname])
   useEffect(() => {
@@ -387,7 +358,7 @@ export default function Layout() {
       <motion.div className="min-w-0" initial={false} animate={{ paddingLeft: desktop ? (aberta ? ABERTA : FECHADA) : 0 }} transition={MOLA}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
           <button onClick={() => setMovel(true)} className="-ml-1 rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
-          <p className="truncate text-[15px] font-semibold">{atual.rotulo}</p>
+          <BarraStatus status={central.dados?.status} />
           <div className="ml-auto flex items-center gap-1">
             <button onClick={() => setPaleta(true)} className="hidden h-9 w-64 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground hover:bg-muted sm:flex">
               <Search className="h-4 w-4" /> <span className="flex-1 text-left">Buscar…</span>
@@ -398,7 +369,7 @@ export default function Layout() {
               <Download className="h-4 w-4" /> Apps
             </Link>
             <BotaoTema />
-            <Notificacoes />
+            <Notificacoes central={central} />
           </div>
         </header>
         <Banner />

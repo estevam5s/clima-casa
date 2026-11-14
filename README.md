@@ -84,7 +84,7 @@ Público: o administrador do lugar. Não há cadastro público: só entra quem t
 
 | Item | Quantidade |
 |---|---|
-| Telas no painel web | 19 |
+| Telas no painel web | 20 |
 | Rotas de API (`/api`, OAuth e Alexa) | 89 |
 | Tabelas no Postgres (todas com RLS) | 19 (+ 2 de log das rotinas) |
 | Rotinas pg_cron | 10 |
@@ -107,7 +107,9 @@ Público: o administrador do lugar. Não há cadastro público: só entra quem t
 | Vários transmissores | Cada ar aponta para um SRW-004; descoberta na rede local e importação da conta Smart Life (um ou todos) |
 | Reconexão automática | Se o transmissor mudar de IP, de Wi-Fi ou for pareado de novo, o agente acha o novo endereço e a nova chave sozinho ([Apêndice B](#-apêndice-b-reconfiguração-automática-do-transmissor)) |
 | Envio com plano B | Agente local primeiro; se ele estiver fora do ar, tenta a nuvem Tuya |
-| Notificações | Sino no cabeçalho com alertas (ar ligado há 12 h, falhas seguidas, transmissor offline) e contador no ícone da aba |
+| Notificações | Central guardada no banco: abas (todas, não lidas, importantes, segurança), marcar como lida, limpar uma ou todas, ações direto na notificação (resolver alerta, desbloquear IP, reconectar transmissor), som e preferências por tipo |
+| Barra de status | No lugar do título repetido: projeto, agente online, ares ligados, transmissores e relógio |
+| Temperatura de fora | Temperatura, sensação e umidade reais (Open-Meteo) no display do ar em 3D e no painel |
 | Busca ⌘K | Vai para qualquer tela ou aparelho pelo teclado |
 
 ---
@@ -355,6 +357,7 @@ Datas em epoch (segundos). RLS ligado em todas as tabelas; o backend conecta com
 | `/integracoes`, `/comandos-alexa`, `/alexa` | Sinric Pro, frases de voz, skill própria |
 | `/supabase` | rotinas, uso do banco, alertas, backups |
 | `/atividade` | linha do tempo |
+| `/seguranca` | segurança: mapa 3D de acessos, IPs, bloqueios, relatório |
 | `/configuracoes?aba=geral\|aparencia\|marca\|seguranca\|contas\|sistema` | configurações |
 | `/apps` | downloads |
 | `/oauth/autorizar` | consentimento da vinculação da Alexa |
@@ -387,7 +390,8 @@ Prefixo `/api`, JSON, `Authorization: Bearer <token do Supabase>` obrigatório, 
 | Login | Só admin, sem cadastro. Login passa por `POST /api/auth/entrar`, que bloqueia e-mail e IP depois de 5 falhas |
 | Firewall de aplicação | Lista de IPs/CIDRs bloqueados e permitidos, bloqueio por país, detecção de ferramentas de ataque (sqlmap, nikto, nuclei…), assinaturas de SQLi/XSS/path traversal, limite de requisições por minuto |
 | Bloqueio progressivo | Reincidência sobe o degrau: 15 min → 1 h → 24 h → 7 dias. O próprio administrador logado não é bloqueado por sessão vencida |
-| Painel de segurança | Configurações → Segurança: eventos, IPs bloqueados, regras e limites ajustáveis |
+| Tela Segurança (`/seguranca`) | Postura de 0 a 100, **globo 3D** (Three.js) com a origem dos acessos e ataques e arcos animados até o servidor, eventos ao vivo, IPs com nota de risco e bloqueio em um clique, países, rotas atacadas, bloqueios ativos, regras do firewall |
+| Relatório de segurança | PDF, DOCX, XLSX, CSV, HTML, XML, JSON e Markdown, com recomendações automáticas |
 | Criptografia | TLS em tudo; segredos em repouso (Local Key, tokens Smart Life, Sinric, Alexa) com **AES-256-GCM** e contexto (AAD) por campo; chave mestra só em variável de ambiente |
 | Banco | Pooler com TLS verificado contra a CA do Supabase; RLS em todas as tabelas; SQL sempre parametrizado |
 | Navegador | CSP restrita, HSTS com preload, X-Frame-Options DENY, nosniff, COOP/CORP, `no-store` nas respostas dinâmicas, CSRF barrado por checagem de `Origin` |
@@ -449,6 +453,7 @@ Conferir depois: `GET /saude` (200), login, uma rota de cada área tocada.
 | Script | O que faz |
 |---|---|
 | `iniciar.sh` | sobe o agente no terminal |
+| `scripts/gerar-release-json.sh` | atualiza versão, tamanhos e SHA-256 dos apps mostrados em `/apps` |
 | `instalar-servico.sh [status\|remover]` | instala, mostra o estado ou remove o LaunchAgent |
 | `publicar-vercel.sh` | build + deploy na Vercel a partir de uma cópia sem `.git` |
 | `docs/gerar-pdf.sh` | gera `docs/Manual-Clima-Casa.pdf` a partir do `MANUAL.md` |

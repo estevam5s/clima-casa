@@ -235,3 +235,32 @@ create index if not exists ix_seg_eventos_quando on public.seguranca_eventos (qu
 alter table public.seguranca_ips enable row level security;
 alter table public.seguranca_eventos enable row level security;
 alter table public.aparelhos add column if not exists potencia_w integer not null default 1000;
+
+-- ---------- notificações persistentes (central de notificações) ----------
+create table if not exists public.notificacoes (
+  id bigint generated always as identity primary key,
+  chave text not null unique,             -- identifica a condição (ex.: hub-<id>, falha-<aparelho>-<dia>, ip-<ip>)
+  tipo text not null,                     -- alerta, falha, transmissor, agente, alexa, configuracao, seguranca, sistema
+  gravidade text not null default 'baixa',-- alta, media, baixa
+  titulo text not null,
+  detalhe text not null default '',
+  link text not null default '',
+  acao jsonb,                             -- botão de ação: {"rotulo": "...", "tipo": "resolver_alerta|desbloquear_ip|reparar_hub|link", ...}
+  criado_em bigint not null,
+  atualizado_em bigint not null,
+  ocorrencias integer not null default 1,
+  lida boolean not null default false,
+  arquivada boolean not null default false,
+  resolvida boolean not null default false
+);
+create index if not exists ix_notificacoes_ativas on public.notificacoes (arquivada, atualizado_em desc);
+alter table public.notificacoes enable row level security;
+
+-- ---------- geolocalização dos eventos de segurança (cabeçalhos da borda da Vercel) ----------
+alter table public.seguranca_eventos add column if not exists cidade text not null default '';
+alter table public.seguranca_eventos add column if not exists regiao text not null default '';
+alter table public.seguranca_eventos add column if not exists lat double precision;
+alter table public.seguranca_eventos add column if not exists lon double precision;
+create index if not exists ix_seg_eventos_tipo_quando on public.seguranca_eventos (tipo, quando desc);
+drop policy if exists admin_le on public.notificacoes;
+create policy admin_le on public.notificacoes for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
