@@ -352,7 +352,8 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 | `/supabase` | rotinas, uso do banco, alertas, gráfico, backups |
 | `/atividade` | linha do tempo por dia, ao vivo, filtros, exportar CSV |
 | `/seguranca` | postura, globo 3D de acessos (Three.js + world-atlas), eventos ao vivo, IPs com risco e ações, países, rotas atacadas, bloqueios, regras e relatório de segurança em 8 formatos |
-| `/configuracoes?aba=` | `geral` (Smart Life, envio), `aparencia` (tema), `marca` (white label, 34 opções), `seguranca` (firewall), `contas` (senha), `sistema` (backup, agente) |
+| `/configuracoes?aba=` | `perfil` (foto por upload ou link, nome, cargo, telefone, sobre, troca de e-mail e de senha com a senha atual), `geral` (Smart Life, envio), `aparencia` (tema), `marca` (white label, 34 opções), `seguranca` (firewall), `contas` (senha), `sistema` (backup, agente) |
+| `/mensagens` | caixa de entrada do site: filtros (entrada, não lidas, contato, novidades, respondidas, arquivadas), busca, leitura com notas internas, responder por e-mail, marcar respondida/lida, arquivar, apagar, ações em lote, exportar CSV; contador de não lidas no menu |
 | `/apps` | downloads com logos reais (simple-icons), detecção do sistema e da arquitetura, tamanho e SHA-256 de cada arquivo, QR Code do APK, PWA, tabela de recursos. Dados do release em `frontend/src/release.json` (**rode `scripts/gerar-release-json.sh` depois de cada release**) |
 | `/oauth/autorizar` | consentimento da vinculação de conta da Alexa |
 
@@ -379,6 +380,9 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 - Formulários (contato e novidades) fazem `POST /api/site/contato` no sistema: rota pública com CORS só para
   `CLIMA_SITE_ORIGENS` (padrão: o domínio do site e localhost:3100), limite de 5 por IP/hora, grava em
   `site_mensagens` e cria notificação.
+- "Entrar no sistema" aponta para a raiz do sistema (não para /login): logado entra direto; o /login também
+  redireciona na hora se já houver sessão válida no navegador.
+- Menu do celular é uma tela cheia (`menu-movel`); submenus do desktop abrem um por vez (estado, não :hover).
 - Rodar: `cd site && npm install && npm run dev` (porta 3100). Publicar: `site/publicar.sh` (cópia sem .git).
 - O sistema tem o botão **Voltar ao site** (menu lateral, cabeçalho e login), endereço em `frontend/src/site.js`
   (`VITE_SITE_URL` sobrescreve).
@@ -413,6 +417,8 @@ validação vira 422 com "Confira o(s) campo(s): …".
 - **Relatórios**: `GET /relatorios/completo?dias=|inicio=&fim=&projeto_id=&aparelho_id=`, `GET /relatorios/exportar?formato=pdf|docx|xlsx|csv|html|xml|json|md&…`
 - **Notificações**: `GET /notificacoes?filtro=todas|nao_lidas|importantes|seguranca` (inclui `status` do cabeçalho), `POST /notificacoes/{id}/lida`, `POST /notificacoes/ler-todas`, `DELETE /notificacoes/{id}` (limpa uma), `POST /notificacoes/limpar?somente=todas|lidas|resolvidas`, `POST /notificacoes/{id}/acao`, `PUT /notificacoes/preferencias`, `GET /notificacoes/historico`
 - **Segurança (tela)**: `GET /seguranca/resumo?dias=`, `GET /seguranca/relatorio?formato=&dias=`, `DELETE /seguranca/eventos?dias=`
+- **Mensagens do site**: `GET /site/mensagens?filtro=&busca=`, `PUT /site/mensagens/{id}`, `POST /site/mensagens/lote`, `DELETE /site/mensagens/{id}`, `GET /site/mensagens/exportar`
+- **Perfil**: `GET|PUT /perfil`, `POST /perfil/avatar` (`dados` = data URL ou `url` = link; o servidor baixa com proteção SSRF, usa og:image se for página, recorta 256 px e regrava em WEBP), `DELETE /perfil/avatar`. Fica em `config.perfil_admin`.
 - **Outros**: `GET /clima-externo?projeto_id=`, `GET /apps/qr?alvo=android|site`
 - **Marca e segurança**: `GET /marca` (pública), `PUT /marca`, `GET /marca/historico`, `POST /marca/historico/{i}/restaurar`, `POST /marca/padrao`; `GET|PUT /seguranca`, `GET|POST /seguranca/ips`, `DELETE /seguranca/ips/{id}`, `GET /seguranca/eventos`
 - **Painel e dados**: `GET /painel?projeto_id=`, `GET /metricas?dias=`, `GET /relatorios?dias=&projeto_id=`,

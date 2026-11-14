@@ -21,6 +21,7 @@ import Projetos from './pages/Projetos'
 import Cenas from './pages/Cenas'
 import Relatorios from './pages/Relatorios'
 import Seguranca from './pages/Seguranca'
+import Mensagens from './pages/Mensagens'
 import Integracoes from './pages/Integracoes'
 import { ProjetoProvider } from './contexto'
 import { TemaProvider } from './tema'
@@ -34,7 +35,8 @@ function Protegido({ children }) {
   const local = useLocation()
   const navegar = useNavigate()
   useEffect(() => {
-    api.get('/api/sessao').then(setEstado).catch(() => setEstado({ logado: false }))
+    const sem = () => { try { localStorage.removeItem('clima-casa-auth') } catch { /* sem storage */ } }  // evita voltar ao login em laço
+    api.get('/api/sessao').then((e) => { if (!e?.logado) sem(); setEstado(e) }).catch(() => { sem(); setEstado({ logado: false }) })
     const expirou = () => navegar('/login', { state: { de: window.location.pathname + window.location.search } })
     window.addEventListener('clima:sessao-expirada', expirou)
     return () => window.removeEventListener('clima:sessao-expirada', expirou)
@@ -76,6 +78,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="cenas" element={<Cenas />} />
             <Route path="relatorios" element={<Relatorios />} />
             <Route path="seguranca" element={<Seguranca />} />
+            <Route path="mensagens" element={<Mensagens />} />
             <Route path="integracoes" element={<Integracoes />} />
             <Route path="automacoes" element={<Automacoes />} />
             <Route path="comandos-alexa" element={<ComandosAlexa />} />

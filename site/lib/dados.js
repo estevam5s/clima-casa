@@ -1,7 +1,7 @@
 // Conteúdo do site. Tudo aqui descreve o sistema real em ar-controle (nada inventado).
 export const SISTEMA_URL = process.env.NEXT_PUBLIC_SISTEMA_URL || 'https://clima-casa-lac.vercel.app'
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://clima-escritorio-site.vercel.app'
-export const ENTRAR_URL = `${SISTEMA_URL}/login`
+export const ENTRAR_URL = `${SISTEMA_URL}/`  // raiz: quem já está logado entra direto; quem não está vai para o login
 export const APPS_URL = `${SISTEMA_URL}/apps`
 export const MARCA = 'Clima Escritório'
 

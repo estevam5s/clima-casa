@@ -281,3 +281,8 @@ create index if not exists ix_site_mensagens_quando on public.site_mensagens (qu
 alter table public.site_mensagens enable row level security;
 drop policy if exists admin_le on public.site_mensagens;
 create policy admin_le on public.site_mensagens for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+alter table public.site_mensagens add column if not exists arquivada boolean not null default false;
+alter table public.site_mensagens add column if not exists respondida boolean not null default false;
+alter table public.site_mensagens add column if not exists notas text not null default '';
+alter table public.site_mensagens add column if not exists pais text not null default '';
+alter table public.site_mensagens add column if not exists cidade text not null default '';

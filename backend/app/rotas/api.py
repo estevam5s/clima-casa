@@ -3,6 +3,8 @@ import json
 import re
 import time
 
+import httpx
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -1096,8 +1098,9 @@ def listar_notificacoes(filtro: str = "todas"):
     r = notificacoes.listar(filtro)
     ligados = db.um("SELECT count(*) FILTER (WHERE ligado = 1) AS ligados, count(*) AS total FROM aparelhos")
     hubs = db.um("SELECT count(*) FILTER (WHERE online = 1) AS online, count(*) AS total FROM hubs")
+    msgs = db.um("SELECT count(*) AS n FROM site_mensagens WHERE NOT lida AND NOT arquivada")
     r["status"] = {"agente_online": transmissor.agente_online(), "ligados": ligados["ligados"], "aparelhos": ligados["total"],
-                   "hubs_online": hubs["online"], "hubs": hubs["total"]}
+                   "hubs_online": hubs["online"], "hubs": hubs["total"], "mensagens_nao_lidas": msgs["n"]}
     return r
 
 
@@ -1176,15 +1179,144 @@ def site_contato(d: SiteContatoIn, request: Request):
     if d.tipo == "contato" and (not d.nome.strip() or len(d.mensagem.strip()) < 5):
         raise HTTPException(400, "Preencha o nome e a mensagem.")
     firewall.registrar(ip, "site_contato", "/api/site/contato", d.tipo)
-    mid = db.executar("INSERT INTO site_mensagens (quando, tipo, nome, email, assunto, mensagem, ip) VALUES (?,?,?,?,?,?,?)",
-                      (db.agora(), d.tipo, d.nome.strip(), d.email.strip().lower(), d.assunto.strip(), d.mensagem.strip(), ip))
+    from urllib.parse import unquote
+    mid = db.executar("INSERT INTO site_mensagens (quando, tipo, nome, email, assunto, mensagem, ip, pais, cidade) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (db.agora(), d.tipo, d.nome.strip(), d.email.strip().lower(), d.assunto.strip(), d.mensagem.strip(), ip,
+                       request.headers.get("x-vercel-ip-country", "")[:4], unquote(request.headers.get("x-vercel-ip-city", ""))[:80]))
     if d.tipo == "novidades":
         titulo, detalhe = "Novo cadastro para receber novidades", d.email.strip()
     else:
         titulo = f"Mensagem do site: {d.nome.strip()}" + (f" · {d.assunto.strip()}" if d.assunto.strip() else "")
         detalhe = f"{d.email.strip()} · {d.mensagem.strip()}"
-    notificacoes.notificar(f"site-{mid}", "sistema", "media", titulo, detalhe, "")
+    notificacoes.notificar(f"site-{mid}", "sistema", "media", titulo, detalhe, f"/mensagens?id={mid}",
+                           {"rotulo": "Abrir mensagem", "tipo": "link", "para": f"/mensagens?id={mid}"})
     return {"ok": True}
+
+
+# ---------------- mensagens do site (tela do administrador) ----------------
+@api.get("/site/mensagens")
+def listar_mensagens_site(filtro: str = "entrada", busca: str = "", limite: int = 200):
+    w, p = ["true"], []
+    w.append({"entrada": "NOT arquivada", "nao_lidas": "NOT arquivada AND NOT lida", "contato": "NOT arquivada AND tipo = 'contato'",
+              "novidades": "NOT arquivada AND tipo = 'novidades'", "respondidas": "respondida", "arquivadas": "arquivada"}.get(filtro, "NOT arquivada"))
+    if busca.strip():
+        w.append("(nome ILIKE ? OR email ILIKE ? OR assunto ILIKE ? OR mensagem ILIKE ?)")
+        p += [f"%{busca.strip()}%"] * 4
+    itens = db.consultar(f"SELECT * FROM site_mensagens WHERE {' AND '.join(w)} ORDER BY quando DESC LIMIT ?", (*p, min(limite, 500)))
+    c = db.um("SELECT count(*) FILTER (WHERE NOT arquivada) AS entrada, count(*) FILTER (WHERE NOT arquivada AND NOT lida) AS nao_lidas, "
+              "count(*) FILTER (WHERE NOT arquivada AND tipo = 'contato') AS contato, count(*) FILTER (WHERE NOT arquivada AND tipo = 'novidades') AS novidades, "
+              "count(*) FILTER (WHERE respondida) AS respondidas, count(*) FILTER (WHERE arquivada) AS arquivadas, "
+              "count(DISTINCT email) FILTER (WHERE tipo = 'novidades') AS inscritos, count(*) FILTER (WHERE quando > ?) AS semana FROM site_mensagens",
+              (db.agora() - 7 * 86400,))
+    return {"itens": itens, "contagem": c}
+
+
+class MensagemSiteIn(BaseModel):
+    lida: bool | None = None
+    arquivada: bool | None = None
+    respondida: bool | None = None
+    notas: str | None = Field(None, max_length=2000)
+
+
+@api.put("/site/mensagens/{mid}")
+def atualizar_mensagem_site(mid: int, d: MensagemSiteIn):
+    campos = {k: v for k, v in d.model_dump().items() if v is not None}
+    if campos:
+        db.executar(f"UPDATE site_mensagens SET {', '.join(f'{k} = ?' for k in campos)} WHERE id = ?", (*campos.values(), mid))
+        if campos.get("lida") or campos.get("arquivada"):
+            db.executar("UPDATE notificacoes SET lida = true WHERE chave = ?", (f"site-{mid}",))
+    return db.um("SELECT * FROM site_mensagens WHERE id = ?", (mid,)) or {}
+
+
+@api.post("/site/mensagens/lote")
+def lote_mensagens_site(d: dict):
+    ids = [int(i) for i in (d.get("ids") or [])][:500]
+    acao = d.get("acao")
+    if not ids or acao not in ("lida", "nao_lida", "arquivar", "desarquivar", "apagar"):
+        raise HTTPException(400, "Escolha mensagens e uma ação.")
+    marcas = ",".join("?" * len(ids))
+    if acao == "apagar":
+        db.executar(f"DELETE FROM site_mensagens WHERE id IN ({marcas})", ids)
+    else:
+        campo, valor = {"lida": ("lida", True), "nao_lida": ("lida", False), "arquivar": ("arquivada", True), "desarquivar": ("arquivada", False)}[acao]
+        db.executar(f"UPDATE site_mensagens SET {campo} = ? WHERE id IN ({marcas})", (valor, *ids))
+    db.registrar("painel", "Mensagens do site atualizadas", detalhe=f"{acao}: {len(ids)}")
+    return {"ok": True}
+
+
+@api.delete("/site/mensagens/{mid}")
+def apagar_mensagem_site(mid: int):
+    db.executar("DELETE FROM site_mensagens WHERE id = ?", (mid,))
+    db.executar("UPDATE notificacoes SET arquivada = true WHERE chave = ?", (f"site-{mid}",))
+    return {"ok": True}
+
+
+@api.get("/site/mensagens/exportar")
+def exportar_mensagens_site(tipo: str = "todas"):
+    import csv
+    import io
+    from fastapi.responses import Response
+    w = "true" if tipo == "todas" else "tipo = ?"
+    linhas = db.consultar(f"SELECT * FROM site_mensagens WHERE {w} ORDER BY quando DESC", () if tipo == "todas" else (tipo,))
+    s = io.StringIO(); c = csv.writer(s, delimiter=";")
+    c.writerow(["data", "tipo", "nome", "email", "assunto", "mensagem", "lida", "respondida", "arquivada", "pais", "cidade", "notas"])
+    import datetime as _dt
+    for m in linhas:
+        c.writerow([_dt.datetime.fromtimestamp(m["quando"]).strftime("%d/%m/%Y %H:%M"), m["tipo"], m["nome"], m["email"], m["assunto"], m["mensagem"],
+                    "sim" if m["lida"] else "não", "sim" if m["respondida"] else "não", "sim" if m["arquivada"] else "não", m["pais"], m["cidade"], m["notas"]])
+    return Response("\ufeff" + s.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="mensagens-do-site-%s.csv"' % time.strftime("%Y%m%d")})
+
+
+# ---------------- perfil do administrador (nome, cargo, foto) ----------------
+class PerfilIn(BaseModel):
+    nome: str = Field("", max_length=80)
+    cargo: str = Field("", max_length=80)
+    telefone: str = Field("", max_length=40)
+    bio: str = Field("", max_length=500)
+
+
+class AvatarIn(BaseModel):
+    dados: str | None = Field(None, max_length=12_000_000)   # data URL do upload
+    url: str | None = Field(None, max_length=2000)           # link externo (imagem ou página)
+
+
+@api.get("/perfil")
+def ver_perfil():
+    from .. import perfil
+    return perfil.ler()
+
+
+@api.put("/perfil")
+def salvar_perfil(d: PerfilIn):
+    from .. import perfil
+    p = perfil.salvar(d.model_dump())
+    db.registrar("painel", "Perfil do administrador atualizado")
+    return p
+
+
+@api.post("/perfil/avatar")
+def enviar_avatar(d: AvatarIn):
+    from .. import perfil
+    try:
+        if d.dados:
+            img = perfil.de_data_url(d.dados)
+        elif d.url:
+            img = perfil.importar(d.url)
+        else:
+            raise ValueError("Envie um arquivo ou um link.")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except httpx.HTTPError:
+        raise HTTPException(400, "Não consegui baixar a imagem desse link (tempo esgotado ou site fora do ar).")
+    db.registrar("painel", "Foto do perfil alterada")
+    return perfil.definir_avatar(img)
+
+
+@api.delete("/perfil/avatar")
+def remover_avatar():
+    from .. import perfil
+    return perfil.definir_avatar("")
 
 
 # ---------------- login protegido (conta tentativas por IP e por e-mail) ----------------
@@ -1385,7 +1517,7 @@ MARCA_PADRAO = {
 _CSS_PROIBIDO = re.compile(r"(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|</style)", re.I)
 _COR = re.compile(r"^#[0-9a-fA-F]{6}$")
 ROTAS_MENU = {"/", "/projetos", "/relatorios", "/aparelhos", "/cenas", "/automacoes", "/agendamentos", "/transmissores",
-              "/integracoes", "/comandos-alexa", "/alexa", "/supabase", "/atividade", "/seguranca", "/apps"}
+              "/integracoes", "/comandos-alexa", "/alexa", "/supabase", "/atividade", "/seguranca", "/mensagens", "/apps"}
 
 
 def _marca() -> dict:

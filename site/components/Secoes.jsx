@@ -38,7 +38,7 @@ export function SecaoFuncionalidades() {
         <div className="linha alinha-fim">
           <div className="lg-6"><Titulo sub="Funcionalidades" className="mb-50">Tudo que o ar do escritório precisa em um painel só</Titulo></div>
           <div className="lg-6">
-            <div className="caixa-texto lg-direita pf_fadeup mb-50" style={{ marginLeft: 'auto' }}>
+            <div className="caixa-texto empurra-direita pf_fadeup mb-50">
               <p>Somos um <span>sistema completo de climatização</span> que conversa com o ar pelo infravermelho, sem trocar nenhum aparelho.</p>
             </div>
           </div>
@@ -141,7 +141,7 @@ export function SecaoIntegracoes() {
           <div className="lg-7"><Titulo sub="Integrações" className="mb-50">Conheça quem trabalha<br />junto com o seu ar</Titulo></div>
           <div className="lg-5"><div className="mb-60 lg-texto-dir pf_fadeup"><Botao href="/funcionalidades/alexa-e-google">Ver integrações</Botao></div></div>
         </div>
-        <div className="linha">
+        <div className="linha duas-colunas-movel">
           {INTEGRACOES.map((it) => (
             <div key={it.nome} className="lg-3 md-6">
               <div className="item-integracao mb-40 pf_fadeup">
@@ -165,7 +165,7 @@ export function SecaoNumeros() {
       <div className="container">
         <div className="linha alinha-centro">
           <div className="lg-6"><Titulo sub="Em números" className="mb-50">Números reais do sistema,<br />sem arredondar para cima</Titulo></div>
-          <div className="lg-6"><div className="caixa-texto mb-50 pf_fadeup" style={{ marginLeft: 'auto' }}><p>Contados no código da <span>versão 1.0</span>, publicada em novembro de 2026.</p></div></div>
+          <div className="lg-6"><div className="caixa-texto empurra-direita mb-50 pf_fadeup"><p>Contados no código da <span>versão 1.0</span>, publicada em novembro de 2026.</p></div></div>
         </div>
         <div className="linha">
           <div className="lg-4"><div className="caixa-imagem mb-50 pf_fadeup"><img src="/telas/painel.jpg" alt="Painel do sistema" style={{ aspectRatio: '4/5', objectFit: 'cover', objectPosition: '20% top' }} /></div></div>

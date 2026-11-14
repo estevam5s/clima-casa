@@ -105,7 +105,7 @@ export default function Efeitos({ children }) {
       <PreCarga />
       <div id="smooth-wrapper">
         <div id="smooth-content">
-          <span id="topo" />
+          <div id="topo" style={{ height: 0 }} />
           {children}
         </div>
       </div>

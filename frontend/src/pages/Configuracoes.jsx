@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun } from 'lucide-react'
+import { Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound } from 'lucide-react'
 import { useTema } from '../tema'
 import WhiteLabel from '../components/config/WhiteLabel'
+import Perfil from '../components/config/Perfil'
 import PainelSeguranca from '../components/config/PainelSeguranca'
 import { api } from '../api'
 import { supabase } from '../supabase'
@@ -96,8 +97,6 @@ function Agente() {
 export default function Configuracoes() {
   const [params, setParams] = useSearchParams()
   const { dados, erro, recarregar, setDados } = useDados(() => api.get('/api/config'))
-  const [senha, setSenha] = useState({ atual: '', nova: '', confirma: '' })
-  const [erroSenha, setErroSenha] = useState('')
   const toast = useToast()
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
@@ -107,22 +106,6 @@ export default function Configuracoes() {
       setDados(await api.put('/api/config', { modo_envio: dados.modo_envio, nome_casa: dados.nome_casa, ...mudanca }))
       toast('Configuração salva.')
     } catch (e) { toast(e.message, 'erro') }
-  }
-  const trocarSenha = async (e) => {
-    e.preventDefault()
-    setErroSenha('')
-    if (senha.nova !== senha.confirma) return setErroSenha('As senhas novas não conferem.')
-    if (senha.nova.length < 8) return setErroSenha('A senha nova precisa ter pelo menos 8 caracteres.')
-    try {
-      const sb = await supabase()
-      const { email } = await api.get('/api/sessao')
-      const { error: errLogin } = await sb.auth.signInWithPassword({ email, password: senha.atual })
-      if (errLogin) throw new Error('Senha atual incorreta.')
-      const { error } = await sb.auth.updateUser({ password: senha.nova })
-      if (error) throw new Error(error.message)
-      setSenha({ atual: '', nova: '', confirma: '' })
-      toast('Senha alterada no Supabase.')
-    } catch (e) { setErroSenha(e.message) }
   }
   const baixarBackup = async () => {
     const dadosBackup = await api.get('/api/backup')
@@ -134,8 +117,8 @@ export default function Configuracoes() {
     URL.revokeObjectURL(a.href)
   }
 
-  const ABAS = [['geral', 'Geral', Sliders], ['aparencia', 'Aparência', Palette], ['marca', 'White label', Paintbrush],
-    ['seguranca', 'Segurança', ShieldCheck], ['contas', 'Contas e senha', KeyRound], ['sistema', 'Sistema', Server]]
+  const ABAS = [['perfil', 'Perfil', UserRound], ['geral', 'Geral', Sliders], ['aparencia', 'Aparência', Palette], ['marca', 'White label', Paintbrush],
+    ['seguranca', 'Segurança', ShieldCheck], ['contas', 'Contas', KeyRound], ['sistema', 'Sistema', Server]]
   const aba = params.get('aba') || 'geral'
   return (
     <div className="w-full">
@@ -172,6 +155,7 @@ export default function Configuracoes() {
         </section>
         </div>
       )}
+      {aba === 'perfil' && <Perfil />}
       {aba === 'aparencia' && <Aparencia />}
       {aba === 'marca' && <WhiteLabel />}
       {aba === 'seguranca' && <PainelSeguranca />}
@@ -182,16 +166,7 @@ export default function Configuracoes() {
           <p className="mb-4 mt-1 text-sm text-muted-foreground">Traz a Local Key dos transmissores e permite enviar comandos pela nuvem quando você está fora.</p>
           <ContaSmartLife conta={dados.tuya} aoMudar={recarregar} />
         </section>
-        <form onSubmit={trocarSenha} id="senha" className="cartao space-y-4 p-5">
-          <h2 className="text-sm font-semibold">Senha do administrador (Supabase Auth)</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div><label className="rotulo" htmlFor="sa">Atual</label><input id="sa" type="password" autoComplete="current-password" className="campo" value={senha.atual} onChange={(e) => setSenha({ ...senha, atual: e.target.value })} required /></div>
-            <div><label className="rotulo" htmlFor="sn">Nova</label><input id="sn" type="password" autoComplete="new-password" className="campo" value={senha.nova} onChange={(e) => setSenha({ ...senha, nova: e.target.value })} required minLength={8} /></div>
-            <div><label className="rotulo" htmlFor="sc">Confirmar</label><input id="sc" type="password" autoComplete="new-password" className="campo" value={senha.confirma} onChange={(e) => setSenha({ ...senha, confirma: e.target.value })} required /></div>
-          </div>
-          {erroSenha && <Aviso>{erroSenha}</Aviso>}
-          <div className="flex justify-end"><Botao type="submit">Alterar senha</Botao></div>
-        </form>
+        <section className="cartao p-5"><h2 className="text-sm font-semibold">Senha e e-mail</h2><p className="mt-1 text-sm text-muted-foreground">Agora ficam na aba Perfil, junto com a foto e o nome.</p><a href="?aba=perfil" className="mt-3 inline-block text-sm text-primary hover:underline">Abrir Perfil</a></section>
         </div>
       )}
       {aba === 'sistema' && (

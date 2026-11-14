@@ -40,7 +40,14 @@ export default function Login() {
   const tema = escuro ? 'escuro' : 'claro'
   const setTema = (t) => setEscolha(t)
 
+  // Já tem sessão válida guardada? Vai direto (a rota protegida confere no servidor), sem mostrar o login.
+  const sessaoGuardada = (() => {
+    try { const s = JSON.parse(localStorage.getItem('clima-casa-auth') || 'null'); return !!(s?.access_token && (s.expires_at || 0) * 1000 > Date.now() + 5000) } catch { return false }
+  })()
+  useEffect(() => { if (sessaoGuardada) navegar(destino, { replace: true }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
+    if (sessaoGuardada) return
     supabase().then(async (sb) => {
       const { data } = await sb.auth.getSession()
       if (data.session) {
@@ -87,6 +94,7 @@ export default function Login() {
   }
 
   const meu = sistemaAtual()
+  if (sessaoGuardada) return null
   return (
     <div style={TEMAS[tema]} className="relative grid min-h-dvh w-full grid-cols-1 gap-3 overflow-x-clip bg-[var(--bg)] p-3 text-[var(--ink)] transition-colors duration-700 lg:grid-cols-[1.08fr_1fr]">
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 opacity-40" style={{ backgroundImage: GRAO, mixBlendMode: 'var(--grain-blend)' }} />

@@ -3,13 +3,14 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity, AirVent, BarChart3, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe,
+  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe, Inbox,
 } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
 import Notificacoes, { useCentral } from './Notificacoes'
 import { SITE_URL } from '../site'
+import { Avatar } from './config/Perfil'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
 
@@ -35,6 +36,7 @@ export const GRUPOS = [
   { titulo: 'Sistema', itens: [
     { para: '/atividade', rotulo: 'Atividade', icone: Activity },
     { para: '/seguranca', rotulo: 'Segurança', icone: ShieldCheck },
+    { para: '/mensagens', rotulo: 'Mensagens do site', icone: Inbox, contador: 'mensagens_nao_lidas' },
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
   ] },
@@ -107,8 +109,9 @@ function SeletorProjeto({ aberta }) {
   )
 }
 
-function ItemNav({ item, aberta, onClick }) {
+function ItemNav({ item, aberta, onClick, contadores }) {
   const I = item.icone
+  const n = item.contador ? contadores?.[item.contador] || 0 : 0
   return (
     <NavLink to={item.para} end={item.fim} onClick={onClick} title={aberta ? undefined : item.rotulo}
       className={({ isActive }) => `group/link relative flex h-9 items-center gap-3 rounded-lg px-[11px] text-[13px] font-medium transition-colors ${
@@ -119,13 +122,28 @@ function ItemNav({ item, aberta, onClick }) {
           <I className="h-[18px] w-[18px] shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
           <motion.span animate={{ opacity: aberta ? 1 : 0, display: aberta ? 'inline-block' : 'none' }} transition={{ duration: 0.12 }}
             className="whitespace-pre transition-transform duration-150 group-hover/link:translate-x-0.5">{item.rotulo}</motion.span>
+          {n > 0 && (aberta
+            ? <span className="ml-auto rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-[18px] text-primary-foreground tabular">{n > 99 ? '99+' : n}</span>
+            : <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />)}
         </>
       )}
     </NavLink>
   )
 }
 
-function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar }) {
+function usePerfil() {
+  const [perfil, setPerfil] = useState(null)
+  useEffect(() => {
+    const carregar = () => api.get('/api/perfil').then(setPerfil).catch(() => {})
+    carregar()
+    window.addEventListener('clima:perfil', carregar)
+    return () => window.removeEventListener('clima:perfil', carregar)
+  }, [])
+  return perfil
+}
+
+function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores }) {
+  const perfil = usePerfil()
   const { sessao } = useProjeto()
   const navegar = useNavigate()
   const sair = async () => { await (await supabase()).auth.signOut().catch(() => {}); navegar('/login') }
@@ -149,7 +167,7 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar }) {
             {aberta
               ? <p className="mb-1 whitespace-pre px-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">{g.titulo}</p>
               : <div className="mx-2.5 mb-2 mt-1 border-t border-border" />}
-            <div className="space-y-0.5">{g.itens.map((i) => <ItemNav key={i.para} item={i} aberta={aberta} onClick={aoNavegar} />)}</div>
+            <div className="space-y-0.5">{g.itens.map((i) => <ItemNav key={i.para} item={i} aberta={aberta} onClick={aoNavegar} contadores={contadores} />)}</div>
           </div>
         ))}
       </nav>
@@ -158,11 +176,13 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar }) {
         <motion.span animate={{ opacity: aberta ? 1 : 0 }} className="whitespace-pre">Voltar ao site</motion.span>
       </a>
       <div className="flex items-center gap-2.5 border-t border-border pt-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase">{email.slice(0, 2) || 'AD'}</span>
-        <motion.div animate={{ opacity: aberta ? 1 : 0 }} className="min-w-0 flex-1 whitespace-pre">
-          <p className="truncate text-[13px] font-medium">Administrador</p>
-          <p className="truncate text-[11px] text-muted-foreground">{email}</p>
-        </motion.div>
+        <Link to="/configuracoes?aba=perfil" onClick={aoNavegar} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg hover:opacity-90" title="Editar perfil">
+          <Avatar perfil={perfil} email={email} />
+          <motion.div animate={{ opacity: aberta ? 1 : 0 }} className="min-w-0 flex-1 whitespace-pre">
+            <p className="truncate text-[13px] font-medium">{perfil?.nome || 'Administrador'}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{perfil?.cargo || email}</p>
+          </motion.div>
+        </Link>
         {aberta && <button onClick={sair} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Sair"><LogOut className="h-4 w-4" /></button>}
       </div>
     </div>
@@ -343,7 +363,7 @@ export default function Layout() {
         transition={MOLA}
         onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       >
-        <ConteudoSidebar aberta={aberta} fixada={fixada} alternarFixar={alternarFixar} />
+        <ConteudoSidebar aberta={aberta} fixada={fixada} alternarFixar={alternarFixar} contadores={central.dados?.status} />
       </motion.aside>
 
       {/* Celular: gaveta lateral */}
@@ -354,7 +374,7 @@ export default function Layout() {
             <motion.aside className="fixed inset-y-0 left-0 z-50 w-[280px] border-r border-border bg-sidebar md:hidden"
               initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ duration: 0.25, ease: 'easeInOut' }}>
               <button onClick={() => setMovel(false)} className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-muted-foreground" aria-label="Fechar menu"><X className="h-5 w-5" /></button>
-              <ConteudoSidebar aberta aoNavegar={() => setMovel(false)} />
+              <ConteudoSidebar aberta aoNavegar={() => setMovel(false)} contadores={central.dados?.status} />
             </motion.aside>
           </>
         )}

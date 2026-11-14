@@ -119,6 +119,7 @@ export function Carregando() {
 export function Aviso({ tipo = 'erro', children }) {
   const estilo = tipo === 'erro'
     ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200'
+    : tipo === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200'
     : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200'
   return (
     <div className={`flex gap-2 rounded-md border px-3 py-2.5 text-sm ${estilo}`}>
