@@ -7,3 +7,7 @@ python-multipart
 httpx
 psycopg[binary]==3.2.13
 sinricpro==6.0.0
+reportlab==5.1.0
+python-docx==1.2.0
+openpyxl==3.1.5
+cryptography==50.0.2

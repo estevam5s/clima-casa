@@ -20,7 +20,7 @@ DADOS = Path(os.environ.get("CLIMA_DADOS", RAIZ / "data"))
 if not os.environ.get("VERCEL"):  # na Vercel o disco é só leitura
     DADOS.mkdir(exist_ok=True)
 
-_TABELAS_COM_ID = {"aparelhos", "codigos", "agendamentos", "atividade", "alertas", "backups", "fila_comandos", "projetos", "cenas", "automacoes", "temporizadores"}
+_TABELAS_COM_ID = {"aparelhos", "codigos", "agendamentos", "atividade", "alertas", "backups", "fila_comandos", "projetos", "cenas", "automacoes", "temporizadores", "seguranca_ips", "seguranca_eventos"}
 _RE_INSERT = re.compile(r"^\s*INSERT\s+INTO\s+(\w+)", re.I)
 _pool: queue.LifoQueue = queue.LifoQueue(maxsize=2 if os.environ.get("VERCEL") else 6)
 _criadas = 0
@@ -146,15 +146,28 @@ def executar(sql, params=()):
     return None
 
 
+# configurações com segredos: guardadas cifradas (AES-256-GCM) — ver cripto.py
+CHAVES_SENSIVEIS = {"tuya_conta", "tuya_qr_pendente", "sinric", "alexa", "segredo_sessao"}
+
+
 def cfg(chave, padrao=None):
     linha = um("SELECT valor FROM config WHERE chave = ?", (chave,))
-    return json.loads(linha["valor"]) if linha else padrao
+    if not linha:
+        return padrao
+    valor = json.loads(linha["valor"])
+    if isinstance(valor, str) and valor.startswith("enc:v1:"):
+        from . import cripto
+        valor = json.loads(cripto.decifrar(valor, f"cfg:{chave}"))
+    return valor
 
 
 def set_cfg(chave, valor):
     if valor is None:
         executar("DELETE FROM config WHERE chave = ?", (chave,))
     else:
+        if chave in CHAVES_SENSIVEIS:
+            from . import cripto
+            valor = cripto.cifrar(json.dumps(valor), f"cfg:{chave}")
         executar(
             "INSERT INTO config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor",
             (chave, json.dumps(valor)),

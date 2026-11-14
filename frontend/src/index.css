@@ -15,8 +15,7 @@
     --accent: 240 5% 93%;
     --sidebar: 0 0% 100%;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
+  :root.dark {
       --background: 240 6% 6%;
       --foreground: 0 0% 95%;
       --card: 240 5% 9%;
@@ -27,16 +26,20 @@
       --primary-foreground: 0 0% 100%;
       --accent: 240 4% 15%;
       --sidebar: 240 6% 8%;
-    }
   }
-  html { -webkit-text-size-adjust: 100%; }
-  body { @apply bg-background text-foreground antialiased; font-feature-settings: "cv11", "ss01"; }
+  html { -webkit-text-size-adjust: 100%; color-scheme: light; }
+  html.dark { color-scheme: dark; }
+  /* troca de tema suave: só cores, por 300 ms, sem mexer em layout nem texto */
+  html.tema-trocando, html.tema-trocando *, html.tema-trocando *::before, html.tema-trocando *::after {
+    transition: background-color .3s ease, border-color .3s ease, color .3s ease, fill .3s ease, stroke .3s ease !important; /* marca: transição de tema precisa vencer as transições dos componentes */
+  }
+  body { @apply bg-background text-foreground antialiased; font-feature-settings: "cv11", "ss01"; font-family: var(--fonte, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif); }
   :focus-visible { @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background; }
   ::selection { background: hsl(var(--primary) / 0.2); }
 }
 
 @layer components {
-  .cartao { @apply rounded-xl border border-border bg-card shadow-suave; }
+  .cartao { @apply rounded-xl border border-border bg-card shadow-suave; border-radius: var(--raio, 12px); }
   .rotulo { @apply mb-1.5 block text-sm font-medium text-foreground/80; }
   .campo {
     @apply h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground

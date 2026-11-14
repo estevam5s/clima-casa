@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, LogOut } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun } from 'lucide-react'
+import { useTema } from '../tema'
+import WhiteLabel from '../components/config/WhiteLabel'
+import PainelSeguranca from '../components/config/PainelSeguranca'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { Aviso, Botao, Cabecalho, Carregando, Ponto, useDados, useToast } from '../components/ui'
@@ -89,6 +94,7 @@ function Agente() {
 }
 
 export default function Configuracoes() {
+  const [params, setParams] = useSearchParams()
   const { dados, erro, recarregar, setDados } = useDados(() => api.get('/api/config'))
   const [senha, setSenha] = useState({ atual: '', nova: '', confirma: '' })
   const [erroSenha, setErroSenha] = useState('')
@@ -128,35 +134,55 @@ export default function Configuracoes() {
     URL.revokeObjectURL(a.href)
   }
 
+  const ABAS = [['geral', 'Geral', Sliders], ['aparencia', 'Aparência', Palette], ['marca', 'White label', Paintbrush],
+    ['seguranca', 'Segurança', ShieldCheck], ['contas', 'Contas e senha', KeyRound], ['sistema', 'Sistema', Server]]
+  const aba = params.get('aba') || 'geral'
   return (
     <div className="w-full">
-      <Cabecalho titulo="Configurações" descricao="Conta Smart Life, forma de envio, senha, backup e o agente que roda no Mac." />
-      <div className="grid gap-8 lg:grid-cols-[200px_1fr]">
-        <nav className="hidden lg:block"><div className="sticky top-24 space-y-0.5 text-sm">
-          {[['smartlife', 'Conta Smart Life'], ['envio', 'Envio dos comandos'], ['senha', 'Senha'], ['backup', 'Backup'], ['agente', 'Agente do Mac'], ['sobre', 'Sobre o sistema']].map(([id, r]) => (
-            <a key={id} href={`#${id}`} className="block rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">{r}</a>
-          ))}
-        </div></nav>
-      <div className="space-y-6">
-        <section id="smartlife" className="cartao scroll-mt-24 p-5">
-          <h2 className="text-sm font-semibold">Conta Smart Life</h2>
-          <p className="mb-4 mt-1 text-sm text-muted-foreground">Traz a Local Key dos transmissores e permite enviar comandos pela nuvem quando você está fora de casa.</p>
-          <ContaSmartLife conta={dados.tuya} aoMudar={recarregar} />
-        </section>
-
-        <section id="envio" className="cartao scroll-mt-24 p-5">
+      <Cabecalho titulo="Configurações" descricao="Sistema, aparência, white label, segurança, contas e o agente do Mac." />
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
+        {ABAS.map(([k, r, I]) => (
+          <button key={k} onClick={() => setParams({ aba: k })}
+            className={`relative -mb-px flex shrink-0 items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${aba === k ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+            <I className="h-4 w-4" />{r}
+            {aba === k && <motion.span layoutId="aba-config" className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-primary" />}
+          </button>
+        ))}
+      </div>
+      <motion.div key={aba} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+      {aba === 'geral' && (
+        <div className="grid gap-6 xl:grid-cols-2">
+        <section id="envio" className="cartao p-5">
           <h2 className="mb-4 text-sm font-semibold">Como os comandos são enviados</h2>
           <div className="space-y-2">
             {MODOS_ENVIO.map(([k, r, d]) => (
-              <label key={k} className={`flex cursor-pointer gap-3 rounded-md border p-3 ${dados.modo_envio === k ? 'border-marca-600 bg-marca-50/60 dark:bg-marca-700/10' : 'border-border'}`}>
-                <input type="radio" name="envio" className="mt-1 accent-marca-600" checked={dados.modo_envio === k} onChange={() => salvar({ modo_envio: k })} />
+              <label key={k} className={`flex cursor-pointer gap-3 rounded-md border p-3 ${dados.modo_envio === k ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                <input type="radio" name="envio" className="mt-1 accent-[hsl(var(--primary))]" checked={dados.modo_envio === k} onChange={() => salvar({ modo_envio: k })} />
                 <span><span className="block text-sm font-medium">{r}</span><span className="text-xs text-muted-foreground">{d}</span></span>
               </label>
             ))}
           </div>
         </section>
-
-        <form onSubmit={trocarSenha} id="senha" className="cartao scroll-mt-24 space-y-4 p-5">
+        <section className="cartao flex flex-col justify-between gap-3 p-5">
+          <div>
+            <h2 className="text-sm font-semibold">Backup agora</h2>
+            <p className="text-sm text-muted-foreground">Exporta aparelhos, botões gravados e agendamentos em JSON. Os backups diários automáticos ficam na tela Supabase.</p>
+          </div>
+          <Botao variante="secundario" icone={Download} onClick={baixarBackup} className="self-start">Baixar backup</Botao>
+        </section>
+        </div>
+      )}
+      {aba === 'aparencia' && <Aparencia />}
+      {aba === 'marca' && <WhiteLabel />}
+      {aba === 'seguranca' && <PainelSeguranca />}
+      {aba === 'contas' && (
+        <div className="grid gap-6 xl:grid-cols-2">
+        <section id="smartlife" className="cartao p-5">
+          <h2 className="text-sm font-semibold">Conta Smart Life</h2>
+          <p className="mb-4 mt-1 text-sm text-muted-foreground">Traz a Local Key dos transmissores e permite enviar comandos pela nuvem quando você está fora.</p>
+          <ContaSmartLife conta={dados.tuya} aoMudar={recarregar} />
+        </section>
+        <form onSubmit={trocarSenha} id="senha" className="cartao space-y-4 p-5">
           <h2 className="text-sm font-semibold">Senha do administrador (Supabase Auth)</h2>
           <div className="grid gap-3 sm:grid-cols-3">
             <div><label className="rotulo" htmlFor="sa">Atual</label><input id="sa" type="password" autoComplete="current-password" className="campo" value={senha.atual} onChange={(e) => setSenha({ ...senha, atual: e.target.value })} required /></div>
@@ -166,16 +192,12 @@ export default function Configuracoes() {
           {erroSenha && <Aviso>{erroSenha}</Aviso>}
           <div className="flex justify-end"><Botao type="submit">Alterar senha</Botao></div>
         </form>
-
-        <section id="backup" className="cartao scroll-mt-24 flex flex-wrap items-center justify-between gap-3 p-5">
-          <div>
-            <h2 className="text-sm font-semibold">Backup</h2>
-            <p className="text-sm text-muted-foreground">Exporta agora aparelhos, botões gravados e agendamentos em JSON. Os backups diários automáticos ficam na tela Supabase.</p>
-          </div>
-          <Botao variante="secundario" icone={Download} onClick={baixarBackup}>Baixar backup</Botao>
-        </section>
+        </div>
+      )}
+      {aba === 'sistema' && (
+        <div className="grid gap-6 xl:grid-cols-2">
         <Agente />
-        <section id="sobre" className="cartao scroll-mt-24 p-5">
+        <section id="sobre" className="cartao p-5">
           <h2 className="titulo-secao">Sobre o sistema</h2>
           <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
             {[['Painel', 'clima-casa-lac.vercel.app', 'https://clima-casa-lac.vercel.app'], ['Código', 'github.com/estevam5s/clima-casa', 'https://github.com/estevam5s/clima-casa'],
@@ -185,8 +207,34 @@ export default function Configuracoes() {
             ))}
           </dl>
         </section>
+        </div>
+      )}
+      </motion.div>
+    </div>
+  )
+}
+
+function Aparencia() {
+  const { escolha, setEscolha, escuro } = useTema()
+  const opcoes = [['claro', 'Claro', Sun, 'Fundo claro, ideal para ambientes iluminados.'], ['escuro', 'Escuro', Moon, 'Menos brilho, confortável à noite.'],
+    ['sistema', 'Seguir o sistema', Laptop, 'Acompanha o modo claro/escuro do aparelho.']]
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        {opcoes.map(([k, r, I, d]) => (
+          <button key={k} onClick={() => setEscolha(k)} className={`cartao overflow-hidden text-left transition-colors ${escolha === k ? 'border-primary ring-2 ring-primary/30' : 'hover:border-muted-foreground/40'}`}>
+            <div className={`flex h-28 gap-2 p-3 ${k === 'escuro' ? 'bg-[#0e0e10]' : k === 'claro' ? 'bg-[#f6f6f7]' : 'bg-gradient-to-r from-[#f6f6f7] from-50% to-[#0e0e10] to-50%'}`}> {/* marca: miniatura fixa do tema claro/escuro, não segue o tema atual */}
+              <span className={`w-10 rounded ${k === 'escuro' ? 'bg-[#17171a]' : 'bg-white'}`} /> {/* marca: miniatura fixa do tema claro/escuro, não segue o tema atual */}
+              <span className="flex flex-1 flex-col gap-2"><span className={`h-4 rounded ${k === 'escuro' ? 'bg-[#17171a]' : 'bg-white'}`} /><span className="h-10 rounded bg-primary/70" /></span> {/* marca: miniatura fixa do tema claro/escuro, não segue o tema atual */}
+            </div>
+            <div className="flex items-start gap-3 p-4">
+              <I className="mt-0.5 h-4 w-4" />
+              <div><p className="text-sm font-medium">{r}{escolha === k && ' ·  em uso'}</p><p className="text-xs text-muted-foreground">{d}</p></div>
+            </div>
+          </button>
+        ))}
       </div>
-      </div>
+      <p className="text-sm text-muted-foreground">Agora: tema {escuro ? 'escuro' : 'claro'}. A escolha fica salva neste navegador; também dá para trocar pelo botão no topo da tela. A cor da marca, a fonte e o tamanho do texto ficam na aba White label.</p>
     </div>
   )
 }

@@ -1,11 +1,12 @@
 """Rotas da API usadas pela interface (todas exigem login, exceto as de autenticação)."""
 import json
+import re
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .. import clima, db, transmissor, tuya_nuvem
+from .. import clima, cripto, db, transmissor, tuya_nuvem
 from ..seguranca import exigir_login
 
 publico = APIRouter(prefix="/api")
@@ -111,6 +112,7 @@ class AparelhoIn(BaseModel):
     modos: list[str] = list(clima.MODOS)
     alexa: bool = True
     projeto_id: int | None = None
+    potencia_w: int = Field(1000, ge=100, le=10000)
 
 
 def _validar_aparelho(d: AparelhoIn):
@@ -139,9 +141,9 @@ def criar_aparelho(d: AparelhoIn):
     projeto = d.projeto_id or (db.um("SELECT projeto_id FROM hubs WHERE id = ?", (d.hub_id,)) or {}).get("projeto_id")
     novo = db.executar(
         "INSERT INTO aparelhos (nome, comodo, marca, hub_id, temp_min, temp_max, modos, alexa, temperatura, modo, "
-        "projeto_id, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "projeto_id, criado_em, potencia_w) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d.nome.strip(), d.comodo.strip(), d.marca.strip(), d.hub_id, d.temp_min, d.temp_max, ",".join(d.modos),
-         int(d.alexa), temp, d.modos[0], projeto, db.agora()))
+         int(d.alexa), temp, d.modos[0], projeto, db.agora(), d.potencia_w))
     db.registrar("painel", "Aparelho adicionado", aparelho_id=novo, detalhe=d.nome)
     _sinric_automatico(novo)
     return clima.aparelho(novo)
@@ -185,9 +187,9 @@ def editar_aparelho(aid: int, d: AparelhoIn):
     temp = max(d.temp_min, min(d.temp_max, a["temperatura"]))
     modo = a["modo"] if a["modo"] in d.modos else d.modos[0]
     db.executar("UPDATE aparelhos SET nome=?, comodo=?, marca=?, hub_id=?, temp_min=?, temp_max=?, modos=?, alexa=?, "
-                "temperatura=?, modo=?, projeto_id=? WHERE id=?",
+                "temperatura=?, modo=?, projeto_id=?, potencia_w=? WHERE id=?",
                 (d.nome.strip(), d.comodo.strip(), d.marca.strip(), d.hub_id, d.temp_min, d.temp_max,
-                 ",".join(d.modos), int(d.alexa), temp, modo, d.projeto_id, aid))
+                 ",".join(d.modos), int(d.alexa), temp, modo, d.projeto_id, d.potencia_w, aid))
     db.registrar("painel", "Aparelho editado", aparelho_id=aid)
     return clima.aparelho(aid)
 
@@ -321,7 +323,7 @@ def criar_hub(d: HubIn):
     if db.um("SELECT 1 FROM hubs WHERE id = ?", (d.id,)):
         raise HTTPException(409, "Esse transmissor já está cadastrado.")
     db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, projeto_id, criado_em) VALUES (?,?,?,?,?,?,?)",
-                (d.id.strip(), d.nome.strip(), d.ip.strip(), d.local_key.strip(), d.versao,
+                (d.id.strip(), d.nome.strip(), d.ip.strip(), cripto.cifrar(d.local_key.strip(), "hub:local_key"), d.versao,
                  d.projeto_id or (db.um("SELECT min(id) AS id FROM projetos") or {}).get("id"), db.agora()))
     transmissor.atualizar_online()
     db.registrar("painel", "Transmissor adicionado", detalhe=d.nome)
@@ -349,11 +351,11 @@ def importar_hub(device_id: str):
     if existente:
         db.executar("UPDATE hubs SET local_key = ?, control_type = COALESCE(?, control_type), funcoes_nuvem = ?, "
                     "ip = COALESCE(NULLIF(?, ''), ip) WHERE id = ?",
-                    (info["local_key"], info["control_type"], json.dumps(info["funcoes"]), ip, device_id))
+                    (cripto.cifrar(info["local_key"], "hub:local_key"), info["control_type"], json.dumps(info["funcoes"]), ip, device_id))
     else:
         db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, control_type, funcoes_nuvem, projeto_id, criado_em) "
                     "VALUES (?,?,?,?,?,?,?,?,?)",
-                    (device_id, info["nome"], ip, info["local_key"], versao, info["control_type"],
+                    (device_id, info["nome"], ip, cripto.cifrar(info["local_key"], "hub:local_key"), versao, info["control_type"],
                      json.dumps(info["funcoes"]), (db.um("SELECT min(id) AS id FROM projetos") or {}).get("id"), db.agora()))
     transmissor.atualizar_online()
     db.registrar("painel", "Transmissor importado da conta Smart Life", detalhe=info["nome"])
@@ -369,7 +371,7 @@ def editar_hub(hub_id: str, d: HubEdit):
     db.executar("UPDATE hubs SET nome = ?, ip = ?, versao = ?, projeto_id = ? WHERE id = ?",
                 (d.nome.strip(), d.ip.strip(), d.versao, d.projeto_id, hub_id))
     if d.local_key:
-        db.executar("UPDATE hubs SET local_key = ? WHERE id = ?", (d.local_key.strip(), hub_id))
+        db.executar("UPDATE hubs SET local_key = ? WHERE id = ?", (cripto.cifrar(d.local_key.strip(), "hub:local_key"), hub_id))
     transmissor.atualizar_online()
     return _hub_publico(transmissor.hub(hub_id))
 
@@ -445,6 +447,7 @@ def apagar_agendamento(gid: int):
 class ConfigIn(BaseModel):
     modo_envio: str = Field(pattern="^(auto|local|nuvem)$")
     nome_casa: str = Field("Minha casa", max_length=40)
+    tarifa_kwh: float | None = Field(None, ge=0, le=20)
 
 
 @api.get("/config")
@@ -453,6 +456,7 @@ def ver_config():
     return {
         "modo_envio": db.cfg("modo_envio", "auto"),
         "nome_casa": db.cfg("nome_casa", "Minha casa"),
+        "tarifa_kwh": float(db.cfg("tarifa_kwh", 0.85)),
         "tuya": {"conectada": bool(conta), "usuario": (conta or {}).get("usuario", ""),
                  "user_code": (conta or {}).get("user_code", "")},
     }
@@ -462,6 +466,8 @@ def ver_config():
 def salvar_config(d: ConfigIn):
     db.set_cfg("modo_envio", d.modo_envio)
     db.set_cfg("nome_casa", d.nome_casa.strip() or "Minha casa")
+    if d.tarifa_kwh is not None:
+        db.set_cfg("tarifa_kwh", round(d.tarifa_kwh, 4))
     db.registrar("painel", "Configurações salvas", detalhe=f"envio: {d.modo_envio}")
     return ver_config()
 
@@ -761,6 +767,44 @@ def relatorios(dias: int = 30, projeto_id: int | None = None):
             "temperaturas": [t for t in temperaturas if t["temperatura"]], "metricas": metricas(dias)}
 
 
+def _intervalo(dias: int, inicio: str | None, fim: str | None) -> tuple[int, int]:
+    import datetime as _dt
+    fuso = _dt.timezone(_dt.timedelta(hours=-3))
+    try:
+        if inicio and fim:
+            a = int(_dt.datetime.strptime(inicio, "%Y-%m-%d").replace(tzinfo=fuso).timestamp())
+            b = int(_dt.datetime.strptime(fim, "%Y-%m-%d").replace(tzinfo=fuso).timestamp()) + 86399
+            if b <= a or b - a > 366 * 86400:
+                raise ValueError
+            return a, b
+    except ValueError:
+        raise HTTPException(400, "Período inválido: use datas AAAA-MM-DD, com no máximo 1 ano.")
+    fim_ts = db.agora()
+    return fim_ts - max(1, min(dias, 366)) * 86400, fim_ts
+
+
+@api.get("/relatorios/completo")
+def relatorio_completo(dias: int = 30, inicio: str | None = None, fim: str | None = None,
+                       projeto_id: int | None = None, aparelho_id: int | None = None):
+    from .. import relatorio
+    a, b = _intervalo(dias, inicio, fim)
+    return relatorio.montar(a, b, projeto_id, aparelho_id)
+
+
+@api.get("/relatorios/exportar")
+def relatorio_exportar(formato: str = "pdf", dias: int = 30, inicio: str | None = None, fim: str | None = None,
+                       projeto_id: int | None = None, aparelho_id: int | None = None):
+    from fastapi.responses import Response
+    from .. import relatorio
+    if formato not in relatorio.FORMATOS:
+        raise HTTPException(400, f"Formato inválido. Use: {', '.join(relatorio.FORMATOS)}.")
+    a, b = _intervalo(dias, inicio, fim)
+    corpo, tipo, ext = relatorio.FORMATOS[formato](relatorio.montar(a, b, projeto_id, aparelho_id))
+    nome = f"relatorio-clima-{time.strftime('%Y%m%d-%H%M')}.{ext}"
+    db.registrar("painel", "Relatório exportado", detalhe=formato.upper())
+    return Response(corpo, media_type=tipo, headers={"Content-Disposition": f'attachment; filename="{nome}"'})
+
+
 # ---------------- Sinric Pro (Alexa / Google Home) ----------------
 class SinricIn(BaseModel):
     ativo: bool = True
@@ -1051,3 +1095,256 @@ def notificacoes():
     ordem = {"alta": 0, "media": 1, "baixa": 2}
     itens.sort(key=lambda x: (ordem[x["gravidade"]], -(x["quando"] or 0)))
     return {"total": len(itens), "itens": itens}
+
+
+# ---------------- login protegido (conta tentativas por IP e por e-mail) ----------------
+class EntrarIn(BaseModel):
+    email: str = Field(min_length=3, max_length=200)
+    senha: str = Field(min_length=1, max_length=200)
+
+
+def _hash_email(email: str) -> str:
+    import hashlib
+    return hashlib.sha256(email.strip().lower().encode()).hexdigest()[:24]
+
+
+@publico.post("/auth/entrar")
+def entrar(d: EntrarIn, request: Request):
+    import httpx
+    from .. import firewall
+    c = firewall.config()
+    ip = firewall.ip_do_pedido(request)
+    pais = request.headers.get("x-vercel-ip-country", "")
+    agente = request.headers.get("user-agent", "")
+    marca = _hash_email(d.email)
+    limite, janela = c["tentativas_login"], c["janela_min"]
+    if firewall.falhas_recentes(ip, ("login_falhou",), janela, marca) >= limite:
+        raise HTTPException(429, f"Muitas tentativas para este e-mail. Tente de novo em {janela} minutos.")
+    r = httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/token?grant_type=password", timeout=12,
+                   headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}, json={"email": d.email.strip(), "password": d.senha})
+    dados = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+    if r.status_code != 200 or not dados.get("access_token"):
+        firewall.registrar(ip, "login_falhou", "/api/auth/entrar", marca, pais, agente)
+        falhas_ip = firewall.falhas_recentes(ip, ("login_falhou",), janela)
+        if falhas_ip >= limite * 2:
+            firewall.bloqueio_automatico(ip, "tentativas de login em excesso")
+            raise HTTPException(403, "Acesso bloqueado por excesso de tentativas.")
+        restantes = max(0, limite - firewall.falhas_recentes(ip, ("login_falhou",), janela, marca))
+        time.sleep(0.4)  # atrasa força bruta
+        raise HTTPException(401, "E-mail ou senha incorretos." + (f" Restam {restantes} tentativa(s)." if restantes <= 3 else ""))
+    usuario = dados.get("user") or {}
+    if (usuario.get("app_metadata") or {}).get("role") != "admin":
+        firewall.registrar(ip, "login_negado", "/api/auth/entrar", marca, pais, agente)
+        raise HTTPException(403, "Esta conta não tem acesso de administrador.")
+    if c.get("registrar_logins_ok", True):
+        firewall.registrar(ip, "login_ok", "/api/auth/entrar", marca, pais, agente)
+    db.registrar("sistema", "Login do administrador", detalhe=f"IP {ip}{' · ' + pais if pais else ''}")
+    return {k: dados.get(k) for k in ("access_token", "refresh_token", "expires_in", "expires_at", "token_type")}
+
+
+# ---------------- painel de segurança (Configurações → Segurança) ----------------
+class SegurancaIn(BaseModel):
+    ativo: bool = True
+    limite_por_minuto: int = Field(240, ge=30, le=5000)
+    tentativas_login: int = Field(5, ge=3, le=20)
+    falhas_auth: int = Field(20, ge=5, le=500)
+    janela_min: int = Field(15, ge=1, le=1440)
+    bloqueio_progressivo: list[int] = Field([15, 60, 1440, 10080], min_length=1, max_length=8)
+    detectar_scanners: bool = True
+    paises_bloqueados: list[str] = []
+    paises_permitidos: list[str] = []
+    registrar_logins_ok: bool = True
+
+
+@api.get("/seguranca")
+def ver_seguranca(request: Request):
+    from .. import cripto, firewall
+    desde = db.agora() - 86400
+    por_tipo = {r["tipo"]: r["n"] for r in db.consultar("SELECT tipo, count(*) n FROM seguranca_eventos WHERE quando > ? GROUP BY tipo", (desde,))}
+    cifrados = db.um("SELECT count(*) n FROM hubs WHERE local_key LIKE 'enc:v1:%'")["n"] + \
+        db.um("SELECT count(*) n FROM config WHERE valor LIKE '\"enc:v1:%'")["n"]
+    return {
+        "config": firewall.config(),
+        "meu_ip": firewall.ip_do_pedido(request), "meu_pais": request.headers.get("x-vercel-ip-country", ""),
+        "eventos_24h": por_tipo,
+        "bloqueados": db.um("SELECT count(*) n FROM seguranca_ips WHERE tipo = 'bloqueado' AND (expira_em IS NULL OR expira_em > ?)", (db.agora(),))["n"],
+        "permitidos": db.um("SELECT count(*) n FROM seguranca_ips WHERE tipo = 'permitido'")["n"],
+        "criptografia": {"algoritmo": "AES-256-GCM", "ativa": cripto.disponivel(), "segredos_cifrados": cifrados},
+        "camadas": ["TLS 1.2+ e HSTS com preload", "TLS verificado até o banco (CA do Supabase)", "AES-256-GCM em repouso com AAD",
+                    "Tokens OAuth guardados como SHA-256", "Supabase Auth com RLS em todas as tabelas", "Firewall de aplicação",
+                    "CSP, COOP, CORP, X-Frame-Options, Permissions-Policy"],
+    }
+
+
+@api.put("/seguranca")
+def salvar_seguranca(d: SegurancaIn):
+    from .. import firewall
+    dados = d.model_dump()
+    dados["paises_bloqueados"] = sorted({p.strip().upper()[:2] for p in d.paises_bloqueados if p.strip()})
+    dados["paises_permitidos"] = sorted({p.strip().upper()[:2] for p in d.paises_permitidos if p.strip()})
+    db.set_cfg("seguranca", dados)
+    firewall.invalidar()
+    db.registrar("painel", "Configurações de segurança alteradas")
+    return dados
+
+
+class IpIn(BaseModel):
+    alvo: str = Field(min_length=3, max_length=60)
+    tipo: str = Field(pattern="^(bloqueado|permitido)$")
+    motivo: str = Field("", max_length=200)
+    minutos: int | None = Field(None, ge=1, le=525600)
+
+
+@api.get("/seguranca/ips")
+def listar_ips():
+    return db.consultar("SELECT * FROM seguranca_ips WHERE expira_em IS NULL OR expira_em > ? ORDER BY criado_em DESC", (db.agora(),))
+
+
+@api.post("/seguranca/ips")
+def adicionar_ip(d: IpIn, request: Request):
+    import ipaddress
+    from .. import firewall
+    try:
+        rede = ipaddress.ip_network(d.alvo.strip(), strict=False)
+    except ValueError:
+        raise HTTPException(400, "IP ou faixa CIDR inválida (ex.: 203.0.113.7 ou 203.0.113.0/24).")
+    meu = firewall.ip_do_pedido(request)
+    if d.tipo == "bloqueado":
+        try:
+            if ipaddress.ip_address(meu) in rede:
+                raise HTTPException(400, "Esse bloqueio incluiria o seu próprio IP.")
+        except ValueError:
+            pass
+    alvo = str(rede) if rede.num_addresses > 1 else str(rede.network_address)
+    expira = db.agora() + d.minutos * 60 if d.minutos else None
+    db.executar("INSERT INTO seguranca_ips (alvo, tipo, motivo, automatico, expira_em, criado_em) VALUES (?,?,?,false,?,?) "
+                "ON CONFLICT (alvo) DO UPDATE SET tipo = excluded.tipo, motivo = excluded.motivo, automatico = false, expira_em = excluded.expira_em",
+                (alvo, d.tipo, d.motivo.strip(), expira, db.agora()))
+    firewall.invalidar()
+    db.registrar("painel", f"IP {'bloqueado' if d.tipo == 'bloqueado' else 'liberado'}: {alvo}")
+    return {"ok": True}
+
+
+@api.delete("/seguranca/ips/{iid}")
+def remover_ip(iid: int):
+    from .. import firewall
+    db.executar("DELETE FROM seguranca_ips WHERE id = ?", (iid,))
+    firewall.invalidar()
+    return {"ok": True}
+
+
+@api.get("/seguranca/eventos")
+def eventos_seguranca(tipo: str | None = None, ip: str | None = None, limite: int = 200):
+    sql, p = "SELECT * FROM seguranca_eventos WHERE 1=1", []
+    if tipo:
+        sql += " AND tipo = ?"; p.append(tipo)
+    if ip:
+        sql += " AND ip = ?"; p.append(ip)
+    sql += " ORDER BY id DESC LIMIT ?"; p.append(min(limite, 1000))
+    return db.consultar(sql, p)
+
+
+# ---------------- white label (marca, cores, textos, menu, login) ----------------
+MARCA_PADRAO = {
+    "nome": "Clima Escritório", "nome_curto": "Clima", "slogan": "O ar do escritório no ponto certo, antes de você chegar.",
+    "descricao": "Ar-condicionados por infravermelho, com Alexa, agenda e automações.",
+    "logo": "", "favicon": "", "cor_primaria": "#0f766a", "cor_destaque": "#2563a8", "cor_alerta": "#dc2626",
+    "tema_padrao": "sistema", "fonte": "sistema", "escala": 100, "raio": 12, "densidade": "confortavel",
+    "login_titulo": "Entrar", "login_subtitulo": "Acesso do administrador do escritório.", "login_fumaca": True,
+    "login_downloads": True, "login_rodape": "Sem cadastro: o acesso é só do administrador.",
+    "rodape": "", "suporte_email": "", "suporte_telefone": "", "suporte_whatsapp": "", "site": "",
+    "banner_ativo": False, "banner_texto": "", "banner_cor": "info", "boas_vindas": "",
+    "menu_rotulos": {}, "menu_ocultos": [], "css": "", "meta_descricao": "", "dominio": "", "mostrar_creditos": True,
+    "unidade_temperatura": "C", "formato_hora": "24h",
+}
+_CSS_PROIBIDO = re.compile(r"(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|</style)", re.I)
+_COR = re.compile(r"^#[0-9a-fA-F]{6}$")
+ROTAS_MENU = {"/", "/projetos", "/relatorios", "/aparelhos", "/cenas", "/automacoes", "/agendamentos", "/transmissores",
+              "/integracoes", "/comandos-alexa", "/alexa", "/supabase", "/atividade", "/apps"}
+
+
+def _marca() -> dict:
+    return {**MARCA_PADRAO, **(db.cfg("white_label") or {})}
+
+
+def _validar_marca(m: dict) -> dict:
+    limpo = {}
+    for k, padrao in MARCA_PADRAO.items():
+        v = m.get(k, padrao)
+        if isinstance(padrao, bool):
+            v = bool(v)
+        elif isinstance(padrao, int):
+            v = int(v)
+        elif isinstance(padrao, dict):
+            v = {str(a)[:40]: str(b)[:40] for a, b in (v or {}).items() if str(a) in ROTAS_MENU and str(b).strip()}
+        elif isinstance(padrao, list):
+            v = [str(x) for x in (v or []) if str(x) in ROTAS_MENU and str(x) != "/"]
+        else:
+            v = str(v or "")
+        limpo[k] = v
+    for k in ("cor_primaria", "cor_destaque", "cor_alerta"):
+        if not _COR.match(limpo[k]):
+            raise HTTPException(400, f"Cor inválida em {k}: use o formato #RRGGBB.")
+    for k in ("logo", "favicon"):
+        if limpo[k] and not re.match(r"^data:image/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$", limpo[k]):
+            raise HTTPException(400, "Imagem inválida: envie PNG, JPG, WEBP ou SVG.")
+        if len(limpo[k]) > 400_000:
+            raise HTTPException(400, "Imagem grande demais (máximo de ~300 KB).")
+        if "svg" in limpo[k][:30]:
+            import base64 as b64
+            svg = b64.b64decode(limpo[k].split(",", 1)[1]).decode(errors="ignore").lower()
+            if "<script" in svg or "onload" in svg or "onerror" in svg or "javascript:" in svg or "<foreignobject" in svg:
+                raise HTTPException(400, "SVG com script não é permitido.")
+    if _CSS_PROIBIDO.search(limpo["css"]) or len(limpo["css"]) > 20_000:
+        raise HTTPException(400, "CSS personalizado não pode ter @import, url(), expression ou passar de 20 mil caracteres.")
+    limpo["escala"] = max(85, min(120, limpo["escala"]))
+    limpo["raio"] = max(0, min(24, limpo["raio"]))
+    if limpo["tema_padrao"] not in ("claro", "escuro", "sistema"): limpo["tema_padrao"] = "sistema"
+    if limpo["fonte"] not in ("sistema", "arredondada", "serifada", "mono", "condensada"): limpo["fonte"] = "sistema"
+    if limpo["densidade"] not in ("compacta", "confortavel", "espacosa"): limpo["densidade"] = "confortavel"
+    if limpo["banner_cor"] not in ("info", "alerta", "sucesso", "marca"): limpo["banner_cor"] = "info"
+    if limpo["unidade_temperatura"] not in ("C", "F"): limpo["unidade_temperatura"] = "C"
+    if limpo["formato_hora"] not in ("24h", "12h"): limpo["formato_hora"] = "24h"
+    for k in ("nome", "nome_curto", "login_titulo"):
+        if not limpo[k].strip():
+            raise HTTPException(400, "Nome e título do login não podem ficar vazios.")
+        limpo[k] = limpo[k].strip()[:60]
+    for k in ("slogan", "descricao", "login_subtitulo", "login_rodape", "rodape", "banner_texto", "boas_vindas", "meta_descricao"):
+        limpo[k] = limpo[k].strip()[:300]
+    return limpo
+
+
+@publico.get("/marca")
+def ver_marca():
+    """Pública: o login e o favicon precisam da marca antes do login."""
+    return _marca()
+
+
+@api.put("/marca")
+def salvar_marca(m: dict):
+    novo = _validar_marca(m)
+    historico = db.cfg("white_label_historico") or []
+    historico.insert(0, {"em": db.agora(), "marca": _marca()})
+    db.set_cfg("white_label_historico", historico[:15])
+    db.set_cfg("white_label", novo)
+    db.registrar("painel", "White label atualizado", detalhe=novo["nome"])
+    return novo
+
+
+@api.get("/marca/historico")
+def historico_marca():
+    return [{"indice": i, "em": h["em"], "nome": h["marca"].get("nome"), "cor": h["marca"].get("cor_primaria")}
+            for i, h in enumerate(db.cfg("white_label_historico") or [])]
+
+
+@api.post("/marca/historico/{indice}/restaurar")
+def restaurar_marca(indice: int):
+    historico = db.cfg("white_label_historico") or []
+    if not 0 <= indice < len(historico):
+        raise HTTPException(404, "Versão não encontrada.")
+    return salvar_marca(historico[indice]["marca"])
+
+
+@api.post("/marca/padrao")
+def marca_padrao():
+    return salvar_marca(dict(MARCA_PADRAO))

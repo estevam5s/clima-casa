@@ -1,4 +1,5 @@
 import { tokenAtual } from './supabase'
+import { marcaAtual } from './marcaAtual'
 
 export class ErroApi extends Error {
   constructor(status, mensagem) {
@@ -33,7 +34,25 @@ async function chamar(metodo, caminho, corpo) {
   return dados
 }
 
+// Baixa um arquivo da API (com o Bearer) e dispara o download no navegador.
+async function baixar(caminho) {
+  const token = await tokenAtual().catch(() => null)
+  const r = await fetch(caminho, { credentials: 'same-origin', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (!r.ok) {
+    let msg = `Erro ${r.status}`
+    try { msg = (await r.json()).detail || msg } catch { /* sem corpo */ }
+    throw new ErroApi(r.status, msg)
+  }
+  const nome = /filename="([^"]+)"/.exec(r.headers.get('content-disposition') || '')?.[1] || 'arquivo'
+  const url = URL.createObjectURL(await r.blob())
+  const a = Object.assign(document.createElement('a'), { href: url, download: nome })
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 2000)
+  return nome
+}
+
 export const api = {
+  baixar,
   get: (c) => chamar('GET', c),
   post: (c, b = {}) => chamar('POST', c, b),
   put: (c, b) => chamar('PUT', c, b),
@@ -53,7 +72,7 @@ export function haQuanto(ts) {
 }
 
 export function dataHora(ts) {
-  return new Date(ts * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return new Date(ts * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: marcaAtual.hora12 })
 }
 
 export const MODOS = { frio: 'Frio', quente: 'Quente', ventilar: 'Ventilar', seco: 'Desumidificar', auto: 'Automático' }
@@ -65,5 +84,5 @@ export function rotuloOrigem(o) {
   if (o.startsWith('agenda:')) return `Agenda · ${o.slice(7)}`
   if (o.startsWith('cena:')) return `Cena · ${o.slice(5)}`
   if (o.startsWith('automacao:')) return `Automação · ${o.slice(10)}`
-  return { painel: 'Painel', alexa: 'Alexa', sistema: 'Sistema', agente: 'Agente do Mac', sinric: 'Alexa/Google', automacao: 'Automação' }[o] || o
+  return { painel: 'Painel', alexa: 'Alexa', sistema: 'Sistema', agente: 'Agente do Mac', sinric: 'Alexa/Google', automacao: 'Automação', cena: 'Cena', agenda: 'Agenda', tuya: 'Nuvem Tuya' }[o] || o
 }

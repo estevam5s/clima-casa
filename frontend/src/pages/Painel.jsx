@@ -5,6 +5,8 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { AirVent, ChevronRight, Minus, Plus, Power, Sparkles } from 'lucide-react'
 import { MODOS, VENTILACAO, api, haQuanto, rotuloOrigem } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
+import { useTema } from '../tema'
+import { useMarca } from '../marca'
 import { Aviso, Botao, Carregando, FaixaMetricas, Ponto, Selo, useToast } from '../components/ui'
 
 const Cena3D = lazy(() => import('../components/Cena3D'))
@@ -25,6 +27,7 @@ function DicaGrafico({ active, payload, label }) {
 }
 
 function Destaque({ aparelhos, aoMudar }) {
+  const { escuro } = useTema()
   const [id, setId] = useState(() => (aparelhos.find((a) => a.ligado) || aparelhos[0])?.id)
   const [ocupado, setOcupado] = useState(false)
   const toast = useToast()
@@ -41,7 +44,7 @@ function Destaque({ aparelhos, aoMudar }) {
       <div className="grid md:grid-cols-[1.25fr_1fr]">
         <div className="relative h-64 border-b border-border md:h-auto md:min-h-[320px] md:border-b-0 md:border-r">
           <Suspense fallback={<div className="h-full animate-pulse bg-muted" />}>
-            <Cena3D estado={ar} />
+            <Cena3D key={escuro ? 'escuro' : 'claro'} estado={ar} />
           </Suspense>
           <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs backdrop-blur">
             <Ponto ativo={ar.ligado} /> {ar.ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador].toLowerCase()}` : 'Desligado'}
@@ -83,6 +86,7 @@ function Destaque({ aparelhos, aoMudar }) {
 
 export default function Painel() {
   const { filtro, projeto } = useProjeto()
+  const { marca } = useMarca()
   const [dados, setDados] = useState(null)
   const [metricas, setMetricas] = useState([])
   const [erro, setErro] = useState('')
@@ -113,6 +117,7 @@ export default function Painel() {
       <motion.div variants={entrar} initial="hidden" animate="show" className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{projeto ? projeto.nome : 'Todos os projetos'}</h1>
+          {marca.boas_vindas && <p className="mt-1 text-sm text-foreground/80">{marca.boas_vindas}</p>}
           <p className="mt-1 text-sm text-muted-foreground">
             {totais.ligados} de {totais.aparelhos} aparelho{totais.aparelhos === 1 ? '' : 's'} ligado{totais.ligados === 1 ? '' : 's'} agora
             {dados.alertas > 0 && <> · <Link to="/supabase" className="text-amber-600 hover:underline dark:text-amber-400">{dados.alertas} alerta{dados.alertas > 1 ? 's' : ''}</Link></>}

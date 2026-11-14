@@ -2,7 +2,7 @@
 const v = (nome) => `hsl(var(--${nome}) / <alpha-value>)`
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
-  darkMode: 'media',
+  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: { sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'] },

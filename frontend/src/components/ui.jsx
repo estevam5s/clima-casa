@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react'
+import { simboloTemp, temp } from '../marcaAtual'
 
 const VARIANTES = {
   primario: 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50',
@@ -228,6 +229,7 @@ export function Esqueleto({ className = '' }) {
 
 // Mostrador circular de temperatura (arco de 270°), animado.
 export function Dial({ valor, min, max, ligado, modo, tamanho = 220 }) {
+  const mostrar = temp(valor), un = simboloTemp().slice(1)
   const r = 86, c = 2 * Math.PI * r, arco = c * 0.75
   const p = Math.max(0, Math.min(1, (valor - min) / Math.max(1, max - min)))
   const cor = !ligado ? 'hsl(var(--muted-foreground) / 0.35)' : modo === 'quente' ? '#c2410c' : modo === 'ventilar' ? 'hsl(var(--muted-foreground))' : '#2563a8'
@@ -243,8 +245,8 @@ export function Dial({ valor, min, max, ligado, modo, tamanho = 220 }) {
         const x1 = 100 + Math.cos(ang) * 70, y1 = 100 + Math.sin(ang) * 70, x2 = 100 + Math.cos(ang) * 74, y2 = 100 + Math.sin(ang) * 74
         return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="hsl(var(--border))" strokeWidth="1.5" />
       })}
-      <text x="100" y="104" textAnchor="middle" fontSize="54" fontWeight="600" fill={ligado ? cor : 'hsl(var(--muted-foreground))'} style={{ fontVariantNumeric: 'tabular-nums' }}>{valor}°</text>
-      <text x="100" y="132" textAnchor="middle" fontSize="12" fill="hsl(var(--muted-foreground))">{min}° – {max}°</text>
+      <text x="100" y="104" textAnchor="middle" fontSize="54" fontWeight="600" fill={ligado ? cor : 'hsl(var(--muted-foreground))'} style={{ fontVariantNumeric: 'tabular-nums' }}>{mostrar}°{un === 'F' ? 'F' : ''}</text>
+      <text x="100" y="132" textAnchor="middle" fontSize="12" fill="hsl(var(--muted-foreground))">{temp(min)}° – {temp(max)}°</text>
     </svg>
   )
 }

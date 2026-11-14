@@ -11,7 +11,7 @@ import socket
 import threading
 import time
 
-from . import db, tuya_nuvem
+from . import cripto, db, tuya_nuvem
 
 PAPEL = "nuvem" if os.environ.get("VERCEL") else os.environ.get("CLIMA_PAPEL", "agente")
 AGENTE_ONLINE_SEG = 45
@@ -22,11 +22,18 @@ def _trava(hub_id):
     return _travas.setdefault(hub_id, threading.Lock())
 
 
+def _abrir(h: dict) -> dict:
+    """Decifra a Local Key (guardada com AES-256-GCM)."""
+    if h and h.get("local_key"):
+        h["local_key"] = cripto.decifrar(h["local_key"], "hub:local_key")
+    return h
+
+
 def hub(hub_id: str) -> dict:
     h = db.um("SELECT * FROM hubs WHERE id = ?", (hub_id,))
     if not h:
         raise KeyError("Transmissor não encontrado.")
-    return h
+    return _abrir(h)
 
 
 def agente_online() -> bool:
@@ -308,7 +315,7 @@ def _migrar_id(antigo: dict, novo_id: str) -> dict:
     """O pareamento gerou outro ID: cria o novo cadastro, passa os aparelhos e apaga o antigo."""
     db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, control_type, funcoes_nuvem, projeto_id, criado_em) "
                 "VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT (id) DO NOTHING",
-                (novo_id, antigo["nome"], antigo["ip"], antigo["local_key"], antigo["versao"], antigo["control_type"],
+                (novo_id, antigo["nome"], antigo["ip"], cripto.cifrar(antigo["local_key"], "hub:local_key"), antigo["versao"], antigo["control_type"],
                  antigo["funcoes_nuvem"], antigo["projeto_id"], db.agora()))
     db.executar("UPDATE aparelhos SET hub_id = ? WHERE hub_id = ?", (novo_id, antigo["id"]))
     db.executar("DELETE FROM hubs WHERE id = ?", (antigo["id"],))
@@ -360,7 +367,7 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
                 ip = varredura[h["id"]]["ip"]
             db.executar("UPDATE hubs SET local_key = ?, ip = COALESCE(?, ip), control_type = COALESCE(?, control_type), "
                         "funcoes_nuvem = ? WHERE id = ?",
-                        (info["local_key"], ip, info["control_type"], json.dumps(info["funcoes"]), h["id"]))
+                        (cripto.cifrar(info["local_key"], "hub:local_key"), ip, info["control_type"], json.dumps(info["funcoes"]), h["id"]))
             mudancas.append("Local Key atualizada pela conta Smart Life")
             h = hub(h["id"])
             if ip is None and diagnosticar(h) == "rede":  # IP ainda desconhecido: varre de novo com a chave certa
@@ -394,7 +401,7 @@ def autorreparar(forcar: bool = False) -> list[dict]:
     if checar_chave:
         _ultima_checagem_chave = agora
     resultados, varredura = [], None
-    for h in db.consultar("SELECT * FROM hubs"):
+    for h in map(_abrir, db.consultar("SELECT * FROM hubs")):
         precisa = forcar or (not h["online"] and _falhas_seguidas.get(h["id"], FALHAS_PARA_OFFLINE) >= FALHAS_PARA_OFFLINE) or h["problema"] or checar_chave
         if not precisa or (not forcar and agora - _ultimo_reparo.get(h["id"], 0) < INTERVALO_REPARO and h["online"]):
             continue

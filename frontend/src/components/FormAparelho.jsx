@@ -14,6 +14,7 @@ export default function FormAparelho({ inicial, hubs, aoSalvar, rotuloBotao = 'S
     temp_max: inicial?.temp_max ?? 30,
     modos: inicial?.modos ? inicial.modos.split(',') : Object.keys(MODOS),
     alexa: inicial ? !!inicial.alexa : true,
+    potencia_w: inicial?.potencia_w ?? 1000,
     projeto_id: inicial ? inicial.projeto_id : (projeto?.id ?? projetos[0]?.id ?? null),
   }))
   const [erro, setErro] = useState('')
@@ -26,7 +27,7 @@ export default function FormAparelho({ inicial, hubs, aoSalvar, rotuloBotao = 'S
     setErro('')
     setSalvando(true)
     try {
-      await aoSalvar({ ...f, projeto_id: f.projeto_id ? +f.projeto_id : null, hub_id: f.hub_id || null, temp_min: +f.temp_min, temp_max: +f.temp_max })
+      await aoSalvar({ ...f, projeto_id: f.projeto_id ? +f.projeto_id : null, hub_id: f.hub_id || null, temp_min: +f.temp_min, temp_max: +f.temp_max, potencia_w: +f.potencia_w || 1000 })
     } catch (e) {
       setErro(e.message)
     } finally {
@@ -72,6 +73,11 @@ export default function FormAparelho({ inicial, hubs, aoSalvar, rotuloBotao = 'S
         <div>
           <label className="rotulo" htmlFor="tmax">Temperatura máxima</label>
           <input id="tmax" type="number" min={10} max={35} className="campo" value={f.temp_max} onChange={mudar('temp_max')} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="rotulo" htmlFor="pot">Potência (W)</label>
+          <input id="pot" type="number" min={100} max={10000} step={50} className="campo" value={f.potencia_w} onChange={mudar('potencia_w')} />
+          <p className="ajuda">Usada para estimar consumo e custo nos relatórios. 9.000 BTU ≈ 800 W, 12.000 BTU ≈ 1.100 W, 18.000 BTU ≈ 1.650 W.</p>
         </div>
       </div>
       <div>

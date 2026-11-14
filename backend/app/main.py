@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import agenda, db, sinric, transmissor
+from . import agenda, cripto, db, firewall, sinric, transmissor
 from .rotas import alexa as rotas_alexa
 from .rotas import api as rotas_api
 
@@ -29,7 +29,7 @@ def _migrar_env():
             env[k.strip()] = v.strip()
     if env.get("TUYA_DEVICE_ID"):
         db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, criado_em) VALUES (?,?,?,?,?,?)",
-                    (env["TUYA_DEVICE_ID"], "Smart IR", env.get("TUYA_IP", ""), env.get("TUYA_LOCAL_KEY", ""),
+                    (env["TUYA_DEVICE_ID"], "Smart IR", env.get("TUYA_IP", ""), cripto.cifrar(env.get("TUYA_LOCAL_KEY", ""), "hub:local_key"),
                      env.get("TUYA_VERSION", "3.5"), db.agora()))
         db.registrar("sistema", "Transmissor importado do .env", detalhe=env["TUYA_DEVICE_ID"])
 
@@ -37,6 +37,10 @@ def _migrar_env():
 @asynccontextmanager
 async def ciclo_de_vida(app):
     db.iniciar()
+    try:
+        cripto.migrar()
+    except Exception:  # noqa: BLE001
+        pass
     tarefa = None
     if transmissor.PAPEL == "agente":  # no Mac: fila de comandos, agenda e status dos transmissores
         _migrar_env()
@@ -53,21 +57,33 @@ app = FastAPI(title="Clima Casa", lifespan=ciclo_de_vida, docs_url=None, redoc_u
 
 @app.middleware("http")
 async def cabecalhos(request: Request, chamar):
+    # Firewall: listas de IP, país, assinaturas de ataque e limite de taxa (só nas rotas dinâmicas)
+    dinamica = request.url.path.startswith(("/api/", "/oauth/", "/alexa/"))
+    if dinamica:
+        barrado = await asyncio.to_thread(firewall.verificar, request)
+        if barrado:
+            return JSONResponse({"detail": barrado[1]}, status_code=barrado[0], headers={"Retry-After": "60"} if barrado[0] == 429 else None)
     # Bloqueia POST/PUT/DELETE vindos de outros sites (CSRF) nas rotas de sessão
     if request.method not in ("GET", "HEAD", "OPTIONS") and request.url.path.startswith("/api/"):
         origem = request.headers.get("origin")
         if origem and origem.split("://", 1)[-1] != request.headers.get("host"):
             return JSONResponse({"detail": "Origem não permitida."}, status_code=403)
     resp = await chamar(request)
+    if dinamica and resp.status_code in (401, 403):
+        await asyncio.to_thread(firewall.depois, request, resp.status_code)
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "same-origin"
     resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    resp.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    if dinamica and "cache-control" not in resp.headers:
+        resp.headers["Cache-Control"] = "no-store"
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
         "font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'")
     if request.url.scheme == "https":
-        resp.headers["Strict-Transport-Security"] = "max-age=31536000"
+        resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     return resp
 
 

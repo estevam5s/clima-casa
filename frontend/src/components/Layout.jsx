@@ -3,12 +3,14 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity, AirVent, BarChart3, Bell, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  Download, LogOut, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, Sparkles, Workflow, X,
+  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, Sparkles, Workflow, X,
 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
 import { atualizarAba } from '../favicon'
+import { useTema } from '../tema'
+import { useMarca } from '../marca'
 
 export const GRUPOS = [
   { titulo: 'Visão geral', itens: [
@@ -41,16 +43,26 @@ const ABERTA = 264
 const MOLA = { type: 'spring', stiffness: 380, damping: 34 }
 
 function Marca({ aberta }) {
+  const { marca } = useMarca()
   return (
-    <Link to="/" className="flex h-9 items-center gap-2.5 px-1.5">
-      <svg viewBox="0 0 32 32" className="h-7 w-7 shrink-0" aria-hidden="true">
-        <rect width="32" height="32" rx="8" fill="hsl(var(--primary))" />
-        <path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
-      </svg>
+    <Link to="/" className="flex h-9 min-w-0 items-center gap-2.5 px-1.5">
+      {marca.logo ? <img src={marca.logo} alt="" className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : (
+        <svg viewBox="0 0 32 32" className="h-7 w-7 shrink-0" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="hsl(var(--primary))" />
+          <path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+        </svg>
+      )}
       <motion.span animate={{ opacity: aberta ? 1 : 0, x: aberta ? 0 : -6 }} transition={{ duration: 0.15 }}
-        className="whitespace-pre text-[15px] font-semibold tracking-tight">Clima Escritório</motion.span>
+        className="truncate whitespace-pre text-[15px] font-semibold tracking-tight">{marca.nome}</motion.span>
     </Link>
   )
+}
+
+// Menu com os rótulos e itens ocultos do white label
+function useGrupos() {
+  const { marca } = useMarca()
+  return GRUPOS.map((g) => ({ ...g, itens: g.itens.filter((i) => !marca.menu_ocultos.includes(i.para)).map((i) => ({ ...i, rotulo: marca.menu_rotulos[i.para] || i.rotulo })) }))
+    .filter((g) => g.itens.length)
 }
 
 function SeletorProjeto({ aberta }) {
@@ -116,6 +128,7 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar }) {
   const navegar = useNavigate()
   const sair = async () => { await (await supabase()).auth.signOut().catch(() => {}); navegar('/login') }
   const email = sessao?.email || ''
+  const grupos = useGrupos()
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden px-3 py-4">
       <div className="flex items-center justify-between">
@@ -129,7 +142,7 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar }) {
       </div>
       <SeletorProjeto aberta={aberta} />
       <nav className="-mx-1 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1">
-        {GRUPOS.map((g) => (
+        {grupos.map((g) => (
           <div key={g.titulo}>
             {aberta
               ? <p className="mb-1 whitespace-pre px-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">{g.titulo}</p>
@@ -271,6 +284,47 @@ function Notificacoes() {
   )
 }
 
+function BotaoTema() {
+  const { escolha, setEscolha } = useTema()
+  const ordem = ['claro', 'escuro', 'sistema']
+  const icone = { claro: Sun, escuro: Moon, sistema: Laptop }[escolha]
+  const I = icone
+  return (
+    <button onClick={() => setEscolha(ordem[(ordem.indexOf(escolha) + 1) % 3])} title={`Tema: ${escolha} (clique para trocar)`}
+      aria-label={`Tema ${escolha}. Trocar tema`} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span key={escolha} initial={{ rotate: -90, scale: 0.6, opacity: 0 }} animate={{ rotate: 0, scale: 1, opacity: 1 }} exit={{ rotate: 90, scale: 0.6, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 26 }} className="block"><I className="h-[18px] w-[18px]" /></motion.span>
+      </AnimatePresence>
+    </button>
+  )
+}
+
+function Banner() {
+  const { marca } = useMarca()
+  const [fechado, setFechado] = useState(() => { try { return sessionStorage.getItem('clima-banner') === marca.banner_texto } catch { return false } })
+  if (!marca.banner_ativo || !marca.banner_texto || fechado) return null
+  const cores = { info: 'bg-sky-600', alerta: 'bg-amber-600', sucesso: 'bg-emerald-600', marca: 'bg-primary' }
+  return (
+    <div className={`flex items-center justify-center gap-3 px-4 py-2 text-center text-sm text-white ${cores[marca.banner_cor] || cores.info}`} role="status">
+      <span>{marca.banner_texto}</span>
+      <button onClick={() => { setFechado(true); try { sessionStorage.setItem('clima-banner', marca.banner_texto) } catch { /* */ } }} aria-label="Fechar aviso" className="rounded p-0.5 hover:bg-white/20"><X className="h-4 w-4" /></button>
+    </div>
+  )
+}
+
+function Rodape() {
+  const { marca } = useMarca()
+  const contatos = [marca.suporte_email && `Suporte: ${marca.suporte_email}`, marca.suporte_telefone, marca.suporte_whatsapp && `WhatsApp ${marca.suporte_whatsapp}`].filter(Boolean)
+  if (!marca.rodape && !contatos.length && !marca.mostrar_creditos) return null
+  return (
+    <footer className="mt-12 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
+      <span>{marca.rodape || `© ${new Date().getFullYear()} ${marca.nome}`}</span>
+      <span className="flex flex-wrap gap-3">{contatos.map((c) => <span key={c}>{c}</span>)}{marca.mostrar_creditos && <span>Infravermelho · Alexa · Supabase</span>}</span>
+    </footer>
+  )
+}
+
 function useDesktop() {
   const [d, setD] = useState(() => window.matchMedia('(min-width: 768px)').matches)
   useEffect(() => {
@@ -343,13 +397,16 @@ export default function Layout() {
             <Link to="/apps" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground lg:flex" title="Baixar os apps">
               <Download className="h-4 w-4" /> Apps
             </Link>
+            <BotaoTema />
             <Notificacoes />
           </div>
         </header>
+        <Banner />
         <main className="w-full px-4 pb-16 pt-6 sm:px-6 lg:px-8 2xl:px-10">
           <motion.div key={local.pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <Outlet />
           </motion.div>
+          <Rodape />
         </main>
       </motion.div>
       <Paleta aberta={paleta} fechar={() => setPaleta(false)} />

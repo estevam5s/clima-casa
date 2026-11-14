@@ -32,7 +32,7 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js).*)",
+      "source": "/((?!assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js|tema\\.js).*)",
       "destination": "/index.html"
     }
   ],
@@ -54,7 +54,7 @@
         },
         {
           "key": "Strict-Transport-Security",
-          "value": "max-age=31536000"
+          "value": "max-age=63072000; includeSubDomains; preload"
         },
         {
           "key": "Content-Security-Policy",
@@ -63,6 +63,14 @@
         {
           "key": "Permissions-Policy",
           "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-origin"
         }
       ]
     },

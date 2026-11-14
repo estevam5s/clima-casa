@@ -6,6 +6,8 @@ import { api } from '../api'
 import { supabase } from '../supabase'
 import { DOWNLOADS, sistemaAtual } from '../apps'
 import Fumaca from '../components/Fumaca'
+import { useTema } from '../tema'
+import { useMarca } from '../marca'
 
 const TEMAS = {
   claro: { '--bg': '#efede7', '--paper': '#f7f6f2', '--sheet': '#e6e3db', '--ink': '#141513', '--muted': '#6f716b', '--line': '#dcd9d0',
@@ -18,14 +20,9 @@ const ERROS = { 'Invalid login credentials': 'E-mail ou senha incorretos.', 'Ema
 const campo = 'mt-2 h-12 w-full rounded-[14px] border border-[var(--line)] bg-[var(--field)] px-4 text-[15px] text-[var(--ink)] shadow-[0_1px_2px_rgb(0_0_0/0.04)_inset] outline-none transition-[border-color,box-shadow] duration-300 placeholder:text-[var(--muted)]/60 focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]'
 
 function lembrado() { try { return localStorage.getItem('clima-email') || '' } catch { return '' } }
-function temaInicial() {
-  try { const t = localStorage.getItem('clima-tema-login'); if (t) return t } catch { /* sem storage */ }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'
-}
 
 export default function Login() {
   const [pronto, setPronto] = useState(false)
-  const [tema, setTemaState] = useState(temaInicial)
   const [modo, setModo] = useState('entrar') // entrar | esqueci | enviado
   const [email, setEmail] = useState(lembrado)
   const [senha, setSenha] = useState('')
@@ -36,8 +33,10 @@ export default function Login() {
   const navegar = useNavigate()
   const destino = useLocation().state?.de || '/'
   const calmo = useReducedMotion()
-  const escuro = tema === 'escuro'
-  const setTema = (t) => { setTemaState(t); try { localStorage.setItem('clima-tema-login', t) } catch { /* sem storage */ } }
+  const { escuro, setEscolha } = useTema()
+  const { marca } = useMarca()
+  const tema = escuro ? 'escuro' : 'claro'
+  const setTema = (t) => setEscolha(t)
 
   useEffect(() => {
     supabase().then(async (sb) => {
@@ -61,11 +60,12 @@ export default function Login() {
     setErro(''); setOcupado(true)
     try {
       const sb = await supabase()
-      const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: senha })
+      // login passa pelo firewall do sistema (conta tentativas por IP e e-mail, bloqueio progressivo)
+      const sessao = await api.post('/api/auth/entrar', { email: email.trim(), senha })
+      const { error } = await sb.auth.setSession({ access_token: sessao.access_token, refresh_token: sessao.refresh_token })
       if (error) throw new Error(ERROS[error.message] || error.message)
       try { await api.get('/api/sessao') } catch (err) { await sb.auth.signOut(); throw err }
       try { lembrar ? localStorage.setItem('clima-email', email.trim()) : localStorage.removeItem('clima-email') } catch { /* sem storage */ }
-      api.post('/api/sessao/registrar-login').catch(() => {})
       navegar(destino, { replace: true })
     } catch (err) {
       setErro(err.message); setOcupado(false)
@@ -94,15 +94,15 @@ export default function Login() {
         <div aria-hidden className="absolute inset-0 rotate-[-1.4deg] rounded-[28px] bg-[var(--sheet)] transition-colors duration-700" />
         <div aria-hidden className="absolute inset-0 rotate-[0.9deg] rounded-[28px] bg-[var(--paper)] transition-colors duration-700" />
         <div className="relative h-full overflow-hidden rounded-[28px] bg-[var(--paper)] transition-colors duration-700"> {/* marca: folha principal */}
-          {pronto && <Fumaca escuro={escuro} />}
+          {pronto && marca.login_fumaca && <Fumaca escuro={escuro} />}
           <div aria-hidden className="pointer-events-none absolute inset-0 opacity-60" style={{ backgroundImage: GRAO, mixBlendMode: 'var(--grain-blend)' }} />
           <motion.div {...sobe(0)} className="absolute left-6 top-6 flex items-center gap-2.5">
-            <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0f766a" /><path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" /></svg>
-            <span className="text-[15px] font-semibold tracking-[-0.02em]">Clima Escritório</span>
+            {marca.logo ? <img src={marca.logo} alt="" className="h-7 w-7 rounded-lg object-contain" /> : <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true"><rect width="32" height="32" rx="8" fill="hsl(var(--primary))" /><path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" /></svg>}
+            <span className="text-[15px] font-semibold tracking-[-0.02em]">{marca.nome}</span>
           </motion.div>
           <motion.div {...sobe(1)} className="absolute inset-x-6 bottom-6 hidden max-w-[26rem] sm:block">
-            <p className="text-[28px] font-medium leading-[1.1] tracking-[-0.035em]">O ar do escritório no ponto certo, antes de você chegar.</p>
-            <p className="mt-2 text-[13px] text-[var(--muted)]">Ar-condicionados por infravermelho, com Alexa, agenda e automações.</p>
+            <p className="text-[28px] font-medium leading-[1.1] tracking-[-0.035em]">{marca.slogan}</p>
+            <p className="mt-2 text-[13px] text-[var(--muted)]">{marca.descricao}</p>
           </motion.div>
         </div>
       </section>
@@ -126,8 +126,8 @@ export default function Login() {
           <AnimatePresence mode="wait">
             {modo === 'entrar' && (
               <motion.div key="entrar" exit={{ opacity: 0, y: -6 }}>
-                <motion.h1 {...sobe(2)} className="text-[34px] font-semibold leading-none tracking-[-0.045em]">Entrar</motion.h1>
-                <motion.p {...sobe(3)} className="mt-3 text-[15px] text-[var(--muted)]">Acesso do administrador do escritório.</motion.p>
+                <motion.h1 {...sobe(2)} className="text-[34px] font-semibold leading-none tracking-[-0.045em]">{marca.login_titulo}</motion.h1>
+                <motion.p {...sobe(3)} className="mt-3 text-[15px] text-[var(--muted)]">{marca.login_subtitulo}</motion.p>
                 <form onSubmit={entrar} className="mt-9 space-y-4">
                   <motion.div {...sobe(4)}>
                     <label htmlFor="email" className="text-[13px] font-medium">E-mail</label>
@@ -194,6 +194,7 @@ export default function Login() {
             )}
           </AnimatePresence>
 
+          {marca.login_downloads && <>
           <motion.div {...sobe(9)} className="my-8 flex items-center gap-3 text-[12px] text-[var(--muted)]">
             <span className="h-px flex-1 bg-[var(--line)]" /> Apps <span className="h-px flex-1 bg-[var(--line)]" />
           </motion.div>
@@ -205,7 +206,9 @@ export default function Login() {
               </a>
             ))}
           </motion.div>
-          <motion.p {...sobe(11)} className="mt-8 text-center text-[12px] text-[var(--muted)]">Sem cadastro: o acesso é só do administrador.</motion.p>
+          </>}
+          <motion.p {...sobe(11)} className="mt-8 text-center text-[12px] text-[var(--muted)]">{marca.login_rodape}
+            {marca.suporte_email && <> · <a href={`mailto:${marca.suporte_email}`} className="underline-offset-4 hover:underline">{marca.suporte_email}</a></>}</motion.p>
         </div>
       </section>
     </div>

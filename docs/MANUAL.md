@@ -175,6 +175,8 @@ Um **projeto** é um lugar. Cada projeto tem os seus transmissores, aparelhos e 
    - **Transmissor**: o Smart IR que fica no mesmo cômodo.
    - **Temperatura mínima e máxima** do aparelho.
    - **Modos** que ele tem (frio, quente, ventilar, desumidificar, automático).
+   - **Potência (W)**: usada para estimar consumo e custo nos relatórios (9.000 BTU ≈ 800 W, 12.000 BTU ≈ 1.100 W,
+     18.000 BTU ≈ 1.650 W). Se não souber, deixe 1.000 W.
    - **Disponível na Alexa**: deixe ligado para controlar por voz.
 3. Clique em **Adicionar**. O sistema abre a tela de gravação de botões.
 
@@ -270,10 +272,30 @@ há 4 horas" (sobe para 25°), "Madrugada mais fresca" (às 3h, 24° ventilaçã
 
 ## 8.7 Relatórios e Atividade
 
-- **Relatórios**: comandos por dia (total, Alexa, agenda), horários de uso, temperaturas mais escolhidas e uso por
-  aparelho, em 7, 30 ou 90 dias.
+- **Relatórios**: escolha o período (7, 30, 90 dias, 12 meses ou **Datas** livres) e, se quiser, um aparelho só.
+  A tela mostra comandos (com a variação contra o período anterior), taxa de sucesso, **horas ligado, kWh e custo
+  estimados**, comandos por dia por origem, horário de pico, temperaturas escolhidas, **mapa de uso** (dia × hora),
+  tabela por aparelho (clique no título da coluna para ordenar) e as falhas com o motivo.
+  - **Tarifa**: digite o valor da sua conta de luz em R$/kWh no campo do topo; o custo é recalculado na hora.
+  - **Exportar**: PDF, Word (DOCX), Excel (XLSX), CSV, HTML, XML, JSON ou Markdown, com as cores da sua marca.
+    **Imprimir** usa a impressora do navegador.
+  - Horas e custo são estimativas: contam do "ligar" ao "desligar" enviados pelo sistema.
 - **Atividade**: linha do tempo de tudo, agrupada por dia, com busca, filtros por origem e aparelho, opção **Ao
   vivo** (atualiza sozinha) e **Exportar CSV** para planilha.
+
+## 8.8 Configurações: aparência, marca e segurança
+
+- **Aparência**: tema **Claro**, **Escuro** ou **Sistema** (também no botão do cabeçalho). Fica salvo neste navegador.
+- **White label (marca própria)**: nome, logo, ícone da aba, cores, fonte, tamanho do texto, cantos, textos do login,
+  nomes e itens do menu, banner de aviso, contato de suporte, °C/°F e relógio 12/24 h. A prévia à direita mostra o
+  resultado antes de **Salvar**. **Versões** guarda as 15 últimas e permite voltar; **Exportar/Importar** leva a
+  marca para outra instalação; **Voltar ao padrão** desfaz tudo.
+- **Segurança**: o firewall bloqueia sozinho quem erra a senha várias vezes (5 por padrão), quem usa ferramentas de
+  ataque e quem faz requisições demais. O bloqueio cresce a cada reincidência: 15 min, 1 h, 24 h, 7 dias. Na tela você
+  vê os eventos, bloqueia ou libera um IP ou faixa (CIDR), bloqueia países e ajusta os limites.
+  Use **Nunca bloquear meu IP** na rede do escritório para não se trancar do lado de fora.
+- As senhas e chaves das integrações (Smart Life, Sinric, Alexa, chave do transmissor) ficam **cifradas** no banco
+  (AES-256-GCM).
 
 # 9. Vários ares, vários transmissores
 

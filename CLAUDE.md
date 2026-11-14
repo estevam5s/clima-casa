@@ -93,6 +93,9 @@ ar-controle/
 │       ├── alexa.py         skill própria: Discovery, Power, Thermostat, SceneController, ReportState
 │       ├── automacao.py     automações, eventos, temporizadores, ciclo periódico
 │       ├── agenda.py        laço de 20 s: agendamentos, automações, status dos transmissores
+│       ├── cripto.py        AES-256-GCM ("enc:v1:") para segredos em repouso, chave em CLIMA_CHAVE_MESTRA
+│       ├── firewall.py      listas de IP/CIDR, país, assinaturas de ataque, limite de taxa, bloqueio progressivo
+│       ├── relatorio.py     consolida o relatório (montar) + exportadores pdf/docx/xlsx/csv/html/xml/json/md
 │       └── rotas/
 │           ├── api.py       toda a API do painel (/api/…)
 │           └── alexa.py     OAuth 2.0 da skill própria + /alexa/diretiva
@@ -184,14 +187,21 @@ git add -A && git commit && git push
 | `TUYA_DEVICE_ID`, `TUYA_LOCAL_KEY`, `TUYA_IP`, `TUYA_VERSION` | legado da v1; migrados para `hubs` na 1ª execução | agente |
 | `SINRIC_API_KEY`, `SINRIC_APP_KEY`, `SINRIC_APP_SECRET` | Sinric Pro (copiados para `config.sinric` na 1ª execução) | agente |
 | `VERCEL_TOKEN` | deploy | `publicar-vercel.sh` |
+| `CLIMA_CHAVE_MESTRA` | chave AES-256 (32 bytes base64) dos segredos em repouso | agente **e** Vercel (a mesma!). Perder = reconectar Smart Life, Sinric e Alexa |
+| `CLIMA_CONFIAR_PROXY` | opcional: confiar em `x-forwarded-for` fora da Vercel | firewall |
 
-Vercel (produção) tem só: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_PORT=6543`.
+Vercel (produção) tem só: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_PORT=6543`,
+`CLIMA_CHAVE_MESTRA`.
 O app Expo tem `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_API_URL`
 (em `apps/android/.env` e em `eas.json`; todas públicas).
 
 Configurações de runtime ficam na tabela **`config`** (chave → JSON): `modo_envio` (auto/local/nuvem),
 `nome_casa`, `tuya_conta` (token Smart Life), `sinric` (credenciais + ids descobertos + `automatico`),
-`sinric_status`, `alexa` (client_id/secret, chave da Lambda, url pública), `agente_visto_em` (heartbeat).
+`sinric_status`, `alexa` (client_id/secret, chave da Lambda, url pública), `agente_visto_em` (heartbeat),
+`tarifa_kwh` (R$/kWh dos relatórios), `white_label` + `white_label_historico` (marca própria), `seguranca` (regras do
+firewall). As chaves de `db.CHAVES_SENSIVEIS` (`tuya_conta`, `tuya_qr_pendente`, `sinric`, `alexa`, `segredo_sessao`)
+e `hubs.local_key` são gravadas cifradas (`enc:v1:…`, AAD `cfg:<chave>` / `hub:local_key`); `cripto.migrar()` cifra
+valores antigos na partida. `db.cfg/set_cfg` já cifram e decifram: não leia `config.valor` direto.
 
 Arquivos de credenciais fora do repositório (pasta pai `projeto-deison/`): `supabase.md`, `portal.sinric.pro.md`,
 `token-vercel.md`, `github.txt`. Ler só quando necessário, sempre mascarando ao exibir.
@@ -219,7 +229,11 @@ booleanos de negócio como 0/1, exceto nas tabelas das rotinas (timestamptz/bool
 | `fila_comandos` | ponte Vercel → agente: `enviar`, `aprender`, `descobrir`, `evento`, `reparar` |
 | `oauth_codigos`, `oauth_tokens` | OAuth da skill própria (só hashes) |
 | `metricas_diarias`, `alertas`, `backups`, `saude_sistema` | preenchidas pelas rotinas pg_cron |
+| `seguranca_ips` | IP/CIDR `bloqueado`/`permitido`, `automatico`, `ocorrencias`, `expira_em` (firewall) |
+| `seguranca_eventos` | `login_falhou`, `login_ok`, `scanner`, `rate_limit`, `auth_negado`, `ip_bloqueado_auto`… |
 | `cron_log`, `cron_job_registry` | log/registro das rotinas (skill supabase-cron) |
+
+`aparelhos.potencia_w` (padrão 1000) alimenta o consumo estimado dos relatórios.
 
 **RLS** ligado em tudo; política `admin_le` (só leitura para o admin) nas tabelas de negócio. O backend conecta
 como dono via pooler e não passa pelo RLS. O front **não** lê o banco direto: tudo passa pela API.
@@ -320,7 +334,7 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 |---|---|
 | `/` | Painel: faixa de métricas, 3D (Three.js) com controle rápido, integrações, gráfico 14 d, aparelhos, atividade |
 | `/projetos` | projetos (lugares) com resumo e troca rápida |
-| `/relatorios` | comandos por dia, horários de uso, temperaturas, por aparelho (7/30/90 d) |
+| `/relatorios` | período livre e por aparelho; horas/kWh/custo estimados, comparação com o período anterior, mapa dia×hora, origens, falhas; exportar em 8 formatos |
 | `/aparelhos`, `/aparelhos/:id` | lista (grade/lista, filtros, desligar todos) e detalhe (mostrador, modos, botões, gravação, temporizador, histórico, ajustes) |
 | `/cenas` | cenas |
 | `/automacoes` | automações com modelos prontos e temporizadores ativos |
@@ -331,13 +345,15 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 | `/alexa` | skill própria (URLs OAuth, chaves, passo a passo) |
 | `/supabase` | rotinas, uso do banco, alertas, gráfico, backups |
 | `/atividade` | linha do tempo por dia, ao vivo, filtros, exportar CSV |
-| `/configuracoes` | Smart Life, modo de envio, senha, backup, agente, sobre |
+| `/configuracoes?aba=` | `geral` (Smart Life, envio), `aparencia` (tema), `marca` (white label, 34 opções), `seguranca` (firewall), `contas` (senha), `sistema` (backup, agente) |
 | `/apps` | downloads (release) e instalação da PWA |
 | `/oauth/autorizar` | consentimento da vinculação de conta da Alexa |
 
 ### Design system (não fugir dele)
 - Tokens HSL em `src/index.css` (`--background`, `--card`, `--muted`, `--border`, `--primary` = teal da marca
-  `#0f766a`) com tema escuro por `prefers-color-scheme`. Tailwind mapeia (`bg-card`, `text-muted-foreground`…).
+  `#0f766a`). Tema por classe: `html.dark` (Tailwind `darkMode: 'class'`), escolhido em `src/tema.jsx`
+  (claro/escuro/sistema, `localStorage 'clima-tema'`) e aplicado antes da pintura por `public/tema.js`.
+  A marca própria (`src/marca.jsx`) sobrescreve `--primary` etc. em tempo de execução; não fixe cores da marca. Tailwind mapeia (`bg-card`, `text-muted-foreground`…).
 - Classes globais: `.cartao` (borda 1 px, sem sombra), `.campo`, `.rotulo`, `.ajuda`, `.tabela`, `.titulo-secao`.
 - Componentes em `components/ui.jsx`: `Botao`, `Cabecalho`, `FaixaMetricas` (métricas num cartão com divisórias,
   a 1ª em destaque, números animados), `Dial` (mostrador de temperatura), `Secao`, `Selo`, `Ponto`, `Interruptor`,
@@ -359,7 +375,9 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 Prefixo `/api`, JSON, Bearer obrigatório (exceto as públicas de §7.7). Erros: `{"detail": "mensagem em pt-BR"}`;
 validação vira 422 com "Confira o(s) campo(s): …".
 
-- **Sessão**: `GET /supabase-config`, `GET /sessao`, `POST /sessao/registrar-login`
+- **Sessão**: `POST /auth/entrar` (login pelo backend, com bloqueio por e-mail/IP), `GET /supabase-config`, `GET /sessao`, `POST /sessao/registrar-login`
+- **Relatórios**: `GET /relatorios/completo?dias=|inicio=&fim=&projeto_id=&aparelho_id=`, `GET /relatorios/exportar?formato=pdf|docx|xlsx|csv|html|xml|json|md&…`
+- **Marca e segurança**: `GET /marca` (pública), `PUT /marca`, `GET /marca/historico`, `POST /marca/historico/{i}/restaurar`, `POST /marca/padrao`; `GET|PUT /seguranca`, `GET|POST /seguranca/ips`, `DELETE /seguranca/ips/{id}`, `GET /seguranca/eventos`
 - **Painel e dados**: `GET /painel?projeto_id=`, `GET /metricas?dias=`, `GET /relatorios?dias=&projeto_id=`,
   `GET /atividade?origem=&aparelho_id=&falhas=&antes=&limite=`, `GET /alertas`, `POST /alertas/{id}/resolver`
 - **Aparelhos**: `GET|POST /aparelhos`, `GET|PUT|DELETE /aparelhos/{id}`, `POST /aparelhos/{id}/estado`,
@@ -425,6 +443,10 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
 
 ## 12. Segurança
 
+- **Firewall** (`firewall.py`, middleware em `main.py`): permitidos → bloqueados (IP/CIDR) → país → assinaturas
+  (agente, caminho, SQLi/XSS) → limite por minuto; depois da resposta, 401/403 contam para o bloqueio progressivo.
+  Quem teve `login_ok` nas últimas 24 h não é bloqueado por 401. Ao testar ataques localmente, limpe
+  `seguranca_ips`/`seguranca_eventos` do IP 127.0.0.1 depois.
 - Sem cadastro; só admin. Cookies não são usados para a API (Bearer), CSRF barrado por checagem de `Origin`.
 - Headers: CSP restrita (`connect-src` só self + supabase), HSTS, X-Frame-Options DENY, nosniff.
 - Segredos só no `.env` (agente) e nas variáveis da Vercel; `service_role`/secret do Supabase nunca no bundle.

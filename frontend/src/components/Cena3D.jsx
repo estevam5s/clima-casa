@@ -8,7 +8,7 @@ const VEL_VENT = { auto: 1, baixa: 0.6, media: 1, alta: 1.6 }
 const N = 1100
 
 function tema() {
-  const escuro = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const escuro = document.documentElement.classList.contains('dark')
   return { corpo: escuro ? 0xe9e9ec : 0xfbfbfb, aba: escuro ? 0xd2d2d7 : 0xe6e6ea, parede: escuro ? 0x141416 : 0xf0f0f2, escuro }
 }
 

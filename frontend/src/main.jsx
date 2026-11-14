@@ -22,6 +22,8 @@ import Cenas from './pages/Cenas'
 import Relatorios from './pages/Relatorios'
 import Integracoes from './pages/Integracoes'
 import { ProjetoProvider } from './contexto'
+import { TemaProvider } from './tema'
+import { MarcaProvider } from './marca'
 import Automacoes from './pages/Automacoes'
 import ComandosAlexa from './pages/ComandosAlexa'
 import Apps from './pages/Apps'
@@ -52,6 +54,8 @@ function NaoEncontrado() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
+    <TemaProvider>
+    <MarcaProvider>
     <ToastProvider>
       <BrowserRouter>
         <Routes>
@@ -80,6 +84,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </Routes>
       </BrowserRouter>
     </ToastProvider>
+    </MarcaProvider>
+    </TemaProvider>
   </React.StrictMode>,
 )
 

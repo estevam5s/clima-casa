@@ -32,3 +32,4 @@ docs/credentials/
 *.credentials.*
 .sec-scan/
 SECURITY-REPORT.*
+.md

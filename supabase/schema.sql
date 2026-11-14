@@ -208,3 +208,30 @@ alter table public.hubs add column if not exists problema text;
 alter table public.hubs add column if not exists reparado_em bigint;
 alter table public.fila_comandos drop constraint if exists fila_comandos_tipo_check;
 alter table public.fila_comandos add constraint fila_comandos_tipo_check check (tipo in ('enviar','aprender','descobrir','evento','reparar'));
+
+-- v6: segurança (lista de IPs e eventos) e potência para estimar consumo
+create table if not exists public.seguranca_ips (
+  id bigint generated always as identity primary key,
+  alvo text not null unique,               -- IP ou faixa CIDR
+  tipo text not null check (tipo in ('bloqueado', 'permitido')),
+  motivo text not null default '',
+  automatico boolean not null default false,
+  ocorrencias integer not null default 1,
+  expira_em bigint,                        -- null = permanente
+  criado_em bigint not null
+);
+create table if not exists public.seguranca_eventos (
+  id bigint generated always as identity primary key,
+  quando bigint not null,
+  ip text not null,
+  tipo text not null,                      -- login_falhou, login_ok, auth_negado, scanner, bloqueado, rate_limit, ip_bloqueado_auto…
+  rota text not null default '',
+  detalhe text not null default '',
+  pais text not null default '',
+  agente text not null default ''
+);
+create index if not exists ix_seg_eventos_ip_quando on public.seguranca_eventos (ip, quando desc);
+create index if not exists ix_seg_eventos_quando on public.seguranca_eventos (quando desc);
+alter table public.seguranca_ips enable row level security;
+alter table public.seguranca_eventos enable row level security;
+alter table public.aparelhos add column if not exists potencia_w integer not null default 1000;
