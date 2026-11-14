@@ -6,7 +6,7 @@ import { api } from '../api'
 import { supabase } from '../supabase'
 import { DOWNLOADS, sistemaAtual } from '../apps'
 import IconeMarca from '../components/IconeMarca'
-import { SITE_URL } from '../site'
+import { siteComSessao } from '../site'
 import Fumaca from '../components/Fumaca'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
@@ -119,7 +119,7 @@ export default function Login() {
 
       {/* direita: o formulário */}
       <section className="relative z-[1] flex items-center justify-center px-5 py-16 sm:px-10">
-        <a href={SITE_URL} className="absolute left-3 top-3 flex h-9 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--field)] px-3.5 text-[13px] font-medium transition-transform duration-300 active:scale-95 sm:left-6 sm:top-6">
+        <a href={siteComSessao(false)} className="absolute left-3 top-3 flex h-9 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--field)] px-3.5 text-[13px] font-medium transition-transform duration-300 active:scale-95 sm:left-6 sm:top-6">
           <ArrowLeft className="h-4 w-4" /> Voltar ao site
         </a>
         <button type="button" onClick={() => setTema(escuro ? 'claro' : 'escuro')} aria-label={escuro ? 'Usar tema claro' : 'Usar tema escuro'}

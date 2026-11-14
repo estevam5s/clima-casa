@@ -4,8 +4,8 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ArrowUpRight, ChevronDown, X } from 'lucide-react'
-import Botao from './Botao'
-import { APPS_URL, ENTRAR_URL, MARCA, MENU } from '@/lib/dados'
+import { BotaoEntrar } from './Sessao'
+import { APPS_URL, MARCA, MENU } from '@/lib/dados'
 
 function Logo({ aoClicar }) {
   return (
@@ -73,7 +73,7 @@ export default function Cabecalho() {
         </ul>
       </nav>
       <div className="menu-movel-rodape">
-        <Botao href={ENTRAR_URL} externo tabIndex={gaveta ? 0 : -1}>ENTRAR NO SISTEMA</Botao>
+        <BotaoEntrar tabIndex={gaveta ? 0 : -1} />
         <a href={APPS_URL} className="menu-movel-apps" tabIndex={gaveta ? 0 : -1}>Baixar os apps <ArrowUpRight size={18} /></a>
       </div>
     </div>
@@ -101,7 +101,7 @@ export default function Cabecalho() {
             </ul>
           </nav>
           <div className="direita">
-            <Botao href={ENTRAR_URL} externo>ENTRAR NO SISTEMA</Botao>
+            <BotaoEntrar />
             <button className={`alternar-menu ${gaveta ? 'ativo' : ''}`} onClick={() => setGaveta(true)} aria-label="Abrir menu" aria-expanded={gaveta}><span /><span /><span /></button>
           </div>
         </div>

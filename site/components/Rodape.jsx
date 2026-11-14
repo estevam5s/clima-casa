@@ -1,8 +1,9 @@
 import Link from 'next/link'
-import { ArrowUp, LogIn, MonitorSmartphone } from 'lucide-react'
+import { LogIn, MonitorSmartphone } from 'lucide-react'
+import { TextoEntrar } from './Sessao'
 import Espiral from './Espiral'
 import { FormNovidades } from './Formularios'
-import { APPS_URL, ENTRAR_URL, MARCA, SISTEMA_URL } from '@/lib/dados'
+import { APPS_URL, MARCA, SISTEMA_URL } from '@/lib/dados'
 
 export default function Rodape() {
   return (
@@ -47,7 +48,7 @@ export default function Rodape() {
               <h4 className="titulo-widget" style={{ marginBottom: 20 }}>Acesso</h4>
               <div className="info-contato">
                 <span className="ic"><LogIn size={20} strokeWidth={1.5} /></span>
-                <div><h5>Sistema</h5><a href={ENTRAR_URL}>Entrar no painel</a></div>
+                <div><h5>Sistema</h5><TextoEntrar logado="Entrar no painel" deslogado="Fazer login no painel" /></div>
               </div>
               <div className="info-contato">
                 <span className="ic"><MonitorSmartphone size={20} strokeWidth={1.5} /></span>
@@ -65,12 +66,11 @@ export default function Rodape() {
               <ul>
                 <li><Link href="/faq">Perguntas frequentes</Link></li>
                 <li><Link href="/contato">Contato</Link></li>
-                <li><a href={ENTRAR_URL}>Entrar no sistema</a></li>
+                <li><TextoEntrar /></li>
               </ul>
             </div>
           </div>
         </div>
-        <a href="#topo" className="voltar-topo" data-topo aria-label="Voltar ao topo"><ArrowUp size={20} /></a>
       </div>
     </footer>
   )

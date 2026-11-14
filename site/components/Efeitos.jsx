@@ -5,6 +5,7 @@ import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { ScrollSmoother } from 'gsap/ScrollSmoother'
 import { SplitText } from 'gsap/SplitText'
+import { VoltarTopo } from './Sessao'
 
 if (typeof window !== 'undefined') gsap.registerPlugin(ScrollTrigger, ScrollSmoother, SplitText)
 const useIsoLayout = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -103,6 +104,7 @@ export default function Efeitos({ children }) {
   return (
     <>
       <PreCarga />
+      <VoltarTopo />
       <div id="smooth-wrapper">
         <div id="smooth-content">
           <div id="topo" style={{ height: 0 }} />

@@ -97,8 +97,6 @@ main { display: block; width: 100%; }
 .pre-carga.some { opacity: 0; pointer-events: none; }
 .pre-carga .anel { width: 100px; height: 100px; border-radius: 50%; border: 1px solid transparent; border-color: transparent var(--borda) transparent var(--borda); animation: giro 1.5s linear infinite; }
 .pre-carga img { position: absolute; width: 56px; }
-.voltar-topo { position: absolute; bottom: 40px; right: 40px; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  background: var(--primaria); color: var(--titulo-escuro); z-index: 2; }
 
 /* ---------- cabeçalho ---------- */
 .cabecalho { position: absolute; top: 30px; left: 0; width: 100%; z-index: 999; }
@@ -414,8 +412,7 @@ html.menu-aberto, html.menu-aberto body { overflow: hidden; }
   .contador { padding-left: 18px; }
   .contador h2 { font-size: 48px; }
   .copyright p, .copyright ul a { font-size: 15px; }
-  .voltar-topo { right: 16px; bottom: 90px; }
-  .item-integracao .imagem svg.marca-grande { width: 90px; height: 90px; }
+    .item-integracao .imagem svg.marca-grande { width: 90px; height: 90px; }
 }
 @media (max-width: 575px) {
   .heroi-conteudo h1, .heroi-conteudo .texto-grande { font-size: clamp(64px, 24vw, 120px); }
@@ -443,3 +440,20 @@ html.menu-aberto, html.menu-aberto body { overflow: hidden; }
   .item-integracao { margin-bottom: 24px; }
 }
 @media (min-width: 992px) { .empurra-direita { margin-left: auto; } }
+
+/* voltar ao topo: flutuante, aparece depois de rolar, com anel de progresso */
+.voltar-topo { position: fixed; right: 30px; bottom: 30px; width: 54px; height: 54px; border-radius: 50%; z-index: 900; display: flex; align-items: center; justify-content: center;
+  background: var(--primaria); color: var(--titulo-escuro); box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  opacity: 0; visibility: hidden; transform: translateY(16px) scale(.9); transition: opacity .3s, transform .4s var(--curva), visibility .3s; }
+.voltar-topo.visivel { opacity: 1; visibility: visible; transform: none; }
+.voltar-topo:hover { transform: translateY(-3px); color: var(--titulo-escuro); }
+.voltar-topo .anel-progresso { position: absolute; inset: -6px; width: calc(100% + 12px); height: calc(100% + 12px); transform: rotate(-90deg); pointer-events: none; }
+.voltar-topo .anel-progresso circle { fill: none; stroke-width: 2; }
+.voltar-topo .anel-progresso .trilho { stroke: rgba(255,255,255,.12); }
+.voltar-topo .anel-progresso .anel { stroke: var(--primaria); transition: stroke-dashoffset .15s linear; }
+@media (max-width: 767px) { .voltar-topo { right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); width: 46px; height: 46px; } }
+html.menu-aberto .voltar-topo { opacity: 0; visibility: hidden; }
+/* rodapé: respiro entre os links finais e a borda (o botão não fica mais dentro dele) */
+.copyright { padding: 35px 0 40px; }
+@media (max-width: 991px) { .copyright { padding-bottom: 90px; } .copyright ul { gap: 12px 20px; } }
+@media (min-width: 992px) { .copyright ul { margin-right: 70px; } }
