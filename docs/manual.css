@@ -1,0 +1,34 @@
+@page { size: A4; margin: 20mm 18mm 20mm 18mm; }
+:root { --marca: #0f766a; --texto: #18181b; --suave: #5f5f68; --borda: #e4e4e7; --fundo: #f6f6f7; }
+html { font-size: 10.5pt; }
+body { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--texto); line-height: 1.55; max-width: none; margin: 0; padding: 0; }
+header#title-block-header { height: 250mm; display: flex; flex-direction: column; justify-content: center; page-break-after: always; border-left: 6px solid var(--marca); padding-left: 14mm; }
+header#title-block-header::before { content: ""; width: 22mm; height: 22mm; border-radius: 5mm; background: var(--marca) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10' stroke='white' stroke-width='2.4' stroke-linecap='round'/></svg>") center/70% no-repeat; margin-bottom: 12mm; }
+h1.title { font-size: 34pt; margin: 0; letter-spacing: -0.02em; }
+p.subtitle { font-size: 14pt; color: var(--suave); margin: 4mm 0 0; max-width: 140mm; }
+p.date { margin-top: 18mm; color: var(--suave); font-size: 10pt; }
+nav#TOC { page-break-after: always; }
+nav#TOC::before { content: "Sumário"; display: block; font-size: 20pt; font-weight: 600; margin-bottom: 6mm; }
+nav#TOC ul { list-style: none; padding-left: 0; margin: 0; }
+nav#TOC > ul > li { margin: 2.2mm 0; font-weight: 600; }
+nav#TOC ul ul { padding-left: 6mm; font-weight: 400; color: var(--suave); }
+nav#TOC ul ul li { margin: 0.8mm 0; }
+nav#TOC a { color: inherit; text-decoration: none; }
+h1 { font-size: 18pt; color: var(--texto); border-bottom: 2px solid var(--marca); padding-bottom: 2mm; margin: 0 0 5mm; page-break-before: always; letter-spacing: -0.01em; }
+h1:first-of-type { page-break-before: avoid; }
+h2 { font-size: 13pt; margin: 7mm 0 2.5mm; color: var(--marca); page-break-after: avoid; }
+p, li { orphans: 3; widows: 3; }
+ol, ul { padding-left: 6mm; }
+li { margin: 1mm 0; }
+a { color: var(--marca); }
+code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt; background: var(--fundo); padding: 0.3mm 1.2mm; border-radius: 1mm; }
+pre { background: var(--fundo); border: 1px solid var(--borda); border-radius: 2mm; padding: 3.5mm 4mm; font-size: 9pt; page-break-inside: avoid; white-space: pre-wrap; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 3mm 0 5mm; font-size: 9.5pt; page-break-inside: auto; }
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+th { text-align: left; background: var(--fundo); font-weight: 600; }
+th, td { border: 1px solid var(--borda); padding: 2mm 2.5mm; vertical-align: top; }
+blockquote { margin: 4mm 0; padding: 3mm 4mm; border-left: 3px solid var(--marca); background: #effaf8; border-radius: 0 2mm 2mm 0; }
+blockquote p { margin: 0; }
+strong { font-weight: 600; }

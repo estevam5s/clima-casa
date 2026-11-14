@@ -21,3 +21,9 @@ apps/android/dist/
 *.dmg
 *.apk
 .DS_Store
+ar-controle/docs/credentials/token-vercel.md
+ar-controle/docs/credentials/supabase.md
+ar-controle/docs/credentials/sistema-admin.md
+ar-controle/docs/credentials/portal.sinric.pro.md
+ar-controle/docs/credentials/outlook.md
+ar-controle/docs/credentials/github.txt

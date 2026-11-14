@@ -116,7 +116,10 @@ ar-controle/
 │   ├── icone-1024.png       ícone mestre de todos os apps
 │   ├── desktop/             Electron 45 (src/main.js, preload.js, offline.html)
 │   └── android/             Expo SDK 58 (tem CLAUDE.md/AGENTS.md próprios — leia antes de mexer)
-└── docs/prompt/             prompts de design usados como referência (sidebar)
+├── docs/
+│   ├── MANUAL.md            manual do usuário (passo a passo: Smart Life, Smart IR, Alexa/Sinric, uso)
+│   ├── Manual-Clima-Casa.pdf  o mesmo manual em PDF (regerar com docs/gerar-pdf.sh)
+│   └── prompt/              prompts de design usados como referência (sidebar)
 ```
 
 ---
@@ -407,6 +410,7 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
   e `_descoberta`. Atualize a tela `/comandos-alexa` (`/api/alexa/comandos`).
 - **Novo gatilho/ação de automação**: `automacao.py` (+ validação em `AutomacaoIn` e formulário em `Automacoes.jsx`).
 - **Mudou algo que o celular usa**: ajuste `apps/android/src`, rode as checagens do Expo e gere novo APK.
+- **Mudou algo que o usuário vê?** Atualize `docs/MANUAL.md` e rode `docs/gerar-pdf.sh`.
 - **Commits**: mensagem em pt-BR, terminar com `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   Antes do commit: `git grep -nE "sb_secret_|sbp_|vcp_|ghp_"` deve voltar vazio.
 

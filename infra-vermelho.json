@@ -1,0 +1,90 @@
+{
+  "dispositivo": {
+    "modelo": "SRW-004",
+    "fabricante_oem": "Tuya Smart",
+    "marca_comercial": "NovaDigital",
+    "categoria": "Controle Remoto Universal Inteligente IR",
+    "especificacoes_tecnicas": {
+      "alimentacao": {
+        "entrada": "DC 5V / 1A",
+        "conector": "Micro-USB",
+        "bateria_interna": false
+      },
+      "conectividade_rede": {
+        "protocolo": "Wi-Fi IEEE 802.11 b/g/n",
+        "frequencia_wifi": "2.4 GHz",
+        "compativel_5ghz": false
+      },
+      "infravermelho": {
+        "frequencia_portadora": "38 kHz",
+        "angulo_cobertura": "360 graus (horizontal)",
+        "alcance_maximo_metros": 10,
+        "suporta_rf_433mhz": false,
+        "modo_aprendizado_diy": true
+      }
+    },
+    "pareamento": {
+      "botao_reset": "Pressionar e segurar por 5 a 7 segundos",
+      "indicador_led": "LED azul piscando rapidamente (modo EZ)",
+      "apps_nativos": [
+        "Smart Life",
+        "Tuya Smart",
+        "NovaDigital"
+      ]
+    }
+  },
+  "integracoes_sistemas": {
+    "assistentes_voz": {
+      "amazon_alexa": {
+        "metodo": "Skill oficial na nuvem",
+        "nome_skill": "Smart Life ou Tuya Smart",
+        "requisito": "Vincular conta do app nativo dentro do app Alexa"
+      },
+      "google_assistant": {
+        "metodo": "Works with Google",
+        "servico": "Smart Life ou Tuya Smart",
+        "requisito": "Vincular conta no app Google Home"
+      },
+      "apple_siri": {
+        "metodo": "Atalhos da Siri (Siri Shortcuts)",
+        "suporte_homekit_nativo": false,
+        "requisito": "Criar cenas 'Tap-to-Run' no Smart Life e exportar para Atalhos do iOS"
+      }
+    },
+    "automacao_residencial_open_source": {
+      "home_assistant": {
+        "integracao_oficial_nuvem": {
+          "nome": "Tuya",
+          "protocolo": "Tuya IoT Cloud API",
+          "vantagem": "Configuração simples via QR Code do app Smart Life"
+        },
+        "integracao_local_sem_nuvem": {
+          "nome": "LocalTuya ou Tuya Local (via HACS)",
+          "requisitos": [
+            "Endereço IP local fixo do SRW-004",
+            "Device ID (obtido na Tuya IoT Platform)",
+            "Local Key (obtida na Tuya IoT Platform)"
+          ],
+          "envio_comandos": "Via códigos RAW em Base64 ou códigos Pronto Hex"
+        }
+      },
+      "node_red": {
+        "nodes_recomendados": [
+          "node-red-contrib-tuya-smart-device",
+          "node-red-contrib-alexa-remote2"
+        ],
+        "comunicacao": "MQTT ou API local Tuya via Device ID e Local Key"
+      }
+    },
+    "api_desenvolvedores": {
+      "plataforma": "Tuya IoT Development Platform (iot.tuya.com)",
+      "autenticacao": "OAuth 2.0 / HMAC-SHA256 (Client ID e Client Secret)",
+      "endpoints_principais": {
+        "listar_controles_virtuais": "GET /v2.0/infrareds/{infrared_id}/remotes",
+        "enviar_comando_padrao": "POST /v2.0/infrareds/{infrared_id}/remotes/{remote_id}/command",
+        "enviar_comando_ar_condicionado": "POST /v2.0/infrareds/{infrared_id}/air-conditioners/{remote_id}/command",
+        "enviar_comando_diy": "POST /v2.0/infrareds/{infrared_id}/remotes/{remote_id}/learning-codes"
+      }
+    }
+  }
+}
