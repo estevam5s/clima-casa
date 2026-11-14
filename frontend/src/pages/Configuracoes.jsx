@@ -188,7 +188,7 @@ export default function Configuracoes() {
         <section id="sobre" className="cartao p-5">
           <h2 className="titulo-secao">Sobre o sistema</h2>
           <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-            {[['Painel', 'clima-casa-lac.vercel.app', 'https://clima-casa-lac.vercel.app'], ['Código', 'github.com/estevam5s/clima-casa', 'https://github.com/estevam5s/clima-casa'],
+            {[['Painel', 'app.zynio.com.br', 'https://app.zynio.com.br'], ['Código', 'github.com/estevam5s/clima-casa', 'https://github.com/estevam5s/clima-casa'],
               ['Banco e login', 'Supabase · projeto Arcondicionado', 'https://supabase.com/dashboard/project/elyqjdcsbfdvlsxomxen'], ['App celular', 'expo.dev · clima-casa', 'https://expo.dev/accounts/estevam5s/projects/clima-casa'],
               ['Alexa e Google', 'portal.sinric.pro', 'https://portal.sinric.pro'], ['Downloads', 'Baixar apps', '/apps']].map(([r, t, u]) => (
               <div key={r}><dt className="text-xs text-muted-foreground">{r}</dt><dd><a href={u} target={u.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="text-primary hover:underline">{t}</a></dd></div>

@@ -352,7 +352,7 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
     if diag != "ok":
         if not tuya_nuvem.conectada():
             msg = ("Local Key mudou (o transmissor foi pareado de novo)." if diag == "chave" else "Não encontrado na rede.") + \
-                  " Conecte a conta Smart Life em Configurações para o sistema se ajustar sozinho."
+                  " Conecte a conta Smart Life em Configurações → Contas para o sistema se ajustar sozinho."
             db.executar("UPDATE hubs SET problema = ? WHERE id = ?", (msg, h["id"]))
             return False, msg
         try:

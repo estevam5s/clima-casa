@@ -550,7 +550,7 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
 | Fila "não respondeu a tempo" com o agente vivo | tabela nova com id sem estar em `_TABELAS_COM_ID` (insert não devolve id) |
 | Sinric "signature mismatched" | dispositivo criado com outra credencial; recriar com a App Key do `.env` |
 | Transmissor "offline" logo após reiniciar o serviço | passageiro; o status volta no ciclo seguinte (~60 s) |
-| Transmissor com "Local Key mudou" | foi pareado de novo; conecte a conta Smart Life em Configurações (uma vez) e o agente se ajusta |
+| Transmissor com "Local Key mudou" | foi pareado de novo; conecte a conta Smart Life em Configurações → Contas (uma vez) e o agente se ajusta |
 | `date > integer` no Postgres | parâmetro inteiro em aritmética de data: use `CAST(? AS integer)` |
 | Manifesto/ícones da PWA vindo como HTML | cache da CDN; testar com `?v=…` |
 | Porta 8080 ocupada | é outro app do usuário; o Clima Casa usa 8090 |

@@ -68,8 +68,8 @@ def _condicoes() -> list[dict]:
                       "link": f"/aparelhos/{a['id']}?aba=botoes", "acao": {"rotulo": "Gravar botões", "tipo": "link", "para": f"/aparelhos/{a['id']}?aba=botoes"}})
     if not db.cfg("tuya_conta"):
         itens.append({"chave": "cond:smartlife", "tipo": "configuracao", "gravidade": "baixa", "titulo": "Conta Smart Life não conectada",
-                      "detalhe": "Conecte uma vez para o transmissor se reconfigurar sozinho se for pareado de novo.", "link": "/configuracoes?aba=geral",
-                      "acao": {"rotulo": "Conectar", "tipo": "link", "para": "/configuracoes?aba=geral"}})
+                      "detalhe": "Conecte uma vez para o transmissor se reconfigurar sozinho se for pareado de novo.", "link": "/configuracoes?aba=contas",
+                      "acao": {"rotulo": "Conectar", "tipo": "link", "para": "/configuracoes?aba=contas"}})
     return itens
 
 

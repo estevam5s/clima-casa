@@ -74,7 +74,7 @@ function Procurar({ onFechar, aoCadastrar }) {
         <div>
           <label className="rotulo" htmlFor="hk">Local Key</label>
           <input id="hk" className="campo font-mono" value={f.local_key} onChange={(e) => setF({ ...f, local_key: e.target.value })} required />
-          <p className="ajuda">Mais fácil: conecte a conta Smart Life em Configurações e use "Importar da conta", que traz a chave sozinho.</p>
+          <p className="ajuda">Mais fácil: conecte a conta Smart Life em Configurações → Contas e use "Importar da conta", que traz a chave sozinho.</p>
         </div>
         <div className="flex justify-end gap-2"><Botao variante="secundario" type="button" onClick={() => setManual(null)}>Voltar</Botao><Botao type="submit">Cadastrar</Botao></div>
       </form>
