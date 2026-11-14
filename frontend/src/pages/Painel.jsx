@@ -63,7 +63,7 @@ function Destaque({ aparelhos, aoMudar }) {
               <p className="text-muted-foreground">Lá fora{fora.cidade ? ` · ${fora.cidade}` : ''}</p>
               <p className="mt-0.5 flex items-baseline gap-2"><span className="text-lg font-semibold tabular">{Math.round(fora.temperatura)}°</span>
                 <span className="text-muted-foreground">sensação {Math.round(fora.sensacao)}° · {fora.umidade}% · {fora.condicao}</span></p>
-              {ar.ligado && <p className="mt-0.5 text-muted-foreground">Diferença para o ajuste: <span className="tabular text-foreground">{Math.round(fora.temperatura - ar.temperatura)}°</span></p>}
+              {!!ar.ligado && <p className="mt-0.5 text-muted-foreground">Diferença para o ajuste: <span className="tabular text-foreground">{Math.round(fora.temperatura - ar.temperatura)}°</span></p>}
             </motion.div>
           )}
         </div>

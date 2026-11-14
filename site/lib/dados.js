@@ -1,0 +1,186 @@
+// Conteúdo do site. Tudo aqui descreve o sistema real em ar-controle (nada inventado).
+export const SISTEMA_URL = process.env.NEXT_PUBLIC_SISTEMA_URL || 'https://clima-casa-lac.vercel.app'
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://clima-escritorio-site.vercel.app'
+export const ENTRAR_URL = `${SISTEMA_URL}/login`
+export const APPS_URL = `${SISTEMA_URL}/apps`
+export const MARCA = 'Clima Escritório'
+
+export const MENU = [
+  { rotulo: 'Início', href: '/' },
+  { rotulo: 'Páginas', itens: [
+    { rotulo: 'Sobre o sistema', href: '/sobre' },
+    { rotulo: 'Funcionalidades', href: '/funcionalidades' },
+    { rotulo: 'Detalhe da funcionalidade', href: '/funcionalidades/infravermelho' },
+    { rotulo: 'Perguntas frequentes', href: '/faq' },
+    { rotulo: 'Contato', href: '/contato' },
+    { rotulo: 'Página 404', href: '/pagina-que-nao-existe' },
+  ] },
+  { rotulo: 'Telas', itens: [
+    { rotulo: 'Todas as telas', href: '/telas' },
+    { rotulo: 'Detalhe da tela', href: '/telas/painel' },
+  ] },
+  { rotulo: 'Novidades', itens: [
+    { rotulo: 'Todas as novidades', href: '/novidades' },
+    { rotulo: 'Última versão', href: '/novidades/notificacoes-seguranca-3d' },
+  ] },
+  { rotulo: 'Contato', href: '/contato' },
+]
+
+// ---------- funcionalidades (cartões "serviço") ----------
+export const FUNCIONALIDADES = [
+  { slug: 'infravermelho', icone: 'AirVent', titulo: 'Controle por infravermelho',
+    resumo: 'O sistema grava os sinais do controle original de cada ar e os reenvia por um transmissor Wi-Fi SRW-004, sem trocar o aparelho.',
+    texto: 'Ar-condicionado split comum só obedece ao controle remoto. O Clima Escritório usa um transmissor infravermelho Tuya SRW-004 (o mesmo do app Smart Life) para aprender cada botão do controle original e repetir o sinal quando você manda. A escolha do código é inteligente: procura o código exato de modo, temperatura e ventilação; se não tiver, usa a mesma temperatura com outra ventilação ou a temperatura gravada mais próxima.',
+    lista: ['Gravação de botões em 30 segundos, direto pela tela do aparelho', 'Vários transmissores e vários ares por lugar', 'Reconexão automática quando o transmissor muda de IP ou é pareado de novo', 'Envio pelo agente local e, como reserva, pela nuvem Tuya'],
+    tela: 'aparelho' },
+  { slug: 'alexa-e-google', icone: 'Mic', titulo: 'Alexa e Google Home',
+    resumo: 'Cada ar vira um dispositivo de voz pelo Sinric Pro: ligar, desligar, modo, temperatura e ventilação, também nas Rotinas da Alexa.',
+    texto: 'O caminho principal é o Sinric Pro: cada ar marcado como "Disponível na Alexa" é criado no Sinric como um ar-condicionado e passa a responder na Alexa e no Google Home. Trocar o nome no painel troca o nome no Sinric. Há também uma skill própria (Smart Home API v3) com OAuth 2.0 e cenas como gatilho de voz, sem limite de dispositivos.',
+    lista: ['"Alexa, ligar o ar do escritório em 23 graus"', 'Tela com 30 comandos prontos por aparelho', 'Receitas de Rotinas com frases suas', 'Skill própria opcional com cenas ("Alexa, ativar Reunião")'],
+    tela: 'comandos-voz' },
+  { slug: 'agenda-e-automacoes', icone: 'Workflow', titulo: 'Agenda e automações',
+    resumo: 'Ligar às 7h30 em dias úteis, desligar depois de 3 horas ligado, disparar uma cena quando alguém liga a sala: tudo sozinho.',
+    texto: 'A agenda roda no agente do escritório a cada 20 segundos. As automações seguem gatilho, condições e ações: ligou, desligou, ligado há N minutos ou horário; condições de dias e janela de horário (que pode virar a meia-noite); ações em aparelho, cena ou "desligar depois de X minutos". Ações de automação não disparam outras automações, então não existe laço.',
+    lista: ['Grade da semana com a próxima execução', 'Modelos prontos de automação', 'Temporizador "desligar em X minutos" por aparelho', 'Cenas com várias ações em um toque'],
+    tela: 'automacoes' },
+  { slug: 'relatorios', icone: 'BarChart3', titulo: 'Relatórios com consumo e custo',
+    resumo: 'Horas ligado, kWh e custo estimados por aparelho, mapa de uso por dia e hora, falhas e exportação em 8 formatos.',
+    texto: 'O relatório soma o tempo entre cada "ligar" e o "desligar" seguinte, multiplica pela potência cadastrada de cada ar e pela tarifa de energia que você informa. Compara com o período anterior, mostra o horário de pico, as temperaturas mais pedidas e cada falha com o motivo. Exporta com as cores da sua marca.',
+    lista: ['PDF, Word, Excel, CSV, HTML, XML, JSON e Markdown', 'Período livre ou por aparelho', 'Tarifa editável na própria tela', 'Mapa de uso dia da semana × hora'],
+    tela: 'relatorios' },
+  { slug: 'seguranca', icone: 'ShieldCheck', titulo: 'Segurança com mapa 3D',
+    resumo: 'Firewall de aplicação, bloqueio progressivo de IPs, criptografia AES-256 dos segredos e um globo 3D com a origem dos acessos.',
+    texto: 'Toda requisição passa por um firewall: listas de IP e faixas, bloqueio por país, detecção de ferramentas de ataque e de assinaturas de injeção, e limite de requisições por minuto. Quem insiste é bloqueado por 15 minutos, depois 1 hora, 24 horas e 7 dias. Os segredos das integrações ficam cifrados no banco com AES-256-GCM. A tela de Segurança mostra um globo 3D com arcos até o servidor e gera relatório completo.',
+    lista: ['Login com bloqueio depois de 5 senhas erradas', 'Globo 3D (Three.js) com acessos e ataques', 'IPs com nota de risco e bloqueio em um clique', 'Relatório de segurança em 8 formatos com recomendações'],
+    tela: 'seguranca' },
+  { slug: 'notificacoes', icone: 'BellRing', titulo: 'Central de notificações',
+    resumo: 'Avisos guardados no banco, com abas, ações direto na notificação e preferências que valem em qualquer aparelho.',
+    texto: 'Transmissor offline, ar sem botões gravados, falhas seguidas, IP bloqueado ou entrada por um IP novo viram notificação. Os avisos de condição somem sozinhos quando o problema é resolvido. Dá para resolver um alerta, desbloquear um IP ou reconectar um transmissor sem sair do sino.',
+    lista: ['Abas Todas, Não lidas, Importantes e Segurança', 'Limpar uma, as lidas, as resolvidas ou todas', 'Som e contador só com as importantes', 'Contador também no ícone da aba do navegador'],
+    tela: 'notificacoes' },
+  { slug: 'white-label', icone: 'Palette', titulo: 'Marca própria',
+    resumo: '34 opções para entregar o sistema com a identidade de quem usa: nome, logo, cores, fontes, textos do login e do menu.',
+    texto: 'Em Configurações, a aba White label muda o sistema inteiro com prévia ao vivo: identidade, cores com contraste corrigido sozinho, tipografia, raio dos cantos, textos do login, nomes e itens do menu, banner de aviso, contatos de suporte, °C ou °F e relógio de 12 ou 24 horas. Guarda as 15 últimas versões e exporta em JSON.',
+    lista: ['Prévia ao vivo antes de salvar', 'Histórico de versões com restauração', 'CSS próprio sanitizado', 'Tema claro, escuro ou do sistema'],
+    tela: 'white-label' },
+  { slug: 'apps', icone: 'MonitorSmartphone', titulo: 'Apps para todas as telas',
+    resumo: 'Painel web instalável, app Android e apps para macOS, Windows e Linux, todos com o mesmo login e os mesmos aparelhos.',
+    texto: 'O painel funciona como PWA e também como app nativo. A página de downloads reconhece o seu sistema e a arquitetura, mostra tamanho e SHA-256 de cada arquivo e gera um QR Code para instalar o APK direto no celular.',
+    lista: ['Android (Expo SDK 58)', 'macOS Apple Silicon e Intel, Windows e Linux (Electron)', 'Barra de menus, bandeja e atalhos de teclado', 'Tela própria quando está sem internet'],
+    tela: 'apps' },
+  { slug: 'transmissores', icone: 'Radio', titulo: 'Transmissores que se ajustam',
+    resumo: 'Mudou o Wi-Fi ou pareou de novo? O agente encontra o IP novo e busca a chave nova na conta Smart Life sozinho.',
+    texto: 'O status do SRW-004 diz o que aconteceu: 900 é normal, 914 é chave errada (foi pareado de novo) e 905 é falta de resposta na rede. O agente varre a rede pelo ID do transmissor, grava o IP novo e busca a Local Key nova na conta Smart Life. Se o pareamento gerou outro ID, migra o cadastro e os aparelhos.',
+    lista: ['Descoberta na rede local', 'Importar um ou todos da conta Smart Life', 'Botão "Reconectar agora"', 'Problema explicado na tela quando não dá para resolver sozinho'],
+    tela: 'transmissores' },
+]
+export const DESTAQUES = ['infravermelho', 'alexa-e-google', 'agenda-e-automacoes']
+
+// ---------- telas (cartões "projeto") ----------
+export const TELAS = [
+  { slug: 'painel', titulo: 'Painel com o ar em 3D', resumo: 'Ar animado com display aceso, temperatura real de fora, controle rápido e integrações.', tags: ['Web', 'PWA', '3D'], img: 'painel.jpg',
+    texto: 'A tela inicial mostra os ares ligados, os transmissores respondendo, os comandos do dia e um ar-condicionado em 3D que reage ao estado: display com a temperatura real de fora quando desligado, contagem até a temperatura ajustada ao ligar, faixa de luz e névoa na cor do modo.' },
+  { slug: 'seguranca', titulo: 'Segurança com globo 3D', resumo: 'Origem dos acessos e ataques num globo animado, com arcos até o servidor.', tags: ['Firewall', 'Three.js', 'Relatório'], img: 'seguranca.jpg',
+    texto: 'Postura de segurança de 0 a 100, globo 3D com colunas por cidade e arcos com rastro até o servidor, eventos ao vivo, IPs com nota de risco, países, rotas atacadas e bloqueios ativos. O relatório de segurança sai em 8 formatos.' },
+  { slug: 'relatorios', titulo: 'Relatórios e exportação', resumo: 'Comandos, horas ligado, kWh e custo, com exportação em 8 formatos.', tags: ['PDF', 'Excel', 'Word'], img: 'relatorios.jpg',
+    texto: 'Período livre, filtro por aparelho, comparação com o período anterior, comandos por dia empilhados por origem, horário de pico, temperaturas escolhidas, mapa de uso e falhas com o motivo.' },
+  { slug: 'apps', titulo: 'Downloads dos apps', resumo: 'Logos reais, detecção do sistema, SHA-256 e QR Code do APK.', tags: ['Android', 'macOS', 'Windows'], img: 'apps.jpg',
+    texto: 'A página reconhece o seu aparelho, inclusive Mac Intel ou Apple Silicon, mostra versão, tamanho e SHA-256 de cada arquivo e explica a instalação passo a passo.' },
+  { slug: 'aparelho', titulo: 'Detalhe do aparelho', resumo: 'Mostrador de temperatura, modos, ventilação, temporizador e histórico.', tags: ['Controle', 'Gravação'], img: 'aparelho.jpg',
+    texto: 'Cada ar tem métricas próprias, o mostrador animado, os modos e a ventilação que ele tem, botões extras gravados, desligamento automático e o histórico de comandos com o motivo de cada falha.' },
+  { slug: 'notificacoes', titulo: 'Central de notificações', resumo: 'Abas, ações direto no aviso e preferências salvas no banco.', tags: ['Supabase', 'Alertas'], img: 'notificacoes.jpg',
+    texto: 'Avisos com ação: abrir o aparelho, gravar botões, resolver alerta, desbloquear IP ou reconectar transmissor. Tudo fica no banco e vale em qualquer aparelho.' },
+  { slug: 'comandos-voz', titulo: 'Comandos de voz', resumo: '30 comandos prontos por aparelho e receitas de Rotinas da Alexa.', tags: ['Alexa', 'Google'], img: 'comandos-voz.jpg',
+    texto: 'A tela gera as frases que funcionam para cada aparelho, separadas por ligar e desligar, temperatura, modo e ventilação, e sugere Rotinas com frases suas.' },
+  { slug: 'white-label', titulo: 'White label', resumo: 'Nome, logo, cores, fontes e textos com prévia ao vivo.', tags: ['Marca', 'Tema'], img: 'white-label.jpg',
+    texto: 'Configure a identidade do sistema para cada cliente e veja o resultado antes de salvar. As versões anteriores ficam guardadas.' },
+  { slug: 'transmissores', titulo: 'Transmissores IR', resumo: 'Status, IP, chave e aparelhos de cada SRW-004.', tags: ['Tuya', 'Rede local'], img: 'transmissores.jpg',
+    texto: 'Mostra cada transmissor com IP, status, chave configurada e os aparelhos ligados a ele. Procura na rede, importa da conta Smart Life e reconecta sozinho.' },
+  { slug: 'automacoes', titulo: 'Automações', resumo: 'Regras com gatilho, condições e ações, com modelos prontos.', tags: ['Agenda', 'Cenas'], img: 'automacoes.jpg',
+    texto: 'Comece por um modelo pronto, como desligar sozinho à noite ou economizar depois de 4 horas ligado, e ajuste do seu jeito.' },
+]
+export const TELAS_HOME = ['painel', 'seguranca', 'relatorios', 'apps']
+
+// ---------- como funciona (processo) ----------
+export const PASSOS = [
+  { n: '01', icone: 'Smartphone', titulo: 'Você comanda', texto: 'Pelo painel, pelo app, pela agenda ou pela voz com a Alexa e o Google.' },
+  { n: '02', icone: 'Cloud', titulo: 'A nuvem recebe', texto: 'A API na Vercel valida o acesso e grava o comando no Supabase.' },
+  { n: '03', icone: 'Cpu', titulo: 'O agente executa', texto: 'O agente no Mac do escritório lê a fila em cerca de 1 segundo.' },
+  { n: '04', icone: 'AirVent', titulo: 'O ar obedece', texto: 'O transmissor SRW-004 envia o sinal infravermelho para o aparelho.' },
+]
+
+// ---------- tecnologias (logos "empresa") ----------
+export const TECNOLOGIAS = ['siPython', 'siFastapi', 'siReact', 'siSupabase', 'siVercel', 'siThreedotjs']
+
+// ---------- integrações (cartões "equipe") ----------
+export const INTEGRACOES = [
+  { icone: 'Mic', papel: 'Voz', nome: 'Amazon Alexa', href: '/funcionalidades/alexa-e-google' },
+  { icone: 'siGooglehome', papel: 'Voz', nome: 'Google Home', href: '/funcionalidades/alexa-e-google' },
+  { icone: 'Plug', papel: 'Ponte de voz', nome: 'Sinric Pro', href: '/funcionalidades/alexa-e-google' },
+  { icone: 'Radio', papel: 'Infravermelho', nome: 'Tuya Smart IR', href: '/funcionalidades/transmissores' },
+]
+
+// ---------- números (lista "prêmios") ----------
+export const NUMEROS = [
+  { onde: 'API', o_que: '89 rotas protegidas por login', quando: 'v1.0' },
+  { onde: 'Supabase', o_que: '19 tabelas com RLS em todas', quando: 'v1.0' },
+  { onde: 'pg_cron', o_que: '10 rotinas automáticas no banco', quando: 'v1.0' },
+  { onde: 'Relatórios', o_que: '8 formatos de exportação', quando: 'v1.0' },
+  { onde: 'White label', o_que: '34 opções de marca própria', quando: 'v1.0' },
+  { onde: 'Apps', o_que: '5 plataformas nativas + PWA', quando: 'v1.0' },
+]
+export const CONTADORES = [
+  { n: 89, sufixo: '', rotulo: 'rotas de API' },
+  { n: 19, sufixo: '', rotulo: 'tabelas no banco' },
+  { n: 8, sufixo: '', rotulo: 'formatos de relatório' },
+  { n: 30, sufixo: '', rotulo: 'comandos de voz por ar' },
+]
+
+// ---------- comandos de voz (slider "depoimentos") ----------
+export const COMANDOS = [
+  { frase: 'Alexa, ligar o ar do escritório em 23 graus.', titulo: 'Ligar com temperatura', origem: 'Alexa e Google Home' },
+  { frase: 'Alexa, colocar o ar do escritório no modo frio.', titulo: 'Trocar o modo', origem: 'Alexa e Google Home' },
+  { frase: 'Alexa, colocar a velocidade do ar do escritório em 2.', titulo: 'Ajustar a ventilação', origem: 'Alexa e Google Home' },
+  { frase: 'Alexa, fim do expediente.', titulo: 'Rotina: desliga todos os ares', origem: 'Rotinas da Alexa' },
+  { frase: 'Alexa, ativar Reunião.', titulo: 'Cena pela skill própria', origem: 'Skill própria da Alexa' },
+]
+
+// ---------- novidades (histórico real do git) ----------
+export const NOVIDADES = [
+  { slug: 'notificacoes-seguranca-3d', data: '2026-11-14', categoria: 'Versão', img: 'notificacoes.jpg',
+    titulo: 'Central de notificações, Segurança com globo 3D e temperatura real no display',
+    resumo: 'Notificações guardadas no banco, tela de Segurança com mapa 3D de acessos e o ar em 3D mostrando a temperatura de fora.',
+    itens: ['Notificações no Supabase com abas, marcar lidas, limpar, ações e preferências', 'Cabeçalho com barra de status: agente, ares ligados, transmissores e relógio', 'Tela de Segurança com globo 3D, eventos ao vivo, IPs com risco e relatório em 8 formatos', 'Acessos registrados com a localização aproximada do IP', 'Display do ar sempre aceso com a temperatura real de fora (Open-Meteo)', 'Página de apps com logos reais, SHA-256 e QR Code do APK'] },
+  { slug: 'tema-white-label-firewall', data: '2026-11-14', categoria: 'Versão', img: 'white-label.jpg',
+    titulo: 'Tema claro e escuro, white label, firewall e relatórios exportáveis',
+    resumo: 'Marca própria com 34 opções, firewall de aplicação, criptografia dos segredos e relatórios com consumo e custo.',
+    itens: ['Tema claro, escuro ou do sistema, aplicado antes da pintura', 'White label com prévia, histórico e exportar/importar', 'Firewall com listas de IP, países, assinaturas de ataque e bloqueio progressivo', 'Segredos cifrados com AES-256-GCM', 'Relatórios com horas, kWh e custo, exportados em 8 formatos'] },
+  { slug: 'clima-escritorio-3d-login', data: '2026-11-14', categoria: 'Interface', img: 'painel.jpg',
+    titulo: 'Clima Escritório: 3D animado, login novo e notificações',
+    resumo: 'Menu lateral que empurra o conteúdo, telas em largura total, ar em 3D e um login novo.',
+    itens: ['Menu lateral que abre empurrando o conteúdo', 'Ar-condicionado 3D animado ligado e desligado', 'Login novo com fundo animado e "esqueci a senha"', 'Transmissor só fica offline depois de 3 falhas seguidas'] },
+  { slug: 'transmissores-se-reconfiguram', data: '2026-11-14', categoria: 'Transmissores', img: 'transmissores.jpg',
+    titulo: 'Transmissores se reconfiguram sozinhos',
+    resumo: 'Mudou de rede ou pareou de novo: o agente encontra o IP e a chave nova sem ajuda.',
+    itens: ['Diagnóstico pelo status do SRW-004 (900, 914, 905)', 'Procura o IP novo na rede pelo ID', 'Busca a Local Key nova na conta Smart Life', 'Botão "Reconectar agora"'] },
+  { slug: 'automacoes-e-voz', data: '2026-11-14', categoria: 'Automação', img: 'automacoes.jpg',
+    titulo: 'Automações, temporizadores e comandos de voz',
+    resumo: 'Regras com gatilho, condições e ações, temporizador por aparelho e a tela de comandos de voz.',
+    itens: ['Automações disparadas inclusive pela Alexa', 'Temporizador "desligar daqui a X minutos"', 'Comandos de voz por aparelho e receitas de Rotinas', 'Cenas na skill própria da Alexa'] },
+  { slug: 'interface-completa', data: '2026-11-14', categoria: 'Interface', img: 'aparelho.jpg',
+    titulo: 'Interface mais completa e animada',
+    resumo: 'Faixa de métricas, mostrador animado, filtros, linha do tempo e agenda semanal.',
+    itens: ['Detalhe do aparelho com mostrador e abas animadas', 'Atividade em linha do tempo, ao vivo, com exportação CSV', 'Agenda com grade da semana e próxima execução'] },
+]
+
+// ---------- perguntas frequentes ----------
+export const FAQ = [
+  { p: 'O sistema sabe se o ar está ligado?', r: 'Não. Infravermelho só envia sinal. O painel mostra o último estado que o próprio sistema mandou; se alguém usar o controle original, ele fica desatualizado até o próximo comando.' },
+  { p: 'Funciona com qualquer ar-condicionado?', r: 'Com qualquer aparelho que tenha controle remoto infravermelho. Cada ar precisa ter os botões gravados uma vez, pela tela do aparelho.' },
+  { p: 'O que eu preciso comprar?', r: 'Um transmissor infravermelho Wi-Fi Tuya SRW-004 (o "Smart IR" do app Smart Life) por cômodo, com visão dos aparelhos. O resto é software.' },
+  { p: 'E se o computador do escritório desligar?', r: 'Os comandos tentam a nuvem Tuya como reserva. Agenda e automações rodam no agente local e voltam quando ele volta.' },
+  { p: 'Mudei o Wi-Fi do escritório. E agora?', r: 'Pareie o transmissor de novo no Smart Life (rede 2,4 GHz). Com a conta Smart Life conectada em Configurações, o agente encontra o IP e a chave nova sozinho.' },
+  { p: 'Dá para usar com a Alexa e o Google ao mesmo tempo?', r: 'Sim. Pelo Sinric Pro cada ar aparece nos dois. O plano gratuito do Sinric aceita 3 dispositivos; a skill própria não tem esse limite.' },
+  { p: 'O custo do relatório é exato?', r: 'É uma estimativa: tempo entre ligar e desligar × potência cadastrada × tarifa. Serve para comparar meses e aparelhos.' },
+  { p: 'Meus dados ficam seguros?', r: 'O acesso é só do administrador, com bloqueio por tentativas. Os segredos das integrações são cifrados com AES-256-GCM e todas as tabelas têm RLS no Supabase.' },
+]

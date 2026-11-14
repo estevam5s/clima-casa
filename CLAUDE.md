@@ -28,6 +28,7 @@ no Supabase Auth.
 | App celular | https://expo.dev/accounts/estevam5s/projects/clima-casa (Expo SDK 58) |
 | Alexa/Google | https://portal.sinric.pro (dispositivo "Ar do escritório" `6af888eb7d04ce9fd64d6777`) |
 | Painel local do agente | http://localhost:8090 (a porta 8080 do Mac é de outro app; não use) |
+| Site institucional | https://clima-escritorio-site.vercel.app (Next.js em `site/`, projeto Vercel `clima-escritorio-site`, região gru1) |
 
 ---
 
@@ -367,6 +368,20 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
   animada, modo, ventilação, EXT), faixa de luz e névoa na cor do modo. A temperatura de fora vem de
   `/api/clima-externo` (endereço do projeto → `config.clima_local` → IP de quem abriu o painel).
 - Renomear um aparelho com `sinric_device_id` renomeia também no Sinric (`PUT /api/v1/devices` com o `id` no corpo).
+
+### Site institucional (`site/`)
+- Next.js 16 (App Router, JS) + GSAP 3.15 (ScrollSmoother, ScrollTrigger, SplitText) + lucide-react + simple-icons.
+- Layout e efeitos seguem o modelo de agência (Agenko) **recriados em código próprio** (`app/globals.css`,
+  `components/Efeitos.jsx`): `.text-anm` (letras entram da direita), `.pf_fadeup`, `.pf_zoomIn`, `.contar`,
+  rolagem suave, botão com texto que vira, espirais em SVG (`Espiral.jsx`). Não copie arquivos do template.
+- Conteúdo todo em `lib/dados.js` e só com fatos reais do sistema. Imagens em `public/telas` são capturas reais
+  (sem IP, e-mail ou cidade: recorte/borre antes de publicar).
+- Formulários (contato e novidades) fazem `POST /api/site/contato` no sistema: rota pública com CORS só para
+  `CLIMA_SITE_ORIGENS` (padrão: o domínio do site e localhost:3100), limite de 5 por IP/hora, grava em
+  `site_mensagens` e cria notificação.
+- Rodar: `cd site && npm install && npm run dev` (porta 3100). Publicar: `site/publicar.sh` (cópia sem .git).
+- O sistema tem o botão **Voltar ao site** (menu lateral, cabeçalho e login), endereço em `frontend/src/site.js`
+  (`VITE_SITE_URL` sobrescreve).
 
 ### Design system (não fugir dele)
 - Tokens HSL em `src/index.css` (`--background`, `--card`, `--muted`, `--border`, `--primary` = teal da marca

@@ -8,7 +8,7 @@
 
 O sistema grava os sinais do controle original de cada ar e os reenvia por um transmissor **Tuya SRW-004** (NovaDigital / Smart Life). Em cima disso tem painel web instalável (PWA), apps para Android, macOS, Windows e Linux, **Alexa e Google Home**, agenda semanal, automações com gatilhos e condições, cenas, relatórios com consumo e custo estimados, marca própria (white label) e um firewall de aplicação.
 
-🔗 **Produção:** [clima-casa-lac.vercel.app](https://clima-casa-lac.vercel.app) · 📦 **Downloads:** [Releases](https://github.com/estevam5s/clima-casa/releases) · 📘 **Manual:** [`docs/MANUAL.md`](docs/MANUAL.md)
+🔗 **Produção:** [clima-casa-lac.vercel.app](https://clima-casa-lac.vercel.app) · 🌐 **Site:** [clima-escritorio-site.vercel.app](https://clima-escritorio-site.vercel.app) · 📦 **Downloads:** [Releases](https://github.com/estevam5s/clima-casa/releases) · 📘 **Manual:** [`docs/MANUAL.md`](docs/MANUAL.md)
 
 > 🤝 **Vai continuar o projeto (pessoa ou agente)?** Leia o [`CLAUDE.md`](CLAUDE.md) inteiro antes da primeira mudança.
 > Ele tem a arquitetura, as receitas de como mexer e as armadilhas que já aconteceram.
@@ -456,6 +456,7 @@ Conferir depois: `GET /saude` (200), login, uma rota de cada área tocada.
 | `scripts/gerar-release-json.sh` | atualiza versão, tamanhos e SHA-256 dos apps mostrados em `/apps` |
 | `instalar-servico.sh [status\|remover]` | instala, mostra o estado ou remove o LaunchAgent |
 | `publicar-vercel.sh` | build + deploy na Vercel a partir de uma cópia sem `.git` |
+| `site/publicar.sh` | publica o site institucional (Next.js) na Vercel |
 | `docs/gerar-pdf.sh` | gera `docs/Manual-Clima-Casa.pdf` a partir do `MANUAL.md` |
 
 ---

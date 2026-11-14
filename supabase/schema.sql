@@ -264,3 +264,20 @@ alter table public.seguranca_eventos add column if not exists lon double precisi
 create index if not exists ix_seg_eventos_tipo_quando on public.seguranca_eventos (tipo, quando desc);
 drop policy if exists admin_le on public.notificacoes;
 create policy admin_le on public.notificacoes for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+-- ---------- mensagens enviadas pelo site institucional (contato e novidades) ----------
+create table if not exists public.site_mensagens (
+  id bigint generated always as identity primary key,
+  quando bigint not null,
+  tipo text not null,                 -- contato | novidades
+  nome text not null default '',
+  email text not null,
+  assunto text not null default '',
+  mensagem text not null default '',
+  ip text not null default '',
+  lida boolean not null default false
+);
+create index if not exists ix_site_mensagens_quando on public.site_mensagens (quando desc);
+alter table public.site_mensagens enable row level security;
+drop policy if exists admin_le on public.site_mensagens;
+create policy admin_le on public.site_mensagens for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');

@@ -1158,6 +1158,35 @@ def salvar_pref_notificacoes(d: PrefNotificacoesIn):
     return dados
 
 
+# ---------------- site institucional: contato e novidades (público, com limite por IP) ----------------
+class SiteContatoIn(BaseModel):
+    tipo: str = Field(pattern="^(contato|novidades)$")
+    nome: str = Field("", max_length=80)
+    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    assunto: str = Field("", max_length=120)
+    mensagem: str = Field("", max_length=2000)
+
+
+@publico.post("/site/contato")
+def site_contato(d: SiteContatoIn, request: Request):
+    from .. import firewall, notificacoes
+    ip = firewall.ip_do_pedido(request)
+    if firewall.falhas_recentes(ip, ("site_contato",), 60) >= 5:
+        raise HTTPException(429, "Muitas mensagens em pouco tempo. Tente de novo em uma hora.")
+    if d.tipo == "contato" and (not d.nome.strip() or len(d.mensagem.strip()) < 5):
+        raise HTTPException(400, "Preencha o nome e a mensagem.")
+    firewall.registrar(ip, "site_contato", "/api/site/contato", d.tipo)
+    mid = db.executar("INSERT INTO site_mensagens (quando, tipo, nome, email, assunto, mensagem, ip) VALUES (?,?,?,?,?,?,?)",
+                      (db.agora(), d.tipo, d.nome.strip(), d.email.strip().lower(), d.assunto.strip(), d.mensagem.strip(), ip))
+    if d.tipo == "novidades":
+        titulo, detalhe = "Novo cadastro para receber novidades", d.email.strip()
+    else:
+        titulo = f"Mensagem do site: {d.nome.strip()}" + (f" · {d.assunto.strip()}" if d.assunto.strip() else "")
+        detalhe = f"{d.email.strip()} · {d.mensagem.strip()}"
+    notificacoes.notificar(f"site-{mid}", "sistema", "media", titulo, detalhe, "")
+    return {"ok": True}
+
+
 # ---------------- login protegido (conta tentativas por IP e por e-mail) ----------------
 class EntrarIn(BaseModel):
     email: str = Field(min_length=3, max_length=200)

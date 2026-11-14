@@ -3,12 +3,13 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity, AirVent, BarChart3, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X,
+  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe,
 } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
 import Notificacoes, { useCentral } from './Notificacoes'
+import { SITE_URL } from '../site'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
 
@@ -152,6 +153,10 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar }) {
           </div>
         ))}
       </nav>
+      <a href={SITE_URL} className="mb-2 flex h-9 items-center gap-3 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" title="Voltar ao site">
+        <Globe className="h-[18px] w-[18px] shrink-0" />
+        <motion.span animate={{ opacity: aberta ? 1 : 0 }} className="whitespace-pre">Voltar ao site</motion.span>
+      </a>
       <div className="flex items-center gap-2.5 border-t border-border pt-3">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase">{email.slice(0, 2) || 'AD'}</span>
         <motion.div animate={{ opacity: aberta ? 1 : 0 }} className="min-w-0 flex-1 whitespace-pre">
@@ -365,6 +370,9 @@ export default function Layout() {
               <kbd className="rounded border border-border px-1.5 text-[10px]">⌘K</kbd>
             </button>
             <button onClick={() => setPaleta(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted sm:hidden" aria-label="Buscar"><Search className="h-[18px] w-[18px]" /></button>
+            <a href={SITE_URL} className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:flex" title="Voltar ao site">
+              <Globe className="h-4 w-4" /> Site
+            </a>
             <Link to="/apps" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground lg:flex" title="Baixar os apps">
               <Download className="h-4 w-4" /> Apps
             </Link>

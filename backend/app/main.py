@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import agenda, cripto, db, firewall, sinric, transmissor
@@ -55,8 +55,27 @@ async def ciclo_de_vida(app):
 app = FastAPI(title="Clima Casa", lifespan=ciclo_de_vida, docs_url=None, redoc_url=None, openapi_url=None)
 
 
+# Origens do site institucional que podem enviar o formulário de contato (CORS só nesta rota)
+SITE_ORIGENS = {o.strip() for o in os.environ.get("CLIMA_SITE_ORIGENS", "https://clima-escritorio-site.vercel.app,http://localhost:3100").split(",") if o.strip()}
+
+
 @app.middleware("http")
 async def cabecalhos(request: Request, chamar):
+    origem_site = request.headers.get("origin", "")
+    if request.url.path == "/api/site/contato" and origem_site in SITE_ORIGENS:
+        cors = {"Access-Control-Allow-Origin": origem_site, "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600", "Vary": "Origin"}
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=cors)
+        firewall.definir_contexto(request)
+        barrado = await asyncio.to_thread(firewall.verificar, request)
+        if barrado:
+            return JSONResponse({"detail": barrado[1]}, status_code=barrado[0], headers=cors)
+        resp = await chamar(request)
+        resp.headers.update(cors)
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
     # Firewall: listas de IP, país, assinaturas de ataque e limite de taxa (só nas rotas dinâmicas)
     dinamica = request.url.path.startswith(("/api/", "/oauth/", "/alexa/"))
     if dinamica:
