@@ -1,0 +1,11 @@
+.env
+.env.*
+.venv
+data
+node_modules
+frontend/node_modules
+backend/static
+__pycache__
+*.log
+apps
+docs

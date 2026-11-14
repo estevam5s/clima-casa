@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 5% 97%;
+    --foreground: 240 10% 6%;
+    --card: 0 0% 100%;
+    --muted: 240 5% 95%;
+    --muted-foreground: 240 4% 44%;
+    --border: 240 6% 89%;
+    --primary: 174 77% 26%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 240 5% 93%;
+    --sidebar: 0 0% 100%;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 240 6% 6%;
+      --foreground: 0 0% 95%;
+      --card: 240 5% 9%;
+      --muted: 240 4% 13%;
+      --muted-foreground: 240 5% 62%;
+      --border: 240 4% 17%;
+      --primary: 172 62% 40%;
+      --primary-foreground: 0 0% 100%;
+      --accent: 240 4% 15%;
+      --sidebar: 240 6% 8%;
+    }
+  }
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply bg-background text-foreground antialiased; font-feature-settings: "cv11", "ss01"; }
+  :focus-visible { @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background; }
+  ::selection { background: hsl(var(--primary) / 0.2); }
+}
+
+@layer components {
+  .cartao { @apply rounded-xl border border-border bg-card shadow-suave; }
+  .rotulo { @apply mb-1.5 block text-sm font-medium text-foreground/80; }
+  .campo {
+    @apply h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground
+      placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+      disabled:bg-muted;
+  }
+  select.campo { @apply pr-8; }
+  .ajuda { @apply mt-1 text-xs text-muted-foreground; }
+  .tabela th { @apply px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground; }
+  .tabela td { @apply border-t border-border px-4 py-3 text-sm; }
+  .titulo-secao { @apply text-sm font-semibold text-foreground; }
+}
+
+@layer utilities {
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

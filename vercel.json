@@ -1,0 +1,37 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "cd frontend && npm ci",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "backend/static",
+  "regions": ["cle1"],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60,
+      "includeFiles": "backend/{app/**,supabase-ca.crt}",
+      "excludeFiles": "{frontend/**,data/**,.venv/**,backend/static/**,alexa/**,supabase/**}"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/alexa/(.*)", "destination": "/api/index" },
+    { "source": "/oauth/token", "destination": "/api/index" },
+    { "source": "/saude", "destination": "/api/index" },
+    { "source": "/((?!assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "same-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'" }
+      ]
+    },
+    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }, { "key": "Service-Worker-Allowed", "value": "/" }] },
+    { "source": "/manifest.webmanifest", "headers": [{ "key": "Content-Type", "value": "application/manifest+json" }] }
+  ]
+}

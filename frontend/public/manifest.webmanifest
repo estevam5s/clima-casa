@@ -1,0 +1,24 @@
+{
+  "name": "Clima Casa",
+  "short_name": "Clima Casa",
+  "description": "Controle dos ar-condicionados por infravermelho, com Alexa e Google Home.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#0f0f11",
+  "theme_color": "#0f766a",
+  "lang": "pt-BR",
+  "categories": ["utilities", "lifestyle"],
+  "icons": [
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Aparelhos", "url": "/aparelhos", "icons": [{ "src": "/icone-192.png", "sizes": "192x192" }] },
+    { "name": "Cenas", "url": "/cenas", "icons": [{ "src": "/icone-192.png", "sizes": "192x192" }] }
+  ]
+}

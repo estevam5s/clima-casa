@@ -1,0 +1,8 @@
+fastapi==0.162.7
+uvicorn==0.40.0
+tinytuya==1.21.1
+tuya-device-sharing-sdk
+qrcode[pil]
+python-multipart
+httpx
+psycopg[binary]==3.2.13
