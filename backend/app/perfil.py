@@ -26,17 +26,25 @@ _RE_HREF = re.compile(r'href=["\']([^"\']+)["\']', re.I)
 _RE_IMG = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.I)
 
 
+def _uid() -> str:
+    from . import acesso
+    u = acesso.atual.get()
+    if not u:
+        raise ValueError("Sem usuário na requisição.")
+    return u["id"]
+
+
 def ler() -> dict:
-    return {**PADRAO, **(db.cfg("perfil_admin") or {})}
+    """Perfil do usuário logado (cada usuário tem o seu)."""
+    u = db.um("SELECT nome, cargo, telefone, bio, avatar FROM usuarios WHERE id = ?", (_uid(),)) or {}
+    return {**PADRAO, **u}
 
 
 def salvar(dados: dict) -> dict:
-    p = ler()
-    for k in ("nome", "cargo", "telefone", "bio"):
-        if k in dados and dados[k] is not None:
-            p[k] = str(dados[k]).strip()
-    db.set_cfg("perfil_admin", p)
-    return p
+    campos = {k: str(dados[k]).strip() for k in ("nome", "cargo", "telefone", "bio") if dados.get(k) is not None}
+    if campos:
+        db.executar(f"UPDATE usuarios SET {', '.join(f'{k} = ?' for k in campos)} WHERE id = ?", (*campos.values(), _uid()))
+    return ler()
 
 
 def _processar(bruto: bytes) -> str:
@@ -134,7 +142,5 @@ def de_data_url(texto: str) -> str:
 
 
 def definir_avatar(avatar: str) -> dict:
-    p = ler()
-    p["avatar"] = avatar
-    db.set_cfg("perfil_admin", p)
-    return p
+    db.executar("UPDATE usuarios SET avatar = ? WHERE id = ?", (avatar, _uid()))
+    return ler()

@@ -286,3 +286,59 @@ alter table public.site_mensagens add column if not exists respondida boolean no
 alter table public.site_mensagens add column if not exists notas text not null default '';
 alter table public.site_mensagens add column if not exists pais text not null default '';
 alter table public.site_mensagens add column if not exists cidade text not null default '';
+
+-- ---------- usuários, papéis e permissões ----------
+create table if not exists public.usuarios (
+  id uuid primary key,                         -- mesmo id do Supabase Auth
+  email text not null,
+  nome text not null default '',
+  cargo text not null default '',
+  papel text not null default 'operador',      -- dono, admin, subadmin, operador, visualizador, personalizado
+  permissoes jsonb not null default '[]',      -- lista de chaves (acesso.PERMISSOES)
+  projetos jsonb not null default '"*"',       -- "*" = todos, ou lista de ids de projeto
+  ativo boolean not null default true,
+  exige_troca_senha boolean not null default false,
+  criado_em bigint not null,
+  criado_por uuid,
+  ultimo_acesso bigint
+);
+alter table public.usuarios enable row level security;
+drop policy if exists admin_le on public.usuarios;
+create policy admin_le on public.usuarios for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+-- ---------- chaves de acesso (passkeys: Face ID, digital, Windows Hello) ----------
+create table if not exists public.passkeys (
+  id bigint generated always as identity primary key,
+  usuario_id uuid not null references public.usuarios(id) on delete cascade,
+  credencial_id text not null unique,          -- base64url
+  chave_publica text not null,                 -- base64url (COSE)
+  contador bigint not null default 0,
+  transportes jsonb not null default '[]',
+  nome text not null default '',
+  aaguid text not null default '',
+  criado_em bigint not null,
+  ultimo_uso bigint
+);
+create index if not exists ix_passkeys_usuario on public.passkeys (usuario_id);
+alter table public.passkeys enable row level security;
+
+create table if not exists public.webauthn_desafios (
+  id text primary key,
+  usuario_id uuid,
+  tipo text not null,                          -- registro | login
+  desafio text not null,                       -- base64url
+  expira_em bigint not null
+);
+alter table public.webauthn_desafios enable row level security;
+
+-- sessões abertas com passkey (valem como segundo fator)
+create table if not exists public.sessoes_fortes (
+  session_id text primary key,
+  usuario_id uuid not null,
+  criado_em bigint not null,
+  expira_em bigint not null
+);
+alter table public.sessoes_fortes enable row level security;
+alter table public.usuarios add column if not exists telefone text not null default '';
+alter table public.usuarios add column if not exists bio text not null default '';
+alter table public.usuarios add column if not exists avatar text not null default '';

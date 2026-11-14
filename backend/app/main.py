@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from . import agenda, cripto, db, firewall, sinric, transmissor
 from .rotas import alexa as rotas_alexa
 from .rotas import api as rotas_api
+from .rotas import contas as rotas_contas
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -120,6 +121,8 @@ async def validacao(request: Request, exc: RequestValidationError):
 
 
 app.include_router(rotas_api.publico)
+app.include_router(rotas_contas.publico_contas)
+app.include_router(rotas_contas.contas)
 app.include_router(rotas_api.api)
 app.include_router(rotas_alexa.roteador)
 

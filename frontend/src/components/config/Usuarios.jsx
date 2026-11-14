@@ -1,0 +1,259 @@
+import { useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Check, Copy, Crown, Fingerprint, FolderPlus, KeyRound, MoreHorizontal, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react'
+import { api, haQuanto } from '../../api'
+import { Aviso, Botao, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../ui'
+
+const COR_PAPEL = {
+  dono: 'bg-amber-500/15 text-amber-700 dark:text-amber-400', admin: 'bg-primary/15 text-primary', subadmin: 'bg-sky-500/15 text-sky-700 dark:text-sky-400',
+  operador: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', visualizador: 'bg-muted text-muted-foreground', personalizado: 'bg-violet-500/15 text-violet-700 dark:text-violet-400',
+}
+const iniciais = (n, e) => ((n || e || '?').trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('') || '?').toUpperCase()
+
+function SenhaGerada({ senha, email, aoFechar }) {
+  const [copiado, setCopiado] = useState(false)
+  return (
+    <Modal aberto titulo="Senha provisória" onFechar={aoFechar}>
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">Passe esta senha para <span className="text-foreground">{email}</span> por um canal seguro. Ela aparece só agora. No primeiro acesso o sistema pede para trocar.</p>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5">
+          <code className="flex-1 break-all font-mono text-base">{senha}</code>
+          <button onClick={() => { navigator.clipboard?.writeText(senha); setCopiado(true) }} className="rounded-md p-1.5 hover:bg-background" aria-label="Copiar senha">{copiado ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}</button>
+        </div>
+        <div className="flex justify-end"><Botao onClick={aoFechar}>Pronto</Botao></div>
+      </div>
+    </Modal>
+  )
+}
+
+function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
+  const toast = useToast()
+  const novo = !usuario
+  const papeis = dados.papeis.filter((p) => dados.papeis_permitidos.includes(p.id) || p.id === usuario?.papel)
+  const [f, setF] = useState(() => ({
+    nome: usuario?.nome || '', email: usuario?.email || '', cargo: usuario?.cargo || '', papel: usuario?.papel || 'operador',
+    permissoes: usuario?.permissoes || dados.papeis.find((p) => p.id === 'operador').permissoes,
+    acesso: usuario ? (usuario.projetos === '*' ? 'todos' : 'escolher') : (dados.eu.projetos === '*' ? 'todos' : 'escolher'),
+    projetos: usuario && usuario.projetos !== '*' ? usuario.projetos : [], projeto_novo: '',
+    senhaModo: 'gerar', senha: '', convite: false, exige_troca_senha: usuario ? usuario.exige_troca_senha : true, ativo: usuario ? usuario.ativo : true,
+  }))
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+  const total = ['dono', 'admin'].includes(f.papel)
+  const minhas = dados.eu.permissoes
+  const projetosVisiveis = dados.eu.projetos === '*' ? dados.projetos : dados.projetos.filter((p) => dados.eu.projetos.includes(p.id))
+  const grupos = useMemo(() => dados.permissoes.reduce((g, p) => ({ ...g, [p.grupo]: [...(g[p.grupo] || []), p] }), {}), [dados.permissoes])
+  const mudarPapel = (papel) => {
+    const base = dados.papeis.find((p) => p.id === papel)
+    setF({ ...f, papel, permissoes: base.permissoes.filter((p) => minhas.includes(p)), acesso: ['admin', 'dono'].includes(papel) ? 'todos' : f.acesso })
+  }
+  const alternarPerm = (id) => setF({ ...f, papel: f.papel === 'personalizado' || total ? f.papel : 'personalizado', permissoes: f.permissoes.includes(id) ? f.permissoes.filter((p) => p !== id) : [...f.permissoes, id] })
+  const alternarProj = (id) => setF({ ...f, projetos: f.projetos.includes(id) ? f.projetos.filter((p) => p !== id) : [...f.projetos, id] })
+
+  const salvar = async (e) => {
+    e.preventDefault(); setErro('')
+    if (f.acesso === 'escolher' && !total && !f.projetos.length) return setErro('Escolha ao menos um projeto ou comece do zero.')
+    setSalvando(true)
+    try {
+      const corpo = { nome: f.nome, cargo: f.cargo, papel: f.papel, permissoes: f.permissoes, acesso: total ? 'todos' : f.acesso, projetos: f.projetos, projeto_novo: f.projeto_novo, exige_troca_senha: f.exige_troca_senha }
+      if (novo) {
+        const r = await api.post('/api/usuarios', { ...corpo, email: f.email, convite: f.convite, gerar_senha: f.senhaModo === 'gerar', senha: f.senhaModo === 'definir' ? f.senha : null })
+        toast(f.convite ? 'Convite enviado por e-mail.' : 'Usuário criado.')
+        aoSalvar(r.senha ? { senha: r.senha, email: f.email } : null)
+      } else {
+        await api.put(`/api/usuarios/${usuario.id}`, { ...corpo, ativo: f.ativo })
+        toast('Usuário atualizado.'); aoSalvar(null)
+      }
+    } catch (err) { setErro(err.message) } finally { setSalvando(false) }
+  }
+
+  return (
+    <Modal aberto titulo={novo ? 'Novo usuário' : `Editar ${usuario.nome || usuario.email}`} onFechar={aoFechar} largura="max-w-3xl">
+      <form onSubmit={salvar} className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><label className="rotulo" htmlFor="un">Nome</label><input id="un" className="campo" required maxLength={80} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></div>
+          <div><label className="rotulo" htmlFor="ue">E-mail</label><input id="ue" type="email" className="campo" required disabled={!novo} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
+          <div><label className="rotulo" htmlFor="uc">Cargo</label><input id="uc" className="campo" maxLength={80} placeholder="Ex.: Recepção, Gerente, TI" value={f.cargo} onChange={(e) => setF({ ...f, cargo: e.target.value })} /></div>
+          {!novo && usuario.papel !== 'dono' && <div className="flex items-end gap-3 pb-2 text-sm"><Interruptor ligado={f.ativo} onChange={(v) => setF({ ...f, ativo: v })} rotulo={f.ativo ? 'Conta ativa' : 'Conta desativada'} /><span>{f.ativo ? 'Conta ativa' : 'Conta desativada (não entra)'}</span></div>}
+        </div>
+
+        <div>
+          <p className="rotulo">Nível de acesso</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {papeis.map((p) => (
+              <button key={p.id} type="button" onClick={() => mudarPapel(p.id)} disabled={usuario?.papel === 'dono'}
+                className={`rounded-lg border p-3 text-left transition-colors ${f.papel === p.id ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border hover:bg-muted/50'}`}>
+                <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${COR_PAPEL[p.id]}`}>{p.id === 'dono' && <Crown className="h-3 w-3" />}{p.rotulo}</span>
+                <span className="mt-1.5 block text-xs text-muted-foreground">{p.descricao}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {!total && (
+          <div>
+            <p className="rotulo">Permissões <span className="font-normal text-muted-foreground">(marcar ou desmarcar vira "Personalizado")</span></p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {Object.entries(grupos).map(([g, ps]) => (
+                <div key={g} className="space-y-1.5">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{g}</p>
+                  {ps.map((p) => {
+                    const bloqueada = !minhas.includes(p.id)
+                    return (
+                      <label key={p.id} className={`flex items-start gap-2 rounded-md px-1.5 py-1 text-sm ${bloqueada ? 'opacity-40' : 'cursor-pointer hover:bg-muted/50'}`} title={bloqueada ? 'Você não tem esta permissão para dar' : ''}>
+                        <input type="checkbox" className="mt-1 h-4 w-4 accent-[hsl(var(--primary))]" disabled={bloqueada} checked={f.permissoes.includes(p.id)} onChange={() => alternarPerm(p.id)} />
+                        <span>{p.descricao}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!total && (
+          <div>
+            <p className="rotulo">Dados de ar-condicionado</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[['todos', 'Todos os projetos', 'Usa os mesmos ares, transmissores e rotinas que já existem', dados.eu.projetos === '*'],
+                ['escolher', 'Escolher projetos', 'Só os lugares que você marcar abaixo', true],
+                ['zero', 'Começar do zero', 'Cria um projeto vazio só para esta pessoa', true]].filter((o) => o[3]).map(([k, r, d]) => (
+                <button key={k} type="button" onClick={() => setF({ ...f, acesso: k })}
+                  className={`rounded-lg border p-3 text-left ${f.acesso === k ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border hover:bg-muted/50'}`}>
+                  <span className="text-sm font-medium">{r}</span><span className="mt-1 block text-xs text-muted-foreground">{d}</span>
+                </button>
+              ))}
+            </div>
+            {f.acesso === 'escolher' && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {projetosVisiveis.map((p) => (
+                  <button key={p.id} type="button" onClick={() => alternarProj(p.id)}
+                    className={`rounded-full border px-3 py-1 text-sm ${f.projetos.includes(p.id) ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'}`}>{p.nome}</button>
+                ))}
+              </div>
+            )}
+            {f.acesso === 'zero' && (
+              <div className="mt-3"><label className="rotulo" htmlFor="pz"><FolderPlus className="mr-1 inline h-4 w-4" />Nome do projeto novo</label>
+                <input id="pz" className="campo" maxLength={60} placeholder={`Projeto de ${f.nome || 'novo usuário'}`} value={f.projeto_novo} onChange={(e) => setF({ ...f, projeto_novo: e.target.value })} />
+                <p className="ajuda">Ele começa sem aparelhos. Transmissores, Smart Life e Alexa são do sistema todo e ficam com o administrador.</p></div>
+            )}
+          </div>
+        )}
+
+        {novo && (
+          <div>
+            <p className="rotulo">Primeiro acesso</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[['gerar', 'Gerar senha forte'], ['definir', 'Eu defino a senha'], ['convite', 'Enviar convite por e-mail']].map(([k, r]) => (
+                <button key={k} type="button" onClick={() => setF({ ...f, senhaModo: k, convite: k === 'convite' })}
+                  className={`rounded-lg border px-3 py-2.5 text-left text-sm ${f.senhaModo === k ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border hover:bg-muted/50'}`}>{r}</button>
+              ))}
+            </div>
+            {f.senhaModo === 'definir' && <input type="text" className="campo mt-3" minLength={8} required placeholder="Senha provisória (mín. 8)" value={f.senha} onChange={(e) => setF({ ...f, senha: e.target.value })} autoComplete="off" />}
+            {f.senhaModo === 'convite' && <p className="ajuda mt-2">O Supabase envia um link para a pessoa criar a senha. O plano gratuito manda poucos e-mails por hora.</p>}
+          </div>
+        )}
+        {f.senhaModo !== 'convite' && <div className="flex items-center gap-3 text-sm"><Interruptor ligado={f.exige_troca_senha} onChange={(v) => setF({ ...f, exige_troca_senha: v })} rotulo="Pedir para trocar a senha no primeiro acesso" /><span>Pedir para trocar a senha no primeiro acesso</span></div>}
+
+        {erro && <Aviso>{erro}</Aviso>}
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <Botao type="button" variante="secundario" onClick={aoFechar}>Cancelar</Botao>
+          <Botao type="submit" carregando={salvando}>{novo ? 'Criar usuário' : 'Salvar'}</Botao>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function MenuAcoes({ u, aoAtualizar, aoEditar, aoSenha }) {
+  const toast = useToast()
+  const [aberto, setAberto] = useState(false)
+  const acao = async (fn, msg) => { setAberto(false); try { await fn(); toast(msg); aoAtualizar() } catch (e) { toast(e.message, 'erro') } }
+  return (
+    <div className="relative" onMouseLeave={() => setAberto(false)}>
+      <button onClick={() => setAberto((a) => !a)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Ações"><MoreHorizontal className="h-4 w-4" /></button>
+      <AnimatePresence>
+        {aberto && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute right-0 z-20 w-56 rounded-lg border border-border bg-card p-1 shadow-xl"> {/* marca: menu flutua */}
+            <button onClick={() => { setAberto(false); aoEditar() }} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted">Editar acesso</button>
+            <button onClick={() => { setAberto(false); aoSenha() }} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted">Gerar nova senha</button>
+            {u.totp && <button onClick={() => window.confirm(`Remover o Google Authenticator de ${u.email}? A pessoa entra só com a senha até cadastrar de novo.`) && acao(() => api.del(`/api/usuarios/${u.id}/2fa`), 'Verificação em duas etapas removida.')} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted">Remover autenticador (perdeu o celular)</button>}
+            {u.papel !== 'dono' && <button onClick={() => window.confirm(`Apagar a conta ${u.email}? Não dá para desfazer.`) && acao(() => api.del(`/api/usuarios/${u.id}`), 'Usuário apagado.')} className="w-full rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-muted dark:text-red-400"><Trash2 className="mr-1.5 inline h-3.5 w-3.5" />Apagar conta</button>}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+export default function Usuarios() {
+  const toast = useToast()
+  const { dados, erro, recarregar } = useDados(() => api.get('/api/usuarios'))
+  const [form, setForm] = useState(null)        // 'novo' | usuário
+  const [senha, setSenha] = useState(null)
+  const [busca, setBusca] = useState('')
+  if (erro) return <Aviso>{erro}</Aviso>
+  if (!dados) return <Carregando />
+  const lista = dados.itens.filter((u) => !busca || `${u.nome} ${u.email} ${u.cargo}`.toLowerCase().includes(busca.toLowerCase()))
+  const nomeProjetos = (u) => (u.projetos === '*' ? 'Todos os projetos' : u.projetos.map((id) => dados.projetos.find((p) => p.id === id)?.nome || `#${id}`).join(', ') || 'Nenhum')
+  const novaSenha = async (u) => {
+    if (!window.confirm(`Gerar uma senha nova para ${u.email}? A atual deixa de funcionar.`)) return
+    try { const r = await api.post(`/api/usuarios/${u.id}/senha`, { gerar: true, exige_troca_senha: true }); setSenha({ senha: r.senha, email: u.email }) } catch (e) { toast(e.message, 'erro') }
+  }
+  const ativos = dados.itens.filter((u) => u.ativo).length
+  return (
+    <div className="space-y-6">
+      <FaixaMetricas itens={[
+        { rotulo: 'Usuários', valor: dados.itens.length, dica: `${ativos} ativo(s)` },
+        { rotulo: 'Administradores', valor: dados.itens.filter((u) => ['dono', 'admin', 'subadmin'].includes(u.papel)).length, dica: 'dono, admin e subadmin' },
+        { rotulo: 'Com Google Authenticator', valor: dados.itens.filter((u) => u.totp).length, tom: dados.itens.every((u) => u.totp) ? 'bom' : undefined, dica: 'verificação em duas etapas' },
+        { rotulo: 'Com biometria', valor: dados.itens.filter((u) => u.passkeys).length, dica: 'Face ID, digital ou Windows Hello' },
+      ]} />
+      <section className="cartao overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border p-3">
+          <label className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome, e-mail ou cargo" className="campo h-9 pl-8 text-sm" aria-label="Buscar usuários" />
+          </label>
+          <Botao className="ml-auto" icone={UserPlus} onClick={() => setForm('novo')}>Novo usuário</Botao>
+        </div>
+        {lista.length === 0 ? <div className="p-6"><Vazio icone={Users} titulo="Ninguém encontrado" texto="Crie contas para quem também usa os ares." /></div> : (
+          <div className="overflow-x-auto">
+            <table className="tabela w-full min-w-[820px]">
+              <thead><tr><th>Usuário</th><th>Nível</th><th>Projetos</th><th>Segurança</th><th>Último acesso</th><th /></tr></thead>
+              <tbody>
+                {lista.map((u) => (
+                  <tr key={u.id} className={u.ativo ? '' : 'opacity-50'}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        {u.avatar ? <img src={u.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" /> : <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{iniciais(u.nome, u.email)}</span>}
+                        <div className="min-w-0"><p className="truncate font-medium">{u.nome || u.email.split('@')[0]}{!u.ativo && <span className="ml-2 text-xs text-muted-foreground">(desativado)</span>}</p>
+                          <p className="truncate text-xs text-muted-foreground">{u.email}{u.cargo ? ` · ${u.cargo}` : ''}</p></div>
+                      </div>
+                    </td>
+                    <td><span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${COR_PAPEL[u.papel]}`}>{u.papel === 'dono' && <Crown className="h-3 w-3" />}{u.papel_rotulo}</span>
+                      {!['dono', 'admin'].includes(u.papel) && <p className="mt-0.5 text-[11px] text-muted-foreground">{u.permissoes.length} permissão(ões)</p>}</td>
+                    <td className="max-w-[200px] truncate text-sm text-muted-foreground" title={nomeProjetos(u)}>{nomeProjetos(u)}</td>
+                    <td>
+                      <div className="flex flex-wrap gap-1.5 text-[11px]">
+                        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${u.totp ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>{u.totp ? <ShieldCheck className="h-3 w-3" /> : <ShieldOff className="h-3 w-3" />}2FA</span>
+                        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${u.passkeys ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}><Fingerprint className="h-3 w-3" />{u.passkeys || 0}</span>
+                        {u.exige_troca_senha && <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-400"><KeyRound className="h-3 w-3" />troca de senha</span>}
+                      </div>
+                    </td>
+                    <td className="text-sm text-muted-foreground">{u.ultimo_acesso ? haQuanto(u.ultimo_acesso) : 'nunca entrou'}</td>
+                    <td className="text-right">{u.pode_editar && <MenuAcoes u={u} aoAtualizar={recarregar} aoEditar={() => setForm(u)} aoSenha={() => novaSenha(u)} />}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+      <p className="text-xs text-muted-foreground">As permissões valem no servidor, não só na tela: quem não tem acesso recebe "sem permissão" mesmo chamando a API direto. Ninguém consegue dar uma permissão que não tem.</p>
+      {form && <FormUsuario dados={dados} usuario={form === 'novo' ? null : form} aoFechar={() => setForm(null)} aoSalvar={(s) => { setForm(null); recarregar(); if (s) setSenha(s) }} />}
+      {senha && <SenhaGerada {...senha} aoFechar={() => setSenha(null)} />}
+    </div>
+  )
+}

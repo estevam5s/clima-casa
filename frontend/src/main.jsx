@@ -22,6 +22,7 @@ import Cenas from './pages/Cenas'
 import Relatorios from './pages/Relatorios'
 import Seguranca from './pages/Seguranca'
 import Mensagens from './pages/Mensagens'
+import TrocarSenha from './pages/TrocarSenha'
 import Integracoes from './pages/Integracoes'
 import { ProjetoProvider } from './contexto'
 import { TemaProvider } from './tema'
@@ -36,13 +37,20 @@ function Protegido({ children }) {
   const navegar = useNavigate()
   useEffect(() => {
     const sem = () => { try { localStorage.removeItem('clima-casa-auth') } catch { /* sem storage */ } }  // evita voltar ao login em laço
-    api.get('/api/sessao').then((e) => { if (!e?.logado) sem(); setEstado(e) }).catch(() => { sem(); setEstado({ logado: false }) })
-    const expirou = () => navegar('/login', { state: { de: window.location.pathname + window.location.search } })
+    const de = window.location.pathname + window.location.search
+    api.get('/api/sessao').then((e) => { if (!e?.logado) sem(); setEstado(e) }).catch((err) => {
+      if (err.precisa2fa) return navegar('/login', { replace: true, state: { de, etapa: '2fa' } })   // falta o código do autenticador
+      sem(); setEstado({ logado: false })
+    })
+    const expirou = () => navegar('/login', { state: { de } })
+    const pede2fa = () => navegar('/login', { state: { de, etapa: '2fa' } })
     window.addEventListener('clima:sessao-expirada', expirou)
-    return () => window.removeEventListener('clima:sessao-expirada', expirou)
+    window.addEventListener('clima:2fa', pede2fa)
+    return () => { window.removeEventListener('clima:sessao-expirada', expirou); window.removeEventListener('clima:2fa', pede2fa) }
   }, [navegar])
   if (!estado) return <Carregando />
   if (!estado.logado) return <Navigate to="/login" replace state={{ de: local.pathname + local.search }} />
+  if (estado.exige_troca_senha) return <TrocarSenha aoTrocar={() => setEstado({ ...estado, exige_troca_senha: false })} />
   return children
 }
 

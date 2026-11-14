@@ -38,6 +38,9 @@ def montar(inicio: int, fim: int, projeto_id: int | None = None, aparelho_id: in
         filtro += " AND a.projeto_id = ?"; p.append(projeto_id)
     if aparelho_id:
         filtro += " AND a.id = ?"; p.append(aparelho_id)
+    from . import acesso
+    f_esc, p_esc = acesso.filtro_sql("a.projeto_id")   # limita aos projetos do usuário
+    filtro += f_esc; p += list(p_esc)
     aparelhos = db.consultar(f"SELECT a.id, a.nome, a.comodo, a.marca, a.potencia_w, pr.nome AS projeto FROM aparelhos a "
                              f"LEFT JOIN projetos pr ON pr.id = a.projeto_id WHERE true{filtro} ORDER BY a.nome", p)
     ids = [a["id"] for a in aparelhos] or [-1]

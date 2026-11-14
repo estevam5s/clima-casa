@@ -28,7 +28,8 @@ async function chamar(metodo, caminho, corpo) {
   if (!r.ok) {
     let msg = dados?.detail
     if (Array.isArray(msg)) msg = msg.map((d) => d.msg).join('; ')
-    if (r.status === 401) window.dispatchEvent(new Event('clima:sessao-expirada'))
+    if (r.status === 401) window.dispatchEvent(new Event(r.headers.get('x-clima-2fa') ? 'clima:2fa' : 'clima:sessao-expirada'))
+    if (r.status === 401 && r.headers.get('x-clima-2fa')) throw Object.assign(new ErroApi(401, msg || 'Confirme o código do Google Authenticator.'), { precisa2fa: true })
     throw new ErroApi(r.status, msg || `Erro ${r.status}`)
   }
   return dados

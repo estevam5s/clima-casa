@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound } from 'lucide-react'
+import { Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users } from 'lucide-react'
 import { useTema } from '../tema'
 import WhiteLabel from '../components/config/WhiteLabel'
 import Perfil from '../components/config/Perfil'
+import Usuarios from '../components/config/Usuarios'
+import SegurancaConta from '../components/config/SegurancaConta'
+import { useProjeto } from '../contexto'
 import PainelSeguranca from '../components/config/PainelSeguranca'
 import { api } from '../api'
 import { supabase } from '../supabase'
@@ -96,6 +99,7 @@ function Agente() {
 
 export default function Configuracoes() {
   const [params, setParams] = useSearchParams()
+  const { sessao } = useProjeto()
   const { dados, erro, recarregar, setDados } = useDados(() => api.get('/api/config'))
   const toast = useToast()
   if (erro) return <Aviso>{erro}</Aviso>
@@ -117,12 +121,15 @@ export default function Configuracoes() {
     URL.revokeObjectURL(a.href)
   }
 
-  const ABAS = [['perfil', 'Perfil', UserRound], ['geral', 'Geral', Sliders], ['aparencia', 'Aparência', Palette], ['marca', 'White label', Paintbrush],
-    ['seguranca', 'Segurança', ShieldCheck], ['contas', 'Contas', KeyRound], ['sistema', 'Sistema', Server]]
-  const aba = params.get('aba') || 'geral'
+  const pode = (perm) => !perm || sessao?.permissoes?.includes(perm)
+  const ABAS = [['perfil', 'Perfil', UserRound], ['usuarios', 'Usuários', Users, 'usuarios.gerenciar'], ['seguranca', 'Segurança', ShieldCheck],
+    ['geral', 'Geral', Sliders, 'configuracoes.gerenciar'], ['aparencia', 'Aparência', Palette], ['marca', 'White label', Paintbrush, 'configuracoes.gerenciar'],
+    ['contas', 'Contas', KeyRound, 'integracoes.gerenciar'], ['sistema', 'Sistema', Server, 'configuracoes.gerenciar']].filter((a) => pode(a[3]))
+  const pedida = params.get('aba')
+  const aba = ABAS.some((a) => a[0] === pedida) ? pedida : (pode('configuracoes.gerenciar') ? 'geral' : 'perfil')
   return (
     <div className="w-full">
-      <Cabecalho titulo="Configurações" descricao="Sistema, aparência, white label, segurança, contas e o agente do Mac." />
+      <Cabecalho titulo="Configurações" descricao="Perfil, usuários e permissões, segurança da conta, aparência e o sistema." />
       <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
         {ABAS.map(([k, r, I]) => (
           <button key={k} onClick={() => setParams({ aba: k })}
@@ -158,7 +165,13 @@ export default function Configuracoes() {
       {aba === 'perfil' && <Perfil />}
       {aba === 'aparencia' && <Aparencia />}
       {aba === 'marca' && <WhiteLabel />}
-      {aba === 'seguranca' && <PainelSeguranca />}
+      {aba === 'usuarios' && <Usuarios />}
+      {aba === 'seguranca' && (
+        <div className="space-y-8">
+          <SegurancaConta />
+          {pode('seguranca.gerenciar') && <div><h2 className="mb-3 text-lg font-semibold">Firewall do sistema</h2><PainelSeguranca /></div>}
+        </div>
+      )}
       {aba === 'contas' && (
         <div className="grid gap-6 xl:grid-cols-2">
         <section id="smartlife" className="cartao p-5">

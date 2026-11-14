@@ -185,7 +185,7 @@ git add -A && git commit && git push
 |---|---|---|
 | `SUPABASE_URL` | URL do projeto | agente, Vercel, front (via API) |
 | `SUPABASE_PUBLISHABLE_KEY` | chave pública | front e app (é pública por design) |
-| `SUPABASE_SECRET_KEY` | admin do Auth | só scripts de manutenção (criar admin); **não** está na Vercel |
+| `SUPABASE_SECRET_KEY` | admin do Auth | agente e Vercel (servidor): criar/editar contas, link mágico da biometria |
 | `SUPABASE_ACCESS_TOKEN` | Management API (`sbp_…`) | aplicar schema/cron |
 | `SUPABASE_DB_PASSWORD` | senha do Postgres | agente e Vercel |
 | `SUPABASE_DB_HOST` / `SUPABASE_DB_PORT` | opcionais | padrão `aws-1-us-east-2.pooler.supabase.com`, 5432 (agente) / 6543 (Vercel) |
@@ -196,7 +196,7 @@ git add -A && git commit && git push
 | `CLIMA_CONFIAR_PROXY` | opcional: confiar em `x-forwarded-for` fora da Vercel | firewall |
 
 Vercel (produção) tem só: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_PORT=6543`,
-`CLIMA_CHAVE_MESTRA`.
+`CLIMA_CHAVE_MESTRA` e `SUPABASE_SECRET_KEY` (para criar contas e o login com biometria; nunca no frontend).
 O app Expo tem `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_API_URL`
 (em `apps/android/.env` e em `eas.json`; todas públicas).
 
@@ -323,7 +323,27 @@ chamadas pela Lambda (`alexa/lambda/index.mjs`, header `X-Clima-Chave`). Expõe 
 - **Agenda**: dias + HH:MM, checada a cada 20 s no agente (fuso local do Mac).
 - **Cenas**: várias ações em sequência; cada falha é independente.
 
-### 7.7 Autenticação
+### 7.7 Usuários, permissões, 2FA e biometria
+- `backend/app/acesso.py`: papéis (dono > admin > subadmin > operador > visualizador, ou personalizado), 14 permissões
+  e `REGRAS` por rota (método + caminho do FastAPI → permissão). `seguranca.exigir_login` (async) valida o token,
+  carrega `usuarios`, aplica a regra da rota e o escopo de projetos (`projetos`: "*" ou lista de ids). As listas usam
+  `acesso.filtro_sql(...)`/`_escopo(...)` e as rotas por id conferem o projeto dono do item (`checar_escopo`).
+  **Nova rota que muda dados? Confira se cai numa regra de `REGRAS`** (rota não listada que não seja GET exige
+  `configuracoes.gerenciar`). O 1º admin antigo (`app_metadata.role = admin`) vira "dono" sozinho.
+- Contas: `rotas/contas.py` usa a API admin do Supabase (precisa `SUPABASE_SECRET_KEY`, que está **só** nas variáveis
+  da Vercel e no `.env`). Ninguém dá papel/permissão/projeto que não tem; o dono não pode ser rebaixado/apagado.
+  "Começar do zero" cria um projeto vazio para a pessoa. Senha provisória → `exige_troca_senha` → tela TrocarSenha.
+- Google Authenticator: MFA TOTP **nativo do Supabase** (supabase-js `mfa.enroll/challengeAndVerify/unenroll`). Com
+  fator verificado, o backend só aceita token `aal2` (resposta 401 com cabeçalho `X-Clima-2FA: necessario` → o login
+  pede o código). Admin remove o fator de quem perdeu o celular (`DELETE /api/usuarios/{id}/2fa`).
+- Biometria: passkeys WebAuthn (`webauthn` 3.0.1 no backend, `frontend/src/webauthn.js`). RP ID = host da requisição
+  (produção: clima-casa-lac.vercel.app; dev: localhost). Login com biometria abre a sessão via link mágico emitido no
+  servidor e grava o `session_id` em `sessoes_fortes` (vale como segundo fator). Tabelas: `usuarios`, `passkeys`,
+  `webauthn_desafios`, `sessoes_fortes`. Perfil (nome, cargo, telefone, bio, foto) agora é por usuário em `usuarios`.
+- Teste de biometria sem sensor: Playwright + CDP `WebAuthn.addVirtualAuthenticator` (já feito, passou).
+- Limitação: o app Android entra direto no Supabase e ainda não tem a tela do código do autenticador.
+
+### 7.8 Autenticação (sessão)
 Front e apps fazem login no Supabase Auth (e-mail + senha; cadastro público **desligado** no projeto). Cada chamada
 manda `Authorization: Bearer <access_token>`; `seguranca.usuario_admin` valida no `/auth/v1/user` (cache 60 s) e
 exige `app_metadata.role == "admin"`. Rotas públicas: `/api/supabase-config`, `/saude`, `/oauth/token`,

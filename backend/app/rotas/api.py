@@ -32,8 +32,11 @@ def supabase_config():
 
 @api.get("/sessao")
 def sessao(request: Request):
+    from .. import acesso
+    from ..seguranca import tem_totp
     u = request.state.usuario
-    return {"logado": True, "email": u.get("email"), "ultimo_login": u.get("last_sign_in_at")}
+    return {"logado": True, "email": u.get("email"), "ultimo_login": u.get("last_sign_in_at"), **acesso.resumo(request.state.u),
+            "totp_ativo": tem_totp(u), "passkeys": db.um("SELECT count(*) AS n FROM passkeys WHERE usuario_id = ?", (u["id"],))["n"]}
 
 
 @api.post("/sessao/registrar-login")
@@ -43,8 +46,39 @@ def registrar_login(request: Request):
 
 
 # ---------------- painel ----------------
+def _exigir_projeto(pid):
+    from .. import acesso
+    if acesso.projetos_permitidos() is not None:
+        acesso.checar_projeto(pid)
+
+
+def _exigir_aparelhos(ids):
+    perm = _ids_aparelhos_permitidos()
+    if perm is not None and not {int(i) for i in ids if i} <= perm:
+        raise HTTPException(403, "Você não tem acesso a um dos aparelhos escolhidos.")
+
+
+def _dar_acesso_projeto(pid):
+    """Quem tem acesso limitado e cria um projeto passa a ver esse projeto."""
+    from .. import acesso
+    u = acesso.atual.get()
+    if u and u["projetos"] != "*" and pid:
+        db.executar("UPDATE usuarios SET projetos = CAST(? AS jsonb) WHERE id = ?", (json.dumps([*u["projetos"], int(pid)]), u["id"]))
+
+
+def _escopo(coluna):
+    from .. import acesso
+    return acesso.filtro_sql(coluna)
+
+
 def _filtro_projeto(projeto_id, alias="a"):
-    return (f" WHERE {alias}.projeto_id = ?", (projeto_id,)) if projeto_id else ("", ())
+    """Filtro por projeto; sem projeto escolhido, limita aos projetos que o usuário pode ver."""
+    from .. import acesso
+    if projeto_id:
+        acesso.checar_projeto(projeto_id) if acesso.projetos_permitidos() is not None else None
+        return (f" WHERE {alias}.projeto_id = ?", (projeto_id,))
+    f, pp = acesso.filtro_sql(f"{alias}.projeto_id")
+    return (f" WHERE true{f}", pp) if f else ("", ())
 
 
 @api.get("/painel")
@@ -93,6 +127,8 @@ def _atividade(limite, aparelho_id=None, origem=None, so_falhas=False, antes=Non
         sql += " AND t.ok = 0"
     if antes:
         sql += " AND t.id < ?"; p.append(antes)
+    f, pp = _escopo("a.projeto_id")
+    sql += f; p += list(pp)
     sql += " ORDER BY t.id DESC LIMIT ?"; p.append(limite)
     return db.consultar(sql, p)
 
@@ -141,6 +177,7 @@ def criar_aparelho(d: AparelhoIn):
     _validar_aparelho(d)
     temp = max(d.temp_min, min(d.temp_max, 23))
     projeto = d.projeto_id or (db.um("SELECT projeto_id FROM hubs WHERE id = ?", (d.hub_id,)) or {}).get("projeto_id")
+    _exigir_projeto(projeto)
     novo = db.executar(
         "INSERT INTO aparelhos (nome, comodo, marca, hub_id, temp_min, temp_max, modos, alexa, temperatura, modo, "
         "projeto_id, criado_em, potencia_w) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -182,6 +219,7 @@ def ver_aparelho(aid: int):
 @api.put("/aparelhos/{aid}")
 def editar_aparelho(aid: int, d: AparelhoIn):
     _validar_aparelho(d)
+    _exigir_projeto(d.projeto_id)
     try:
         a = clima.aparelho(aid)
     except KeyError as e:
@@ -329,6 +367,7 @@ def descobrir_hubs():
 
 @api.post("/hubs")
 def criar_hub(d: HubIn):
+    _exigir_projeto(d.projeto_id)
     if db.um("SELECT 1 FROM hubs WHERE id = ?", (d.id,)):
         raise HTTPException(409, "Esse transmissor já está cadastrado.")
     db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, projeto_id, criado_em) VALUES (?,?,?,?,?,?,?)",
@@ -425,12 +464,13 @@ def _agenda_publica(r):
 @api.get("/agendamentos")
 def listar_agendamentos():
     return [_agenda_publica(r) for r in db.consultar(
-        "SELECT g.*, a.nome AS aparelho_nome FROM agendamentos g JOIN aparelhos a ON a.id = g.aparelho_id "
-        "ORDER BY g.hora")]
+        "SELECT g.*, a.nome AS aparelho_nome FROM agendamentos g JOIN aparelhos a ON a.id = g.aparelho_id WHERE true"
+        + _escopo("a.projeto_id")[0] + " ORDER BY g.hora", _escopo("a.projeto_id")[1])]
 
 
 @api.post("/agendamentos")
 def criar_agendamento(d: AgendaIn):
+    _exigir_aparelhos({d.aparelho_id})
     novo = db.executar("INSERT INTO agendamentos (aparelho_id, nome, dias, hora, acao, ativo, criado_em) VALUES (?,?,?,?,?,?,?)",
                        (d.aparelho_id, d.nome.strip(), ",".join(map(str, sorted(set(d.dias)))), d.hora, _acao(d),
                         int(d.ativo), db.agora()))
@@ -440,6 +480,7 @@ def criar_agendamento(d: AgendaIn):
 
 @api.put("/agendamentos/{gid}")
 def editar_agendamento(gid: int, d: AgendaIn):
+    _exigir_aparelhos({d.aparelho_id})
     db.executar("UPDATE agendamentos SET aparelho_id=?, nome=?, dias=?, hora=?, acao=?, ativo=? WHERE id=?",
                 (d.aparelho_id, d.nome.strip(), ",".join(map(str, sorted(set(d.dias)))), d.hora, _acao(d),
                  int(d.ativo), gid))
@@ -622,8 +663,9 @@ def metricas(dias: int = 14):
 
 @api.get("/alertas")
 def alertas(abertos: bool = True):
-    linhas = db.consultar("SELECT al.*, a.nome AS aparelho_nome FROM alertas al LEFT JOIN aparelhos a ON a.id = al.aparelho_id "
-                          + ("WHERE NOT al.resolvido " if abertos else "") + "ORDER BY al.id DESC LIMIT 50")
+    f, pp = _escopo("a.projeto_id")
+    linhas = db.consultar("SELECT al.*, a.nome AS aparelho_nome FROM alertas al LEFT JOIN aparelhos a ON a.id = al.aparelho_id WHERE true"
+                          + (" AND NOT al.resolvido" if abertos else "") + f + " ORDER BY al.id DESC LIMIT 50", pp)
     for l in linhas:
         l["criado_em"] = l["criado_em"].timestamp()
     return linhas
@@ -645,20 +687,23 @@ class ProjetoIn(BaseModel):
 
 @api.get("/projetos")
 def listar_projetos():
-    return db.consultar("""
+    from .. import acesso
+    f, pp = acesso.filtro_sql("p.id")
+    return db.consultar(f"""
         SELECT p.*,
           (SELECT COUNT(*) FROM aparelhos a WHERE a.projeto_id = p.id) AS aparelhos,
           (SELECT COUNT(*) FROM aparelhos a WHERE a.projeto_id = p.id AND a.ligado = 1) AS ligados,
           (SELECT COUNT(*) FROM hubs h WHERE h.projeto_id = p.id) AS transmissores,
           (SELECT COUNT(*) FROM hubs h WHERE h.projeto_id = p.id AND h.online = 1) AS transmissores_online,
           (SELECT COUNT(*) FROM cenas c WHERE c.projeto_id = p.id) AS cenas
-        FROM projetos p ORDER BY p.nome""")
+        FROM projetos p WHERE true{f} ORDER BY p.nome""", pp)
 
 
 @api.post("/projetos")
 def criar_projeto(d: ProjetoIn):
     novo = db.executar("INSERT INTO projetos (nome, descricao, endereco, cor, criado_em) VALUES (?,?,?,?,?)",
                        (d.nome.strip(), d.descricao.strip(), d.endereco.strip(), d.cor, db.agora()))
+    _dar_acesso_projeto(novo)
     db.registrar("painel", f"Projeto criado: {d.nome}")
     return {"id": novo}
 
@@ -710,6 +755,8 @@ def listar_cenas(projeto_id: int | None = None):
 
 @api.post("/cenas")
 def criar_cena(d: CenaIn):
+    _exigir_projeto(d.projeto_id)
+    _exigir_aparelhos({a.aparelho_id for a in d.acoes})
     novo = db.executar("INSERT INTO cenas (nome, projeto_id, icone, acoes, criado_em) VALUES (?,?,?,CAST(? AS jsonb),?)",
                        (d.nome.strip(), d.projeto_id, d.icone, json.dumps([a.model_dump() for a in d.acoes]), db.agora()))
     db.registrar("painel", f"Cena criada: {d.nome}")
@@ -718,6 +765,8 @@ def criar_cena(d: CenaIn):
 
 @api.put("/cenas/{cid}")
 def editar_cena(cid: int, d: CenaIn):
+    _exigir_projeto(d.projeto_id)
+    _exigir_aparelhos({a.aparelho_id for a in d.acoes})
     db.executar("UPDATE cenas SET nome=?, projeto_id=?, icone=?, acoes=CAST(? AS jsonb) WHERE id=?",
                 (d.nome.strip(), d.projeto_id, d.icone, json.dumps([a.model_dump() for a in d.acoes]), cid))
     return {"ok": True}
@@ -775,8 +824,8 @@ def clima_externo(request: Request, projeto_id: int | None = None):
 def relatorios(dias: int = 30, projeto_id: int | None = None):
     dias = max(1, min(dias, 90))
     desde = db.agora() - dias * 86400
-    filtro_ap = " AND a.projeto_id = ?" if projeto_id else ""
-    p = (desde, projeto_id) if projeto_id else (desde,)
+    filtro_ap = " AND a.projeto_id = ?" if projeto_id else _escopo("a.projeto_id")[0]
+    p = (desde, projeto_id) if projeto_id else (desde, *_escopo("a.projeto_id")[1])
     por_aparelho = db.consultar(f"""
         SELECT a.id, a.nome, a.comodo, count(t.id) AS comandos,
                count(t.id) FILTER (WHERE t.ok = 0) AS falhas,
@@ -961,13 +1010,36 @@ def _validar_auto(d: AutomacaoIn):
             json.dumps([a.model_dump(exclude_none=True) for a in d.acoes]))
 
 
-@api.get("/automacoes")
+def _ids_aparelhos_permitidos():
+    from .. import acesso
+    if acesso.projetos_permitidos() is None:
+        return None
+    f, pp = acesso.filtro_sql("projeto_id")
+    return {a["id"] for a in db.consultar(f"SELECT id FROM aparelhos WHERE true{f}", pp)}
+
+
+def _aparelhos_da_automacao(a) -> set:
+    ids = set()
+    for parte in (a.get("gatilho") or {}, *(a.get("acoes") or [])):
+        if isinstance(parte, dict) and parte.get("aparelho_id"):
+            ids.add(int(parte["aparelho_id"]))
+    return ids
+
+
 def listar_automacoes():
-    return db.consultar("SELECT * FROM automacoes ORDER BY nome")
+    lista = db.consultar("SELECT * FROM automacoes ORDER BY nome")
+    permitidos = _ids_aparelhos_permitidos()
+    if permitidos is None:
+        return lista
+    return [a for a in lista if _aparelhos_da_automacao(a) and _aparelhos_da_automacao(a) <= permitidos]
+
+
+api.get("/automacoes")(listar_automacoes)
 
 
 @api.post("/automacoes")
 def criar_automacao(d: AutomacaoIn):
+    _exigir_aparelhos(_aparelhos_da_automacao(d.model_dump()))
     g, c, a = _validar_auto(d)
     novo = db.executar("INSERT INTO automacoes (nome, ativo, gatilho, condicoes, acoes, criado_em) "
                        "VALUES (?, ?, CAST(? AS jsonb), CAST(? AS jsonb), CAST(? AS jsonb), ?)",
@@ -978,6 +1050,11 @@ def criar_automacao(d: AutomacaoIn):
 
 @api.put("/automacoes/{aid}")
 def editar_automacao(aid: int, d: AutomacaoIn):
+    _exigir_aparelhos(_aparelhos_da_automacao(d.model_dump()))
+    if (perm := _ids_aparelhos_permitidos()) is not None:
+        atual_auto = db.um("SELECT * FROM automacoes WHERE id = ?", (aid,))
+        if atual_auto and not _aparelhos_da_automacao(atual_auto) <= perm:
+            raise HTTPException(403, "Você não tem acesso a essa automação.")
     g, c, a = _validar_auto(d)
     db.executar("UPDATE automacoes SET nome=?, ativo=?, gatilho=CAST(? AS jsonb), condicoes=CAST(? AS jsonb), acoes=CAST(? AS jsonb) WHERE id=?",
                 (d.nome.strip(), int(d.ativo), g, c, a, aid))
@@ -1015,7 +1092,8 @@ def criar_temporizador(aid: int, d: TemporizadorIn):
 
 @api.get("/temporizadores")
 def listar_temporizadores():
-    return db.consultar("SELECT t.*, a.nome AS aparelho_nome FROM temporizadores t JOIN aparelhos a ON a.id = t.aparelho_id ORDER BY t.executar_em")
+    f, pp = _escopo("a.projeto_id")
+    return db.consultar(f"SELECT t.*, a.nome AS aparelho_nome FROM temporizadores t JOIN aparelhos a ON a.id = t.aparelho_id WHERE true{f} ORDER BY t.executar_em", pp)
 
 
 @api.delete("/aparelhos/{aid}/temporizador")
@@ -1095,10 +1173,31 @@ def reparar_hubs():
 @api.get("/notificacoes")
 def listar_notificacoes(filtro: str = "todas"):
     from .. import notificacoes
+    from .. import acesso
     r = notificacoes.listar(filtro)
-    ligados = db.um("SELECT count(*) FILTER (WHERE ligado = 1) AS ligados, count(*) AS total FROM aparelhos")
-    hubs = db.um("SELECT count(*) FILTER (WHERE online = 1) AS online, count(*) AS total FROM hubs")
-    msgs = db.um("SELECT count(*) AS n FROM site_mensagens WHERE NOT lida AND NOT arquivada")
+    restrito = acesso.projetos_permitidos() is not None
+    if restrito or not acesso.pode("configuracoes.gerenciar"):
+        # só avisos dos aparelhos que o usuário vê; segurança e sistema só para quem gerencia isso
+        permitidos = _ids_aparelhos_permitidos()
+        def visivel(n):
+            m = re.search(r"/aparelhos/(\d+)", n.get("link") or "")
+            if m:
+                return permitidos is None or int(m.group(1)) in permitidos
+            if n["tipo"] == "seguranca":
+                return acesso.pode("seguranca.gerenciar")
+            if (n.get("chave") or "").startswith("site-"):
+                return acesso.pode("mensagens.ver")
+            return acesso.pode("configuracoes.gerenciar") or n["tipo"] in ("transmissor", "agente")
+        r["itens"] = [n for n in r["itens"] if visivel(n)]
+        nao_lidas = sum(1 for n in r["itens"] if not n["lida"])
+        r["contagem"] = {**r["contagem"], "todas": len(r["itens"]), "nao_lidas": nao_lidas,
+                         "importantes": sum(1 for n in r["itens"] if n["gravidade"] == "alta" and not n["resolvida"]),
+                         "seguranca": sum(1 for n in r["itens"] if n["tipo"] == "seguranca")}
+        r["total"] = nao_lidas
+    fa, pa = _escopo("projeto_id")
+    ligados = db.um(f"SELECT count(*) FILTER (WHERE ligado = 1) AS ligados, count(*) AS total FROM aparelhos WHERE true{fa}", pa)
+    hubs = db.um(f"SELECT count(*) FILTER (WHERE online = 1) AS online, count(*) AS total FROM hubs WHERE true{fa}", pa)
+    msgs = db.um("SELECT count(*) AS n FROM site_mensagens WHERE NOT lida AND NOT arquivada") if acesso.pode("mensagens.ver") else {"n": 0}
     r["status"] = {"agente_online": transmissor.agente_online(), "ligados": ligados["ligados"], "aparelhos": ligados["total"],
                    "hubs_online": hubs["online"], "hubs": hubs["total"], "mensagens_nao_lidas": msgs["n"]}
     return r
@@ -1355,9 +1454,12 @@ def entrar(d: EntrarIn, request: Request):
         time.sleep(0.4)  # atrasa força bruta
         raise HTTPException(401, "E-mail ou senha incorretos." + (f" Restam {restantes} tentativa(s)." if restantes <= 3 else ""))
     usuario = dados.get("user") or {}
-    if (usuario.get("app_metadata") or {}).get("role") != "admin":
+    from .. import acesso
+    try:
+        u = acesso.carregar(usuario)
+    except HTTPException as e:
         firewall.registrar(ip, "login_negado", "/api/auth/entrar", marca, pais, agente)
-        raise HTTPException(403, "Esta conta não tem acesso de administrador.")
+        raise e
     conhecido = firewall.falhas_recentes(ip, ("login_ok",), 30 * 1440) > 0
     if c.get("registrar_logins_ok", True):
         firewall.registrar(ip, "login_ok", "/api/auth/entrar", marca, pais, agente)
@@ -1370,7 +1472,10 @@ def entrar(d: EntrarIn, request: Request):
                                f"IP {ip}{' · ' + local if local else ''}. Se não foi você, troque a senha e bloqueie o IP.", "/seguranca",
                                {"rotulo": "Ver segurança", "tipo": "link", "para": "/seguranca"})
     db.registrar("sistema", "Login do administrador", detalhe=f"IP {ip}{' · ' + pais if pais else ''}")
-    return {k: dados.get(k) for k in ("access_token", "refresh_token", "expires_in", "expires_at", "token_type")}
+    from ..seguranca import tem_totp
+    db.executar("UPDATE usuarios SET ultimo_acesso = ? WHERE id = ?", (db.agora(), u["id"]))
+    return {**{k: dados.get(k) for k in ("access_token", "refresh_token", "expires_in", "expires_at", "token_type")},
+            "precisa_2fa": tem_totp(usuario)}
 
 
 # ---------------- painel de segurança (Configurações → Segurança) ----------------

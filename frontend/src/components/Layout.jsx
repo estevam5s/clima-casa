@@ -18,7 +18,7 @@ export const GRUPOS = [
   { titulo: 'Visão geral', itens: [
     { para: '/', rotulo: 'Painel', icone: Gauge, fim: true },
     { para: '/projetos', rotulo: 'Projetos', icone: FolderKanban },
-    { para: '/relatorios', rotulo: 'Relatórios', icone: BarChart3 },
+    { para: '/relatorios', rotulo: 'Relatórios', icone: BarChart3, perm: 'relatorios.ver' },
   ] },
   { titulo: 'Controle', itens: [
     { para: '/aparelhos', rotulo: 'Aparelhos', icone: AirVent },
@@ -28,15 +28,15 @@ export const GRUPOS = [
     { para: '/transmissores', rotulo: 'Transmissores IR', icone: Radio },
   ] },
   { titulo: 'Integrações', itens: [
-    { para: '/integracoes', rotulo: 'Alexa e Google', icone: Plug },
+    { para: '/integracoes', rotulo: 'Alexa e Google', icone: Plug, perm: 'integracoes.gerenciar' },
     { para: '/comandos-alexa', rotulo: 'Comandos de voz', icone: MessageSquareQuote },
-    { para: '/alexa', rotulo: 'Skill própria', icone: Mic },
-    { para: '/supabase', rotulo: 'Supabase', icone: Database },
+    { para: '/alexa', rotulo: 'Skill própria', icone: Mic, perm: 'integracoes.gerenciar' },
+    { para: '/supabase', rotulo: 'Supabase', icone: Database, perm: 'configuracoes.gerenciar' },
   ] },
   { titulo: 'Sistema', itens: [
-    { para: '/atividade', rotulo: 'Atividade', icone: Activity },
-    { para: '/seguranca', rotulo: 'Segurança', icone: ShieldCheck },
-    { para: '/mensagens', rotulo: 'Mensagens do site', icone: Inbox, contador: 'mensagens_nao_lidas' },
+    { para: '/atividade', rotulo: 'Atividade', icone: Activity, perm: 'atividade.ver' },
+    { para: '/seguranca', rotulo: 'Segurança', icone: ShieldCheck, perm: 'seguranca.gerenciar' },
+    { para: '/mensagens', rotulo: 'Mensagens do site', icone: Inbox, contador: 'mensagens_nao_lidas', perm: 'mensagens.ver' },
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
   ] },
@@ -65,7 +65,9 @@ function Marca({ aberta }) {
 // Menu com os rótulos e itens ocultos do white label
 function useGrupos() {
   const { marca } = useMarca()
-  return GRUPOS.map((g) => ({ ...g, itens: g.itens.filter((i) => !marca.menu_ocultos.includes(i.para)).map((i) => ({ ...i, rotulo: marca.menu_rotulos[i.para] || i.rotulo })) }))
+  const { sessao } = useProjeto()
+  const pode = (perm) => !perm || !sessao || sessao.permissoes?.includes(perm)
+  return GRUPOS.map((g) => ({ ...g, itens: g.itens.filter((i) => !marca.menu_ocultos.includes(i.para) && pode(i.perm)).map((i) => ({ ...i, rotulo: marca.menu_rotulos[i.para] || i.rotulo })) }))
     .filter((g) => g.itens.length)
 }
 

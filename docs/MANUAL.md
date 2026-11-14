@@ -318,6 +318,27 @@ em PDF, Word, Excel, CSV, HTML, XML, JSON ou Markdown, com recomendações. A lo
 **Sistema → Baixar apps** reconhece o seu aparelho e sugere o arquivo certo. Cada app tem "Como instalar" e o
 código SHA-256 para conferir que o arquivo é o original. No celular Android, leia o QR Code.
 
+## 8.12 Usuários, níveis de acesso e permissões
+
+Em **Configurações → Usuários** (dono, administradores e subadministradores):
+- **Novo usuário**: nome, e-mail, cargo e o **nível**: Administrador, Subadministrador, Operador, Visualizador ou
+  Personalizado. Cada nível já marca as permissões; dá para ajustar uma a uma.
+- **Dados de ar-condicionado**: *Todos os projetos* (usa os mesmos ares), *Escolher projetos* ou *Começar do zero*
+  (cria um projeto vazio só para a pessoa).
+- **Primeiro acesso**: senha forte gerada (aparece uma vez para você passar adiante), senha definida por você ou
+  convite por e-mail. Por padrão a pessoa troca a senha no primeiro login.
+- No menu **⋯** de cada usuário: editar acesso, gerar senha nova, remover o autenticador (perdeu o celular) e apagar.
+- As permissões valem no servidor: quem não tem acesso não consegue nem pela API. Ninguém dá uma permissão que não tem.
+
+## 8.13 Verificação em duas etapas e biometria
+
+Em **Configurações → Segurança**, cada usuário cuida da própria conta:
+- **Google Authenticator**: *Ativar* → leia o QR Code no app → digite o código de 6 dígitos → pronto. Daí em diante
+  todo login com senha pede o código. **Trocar de celular** gera um QR novo e só remove o antigo depois de confirmar.
+  **Desativar** pede um código atual.
+- **Biometria**: *Cadastrar aparelho* usa o Face ID / Touch ID / digital / Windows Hello do aparelho. Na tela de login,
+  **Entrar com biometria** entra sem senha (e já vale como segunda etapa). Dá para renomear e remover aparelhos.
+
 # 9. Vários ares, vários transmissores
 
 - Cadastre cada transmissor no Smart Life (capítulo 4) e use **Transmissores → Importar todos**.

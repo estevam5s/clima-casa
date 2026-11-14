@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Eye, EyeOff, LoaderCircle, MailCheck, Moon, Sun } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Fingerprint, ShieldCheck, Eye, EyeOff, LoaderCircle, MailCheck, Moon, Sun } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { DOWNLOADS, sistemaAtual } from '../apps'
 import IconeMarca from '../components/IconeMarca'
 import { siteComSessao } from '../site'
+import { biometriaDisponivel, entrarComBiometria } from '../webauthn'
 import Fumaca from '../components/Fumaca'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
@@ -33,7 +34,12 @@ export default function Login() {
   const [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
   const navegar = useNavigate()
-  const destino = useLocation().state?.de || '/'
+  const estadoNav = useLocation().state
+  const destino = estadoNav?.de || '/'
+  const veio2fa = estadoNav?.etapa === '2fa'
+  const [codigo, setCodigo] = useState('')
+  const [temBio, setTemBio] = useState(false)
+  useEffect(() => { setTemBio(biometriaDisponivel()) }, [])
   const calmo = useReducedMotion()
   const { escuro, setEscolha } = useTema()
   const { marca } = useMarca()
@@ -44,10 +50,10 @@ export default function Login() {
   const sessaoGuardada = (() => {
     try { const s = JSON.parse(localStorage.getItem('clima-casa-auth') || 'null'); return !!(s?.access_token && (s.expires_at || 0) * 1000 > Date.now() + 5000) } catch { return false }
   })()
-  useEffect(() => { if (sessaoGuardada) navegar(destino, { replace: true }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (veio2fa) { setModo('2fa'); setPronto(true) } else if (sessaoGuardada) navegar(destino, { replace: true }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (sessaoGuardada) return
+    if (sessaoGuardada || veio2fa) return
     supabase().then(async (sb) => {
       const { data } = await sb.auth.getSession()
       if (data.session) {
@@ -56,6 +62,36 @@ export default function Login() {
       setPronto(true)
     }).catch((e) => { setErro(e.message); setPronto(true) })
   }, [navegar, destino])
+
+  const confirmar2fa = async (e) => {
+    e.preventDefault()
+    if (ocupado) return
+    setErro(''); setOcupado(true)
+    try {
+      const sb = await supabase()
+      const { data, error } = await sb.auth.mfa.listFactors()
+      if (error) throw new Error(error.message)
+      const fator = (data?.totp || []).find((f) => f.status === 'verified')
+      if (!fator) throw new Error('Nenhum autenticador cadastrado nesta conta.')
+      const { error: errV } = await sb.auth.mfa.challengeAndVerify({ factorId: fator.id, code: codigo.replace(/\D/g, '') })
+      if (errV) throw new Error(/invalid|expired/i.test(errV.message) ? 'Código errado ou vencido. Confira a hora do celular e tente o código novo.' : errV.message)
+      await api.get('/api/sessao')
+      navegar(destino, { replace: true })
+    } catch (err) { setErro(err.message); setCodigo(''); setOcupado(false) }
+  }
+  const sairDoFluxo = async () => { await (await supabase()).auth.signOut().catch(() => {}); try { localStorage.removeItem('clima-casa-auth') } catch { /* */ } setModo('entrar'); setErro(''); setCodigo('') }
+  const entrarBio = async () => {
+    if (ocupado) return
+    setErro(''); setOcupado(true)
+    try {
+      const sb = await supabase()
+      const sessao = await entrarComBiometria()
+      const { error } = await sb.auth.setSession({ access_token: sessao.access_token, refresh_token: sessao.refresh_token })
+      if (error) throw new Error(error.message)
+      await api.get('/api/sessao')
+      navegar(destino, { replace: true })
+    } catch (err) { setErro(err.message); setOcupado(false) }
+  }
 
   const sobe = (i) => ({
     initial: calmo ? { opacity: 0 } : { opacity: 0, y: 10, filter: 'blur(10px)' },
@@ -73,8 +109,9 @@ export default function Login() {
       const sessao = await api.post('/api/auth/entrar', { email: email.trim(), senha })
       const { error } = await sb.auth.setSession({ access_token: sessao.access_token, refresh_token: sessao.refresh_token })
       if (error) throw new Error(ERROS[error.message] || error.message)
-      try { await api.get('/api/sessao') } catch (err) { await sb.auth.signOut(); throw err }
       try { lembrar ? localStorage.setItem('clima-email', email.trim()) : localStorage.removeItem('clima-email') } catch { /* sem storage */ }
+      if (sessao.precisa_2fa) { setModo('2fa'); setOcupado(false); return }   // senha certa: falta o Google Authenticator
+      try { await api.get('/api/sessao') } catch (err) { await sb.auth.signOut(); throw err }
       navegar(destino, { replace: true })
     } catch (err) {
       setErro(err.message); setOcupado(false)
@@ -94,7 +131,7 @@ export default function Login() {
   }
 
   const meu = sistemaAtual()
-  if (sessaoGuardada) return null
+  if (sessaoGuardada && !veio2fa) return null
   return (
     <div style={TEMAS[tema]} className="relative grid min-h-dvh w-full grid-cols-1 gap-3 overflow-x-clip bg-[var(--bg)] p-3 text-[var(--ink)] transition-colors duration-700 lg:grid-cols-[1.08fr_1fr]">
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 opacity-40" style={{ backgroundImage: GRAO, mixBlendMode: 'var(--grain-blend)' }} />
@@ -174,7 +211,32 @@ export default function Login() {
                       className="group relative flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--btn)] text-[15px] font-medium text-[var(--btn-ink)] transition-[transform,box-shadow] duration-300 hover:shadow-[0_14px_30px_-12px_var(--accent)] active:scale-[0.985] disabled:opacity-80">
                       {ocupado ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" /> : <>Entrar <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" /></>}
                     </button>
+                    {temBio && (
+                      <button type="button" onClick={entrarBio} disabled={ocupado}
+                        className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-[var(--line)] bg-[var(--field)] text-[15px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60">
+                        <Fingerprint className="h-[18px] w-[18px]" /> Entrar com biometria
+                      </button>
+                    )}
                   </motion.div>
+                </form>
+              </motion.div>
+            )}
+
+            {modo === '2fa' && (
+              <motion.div key="2fa" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
+                <ShieldCheck className="h-10 w-10 text-[var(--accent)]" strokeWidth={1.5} />
+                <h1 className="mt-4 text-[30px] font-semibold leading-none tracking-[-0.04em]">Verificação em duas etapas</h1>
+                <p className="mt-3 text-[15px] text-[var(--muted)]">Abra o Google Authenticator e digite o código de 6 dígitos do Clima Escritório.</p>
+                <form onSubmit={confirmar2fa} className="mt-8 space-y-4">
+                  <input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} autoFocus required value={codigo}
+                    onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setCodigo(v) }}
+                    aria-label="Código de 6 dígitos" placeholder="000000"
+                    className={`${campo} text-center font-mono text-[28px] tracking-[0.5em]`} />
+                  {erro && <p role="alert" className="rounded-[12px] border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-600 dark:text-red-400">{erro}</p>}
+                  <button type="submit" disabled={ocupado || codigo.length !== 6} className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--btn)] text-[15px] font-medium text-[var(--btn-ink)] active:scale-[0.985] disabled:opacity-60">
+                    {ocupado ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" /> : 'Confirmar'}
+                  </button>
+                  <button type="button" onClick={sairDoFluxo} className="w-full text-center text-[13px] text-[var(--muted)] hover:text-[var(--ink)]">Entrar com outra conta</button>
                 </form>
               </motion.div>
             )}
