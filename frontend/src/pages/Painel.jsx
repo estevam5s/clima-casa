@@ -1,41 +1,19 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { animate, motion, useMotionValue, useTransform } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Activity, AirVent, CalendarClock, ChevronRight, Minus, Plus, Power, Radio, Sparkles } from 'lucide-react'
+import { AirVent, ChevronRight, Minus, Plus, Power, Sparkles } from 'lucide-react'
 import { MODOS, VENTILACAO, api, haQuanto, rotuloOrigem } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
-import { Aviso, Botao, Carregando, Ponto, Selo, useToast } from '../components/ui'
+import { Aviso, Botao, Carregando, FaixaMetricas, Ponto, Selo, useToast } from '../components/ui'
 
 const Cena3D = lazy(() => import('../components/Cena3D'))
 const entrar = { hidden: { opacity: 0, y: 10 }, show: (i = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.05, duration: 0.35, ease: [0.2, 0.7, 0.2, 1] } }) }
 
-function NumeroAnimado({ valor }) {
-  const mv = useMotionValue(0)
-  const texto = useTransform(mv, (v) => Math.round(v).toLocaleString('pt-BR'))
-  useEffect(() => { const c = animate(mv, Number(valor) || 0, { duration: 0.9, ease: 'easeOut' }); return c.stop }, [valor, mv])
-  return <motion.span>{texto}</motion.span>
-}
-
-function Indicador({ i, rotulo, valor, sufixo, dica, icone: I, tom }) {
-  return (
-    <motion.div custom={i} variants={entrar} initial="hidden" animate="show" className="cartao p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{rotulo}</p>
-        <I className="h-5 w-5 text-muted-foreground" strokeWidth={1.8} />
-      </div>
-      <p className="mt-3 text-[28px] font-semibold leading-none tabular">
-        <NumeroAnimado valor={valor} />{sufixo && <span className="text-lg text-muted-foreground">{sufixo}</span>}
-      </p>
-      <p className={`mt-2 text-xs ${tom === 'ruim' ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{dica}</p>
-    </motion.div>
-  )
-}
-
 function DicaGrafico({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl">
+    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"> {/* marca: dica do gráfico flutua */}
       <p className="mb-1 font-medium">{label}</p>
       {payload.map((p) => (
         <p key={p.dataKey} className="flex items-center gap-2 text-muted-foreground">
@@ -73,7 +51,7 @@ function Destaque({ aparelhos, aoMudar }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <select value={ar.id} onChange={(e) => setId(Number(e.target.value))} aria-label="Escolher aparelho"
-                className="-ml-1 w-full truncate rounded-md bg-transparent px-1 text-base font-semibold hover:bg-muted focus:outline-none">
+                className="-ml-1 w-full truncate rounded-md bg-transparent px-1 text-base font-semibold hover:bg-muted">
                 {aparelhos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
               </select>
               <p className="truncate text-xs text-muted-foreground">{[ar.projeto_nome, ar.comodo].filter(Boolean).join(' · ') || 'Sem cômodo'}</p>
@@ -146,12 +124,14 @@ export default function Painel() {
         </div>
       </motion.div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Indicador i={0} rotulo="Aparelhos" valor={totais.aparelhos} dica={`${totais.ligados} ligado${totais.ligados === 1 ? '' : 's'} agora`} icone={AirVent} />
-        <Indicador i={1} rotulo="Transmissores online" valor={totais.hubs_online} sufixo={` / ${totais.hubs}`} dica="SRW-004 na rede de casa" icone={Radio} />
-        <Indicador i={2} rotulo="Comandos em 24 h" valor={totais.comandos_24h} dica={totais.falhas_24h ? `${totais.falhas_24h} com falha` : 'nenhuma falha'} tom={totais.falhas_24h ? 'ruim' : ''} icone={Activity} />
-        <Indicador i={3} rotulo="Agendamentos ativos" valor={totais.agendamentos} dica={`${dados.projetos} projeto${dados.projetos === 1 ? '' : 's'} no total`} icone={CalendarClock} />
-      </div>
+      <motion.div variants={entrar} initial="hidden" animate="show" custom={1}>
+        <FaixaMetricas itens={[
+          { rotulo: 'Aparelhos ligados agora', valor: totais.ligados, sufixo: ` de ${totais.aparelhos}`, dica: totais.aparelhos ? `${Math.round((totais.ligados / totais.aparelhos) * 100)}% da casa em uso` : 'nenhum aparelho cadastrado' },
+          { rotulo: 'Transmissores online', valor: totais.hubs_online, sufixo: ` / ${totais.hubs}`, dica: totais.hubs_online === totais.hubs ? 'todos respondendo' : 'algum transmissor fora da rede', tom: totais.hubs_online === totais.hubs ? 'bom' : 'ruim' },
+          { rotulo: 'Comandos nas últimas 24 h', valor: totais.comandos_24h, dica: totais.falhas_24h ? `${totais.falhas_24h} com falha` : 'nenhuma falha', tom: totais.falhas_24h ? 'ruim' : '' },
+          { rotulo: 'Agendamentos ativos', valor: totais.agendamentos, dica: `${dados.projetos} projeto${dados.projetos === 1 ? '' : 's'} no total` },
+        ]} />
+      </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {aparelhos.length > 0 ? <Destaque aparelhos={aparelhos} aoMudar={atualizar} /> : (
@@ -168,7 +148,6 @@ export default function Painel() {
             {status.map((s) => (
               <li key={s.nome} className="flex items-center gap-3">
                 <span className="relative flex h-2.5 w-2.5">
-                  {s.ok && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
                   <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${s.ok ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -194,18 +173,12 @@ export default function Painel() {
           {serie.length === 0 ? <p className="pt-20 text-center text-sm text-muted-foreground">O gráfico aparece depois da primeira hora de uso.</p> : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={serie} margin={{ left: 0, right: 8, top: 8 }}>
-                <defs>
-                  <linearGradient id="gradComandos" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="dia" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} stroke="hsl(var(--muted-foreground))" />
                 <YAxis tickLine={false} axisLine={false} width={30} fontSize={11} allowDecimals={false} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip content={<DicaGrafico />} />
                 <Area dataKey="falhas" name="Falhas" type="monotone" stroke="#dc2626" strokeDasharray="4 4" fill="none" strokeWidth={2} />
-                <Area dataKey="comandos" name="Comandos" type="monotone" stroke="hsl(var(--primary))" fill="url(#gradComandos)" strokeWidth={2} />
+                <Area dataKey="comandos" name="Comandos" type="monotone" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.1)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           )}

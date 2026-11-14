@@ -69,6 +69,25 @@ function ContaSmartLife({ conta, aoMudar }) {
   )
 }
 
+function Agente() {
+  const [info, setInfo] = useState(null)
+  useEffect(() => { api.get('/api/painel').then((d) => setInfo(d.agente)).catch(() => {}) }, [])
+  return (
+    <section id="agente" className="cartao scroll-mt-24 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="titulo-secao">Agente do Mac</h2>
+        {info && <span className="flex items-center gap-2 text-sm"><Ponto ativo={info.online} /> {info.online ? 'online' : 'offline'}</span>}
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">Programa que roda no Mac da casa: recebe os comandos pela fila do Supabase, dispara o infravermelho, conecta a Alexa (Sinric Pro), roda a agenda e as automações.</p>
+      <div className="mt-4 space-y-2 rounded-lg bg-muted/60 p-3 font-mono text-xs">
+        <p><span className="text-muted-foreground"># instalar ou atualizar</span><br />./instalar-servico.sh</p>
+        <p><span className="text-muted-foreground"># ver se está rodando</span><br />./instalar-servico.sh status</p>
+        <p><span className="text-muted-foreground"># log</span><br />tail -f ~/Library/Logs/ClimaCasa.log</p>
+      </div>
+    </section>
+  )
+}
+
 export default function Configuracoes() {
   const { dados, erro, recarregar, setDados } = useDados(() => api.get('/api/config'))
   const [senha, setSenha] = useState({ atual: '', nova: '', confirma: '' })
@@ -111,15 +130,21 @@ export default function Configuracoes() {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Cabecalho titulo="Configurações" />
+      <Cabecalho titulo="Configurações" descricao="Conta Smart Life, forma de envio, senha, backup e o agente que roda no Mac." />
+      <div className="grid gap-8 lg:grid-cols-[200px_1fr]">
+        <nav className="hidden lg:block"><div className="sticky top-24 space-y-0.5 text-sm">
+          {[['smartlife', 'Conta Smart Life'], ['envio', 'Envio dos comandos'], ['senha', 'Senha'], ['backup', 'Backup'], ['agente', 'Agente do Mac'], ['sobre', 'Sobre o sistema']].map(([id, r]) => (
+            <a key={id} href={`#${id}`} className="block rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">{r}</a>
+          ))}
+        </div></nav>
       <div className="space-y-6">
-        <section className="cartao p-5">
+        <section id="smartlife" className="cartao scroll-mt-24 p-5">
           <h2 className="text-sm font-semibold">Conta Smart Life</h2>
           <p className="mb-4 mt-1 text-sm text-muted-foreground">Traz a Local Key dos transmissores e permite enviar comandos pela nuvem quando você está fora de casa.</p>
           <ContaSmartLife conta={dados.tuya} aoMudar={recarregar} />
         </section>
 
-        <section className="cartao p-5">
+        <section id="envio" className="cartao scroll-mt-24 p-5">
           <h2 className="mb-4 text-sm font-semibold">Como os comandos são enviados</h2>
           <div className="space-y-2">
             {MODOS_ENVIO.map(([k, r, d]) => (
@@ -131,7 +156,7 @@ export default function Configuracoes() {
           </div>
         </section>
 
-        <form onSubmit={trocarSenha} className="cartao space-y-4 p-5">
+        <form onSubmit={trocarSenha} id="senha" className="cartao scroll-mt-24 space-y-4 p-5">
           <h2 className="text-sm font-semibold">Senha do administrador (Supabase Auth)</h2>
           <div className="grid gap-3 sm:grid-cols-3">
             <div><label className="rotulo" htmlFor="sa">Atual</label><input id="sa" type="password" autoComplete="current-password" className="campo" value={senha.atual} onChange={(e) => setSenha({ ...senha, atual: e.target.value })} required /></div>
@@ -142,13 +167,25 @@ export default function Configuracoes() {
           <div className="flex justify-end"><Botao type="submit">Alterar senha</Botao></div>
         </form>
 
-        <section className="cartao flex flex-wrap items-center justify-between gap-3 p-5">
+        <section id="backup" className="cartao scroll-mt-24 flex flex-wrap items-center justify-between gap-3 p-5">
           <div>
             <h2 className="text-sm font-semibold">Backup</h2>
             <p className="text-sm text-muted-foreground">Exporta agora aparelhos, botões gravados e agendamentos em JSON. Os backups diários automáticos ficam na tela Supabase.</p>
           </div>
           <Botao variante="secundario" icone={Download} onClick={baixarBackup}>Baixar backup</Botao>
         </section>
+        <Agente />
+        <section id="sobre" className="cartao scroll-mt-24 p-5">
+          <h2 className="titulo-secao">Sobre o sistema</h2>
+          <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            {[['Painel', 'clima-casa-lac.vercel.app', 'https://clima-casa-lac.vercel.app'], ['Código', 'github.com/estevam5s/clima-casa', 'https://github.com/estevam5s/clima-casa'],
+              ['Banco e login', 'Supabase · projeto Arcondicionado', 'https://supabase.com/dashboard/project/elyqjdcsbfdvlsxomxen'], ['App celular', 'expo.dev · clima-casa', 'https://expo.dev/accounts/estevam5s/projects/clima-casa'],
+              ['Alexa e Google', 'portal.sinric.pro', 'https://portal.sinric.pro'], ['Downloads', 'Baixar apps', '/apps']].map(([r, t, u]) => (
+              <div key={r}><dt className="text-xs text-muted-foreground">{r}</dt><dd><a href={u} target={u.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="text-primary hover:underline">{t}</a></dd></div>
+            ))}
+          </dl>
+        </section>
+      </div>
       </div>
     </div>
   )

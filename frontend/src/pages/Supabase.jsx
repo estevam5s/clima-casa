@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { BellRing, Check, Download, Play } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../api'
-import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Selo, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Interruptor, Selo, useDados, useToast } from '../components/ui'
+import { motion } from 'framer-motion'
 
 const AGENDA_LEGIVEL = {
 '*/5 * * * *': 'a cada 5 min', '*/15 * * * *': 'a cada 15 min', '*/30 * * * *': 'a cada 30 min',
@@ -65,30 +66,14 @@ export default function Supabase() {
     <>
       <Cabecalho titulo="Supabase" descricao={`Banco de dados, rotinas automáticas (pg_cron) e backups do projeto ${resumo.projeto}.`} />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="cartao px-4 py-3.5">
-          <p className="text-xs text-muted-foreground">Uso do banco</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{resumo.saude ? `${resumo.saude.tamanho_banco_mb} MB` : '—'}</p>
-          <div className="mt-2 h-1.5 rounded-full bg-muted">
-            <div className={`h-1.5 rounded-full ${uso > 80 ? 'bg-red-500' : 'bg-marca-500'}`} style={{ width: `${Math.min(100, uso)}%` }} />
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">de {resumo.limite_mb} MB do plano gratuito</p>
-        </div>
-        <div className="cartao px-4 py-3.5">
-          <p className="text-xs text-muted-foreground">Rotinas ativas</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{rotinas.filter((r) => r.active).length}/{rotinas.length}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{rotinas.reduce((s, r) => s + Number(r.falhas_7d || 0), 0)} falhas em 7 dias</p>
-        </div>
-        <div className="cartao px-4 py-3.5">
-          <p className="text-xs text-muted-foreground">Backups guardados</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{resumo.backups.length}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{resumo.backups[0] ? `último ${haQuanto(resumo.backups[0].criado_em)}` : 'nenhum ainda'}</p>
-        </div>
-        <div className="cartao px-4 py-3.5">
-          <p className="text-xs text-muted-foreground">Histórico guardado</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{resumo.saude?.linhas_atividade ?? '—'}</p>
-          <p className="mt-1 text-xs text-muted-foreground">registros de atividade (90 dias)</p>
-        </div>
+      <FaixaMetricas itens={[
+        { rotulo: 'Uso do banco', valor: resumo.saude ? resumo.saude.tamanho_banco_mb : '—', casas: 1, sufixo: ' MB', dica: `${uso.toFixed(1)}% dos ${resumo.limite_mb} MB do plano gratuito`, tom: uso > 80 ? 'ruim' : 'bom' },
+        { rotulo: 'Rotinas ativas', valor: rotinas.filter((r) => r.active).length, sufixo: ` / ${rotinas.length}`, dica: `${rotinas.reduce((t, r) => t + Number(r.falhas_7d || 0), 0)} falhas em 7 dias`, tom: rotinas.some((r) => Number(r.falhas_7d)) ? 'ruim' : '' },
+        { rotulo: 'Backups guardados', valor: resumo.backups.length, dica: resumo.backups[0] ? `último ${haQuanto(resumo.backups[0].criado_em)}` : 'nenhum ainda' },
+        { rotulo: 'Histórico guardado', valor: resumo.saude?.linhas_atividade ?? 0, dica: 'registros de atividade (90 dias)' },
+      ]} />
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" title="Uso do banco">
+        <motion.div className={`h-full rounded-full ${uso > 80 ? 'bg-red-500' : 'bg-primary'}`} initial={{ width: 0 }} animate={{ width: `${Math.min(100, uso)}%` }} transition={{ duration: 0.8 }} />
       </div>
 
       {alertas.length > 0 && (

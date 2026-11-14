@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { CloudDownload, Pencil, Radio, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Carregando, Modal, Ponto, Selo, Vazio, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Ponto, Selo, Vazio, useDados, useToast } from '../components/ui'
+import { motion } from 'framer-motion'
 
 function Importar({ onFechar, aoImportar }) {
   const { dados, erro } = useDados(() => api.get('/api/tuya/aparelhos'))
@@ -141,6 +142,7 @@ function Editar({ hub, onFechar, aoSalvar }) {
 export default function Transmissores() {
   const { filtro } = useProjeto()
   const { dados: hubs, erro, recarregar, setDados } = useDados(() => api.get(comFiltro('/api/hubs', filtro)), [filtro])
+  const { dados: aparelhos } = useDados(() => api.get('/api/aparelhos'))
   const [modal, setModal] = useState(null)
   const [verificando, setVerificando] = useState(false)
   const toast = useToast()
@@ -179,13 +181,23 @@ export default function Transmissores() {
         </>}
       />
 
+      {hubs.length > 0 && (
+        <div className="mb-6">
+          <FaixaMetricas itens={[
+            { rotulo: 'Online agora', valor: hubs.filter((h) => h.online).length, sufixo: ` / ${hubs.length}`, tom: hubs.every((h) => h.online) ? 'bom' : 'ruim', dica: hubs.every((h) => h.online) ? 'todos respondendo na rede' : `${hubs.filter((h) => !h.online).map((h) => h.nome).join(', ')} sem resposta` },
+            { rotulo: 'Aparelhos controlados', valor: hubs.reduce((s, h) => s + h.aparelhos, 0) },
+            { rotulo: 'Com Local Key', valor: hubs.filter((h) => h.tem_chave).length, sufixo: ` / ${hubs.length}` },
+            { rotulo: 'Envio pela nuvem', valor: hubs.filter((h) => h.funcoes_nuvem.length).length, sufixo: ` / ${hubs.length}`, dica: 'reserva quando o Mac está desligado' },
+          ]} />
+        </div>
+      )}
       {hubs.length === 0 ? (
         <Vazio icone={Radio} titulo="Nenhum transmissor"
           texto="Pareie o SRW-004 no app Smart Life (Wi-Fi 2.4 GHz), conecte a conta em Configurações e importe por aqui." />
       ) : (
         <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),340px))]">
           {hubs.map((h) => (
-            <div key={h.id} className="cartao p-4">
+            <motion.div key={h.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="cartao p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 font-medium"><Ponto ativo={h.online} /> {h.nome}</p>
@@ -204,7 +216,18 @@ export default function Transmissores() {
                 <div><dt className="text-xs text-muted-foreground">Aparelhos vinculados</dt><dd>{h.aparelhos}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Envio pela nuvem</dt><dd>{h.funcoes_nuvem.length ? 'Disponível' : 'Importe da conta para ativar'}</dd></div>
               </dl>
-            </div>
+              {aparelhos && aparelhos.filter((a) => a.hub_id === h.id).length > 0 && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Aparelhos neste transmissor</p>
+                  {aparelhos.filter((a) => a.hub_id === h.id).map((a) => (
+                    <a key={a.id} href={`/aparelhos/${a.id}`} className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+                      <span className="truncate">{a.nome}{a.comodo ? <span className="text-muted-foreground"> · {a.comodo}</span> : null}</span>
+                      <span className="text-xs text-muted-foreground tabular">{a.ligado ? `${a.temperatura}°` : 'desligado'}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </motion.div>
           ))}
         </div>
       )}

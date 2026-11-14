@@ -20,7 +20,7 @@ function Caixa({ titulo, sub, children, className = '', i = 0 }) {
 
 function Dica({ active, payload, label, sufixo = '' }) {
   if (!active || !payload?.length) return null
-  return <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"><p className="font-medium">{label}{sufixo}</p>{payload.map((p) => <p key={p.dataKey} className="text-muted-foreground">{p.name}: <span className="font-mono text-foreground">{p.value}</span></p>)}</div>
+  return <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"> {/* marca: dica do gráfico flutua */}<p className="font-medium">{label}{sufixo}</p>{payload.map((p) => <p key={p.dataKey} className="text-muted-foreground">{p.name}: <span className="font-mono text-foreground">{p.value}</span></p>)}</div>
 }
 
 export default function Relatorios() {

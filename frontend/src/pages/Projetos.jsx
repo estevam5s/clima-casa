@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { AirVent, FolderKanban, MapPin, Pencil, Plus, Radio, Sparkles, Trash2 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Carregando, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
 
 const CORES = ['#0f766a', '#2563a8', '#c2410c', '#7c3aed', '#be123c', '#4d7c0f', '#0e7490', '#52525b']
 
@@ -49,6 +49,16 @@ export default function Projetos() {
     <div className="mx-auto w-full max-w-5xl">
       <Cabecalho titulo="Projetos" descricao="Cada projeto é um lugar (casa, escritório, loja) com os próprios transmissores, aparelhos e cenas."
         acoes={<Botao icone={Plus} onClick={() => setModal({})}>Novo projeto</Botao>} />
+      {dados.length > 0 && (
+        <div className="mb-6">
+          <FaixaMetricas itens={[
+            { rotulo: 'Projetos', valor: dados.length, dica: dados.map((p) => p.nome).slice(0, 3).join(', ') },
+            { rotulo: 'Aparelhos ligados', valor: dados.reduce((t, p) => t + p.ligados, 0), sufixo: ` / ${dados.reduce((t, p) => t + p.aparelhos, 0)}` },
+            { rotulo: 'Transmissores online', valor: dados.reduce((t, p) => t + p.transmissores_online, 0), sufixo: ` / ${dados.reduce((t, p) => t + p.transmissores, 0)}` },
+            { rotulo: 'Cenas', valor: dados.reduce((t, p) => t + p.cenas, 0) },
+          ]} />
+        </div>
+      )}
       {dados.length === 0 ? <Vazio icone={FolderKanban} titulo="Nenhum projeto" /> : (
         <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),340px))]">
           {dados.map((p, i) => (

@@ -174,11 +174,11 @@ function Paleta({ aberta, fechar }) {
       {aberta && (
         <motion.div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/40 px-4 pt-[12vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={fechar}>
           <motion.div initial={{ scale: 0.97, y: -8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.97, opacity: 0 }} transition={{ duration: 0.14 }}
-            className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+            className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-2xl" /* marca: paleta flutua */ onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-border px-3">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input ref={ref} value={q} onChange={(e) => { setQ(e.target.value); setSel(0) }} placeholder="Buscar páginas e aparelhos…"
-                className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" aria-label="Buscar"
+                className="h-12 flex-1 bg-transparent text-sm outline-none focus-visible:ring-0 placeholder:text-muted-foreground" aria-label="Buscar" /* marca: o foco aparece na borda da paleta */
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, itens.length - 1)) }
                   if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)) }

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CircleDot, Minus, Plus, Power, Radio, Trash2 } from 'lucide-react'
 import { MODOS, VENTILACAO, api, haQuanto, rotuloOrigem } from '../api'
 import FormAparelho from '../components/FormAparelho'
-import { Aviso, Botao, Carregando, Modal, Ponto, Selo, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Carregando, Dial, FaixaMetricas, Modal, Ponto, Selo, useDados, useToast } from '../components/ui'
 
 const ABAS = [['controle', 'Controle'], ['botoes', 'Botões gravados'], ['ajustes', 'Ajustes']]
 
@@ -225,11 +226,25 @@ export default function Aparelho() {
         </p>
       </div>
 
+      <div className="mb-5">
+        <FaixaMetricas itens={(() => {
+          const semana = ar.atividade.filter((t) => t.quando > Date.now() / 1000 - 7 * 86400)
+          const falhas = semana.filter((t) => !t.ok).length
+          return [
+            { rotulo: ar.ligado ? 'Ligado' : 'Desligado', valor: ar.temperatura, sufixo: '°C', dica: ar.ligado ? `${MODOS[ar.modo]} · desde ${ar.ligado_desde ? new Date(ar.ligado_desde * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}` : `última vez ${haQuanto(ar.atualizado_em)}` },
+            { rotulo: 'Comandos recentes', valor: semana.length, dica: falhas ? `${falhas} com falha` : 'nenhuma falha', tom: falhas ? 'ruim' : '' },
+            { rotulo: 'Botões gravados', valor: ar.codigos.length, dica: cods.has('desligar') ? 'inclui desligar' : 'falta gravar desligar', tom: cods.has('desligar') ? '' : 'ruim' },
+            { rotulo: 'Alexa e Google', valor: ar.sinric_device_id ? 'Ativo' : 'Fora', dica: ar.sinric_device_id ? 'responde por voz' : 'ative em Alexa e Google', tom: ar.sinric_device_id ? 'bom' : '' },
+          ]
+        })()} />
+      </div>
+
       <div className="mb-6 flex gap-1 border-b border-border">
         {ABAS.map(([k, r]) => (
           <button key={k} onClick={() => setParams({ aba: k })}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${aba === k ? 'border-marca-600 text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            className={`relative -mb-px px-3 py-2 text-sm font-medium transition-colors ${aba === k ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
             {r}
+            {aba === k && <motion.span layoutId="aba-aparelho" className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-primary" />}
           </button>
         ))}
       </div>
@@ -256,12 +271,7 @@ export default function Aparelho() {
                 className="flex h-12 w-12 items-center justify-center rounded-full border border-border hover:bg-muted disabled:opacity-30" aria-label="Diminuir">
                 <Minus className="h-5 w-5" />
               </button>
-              <div className="text-center">
-                <p className={`text-6xl font-semibold tabular-nums tracking-tight ${!ar.ligado ? 'text-muted-foreground/40' : ar.modo === 'quente' ? 'text-quente' : 'text-frio dark:text-sky-400'}`}>
-                  {ar.temperatura}<span className="align-top text-2xl">°C</span>
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">Faixa {ar.temp_min}–{ar.temp_max}°C</p>
-              </div>
+              <Dial valor={ar.temperatura} min={ar.temp_min} max={ar.temp_max} ligado={!!ar.ligado} modo={ar.modo} tamanho={210} />
               <button onClick={() => mudar({ ligado: true, temperatura: ar.temperatura + 1 })} disabled={ocupado || semTransmissor || ar.temperatura >= ar.temp_max}
                 className="flex h-12 w-12 items-center justify-center rounded-full border border-border hover:bg-muted disabled:opacity-30" aria-label="Aumentar">
                 <Plus className="h-5 w-5" />

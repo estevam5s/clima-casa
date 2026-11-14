@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { CalendarClock, Pencil, Plus, Trash2 } from 'lucide-react'
 import { DIAS, MODOS, VENTILACAO, api } from '../api'
-import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { motion } from 'framer-motion'
 
 const ATALHOS = [['Todos os dias', [0, 1, 2, 3, 4, 5, 6]], ['Dias úteis', [1, 2, 3, 4, 5]], ['Fim de semana', [0, 6]]]
 
@@ -94,6 +95,53 @@ function Form({ inicial, aparelhos, aoSalvar, onFechar }) {
   )
 }
 
+function proxima(lista) {
+  const agora = new Date()
+  let melhor = null
+  for (const g of lista.filter((x) => x.ativo)) {
+    const [h, m] = g.hora.split(':').map(Number)
+    for (let d = 0; d < 8; d++) {
+      const quando = new Date(agora); quando.setDate(agora.getDate() + d); quando.setHours(h, m, 0, 0)
+      if (quando > agora && g.dias.includes(quando.getDay())) { if (!melhor || quando < melhor.quando) melhor = { quando, g }; break }
+    }
+  }
+  return melhor
+}
+
+function Semana({ lista }) {
+  const hoje = new Date().getDay()
+  const agoraPct = ((new Date().getHours() * 60 + new Date().getMinutes()) / 1440) * 100
+  return (
+    <div className="cartao overflow-x-auto p-4">
+      <div className="min-w-[620px]">
+        <div className="mb-1 ml-12 flex justify-between text-[10px] text-muted-foreground tabular">{['00h', '06h', '12h', '18h', '24h'].map((h) => <span key={h}>{h}</span>)}</div>
+        {DIAS.map((d, i) => (
+          <div key={d} className="flex items-center gap-2 py-1">
+            <span className={`w-10 text-xs ${i === hoje ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>{d}</span>
+            <div className="relative h-7 flex-1 rounded-md bg-muted/60">
+              {i === hoje && <span className="absolute inset-y-0 w-px bg-primary/60" style={{ left: `${agoraPct}%` }} title="agora" />}
+              {lista.filter((g) => g.dias.includes(i)).map((g, n) => {
+                const [h, m] = g.hora.split(':').map(Number)
+                return (
+                  <motion.span key={g.id} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: n * 0.03 + i * 0.02 }}
+                    title={`${g.hora} · ${g.nome} · ${g.aparelho_nome}`}
+                    className={`absolute top-1 h-5 -translate-x-1/2 rounded px-1.5 text-[10px] font-medium leading-5 tabular ${!g.ativo ? 'bg-muted-foreground/20 text-muted-foreground' : g.acao.ligado ? 'bg-primary text-primary-foreground' : 'bg-foreground/80 text-background'}`}
+                    style={{ left: `${((h * 60 + m) / 1440) * 100}%` }}>{g.hora}</motion.span>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+        <div className="ml-12 mt-2 flex gap-4 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Ligar</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-foreground/80" /> Desligar</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground/20" /> Pausado</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Agendamentos() {
   const { dados, erro, recarregar } = useDados(() => Promise.all([api.get('/api/agendamentos'), api.get('/api/aparelhos')]))
   const [modal, setModal] = useState(null)
@@ -115,6 +163,20 @@ export default function Agendamentos() {
     <div className="mx-auto w-full max-w-5xl">
       <Cabecalho titulo="Agenda" descricao="Liga e desliga os aparelhos sozinho nos horários definidos. Precisa do Clima Casa rodando."
         acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Novo agendamento</Botao>} />
+      {lista.length > 0 && (() => {
+        const prox = proxima(lista)
+        return (
+          <div className="mb-6 space-y-4">
+            <FaixaMetricas itens={[
+              { rotulo: 'Próxima execução', valor: prox ? prox.g.hora : '—', dica: prox ? `${prox.g.nome} · ${prox.quando.toLocaleDateString('pt-BR', { weekday: 'long' })}` : 'nenhum ativo' },
+              { rotulo: 'Ativos', valor: lista.filter((g) => g.ativo).length, sufixo: ` / ${lista.length}` },
+              { rotulo: 'Disparos por semana', valor: lista.filter((g) => g.ativo).reduce((s, g) => s + g.dias.length, 0) },
+              { rotulo: 'Aparelhos agendados', valor: new Set(lista.map((g) => g.aparelho_id)).size },
+            ]} />
+            <Semana lista={lista} />
+          </div>
+        )
+      })()}
       {lista.length === 0 ? (
         <Vazio icone={CalendarClock} titulo="Nenhum agendamento"
           texto={aparelhos.length ? 'Exemplo: ligar o ar do quarto às 22h em 23°C e desligar às 6h.' : 'Cadastre um aparelho primeiro.'}

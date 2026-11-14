@@ -143,7 +143,7 @@ export function ToastProvider({ children }) {
       {children}
       <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6 lg:items-end lg:pr-6" aria-live="polite">
         {itens.map((t) => (
-          <div key={t.id} className="pointer-events-auto flex max-w-md items-start gap-2 rounded-lg bg-foreground px-4 py-3 text-sm text-background shadow-lg">
+          <div key={t.id} className="pointer-events-auto flex max-w-md items-start gap-2 rounded-lg bg-foreground px-4 py-3 text-sm text-background shadow-lg"> {/* marca: toast flutua */}
             {t.tipo === 'erro' ? <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400 dark:text-red-600" /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400 dark:text-emerald-600" />}
             <span>{t.texto}</span>
           </div>
@@ -167,4 +167,84 @@ export function useDados(carregar, deps = []) {
   }, deps)
   useEffect(() => { recarregar() }, [recarregar])
   return { dados, erro, recarregar, setDados }
+}
+
+// ---------- componentes de painel (faixa de métricas, mostrador, seção, esqueleto) ----------
+export function NumeroAnimado({ valor, casas = 0 }) {
+  const [v, setV] = useState(0)
+  const alvo = Number(valor) || 0
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setV(alvo); return }
+    let quadro
+    const inicio = performance.now()
+    const de = v
+    const passo = (t) => {
+      const p = Math.min(1, (t - inicio) / 700)
+      setV(de + (alvo - de) * (1 - Math.pow(1 - p, 3)))
+      if (p < 1) quadro = requestAnimationFrame(passo)
+    }
+    quadro = requestAnimationFrame(passo)
+    return () => cancelAnimationFrame(quadro)
+  }, [alvo]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <>{v.toLocaleString('pt-BR', { maximumFractionDigits: casas, minimumFractionDigits: casas })}</>
+}
+
+// Faixa de métricas: um cartão com divisórias; a primeira métrica é a principal.
+export function FaixaMetricas({ itens }) {
+  return (
+    <div /* marca: esta é a faixa de métricas */ className="cartao grid grid-cols-2 divide-border overflow-hidden md:grid-cols-4 md:divide-x [&>*:nth-child(n+3)]:border-t md:[&>*:nth-child(n+3)]:border-t-0 [&>*:nth-child(2)]:border-l md:[&>*:nth-child(2)]:border-l-0">
+      {itens.map((m, i) => (
+        <div key={m.rotulo} className="px-5 py-4">
+          <p className="text-xs font-medium text-muted-foreground">{m.rotulo}</p>
+          <p className={`mt-1.5 font-semibold leading-none tabular ${i === 0 ? 'text-[30px]' : 'text-2xl'}`}>
+            {typeof m.valor === 'number' ? <NumeroAnimado valor={m.valor} casas={m.casas} /> : m.valor}
+            {m.sufixo && <span className="ml-0.5 text-base font-medium text-muted-foreground">{m.sufixo}</span>}
+          </p>
+          {m.dica && <p className={`mt-1.5 text-xs ${m.tom === 'ruim' ? 'text-red-600 dark:text-red-400' : m.tom === 'bom' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>{m.dica}</p>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function Secao({ titulo, contexto, acao, children, className = '' }) {
+  return (
+    <section className={`cartao ${className}`}>
+      <div className="flex items-end justify-between gap-3 border-b border-border px-5 py-3.5">
+        <div className="min-w-0">
+          <h2 className="titulo-secao">{titulo}</h2>
+          {contexto && <p className="text-xs text-muted-foreground">{contexto}</p>}
+        </div>
+        {acao}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  )
+}
+
+export function Esqueleto({ className = '' }) {
+  return <div className={`animate-pulse rounded-md bg-muted ${className}`} />
+}
+
+// Mostrador circular de temperatura (arco de 270°), animado.
+export function Dial({ valor, min, max, ligado, modo, tamanho = 220 }) {
+  const r = 86, c = 2 * Math.PI * r, arco = c * 0.75
+  const p = Math.max(0, Math.min(1, (valor - min) / Math.max(1, max - min)))
+  const cor = !ligado ? 'hsl(var(--muted-foreground) / 0.35)' : modo === 'quente' ? '#c2410c' : modo === 'ventilar' ? 'hsl(var(--muted-foreground))' : '#2563a8'
+  return (
+    <svg viewBox="0 0 200 200" width={tamanho} height={tamanho} role="img" aria-label={`${valor} graus`}>
+      <circle cx="100" cy="100" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="10" strokeLinecap="round"
+        strokeDasharray={`${arco} ${c}`} transform="rotate(135 100 100)" />
+      <circle cx="100" cy="100" r={r} fill="none" stroke={cor} strokeWidth="10" strokeLinecap="round"
+        strokeDasharray={`${arco * p} ${c}`} transform="rotate(135 100 100)"
+        style={{ transition: 'stroke-dasharray 500ms cubic-bezier(.2,.7,.2,1), stroke 300ms' }} />
+      {Array.from({ length: max - min + 1 }, (_, i) => {
+        const ang = (135 + (270 * i) / Math.max(1, max - min)) * Math.PI / 180
+        const x1 = 100 + Math.cos(ang) * 70, y1 = 100 + Math.sin(ang) * 70, x2 = 100 + Math.cos(ang) * 74, y2 = 100 + Math.sin(ang) * 74
+        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="hsl(var(--border))" strokeWidth="1.5" />
+      })}
+      <text x="100" y="104" textAnchor="middle" fontSize="54" fontWeight="600" fill={ligado ? cor : 'hsl(var(--muted-foreground))'} style={{ fontVariantNumeric: 'tabular-nums' }}>{valor}°</text>
+      <text x="100" y="132" textAnchor="middle" fontSize="12" fill="hsl(var(--muted-foreground))">{min}° – {max}°</text>
+    </svg>
+  )
 }

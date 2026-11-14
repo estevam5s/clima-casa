@@ -64,5 +64,6 @@ export function rotuloOrigem(o) {
   if (!o) return ''
   if (o.startsWith('agenda:')) return `Agenda · ${o.slice(7)}`
   if (o.startsWith('cena:')) return `Cena · ${o.slice(5)}`
-  return { painel: 'Painel', alexa: 'Alexa', sistema: 'Sistema', agente: 'Agente do Mac', sinric: 'Sinric Pro' }[o] || o
+  if (o.startsWith('automacao:')) return `Automação · ${o.slice(10)}`
+  return { painel: 'Painel', alexa: 'Alexa', sistema: 'Sistema', agente: 'Agente do Mac', sinric: 'Alexa/Google', automacao: 'Automação' }[o] || o
 }
