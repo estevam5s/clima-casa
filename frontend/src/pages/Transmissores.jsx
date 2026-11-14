@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CloudDownload, Pencil, Radio, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { CloudDownload, Pencil, Radio, RefreshCw, Search, Trash2, Wand2 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Ponto, Selo, Vazio, useDados, useToast } from '../components/ui'
@@ -145,6 +145,16 @@ export default function Transmissores() {
   const { dados: aparelhos } = useDados(() => api.get('/api/aparelhos'))
   const [modal, setModal] = useState(null)
   const [verificando, setVerificando] = useState(false)
+  const [reparando, setReparando] = useState(false)
+  const reparar = async () => {
+    setReparando(true)
+    try {
+      const r = await api.post('/api/hubs/reparar')
+      const ok = r.resultados.filter((x) => x.ok).length
+      toast(r.resultados.length ? r.resultados.map((x) => `${x.nome}: ${x.mensagem}`).join(' · ') : 'Nada a reparar.', ok === r.resultados.length ? 'ok' : 'erro')
+      recarregar()
+    } catch (e) { toast(e.message, 'erro') } finally { setReparando(false) }
+  }
   const toast = useToast()
 
   if (erro) return <Aviso>{erro}</Aviso>
@@ -168,6 +178,7 @@ export default function Transmissores() {
         descricao="Aparelhos infravermelhos (SRW-004) que mandam os comandos para o ar-condicionado."
         acoes={<>
           <Botao variante="secundario" icone={RefreshCw} carregando={verificando} onClick={verificar}>Verificar</Botao>
+          <Botao variante="secundario" icone={Wand2} carregando={reparando} onClick={reparar}>Reconectar agora</Botao>
           <Botao variante="secundario" icone={Search} onClick={() => setModal({ tipo: 'procurar' })}>Procurar na rede</Botao>
           <Botao variante="secundario" icone={CloudDownload} onClick={() => setModal({ tipo: 'importar' })}>Importar um</Botao>
           <Botao icone={CloudDownload} onClick={async () => {
@@ -181,6 +192,11 @@ export default function Transmissores() {
         </>}
       />
 
+      {hubs.length > 0 && (
+        <div className="mb-4 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          <b className="text-foreground">Mudou de Wi-Fi?</b> Pareie o transmissor de novo no Smart Life (rede 2,4 GHz). O agente do Mac encontra o IP novo e busca a Local Key nova na conta Smart Life sozinho, em até 2 minutos. Os botões gravados continuam valendo.
+        </div>
+      )}
       {hubs.length > 0 && (
         <div className="mb-6">
           <FaixaMetricas itens={[
@@ -208,6 +224,8 @@ export default function Transmissores() {
                   <button className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600 " onClick={() => setModal({ tipo: 'remover', hub: h })} aria-label="Remover"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
+              {h.problema && <div className="mt-3"><Aviso tipo="alerta">{h.problema}</Aviso></div>}
+              {h.reparado_em && !h.problema && <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">Reconfigurado sozinho {haQuanto(h.reparado_em)}</p>}
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                 <div><dt className="text-xs text-muted-foreground">IP</dt><dd>{h.ip || '—'}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Status</dt><dd>{h.online ? 'Online' : `Offline${h.visto_em ? `, visto ${haQuanto(h.visto_em)}` : ''}`}</dd></div>

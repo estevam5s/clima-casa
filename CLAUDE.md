@@ -205,7 +205,7 @@ booleanos de negócio como 0/1, exceto nas tabelas das rotinas (timestamptz/bool
 |---|---|
 | `config` | chave/valor JSON (ver §5) |
 | `projetos` | lugares (casa, escritório): nome, endereço, cor |
-| `hubs` | transmissores SRW-004: id Tuya, ip, local_key, versão, `control_type` (1 = DPS 201/202, 2 = DPS 1–13), funções da nuvem, online, projeto |
+| `hubs` | transmissores SRW-004: id Tuya, ip, local_key, versão, `control_type` (1 = DPS 201/202, 2 = DPS 1–13), funções da nuvem, online, `problema`, `reparado_em`, projeto |
 | `aparelhos` | ares: nome (é o nome falado na Alexa), cômodo, marca, hub, faixa de temperatura, modos, estado atual, `ligado_desde`, `alexa`, `sinric_device_id`, projeto |
 | `codigos` | sinais IR gravados (base64) por aparelho; chave `modo_temp_vent`, `desligar` ou `extra_<nome>` |
 | `cenas` | lista de ações (JSON) executadas juntas |
@@ -213,7 +213,7 @@ booleanos de negócio como 0/1, exceto nas tabelas das rotinas (timestamptz/bool
 | `automacoes` | gatilho, condições e ações (JSON), contagem de disparos |
 | `temporizadores` | "desligar em X min" (um por aparelho) |
 | `atividade` | todo comando/evento: origem, ação, ok, detalhe |
-| `fila_comandos` | ponte Vercel → agente: `enviar`, `aprender`, `descobrir`, `evento` |
+| `fila_comandos` | ponte Vercel → agente: `enviar`, `aprender`, `descobrir`, `evento`, `reparar` |
 | `oauth_codigos`, `oauth_tokens` | OAuth da skill própria (só hashes) |
 | `metricas_diarias`, `alertas`, `backups`, `saude_sistema` | preenchidas pelas rotinas pg_cron |
 | `cron_log`, `cron_job_registry` | log/registro das rotinas (skill supabase-cron) |
@@ -265,6 +265,15 @@ funcionou. A interface acompanha por `GET /api/gravacoes/{job}`. **Só funciona 
   Assistant `HA_3y9q4ak7g4ephrvke`) → "Importar um" ou "Importar todos" em Transmissores.
 - Protocolo **3.5**, porta TCP 6668. `status()` devolve "json obj data unvalid" (normal em IR).
 - Vários transmissores e vários ares por projeto são suportados; cada ar aponta para um hub.
+- **Reconfiguração automática** (`transmissor.autorreparar`, chamada a cada ~60 s no agente e no botão
+  "Reconectar agora" → `POST /api/hubs/reparar`, que vai pela fila tipo `reparar`): o `status()` do SRW-004 diz
+  o que houve — `900` = ok (IR não tem estado), `914` = chave errada (foi pareado de novo), `905/901` = não
+  responde no IP. Rede/IP: varre a LAN pelo ID e grava o IP novo. Chave: busca a Local Key nova na conta Smart Life
+  (precisa estar conectada em Configurações). Se o pareamento gerou **outro ID** e há exatamente um transmissor
+  novo na conta, migra o cadastro e os aparelhos para ele. Quando não consegue, grava `hubs.problema` (mostrado na
+  tela) com a instrução. Também confere a chave dos online a cada 10 min e tenta reparar antes de um envio local
+  falhar por IP. Tudo vai para a Atividade como "Transmissor reconfigurado sozinho".
+- Mudar de Wi-Fi: só parear de novo no Smart Life (2,4 GHz); o Mac tem que estar na mesma rede.
 
 ### 7.4 Alexa e Google Home via Sinric Pro (caminho principal)
 - O agente abre o WebSocket com o SDK `sinricpro` (v6) e registra cada aparelho com `sinric_device_id` como
@@ -435,6 +444,7 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
 | Fila "não respondeu a tempo" com o agente vivo | tabela nova com id sem estar em `_TABELAS_COM_ID` (insert não devolve id) |
 | Sinric "signature mismatched" | dispositivo criado com outra credencial; recriar com a App Key do `.env` |
 | Transmissor "offline" logo após reiniciar o serviço | passageiro; o status volta no ciclo seguinte (~60 s) |
+| Transmissor com "Local Key mudou" | foi pareado de novo; conecte a conta Smart Life em Configurações (uma vez) e o agente se ajusta |
 | `date > integer` no Postgres | parâmetro inteiro em aritmética de data: use `CAST(? AS integer)` |
 | Manifesto/ícones da PWA vindo como HTML | cache da CDN; testar com `?v=…` |
 | Porta 8080 ocupada | é outro app do usuário; o Clima Casa usa 8090 |

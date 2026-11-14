@@ -202,3 +202,9 @@ drop policy if exists admin_le on public.automacoes;
 create policy admin_le on public.automacoes for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 drop policy if exists admin_le on public.temporizadores;
 create policy admin_le on public.temporizadores for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+-- v5: reconfiguração automática dos transmissores (mudança de rede / novo pareamento)
+alter table public.hubs add column if not exists problema text;
+alter table public.hubs add column if not exists reparado_em bigint;
+alter table public.fila_comandos drop constraint if exists fila_comandos_tipo_check;
+alter table public.fila_comandos add constraint fila_comandos_tipo_check check (tipo in ('enviar','aprender','descobrir','evento','reparar'));

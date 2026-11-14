@@ -54,7 +54,11 @@ def _ir(h: dict, tipo=None):
                                  persist=True, connection_timeout=4, connection_retry_limit=1)
 
 
-def _enviar_local(h: dict, codigo: str):
+def _enviar_local(h: dict, codigo: str, tentou_reparar=False):
+    if not porta_aberta(h["ip"]) and not tentou_reparar:
+        ok, _ = reparar(h)
+        if ok:
+            return _enviar_local(hub(h["id"]), codigo, True)
     with _trava(h["id"]):
         if not porta_aberta(h["ip"]):
             raise RuntimeError(f"Transmissor fora da rede local ({h['ip']}).")
@@ -94,6 +98,10 @@ def atualizar_online():
             db.executar("UPDATE hubs SET online = 1, visto_em = ? WHERE id = ?", (db.agora(), h["id"]))
         else:
             db.executar("UPDATE hubs SET online = 0 WHERE id = ?", (h["id"],))
+    try:
+        autorreparar()
+    except Exception:  # noqa: BLE001  (sem rede/sem nuvem: tenta no próximo ciclo)
+        pass
 
 
 # ---------------- fila no Supabase ----------------
@@ -140,6 +148,8 @@ def processar_fila_uma_vez() -> bool:
             from . import automacao
             automacao.processar_evento(dados["aparelho_id"], dados["origem"], dados["ligado"])
             resultado = {"ok": True}
+        elif item["tipo"] == "reparar":
+            resultado = {"resultados": autorreparar(forcar=True)}
         elif item["tipo"] == "descobrir":
             resultado = {"aparelhos": descobrir_local(dados.get("segundos", 6))}
     except Exception as e:  # noqa: BLE001
@@ -248,3 +258,141 @@ def descobrir(segundos=8) -> list[dict]:
         raise RuntimeError(f["erro"])
     res = f["resultado"] if isinstance(f["resultado"], dict) else json.loads(f["resultado"])
     return res["aparelhos"]
+
+
+# ---------------- reconfiguração automática (mudou de rede ou foi pareado de novo) ----------------
+# Respostas do SRW-004 ao status(): 900 = chave certa (IR não tem estado), 914 = chave errada (novo
+# pareamento gera outra Local Key), 905/901 = não encontrado no IP (mudou de rede ou de endereço).
+_ultimo_reparo: dict[str, float] = {}
+_ultima_checagem_chave = 0.0
+INTERVALO_REPARO = 120          # tenta de novo no máximo a cada 2 min por transmissor
+INTERVALO_CHAVE = 600           # confere a chave dos online a cada 10 min
+
+
+def diagnosticar(h: dict) -> str:
+    """'ok', 'chave' (Local Key velha) ou 'rede' (não responde no IP)."""
+    import tinytuya
+    if not (h.get("ip") and h.get("local_key")):
+        return "rede" if not h.get("ip") else "chave"
+    with _trava(h["id"]):
+        d = tinytuya.Device(h["id"], h["ip"], h["local_key"], version=float(h["versao"]),
+                            connection_timeout=4, connection_retry_limit=1)
+        r = d.status() or {}
+        d.close()
+    err = str(r.get("Err", "")) if isinstance(r, dict) else ""
+    if err == "914":
+        return "chave"
+    if err in ("905", "901", "902") or not r:
+        return "rede"
+    return "ok"
+
+
+def _registrar_reparo(h: dict, mudancas: list[str]):
+    db.executar("UPDATE hubs SET problema = NULL, reparado_em = ?, online = 1, visto_em = ? WHERE id = ?",
+                (db.agora(), db.agora(), h["id"]))
+    db.registrar("sistema", f"Transmissor reconfigurado sozinho: {h['nome']}", detalhe="; ".join(mudancas))
+
+
+def _migrar_id(antigo: dict, novo_id: str) -> dict:
+    """O pareamento gerou outro ID: cria o novo cadastro, passa os aparelhos e apaga o antigo."""
+    db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, control_type, funcoes_nuvem, projeto_id, criado_em) "
+                "VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT (id) DO NOTHING",
+                (novo_id, antigo["nome"], antigo["ip"], antigo["local_key"], antigo["versao"], antigo["control_type"],
+                 antigo["funcoes_nuvem"], antigo["projeto_id"], db.agora()))
+    db.executar("UPDATE aparelhos SET hub_id = ? WHERE hub_id = ?", (novo_id, antigo["id"]))
+    db.executar("DELETE FROM hubs WHERE id = ?", (antigo["id"],))
+    return hub(novo_id)
+
+
+def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
+    """Tenta deixar o transmissor funcionando sozinho. Retorna (ok, mensagem)."""
+    mudancas: list[str] = []
+    diag = diagnosticar(h)
+    if diag == "ok":
+        if h.get("problema"):
+            db.executar("UPDATE hubs SET problema = NULL WHERE id = ?", (h["id"],))
+        return True, "funcionando"
+
+    # 1) IP novo: procura o mesmo aparelho na rede pelo ID
+    if diag == "rede":
+        if varredura is None:
+            import tinytuya
+            varredura = {d.get("gwId"): {"ip": ip, "versao": d.get("version")} for ip, d in tinytuya.deviceScan(False, 6).items()}
+        achado = varredura.get(h["id"])
+        if achado:
+            if achado["ip"] != h["ip"]:
+                mudancas.append(f"IP {h['ip'] or '—'} → {achado['ip']}")
+            db.executar("UPDATE hubs SET ip = ?, versao = COALESCE(?, versao) WHERE id = ?",
+                        (achado["ip"], achado.get("versao"), h["id"]))
+            h = hub(h["id"])
+            diag = diagnosticar(h)
+
+    # 2) Chave nova (ou aparelho não achado na rede): pergunta à conta Smart Life
+    if diag != "ok":
+        if not tuya_nuvem.conectada():
+            msg = ("Local Key mudou (o transmissor foi pareado de novo)." if diag == "chave" else "Não encontrado na rede.") + \
+                  " Conecte a conta Smart Life em Configurações para o sistema se ajustar sozinho."
+            db.executar("UPDATE hubs SET problema = ? WHERE id = ?", (msg, h["id"]))
+            return False, msg
+        try:
+            ids_nuvem = {d["id"]: d for d in tuya_nuvem.listar_aparelhos() if d["transmissor_ir"]}
+            if h["id"] not in ids_nuvem:  # foi removido e adicionado de novo com outro ID
+                cadastrados = {x["id"] for x in db.consultar("SELECT id FROM hubs")}
+                novos = [i for i in ids_nuvem if i not in cadastrados]
+                if len(novos) != 1:
+                    raise RuntimeError("não está mais na conta Smart Life" + (" e há vários transmissores novos; importe pela tela" if novos else ""))
+                h = _migrar_id(h, novos[0])
+                mudancas.append(f"novo ID {novos[0]}")
+            info = tuya_nuvem.detalhes(h["id"])
+            ip = info["ip"] if (info.get("ip") or "").startswith(("192.168.", "10.", "172.")) else None
+            if varredura and varredura.get(h["id"]):
+                ip = varredura[h["id"]]["ip"]
+            db.executar("UPDATE hubs SET local_key = ?, ip = COALESCE(?, ip), control_type = COALESCE(?, control_type), "
+                        "funcoes_nuvem = ? WHERE id = ?",
+                        (info["local_key"], ip, info["control_type"], json.dumps(info["funcoes"]), h["id"]))
+            mudancas.append("Local Key atualizada pela conta Smart Life")
+            h = hub(h["id"])
+            if ip is None and diagnosticar(h) == "rede":  # IP ainda desconhecido: varre de novo com a chave certa
+                import tinytuya
+                for ip_achado, d in tinytuya.deviceScan(False, 6).items():
+                    if d.get("gwId") == h["id"]:
+                        db.executar("UPDATE hubs SET ip = ? WHERE id = ?", (ip_achado, h["id"]))
+                        mudancas.append(f"IP → {ip_achado}")
+                h = hub(h["id"])
+            diag = diagnosticar(h)
+        except Exception as e:  # noqa: BLE001
+            msg = f"Não foi possível se ajustar sozinho: {e}"
+            db.executar("UPDATE hubs SET problema = ? WHERE id = ?", (msg[:300], h["id"]))
+            return False, msg
+
+    if diag == "ok":
+        _registrar_reparo(h, mudancas or ["reconectado"])
+        return True, "; ".join(mudancas) or "reconectado"
+    msg = "Transmissor fora da rede. Confira se ele e o Mac estão no mesmo Wi-Fi (2,4 GHz)."
+    db.executar("UPDATE hubs SET problema = ? WHERE id = ?", (msg, h["id"]))
+    return False, msg
+
+
+def autorreparar(forcar: bool = False) -> list[dict]:
+    """Chamado pelo laço do agente: repara offline e confere a chave dos online de tempos em tempos."""
+    global _ultima_checagem_chave
+    if PAPEL != "agente":
+        return []
+    agora = time.time()
+    checar_chave = forcar or agora - _ultima_checagem_chave > INTERVALO_CHAVE
+    if checar_chave:
+        _ultima_checagem_chave = agora
+    resultados, varredura = [], None
+    for h in db.consultar("SELECT * FROM hubs"):
+        precisa = forcar or not h["online"] or h["problema"] or checar_chave
+        if not precisa or (not forcar and agora - _ultimo_reparo.get(h["id"], 0) < INTERVALO_REPARO and h["online"]):
+            continue
+        if not forcar and not h["online"] and agora - _ultimo_reparo.get(h["id"], 0) < INTERVALO_REPARO:
+            continue
+        _ultimo_reparo[h["id"]] = agora
+        if varredura is None and (not h["online"] or forcar):
+            import tinytuya
+            varredura = {d.get("gwId"): {"ip": ip, "versao": d.get("version")} for ip, d in tinytuya.deviceScan(False, 6).items()}
+        ok, msg = reparar(h, varredura)
+        resultados.append({"id": h["id"], "nome": h["nome"], "ok": ok, "mensagem": msg})
+    return resultados

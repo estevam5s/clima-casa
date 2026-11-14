@@ -996,3 +996,19 @@ def importar_todos_hubs():
         except Exception as e:  # noqa: BLE001
             resultado.append({"id": d["id"], "nome": d["nome"], "ok": False, "erro": str(getattr(e, "detail", e))})
     return {"importados": resultado}
+
+
+@api.post("/hubs/reparar")
+def reparar_hubs():
+    """Força a reconfiguração automática agora (procura IP novo e busca a chave nova na conta Smart Life)."""
+    try:
+        if transmissor.PAPEL == "agente":
+            return {"resultados": transmissor.autorreparar(forcar=True)}
+        if not transmissor.agente_online():
+            raise RuntimeError("O agente do Mac está offline: ele que procura o transmissor na rede de casa.")
+        f = transmissor.aguardar(transmissor.enfileirar("reparar", None, {}), 45)
+        if f["estado"] != "ok":
+            raise RuntimeError(f["erro"])
+        return f["resultado"] if isinstance(f["resultado"], dict) else json.loads(f["resultado"])
+    except Exception as e:  # noqa: BLE001
+        _erro(e)
