@@ -170,14 +170,14 @@ export default function WhiteLabel() {
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
           <Bloco titulo="Temas prontos" descricao="Aplica cores, fonte, cantos, densidade, menu e tema de uma vez. Ajuste o que quiser depois.">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"> {/* marca: amostras dos temas prontos */}
               {TEMAS_PRONTOS.map((t) => {
                 const ativo = f.cor_primaria === t.cor_primaria && f.fonte === t.fonte && f.menu_estilo === t.menu_estilo
                 return (
                   <button key={t.nome} onClick={() => { const { nome, ...resto } = t; setF((x) => ({ ...x, ...resto })) }}
                     className={`overflow-hidden rounded-lg border text-left transition-colors ${ativo ? 'border-primary ring-1 ring-primary' : 'border-border hover:bg-muted'}`}>
                     <div className="flex h-12" style={{ borderRadius: 0 }}>
-                      <span className="w-1/4" style={{ background: t.menu_estilo === 'escuro' ? '#18181b' : t.menu_estilo === 'marca' ? t.cor_primaria : '#f4f4f5' }} />
+                      <span className="w-1/4" style={{ background: t.menu_estilo === 'escuro' ? '#18181b' : t.menu_estilo === 'marca' ? t.cor_primaria : '#f4f4f5' }} /> {/* marca: amostras dos temas prontos */}
                       <span className="flex flex-1 items-end gap-1 p-1.5" style={{ background: t.tema_padrao === 'escuro' ? '#0b0b0f' : '#ffffff' }}>
                         <span className="h-3 w-8" style={{ background: t.cor_primaria, borderRadius: t.raio / 3 }} /><span className="h-2 w-5" style={{ background: t.cor_destaque, borderRadius: t.raio / 3 }} />
                       </span>

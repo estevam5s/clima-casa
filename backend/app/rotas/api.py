@@ -8,7 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .. import clima, cripto, db, transmissor, tuya_nuvem
+from .. import clima, cripto, db, supabase_painel, transmissor, tuya_nuvem
 from ..seguranca import exigir_login
 
 publico = APIRouter(prefix="/api")
@@ -655,6 +655,79 @@ def baixar_backup_supabase(bid: int):
         raise HTTPException(404, "Backup não encontrado.")
     dados = b["dados"] if isinstance(b["dados"], dict) else json.loads(b["dados"])
     return {"id": b["id"], "criado_em": b["criado_em"].timestamp(), **dados}
+
+
+# ---------------- Supabase: painel no estilo do dashboard (só leitura) ----------------
+def _sp(fn, *a, **k):
+    try:
+        return fn(*a, **k)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@api.get("/supabase/visao")
+def supabase_visao():
+    return supabase_painel.visao()
+
+
+@api.get("/supabase/tabelas")
+def supabase_tabelas():
+    return supabase_painel.tabelas()
+
+
+@api.get("/supabase/tabelas/{nome}/estrutura")
+def supabase_estrutura(nome: str):
+    return _sp(supabase_painel.estrutura, nome)
+
+
+@api.get("/supabase/tabelas/{nome}/linhas")
+def supabase_linhas(nome: str, pagina: int = 1, por_pagina: int = 50, ordem: str = "", direcao: str = "desc", busca: str = ""):
+    return _sp(supabase_painel.linhas_tabela, nome, pagina, por_pagina, ordem, direcao, busca)
+
+
+class SqlIn(BaseModel):
+    sql: str = Field(..., max_length=20000)
+    limite: int = Field(500, ge=1, le=1000)
+
+
+@api.post("/supabase/sql")
+def supabase_sql(d: SqlIn, request: Request):
+    u = getattr(request.state, "u", {}) or {}
+    if u.get("papel") != "dono":
+        raise HTTPException(403, "Só o dono do sistema pode usar o editor SQL.")
+    try:
+        r = supabase_painel.rodar_sql(d.sql, d.limite)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:  # noqa: BLE001 - erro do Postgres volta legível
+        msg = str(e).split("\n")[0]
+        if "read-only" in msg:
+            msg = "O editor é só de leitura: essa consulta tentou alterar dados."
+        elif "statement timeout" in msg:
+            msg = "A consulta passou de 8 segundos e foi cancelada."
+        raise HTTPException(400, f"Erro do Postgres: {msg[:400]}")
+    db.registrar("painel", "Consulta SQL (somente leitura)", detalhe=f"{u.get('email', '')}: {d.sql.strip()[:180]}")
+    return r
+
+
+@api.get("/supabase/auth")
+def supabase_auth():
+    return supabase_painel.usuarios_auth()
+
+
+@api.get("/supabase/registros")
+def supabase_registros(status: str = "", limite: int = 150):
+    return supabase_painel.registros(status, limite)
+
+
+@api.get("/supabase/desempenho")
+def supabase_desempenho():
+    return supabase_painel.desempenho()
+
+
+@api.get("/supabase/avisos")
+def supabase_avisos():
+    return supabase_painel.avisos()
 
 
 @api.get("/metricas")

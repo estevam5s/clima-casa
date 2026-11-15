@@ -61,12 +61,12 @@ export default function CookiesSite() {
             </div>
             {/* prévia fiel ao visual do site */}
             <div className="rounded-xl border border-[#313131] bg-[#18191b] p-4 text-[#9e9fa0]"> {/* marca: cores do site */}
-              <p className="flex items-center gap-2 font-semibold text-white"><span className="grid h-8 w-8 place-items-center rounded-full bg-[#9cfe4f]/10 text-[#9cfe4f]"><Cookie className="h-4 w-4" /></span>{cfg.titulo}</p>
-              <p className="mt-2 text-xs leading-relaxed">{cfg.texto} <span className="text-[#9cfe4f] underline">Política de privacidade</span></p>
+              <p className="flex items-center gap-2 font-semibold text-white"><span className="grid h-8 w-8 place-items-center rounded-full bg-[#9cfe4f]/10 text-[#9cfe4f]"><Cookie className="h-4 w-4" /></span>{cfg.titulo}</p> {/* marca: prévia usa as cores reais do aviso do site */}
+              <p className="mt-2 text-xs leading-relaxed">{cfg.texto} <span className="text-[#9cfe4f] underline">Política de privacidade</span></p> {/* marca: prévia usa as cores reais do aviso do site */}
               <div className="mt-3 flex flex-wrap justify-end gap-2 text-[11px] font-semibold">
-                <span className="rounded-full border border-[#313131] px-3 py-1.5 text-white">Personalizar</span>
-                <span className="rounded-full border border-[#313131] px-3 py-1.5 text-white">Só os essenciais</span>
-                <span className="rounded-full bg-[#9cfe4f] px-3 py-1.5 text-[#1a1a1a]">Aceitar todos</span>
+                <span className="rounded-full border border-[#313131] px-3 py-1.5 text-white">Personalizar</span> {/* marca: prévia usa as cores reais do aviso do site */}
+                <span className="rounded-full border border-[#313131] px-3 py-1.5 text-white">Só os essenciais</span> {/* marca: prévia usa as cores reais do aviso do site */}
+                <span className="rounded-full bg-[#9cfe4f] px-3 py-1.5 text-[#1a1a1a]">Aceitar todos</span> {/* marca: prévia usa as cores reais do aviso do site */}
               </div>
             </div>
           </div>

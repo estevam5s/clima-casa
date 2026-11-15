@@ -36,7 +36,7 @@ function Analise({ analise, total }) {
           <motion.div key={k} className={`h-full ${cor}`} initial={{ width: 0 }} animate={{ width: `${(analise[k] / soma) * 100}%` }} transition={{ delay: 0.1 + i * 0.08, duration: 0.6, ease: 'easeOut' }} />
         ) : null)}
       </div>
-      <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5"> {/* marca: efeito de alerta/fundo do globo */}
         {NIVEIS.map(([k, r, cor, texto, d]) => (
           <div key={k} className="min-w-0">
             <dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={`h-2 w-2 rounded-full ${cor}`} />{r}</dt>
@@ -131,7 +131,7 @@ function Escudo({ escudo, aoMudar }) {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             className="alerta-ataque relative overflow-hidden rounded-xl border border-red-500/60 bg-red-600 p-5 text-white"> {/* marca: alerta de ataque */}
             <div className="relative flex flex-wrap items-center gap-4">
-              <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/15"><span className="absolute inset-0 animate-ping rounded-full bg-white/25" /><ShieldAlert className="h-6 w-6" /></span>
+              <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/15"><span className="absolute inset-0 animate-ping rounded-full bg-white/25" /><ShieldAlert className="h-6 w-6" /></span> {/* marca: efeito de alerta/fundo do globo */}
               <div className="min-w-0 flex-1">
                 <p className="text-lg font-semibold">Ataque em massa: escudo ligado</p>
                 <p className="text-sm text-white/85">{escudo.motivo}. Limites endurecidos, {escudo.bloqueados_no_ataque} IP(s) bloqueado(s) automaticamente{escudo.vercel ? ' e modo de ataque da Vercel ativo' : ''}. Desliga sozinho em {restante} min.</p>
@@ -277,7 +277,7 @@ export default function Seguranca() {
                 </div>
               </div>
               <div className="relative h-[460px] sm:h-[560px]">
-                <Suspense fallback={<div className="flex h-full items-center justify-center bg-[#03070d] text-sm text-white/60">Carregando o globo…</div>}>
+                <Suspense fallback={<div className="flex h-full items-center justify-center bg-[#03070d] text-sm text-white/60">Carregando o globo…</div>}> {/* marca: efeito de alerta/fundo do globo */}
                   <Globo3D pontos={dados.pontos} servidor={dados.servidor} aoSelecionar={setLocal} ataque={!!escudo?.ativo} />
                 </Suspense>
                 <AnimatePresence>

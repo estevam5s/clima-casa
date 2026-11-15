@@ -417,3 +417,12 @@ create table if not exists public.sessoes_uso (
 );
 create index if not exists ix_sessoes_uso_usuario on public.sessoes_uso (usuario_id, visto_em desc);
 alter table public.sessoes_uso enable row level security;
+
+-- Índices nas chaves estrangeiras (apagar projeto/hub/aparelho sem varrer a tabela filha)
+create index if not exists ix_aparelhos_hub on public.aparelhos (hub_id);
+create index if not exists ix_aparelhos_projeto on public.aparelhos (projeto_id);
+create index if not exists ix_agendamentos_aparelho on public.agendamentos (aparelho_id);
+create index if not exists ix_alertas_aparelho on public.alertas (aparelho_id);
+create index if not exists ix_hubs_projeto on public.hubs (projeto_id);
+create index if not exists ix_cenas_projeto on public.cenas (projeto_id);
+create index if not exists ix_temporizadores_aparelho on public.temporizadores (aparelho_id);
