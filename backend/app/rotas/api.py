@@ -1955,6 +1955,40 @@ class SegurancaIn(BaseModel):
     paises_bloqueados: list[str] = []
     paises_permitidos: list[str] = []
     registrar_logins_ok: bool = True
+    rajada_10s: int = Field(60, ge=10, le=2000)
+    escudo_auto: bool = True
+    ddos_req_seg: int = Field(60, ge=5, le=5000)
+    ddos_ips_min: int = Field(80, ge=10, le=100000)
+    escudo_minutos: int = Field(30, ge=5, le=1440)
+    limite_escudo_por_minuto: int = Field(40, ge=10, le=1000)
+    escudo_vercel: bool = True
+    bloquear_nuvem: bool = False
+
+
+@api.get("/seguranca/escudo")
+def ver_escudo():
+    from .. import firewall
+    e = firewall.escudo()
+    desde = e.get("desde") or 0
+    bloq = db.um("SELECT count(*) n FROM seguranca_ips WHERE automatico AND criado_em >= ?", (desde,))["n"] if e["ativo"] else 0
+    return {**e, "taxa": firewall.taxa_atual(), "bloqueados_no_ataque": bloq, "config": {k: firewall.config()[k] for k in
+            ("escudo_auto", "ddos_req_seg", "ddos_ips_min", "escudo_minutos", "limite_escudo_por_minuto", "rajada_10s", "escudo_vercel")}}
+
+
+class EscudoIn(BaseModel):
+    acao: str = Field(pattern="^(ligar|desligar)$")
+    minutos: int = Field(30, ge=5, le=1440)
+
+
+@api.post("/seguranca/escudo")
+def mudar_escudo(d: EscudoIn, request: Request):
+    from .. import firewall
+    if d.acao == "ligar":
+        firewall.ligar_escudo("Ligado manualmente pelo painel", d.minutos, automatico=False)
+    else:
+        firewall.desligar_escudo()
+    db.registrar("painel", f"Escudo anti-DDoS {'ligado' if d.acao == 'ligar' else 'desligado'}", detalhe=getattr(request.state, "u", {}).get("email", ""))
+    return ver_escudo()
 
 
 @api.get("/seguranca")

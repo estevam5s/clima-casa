@@ -142,7 +142,33 @@ const SOMBREADOR_TERRA = {
     }`,
 }
 
-export default function Globo3D({ pontos = [], servidor, aoSelecionar, className = '' }) {
+// nuvens procedurais: manchas suaves sobrepostas em várias escalas (sem imagem externa)
+function texturaNuvens() {
+  const L = 2048, A = 1024
+  const c = document.createElement('canvas'); c.width = L; c.height = A
+  const g = c.getContext('2d')
+  g.fillStyle = '#000'; g.fillRect(0, 0, L, A)
+  let s = 11
+  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 }
+  for (const [n, raio, alfa] of [[260, 90, 0.05], [900, 38, 0.07], [2600, 14, 0.08]]) {
+    for (let i = 0; i < n; i++) {
+      const y = A * (0.08 + r() * 0.84)
+      // faixas de nuvem nas zonas de convergência (equador e latitudes médias)
+      const lat = Math.abs(y / A - 0.5)
+      if (lat > 0.12 && lat < 0.22 && r() < 0.6) continue
+      const x = r() * L, rr = raio * (0.5 + r())
+      const gr = g.createRadialGradient(x, y, 0, x, y, rr)
+      gr.addColorStop(0, `rgba(255,255,255,${alfa * 1.6})`); gr.addColorStop(1, 'rgba(255,255,255,0)')
+      g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, rr * 1.8, rr, 0, 0, Math.PI * 2); g.fill()
+      if (x + rr * 2 > L) { g.save(); g.translate(-L, 0); g.beginPath(); g.ellipse(x, y, rr * 1.8, rr, 0, 0, Math.PI * 2); g.fill(); g.restore() }
+    }
+  }
+  return new THREE.CanvasTexture(c)
+}
+
+export default function Globo3D({ pontos = [], servidor, aoSelecionar, className = '', ataque = false }) {
+  const ataqueRef = useRef(ataque)
+  ataqueRef.current = ataque
   const ref = useRef(null)
   const dicaRef = useRef(null)
   const rotulosRef = useRef(null)
@@ -206,14 +232,31 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
 
     // atmosfera: halo externo (lado de trás) e brilho fino na borda
     const halo = new THREE.Mesh(new THREE.SphereGeometry(R * 1.16, 96, 96), new THREE.ShaderMaterial({
-      uniforms: { sol: { value: new THREE.Vector3() } },
+      uniforms: { sol: { value: new THREE.Vector3() }, cor: { value: new THREE.Color(0.30, 0.62, 1.0) } },
       vertexShader: 'varying vec3 n; varying vec3 w; void main(){ n = normalize(normalMatrix * normal); w = normalize((modelMatrix * vec4(position,1.0)).xyz); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: `uniform vec3 sol; varying vec3 n; varying vec3 w;
+      fragmentShader: `uniform vec3 sol; uniform vec3 cor; varying vec3 n; varying vec3 w;
         void main(){ float i = pow(0.68 - dot(n, vec3(0,0,1.0)), 3.2); float d = 0.35 + 0.65 * smoothstep(-0.4, 0.6, dot(w, normalize(sol)));
-          gl_FragColor = vec4(vec3(0.30, 0.62, 1.0) * d, 1.0) * i * 1.3; }`,
+          gl_FragColor = vec4(cor * d, 1.0) * i * 1.3; }`,
       blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true, depthWrite: false,
     }))
     cena.add(halo)
+
+    // camada de nuvens, iluminada pelo Sol (some no lado da noite)
+    const texNuvens = texturaNuvens()
+    const nuvens = new THREE.Mesh(new THREE.SphereGeometry(R * 1.012, 96, 96), new THREE.ShaderMaterial({
+      uniforms: { mapa: { value: texNuvens }, sol: { value: uniforms.sol.value } },
+      vertexShader: 'varying vec2 vUv; varying vec3 vN; void main(){ vUv = uv; vN = normalize(normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: `uniform sampler2D mapa; uniform vec3 sol; varying vec2 vUv; varying vec3 vN;
+        void main(){ float a = texture2D(mapa, vUv).r; float luz = smoothstep(-0.15, 0.35, dot(normalize(vN), normalize(sol)));
+          gl_FragColor = vec4(vec3(0.92 + 0.08 * luz) * (0.15 + 0.85 * luz), a * (0.25 + 0.6 * luz)); }`,
+      transparent: true, depthWrite: false,
+    }))
+    globo.add(nuvens)
+
+    // anel de alarme em volta do globo (só durante ataque em massa)
+    const alarme = new THREE.Mesh(new THREE.RingGeometry(R * 1.2, R * 1.24, 128), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }))
+    cena.add(alarme)
+    const corNormal = new THREE.Color(0.30, 0.62, 1.0), corAtaque = new THREE.Color(1.0, 0.18, 0.12)
 
     // grade bem leve
     const matGrade = new THREE.LineBasicMaterial({ color: 0x5eead4, transparent: true, opacity: 0.07, depthWrite: false })
@@ -388,9 +431,14 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       solMundo.copy(uniforms.sol.value).applyQuaternion(globo.quaternion)
       uniforms.solVista.value.copy(solMundo).transformDirection(camera.matrixWorldInverse)
       halo.material.uniforms.sol.value.copy(solMundo)
+      const emAtaque = ataqueRef.current
+      halo.material.uniforms.cor.value.lerp(emAtaque ? corAtaque : corNormal, 0.05)
+      nuvens.rotation.y += dt * 0.006
+      alarme.quaternion.copy(camera.quaternion)
+      if (emAtaque) { const pulso = (t * 1.2) % 1; alarme.scale.setScalar(1 + pulso * 0.35); alarme.material.opacity = 0.55 * (1 - pulso) } else alarme.material.opacity = 0
       pulsos.forEach((p) => {
         const antes = p.mat.uniforms.fase.value
-        const f = (antes + dt * p.vel) % 1.25
+        const f = (antes + dt * p.vel * (ataqueRef.current ? 2.2 : 1)) % 1.25
         p.mat.uniforms.fase.value = f
         if (f < antes) { const a = impactos[p.impacto]; a.userData.t = 0 } // chegou ao servidor
       })
@@ -403,7 +451,8 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
         a.scale.setScalar(1 + f * 3.2); a.material.opacity = 0.85 * (1 - f)
       })
       const fs = (t * 0.5) % 1
-      anelServ.scale.setScalar(1 + fs * 2); anelServ.material.opacity = 1 - fs
+      anelServ.scale.setScalar(1 + fs * (ataqueRef.current ? 4 : 2)); anelServ.material.opacity = 1 - fs
+      anelServ.material.color.setHex(ataqueRef.current ? 0xef4444 : 0xffffff)
       ceu.rotation.y += dt * 0.004
       controles.update()
       renderer.render(cena, camera)
@@ -431,7 +480,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair)
       controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
-      tex.dispose(); if (texturas) Object.values(texturas).forEach((x) => x.dispose())
+      tex.dispose(); texNuvens.dispose(); if (texturas) Object.values(texturas).forEach((x) => x.dispose())
       renderer.dispose()
       el.removeChild(renderer.domElement)
     }

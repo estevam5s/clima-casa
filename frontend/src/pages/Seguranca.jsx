@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Ban, ChevronDown, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
+import { Ban, ChevronDown, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Secao, useDados, useToast } from '../components/ui'
 import PainelSeguranca from '../components/config/PainelSeguranca'
@@ -103,8 +103,64 @@ function AcoesIp({ ip, bloqueado, aoMudar }) {
     <span className="flex justify-end gap-1">
       <button onClick={() => enviar({ tipo: 'bloqueado', minutos: 1440 }, `IP ${ip} bloqueado por 24 h.`)} title="Bloquear por 24 h" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600"><Ban className="h-3.5 w-3.5" /></button>
       <button onClick={() => enviar({ tipo: 'bloqueado', minutos: null }, `IP ${ip} bloqueado de vez.`)} title="Bloquear de vez" className="rounded-md px-1.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-red-600">sempre</button>
+      {/^\d+\.\d+\.\d+\.\d+$/.test(ip) && <button onClick={() => { const faixa = ip.replace(/\.\d+$/, '.0/24'); if (window.confirm(`Bloquear a faixa inteira ${faixa} (256 endereços) por 24 h?`)) api.post('/api/seguranca/ips', { alvo: faixa, motivo: 'faixa pela tela de Segurança', tipo: 'bloqueado', minutos: 1440 }).then(() => { toast(`Faixa ${faixa} bloqueada por 24 h.`); aoMudar() }).catch((e) => toast(e.message, 'erro')) }} title="Bloquear a faixa /24 por 24 h" className="rounded-md px-1.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-red-600">/24</button>}
       <button onClick={() => enviar({ tipo: 'permitido', minutos: null }, `IP ${ip} nunca será bloqueado.`)} title="Nunca bloquear" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-emerald-600"><UserCheck className="h-3.5 w-3.5" /></button>
     </span>
+  )
+}
+
+// Escudo anti-DDoS: alerta vermelho durante ataque, taxa ao vivo e controle manual.
+function Escudo({ escudo, aoMudar }) {
+  const toast = useToast()
+  const [ocupado, setOcupado] = useState(false)
+  if (!escudo) return null
+  const ativo = escudo.ativo
+  const c = escudo.config || {}
+  const taxa = escudo.taxa || { req_seg: 0, ips_min: 0 }
+  const pct = Math.min(100, Math.round((taxa.req_seg / Math.max(1, c.ddos_req_seg || 60)) * 100))
+  const mudar = async (acao) => {
+    if (acao === 'desligar' && !window.confirm('Desligar o escudo agora? Os limites voltam ao normal.')) return
+    setOcupado(true)
+    try { aoMudar(await api.post('/api/seguranca/escudo', { acao, minutos: c.escudo_minutos || 30 })); toast(acao === 'ligar' ? 'Escudo ligado.' : 'Escudo desligado.') } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  const restante = ativo ? Math.max(0, Math.round((escudo.ate - Date.now() / 1000) / 60)) : 0
+  return (
+    <>
+      <AnimatePresence>
+        {ativo && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="alerta-ataque relative overflow-hidden rounded-xl border border-red-500/60 bg-red-600 p-5 text-white"> {/* marca: alerta de ataque */}
+            <div className="relative flex flex-wrap items-center gap-4">
+              <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/15"><span className="absolute inset-0 animate-ping rounded-full bg-white/25" /><ShieldAlert className="h-6 w-6" /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-lg font-semibold">Ataque em massa: escudo ligado</p>
+                <p className="text-sm text-white/85">{escudo.motivo}. Limites endurecidos, {escudo.bloqueados_no_ataque} IP(s) bloqueado(s) automaticamente{escudo.vercel ? ' e modo de ataque da Vercel ativo' : ''}. Desliga sozinho em {restante} min.</p>
+              </div>
+              <Botao variante="secundario" carregando={ocupado} onClick={() => mudar('desligar')} className="!border-white/40 !bg-white/10 !text-white hover:!bg-white/20">Desligar escudo</Botao>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <section className="cartao p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="titulo-secao flex items-center gap-2"><ShieldCheck className={`h-4 w-4 ${ativo ? 'text-red-500' : 'text-emerald-500'}`} />Escudo anti-DDoS</h2>
+            <p className="text-xs text-muted-foreground">{c.escudo_auto ? `Liga sozinho com ${c.ddos_req_seg} req/s ou ${c.ddos_ips_min} IPs/min` : 'Automático desligado (Regras do firewall)'} · rajada máxima {c.rajada_10s} req em 10 s por IP</p>
+          </div>
+          {!ativo && <Botao variante="perigo" tamanho="sm" icone={ShieldAlert} carregando={ocupado} onClick={() => mudar('ligar')}>Ligar escudo agora</Botao>}
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Requisições por segundo agora</p>
+            <p className="mt-1 text-2xl font-semibold tabular">{taxa.req_seg}<span className="ml-1 text-sm font-normal text-muted-foreground">/ {c.ddos_req_seg}</span></p>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted"><motion.div className={`h-full rounded-full ${pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} animate={{ width: `${Math.max(2, pct)}%` }} /></div>
+          </div>
+          <div><p className="text-xs text-muted-foreground">IPs diferentes no último minuto</p><p className="mt-1 text-2xl font-semibold tabular">{taxa.ips_min}<span className="ml-1 text-sm font-normal text-muted-foreground">/ {c.ddos_ips_min}</span></p></div>
+          <div><p className="text-xs text-muted-foreground">Proteção da borda</p><p className="mt-1 text-sm">{c.escudo_vercel ? 'Modo de ataque da Vercel liga junto com o escudo' : 'Só o escudo do sistema'}</p></div>
+        </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">Medição desta instância do servidor. A Vercel também filtra ataques volumétricos na borda antes de chegarem aqui.</p>
+      </section>
+    </>
   )
 }
 
@@ -115,6 +171,8 @@ export default function Seguranca() {
   const [local, setLocal] = useState(null)
   const [buscaIp, setBuscaIp] = useState('')
   const { dados, erro, recarregar } = useDados(() => api.get(`/api/seguranca/resumo?dias=${dias}`), [dias])
+  const { dados: escudo, setDados: setEscudo, recarregar: recarregarEscudo } = useDados(() => api.get('/api/seguranca/escudo'))
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) recarregarEscudo() }, 5000); return () => clearInterval(t) }, [recarregarEscudo])
   useEffect(() => {
     if (!aoVivo) return undefined
     const t = setInterval(recarregar, 15000)
@@ -156,6 +214,8 @@ export default function Seguranca() {
             { rotulo: 'Origens', valor: t.ips_unicos, sufixo: ' IPs', dica: `${t.paises} país(es) · ${t.bloqueados_agora} bloqueado(s) agora` },
           ]} />
 
+          <Escudo escudo={escudo} aoMudar={setEscudo} />
+
           <Analise analise={dados.analise} total={t.ips_unicos} />
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -171,7 +231,7 @@ export default function Seguranca() {
               </div>
               <div className="relative h-[460px] sm:h-[560px]">
                 <Suspense fallback={<div className="flex h-full items-center justify-center bg-[#03070d] text-sm text-white/60">Carregando o globo…</div>}>
-                  <Globo3D pontos={dados.pontos} servidor={dados.servidor} aoSelecionar={setLocal} />
+                  <Globo3D pontos={dados.pontos} servidor={dados.servidor} aoSelecionar={setLocal} ataque={!!escudo?.ativo} />
                 </Suspense>
                 <AnimatePresence>
                   {local && (

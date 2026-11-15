@@ -157,6 +157,16 @@ def resumo(dias: int) -> dict:
         i["permitido"] = i["ip"] in permitidos
         i["veredito"] = veredito(i)
     confiaveis = {k for k, v in ips.items() if v["veredito"]["nivel"] == "confiavel"}
+    # regra rígida opcional: servidor de nuvem que não é da equipe fica bloqueado por 24 h
+    try:
+        from . import firewall
+        if firewall.config().get("bloquear_nuvem"):
+            ja = {b["alvo"] for b in db.consultar("SELECT alvo FROM seguranca_ips WHERE tipo = 'bloqueado' AND (expira_em IS NULL OR expira_em > ?)", (agora,))}
+            for i in ips.values():
+                if i["veredito"]["nivel"] == "robo" and i.get("provedor") and i["ip"] not in ja and not i["privado"]:
+                    firewall.bloquear(i["ip"], f"servidor de nuvem sem login ({i['provedor']})", 1440)
+    except Exception:  # noqa: BLE001
+        pass
 
     # 2ª passada: agregados (ataque só conta vindo de IP que não é da equipe)
     por_tipo, por_dia, por_hora, paises, rotas, agentes, pontos = {}, {}, [0] * 24, {}, {}, {}, {}

@@ -33,6 +33,16 @@ PADRAO = {
     "paises_bloqueados": [],           # ex.: ["CN", "RU"]
     "paises_permitidos": [],           # se preenchido, só estes países entram
     "registrar_logins_ok": True,
+    # rajada por IP (além do limite por minuto)
+    "rajada_10s": 60,                  # requisições de um IP em 10 s
+    # escudo anti-DDoS: liga sozinho num pico e endurece tudo por um tempo
+    "escudo_auto": True,
+    "ddos_req_seg": 60,                # requisições/s na API (por instância) que disparam o escudo
+    "ddos_ips_min": 80,                # IPs diferentes por minuto que disparam o escudo
+    "escudo_minutos": 30,
+    "limite_escudo_por_minuto": 40,    # limite por IP enquanto o escudo está ligado (equipe não entra na conta)
+    "escudo_vercel": True,             # o agente liga junto o "modo de ataque" da Vercel
+    "bloquear_nuvem": False,           # bloqueia 24 h servidores de nuvem (AWS, Google…) que não são da equipe
 }
 AGENTES_MALICIOSOS = re.compile(
     r"sqlmap|nikto|nmap|masscan|zgrab|nuclei|acunetix|wpscan|dirbuster|gobuster|ffuf|feroxbuster|hydra|"
@@ -49,6 +59,23 @@ _reqs: dict[str, deque] = defaultdict(deque)
 _estouros: dict[str, int] = defaultdict(int)
 _trava = threading.Lock()
 _vistos: dict[str, float] = {}       # IP → último "acesso" registrado (para não gravar cada requisição)
+_global: deque = deque(maxlen=20000)  # (instante, ip) de todas as requisições à API nos últimos 60 s
+_rajadas: dict[str, deque] = defaultdict(lambda: deque(maxlen=600))
+_escudo_cache = {"valor": None, "em": 0.0}
+_equipe_cache: dict[str, tuple[bool, float]] = {}
+_contador = {"n": 0}
+
+
+def _eh_equipe(ip: str) -> bool:
+    """IP que fez login certo nas últimas 24 h (cache de 5 min: no meio de um ataque não dá para ir ao banco a cada pedido)."""
+    v = _equipe_cache.get(ip)
+    if v and time.time() - v[1] < 300:
+        return v[0]
+    r = bool(falhas_recentes(ip, ("login_ok",), 1440))
+    if len(_equipe_cache) > 5000:
+        _equipe_cache.clear()
+    _equipe_cache[ip] = (r, time.time())
+    return r
 _geo = contextvars.ContextVar("clima_geo", default={})
 
 
@@ -174,6 +201,78 @@ def bloqueio_automatico(ip: str, motivo: str):
                            {"rotulo": "Desbloquear", "tipo": "desbloquear_ip", "alvo": ip})
 
 
+def escudo() -> dict:
+    """Estado do escudo anti-DDoS (guardado em config.escudo, lido a cada 10 s)."""
+    if time.time() - _escudo_cache["em"] > 10:
+        try:
+            _escudo_cache["valor"] = db.cfg("escudo") or {}
+        except Exception:  # noqa: BLE001
+            _escudo_cache["valor"] = _escudo_cache["valor"] or {}
+        _escudo_cache["em"] = time.time()
+    e = _escudo_cache["valor"] or {}
+    return {**e, "ativo": bool(e.get("ate")) and e["ate"] > db.agora()}
+
+
+def ligar_escudo(motivo: str, minutos: int, pico: dict | None = None, automatico: bool = True):
+    agora = db.agora()
+    atual = escudo()
+    if atual["ativo"] and atual.get("ate", 0) >= agora + minutos * 60 - 30:
+        return atual
+    novo = {"desde": atual.get("desde") if atual["ativo"] else agora, "ate": agora + minutos * 60, "motivo": motivo,
+            "automatico": automatico, "pico": pico or atual.get("pico") or {}, "vercel": False}
+    db.set_cfg("escudo", novo)
+    _escudo_cache.update(valor=novo, em=time.time())
+    registrar("0.0.0.0", "escudo_ligado", "/", motivo[:300])
+    try:
+        from . import notificacoes
+        notificacoes.notificar(f"escudo-{novo['desde']}", "seguranca", "alta", "Ataque em massa detectado: escudo ligado",
+                               f"{motivo}. O sistema endureceu os limites e bloqueou os IPs que mais atacaram por {minutos} min.", "/seguranca",
+                               {"rotulo": "Ver segurança", "tipo": "link", "para": "/seguranca"})
+    except Exception:  # noqa: BLE001
+        pass
+    return novo
+
+
+def desligar_escudo():
+    e = escudo()
+    if e.get("ate"):
+        db.set_cfg("escudo", {**e, "ate": db.agora() - 1, "desligado_em": db.agora()})
+        _escudo_cache["em"] = 0
+        registrar("0.0.0.0", "escudo_desligado", "/", "")
+
+
+def taxa_atual() -> dict:
+    """Requisições por segundo (últimos 10 s) e IPs diferentes (último minuto) nesta instância."""
+    agora = time.time()
+    with _trava:
+        ult10 = [x for x in _global if x[0] > agora - 10]
+        ult60 = [x for x in _global if x[0] > agora - 60]
+    return {"req_seg": round(len(ult10) / 10, 1), "ips_min": len({ip for _, ip in ult60}), "req_min": len(ult60)}
+
+
+def _detectar_ddos(c: dict):
+    if not c.get("escudo_auto"):
+        return
+    t = taxa_atual()
+    if t["req_seg"] >= c["ddos_req_seg"] or t["ips_min"] >= c["ddos_ips_min"]:
+        if escudo()["ativo"]:
+            return
+        agora = time.time()
+        with _trava:
+            cont = defaultdict(int)
+            for ts, ip in _global:
+                if ts > agora - 60:
+                    cont[ip] += 1
+        # bloqueia na hora quem mais mandou (fora da equipe e da lista de permitidos)
+        piores = sorted(cont.items(), key=lambda x: -x[1])[:50]
+        bloqueados = 0
+        for ip, n in piores:
+            if n >= max(20, c["limite_escudo_por_minuto"]) and not _casa(ip, "permitido") and not _eh_equipe(ip):
+                bloquear(ip, f"ataque em massa ({n} req/min)", 1440)
+                bloqueados += 1
+        ligar_escudo(f"Pico de {t['req_seg']} req/s e {t['ips_min']} IPs/min", c["escudo_minutos"], {**t, "bloqueados": bloqueados})
+
+
 def falhas_recentes(ip: str, tipos: tuple[str, ...], minutos: int, detalhe_contem: str | None = None) -> int:
     filtro = " AND detalhe = ?" if detalhe_contem else ""
     params = (ip, db.agora() - minutos * 60, *tipos) + ((detalhe_contem,) if detalhe_contem else ())
@@ -206,18 +305,33 @@ def verificar(request) -> tuple[int, str] | None:
                 bloqueio_automatico(ip, "assinatura de ferramenta de ataque")
             return 403, "Requisição recusada."
     agora = time.time()
+    esc = escudo()
+    equipe = esc["ativo"] and _eh_equipe(ip)
+    limite = c["limite_por_minuto"] if not esc["ativo"] or equipe else min(c["limite_por_minuto"], c["limite_escudo_por_minuto"])
     with _trava:
+        _global.append((agora, ip))
         fila = _reqs[ip]
         while fila and fila[0] < agora - 60:
             fila.popleft()
         fila.append(agora)
-        excedeu = len(fila) > c["limite_por_minuto"]
+        rajada = _rajadas[ip]
+        rajada.append(agora)
+        em10 = sum(1 for x in rajada if x > agora - 10)
+        excedeu = len(fila) > limite or em10 > c["rajada_10s"]
         if excedeu:
             _estouros[ip] += 1
+    _contador["n"] += 1
+    if _contador["n"] % 50 == 0:
+        _detectar_ddos(c)
+    if excedeu and esc["ativo"] and not equipe:
+        # durante o ataque não há segunda chance: estourou o limite, fica bloqueado
+        bloqueio_automatico(ip, "excesso de requisições durante ataque em massa")
+        registrar(ip, "rate_limit", rota, f"{len(fila)} req/min · escudo", pais, agente)
+        return 429, "Muitas requisições. Aguarde."
     if excedeu:
         if _estouros[ip] in (1, 50):
             registrar(ip, "rate_limit", rota, f"{len(fila)} req/min", pais, agente)
-        if _estouros[ip] >= 200:
+        if _estouros[ip] >= (20 if em10 > c["rajada_10s"] * 2 else 200):
             _estouros[ip] = 0
             bloqueio_automatico(ip, "excesso de requisições")
         return 429, "Muitas requisições. Aguarde um minuto."

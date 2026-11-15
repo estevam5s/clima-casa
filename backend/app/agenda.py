@@ -31,6 +31,11 @@ async def laco():
         try:
             await asyncio.to_thread(_rodar_pendentes, datetime.datetime.now())
             await asyncio.to_thread(automacao.ciclo)
+            try:
+                from . import vercel_ataque
+                await asyncio.to_thread(vercel_ataque.sincronizar)   # escudo anti-DDoS → modo de ataque da Vercel
+            except Exception as e:  # noqa: BLE001
+                log.warning("escudo/Vercel: %s", e)
             if ciclo % 3 == 0:  # status online dos transmissores a cada ~1 min
                 await asyncio.to_thread(transmissor.atualizar_online)
         except Exception as e:  # noqa: BLE001

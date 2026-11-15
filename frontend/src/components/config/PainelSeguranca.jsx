@@ -136,6 +136,17 @@ export default function PainelSeguranca() {
                 <input className="campo mt-1.5 font-mono" value={cfg.bloqueio_progressivo.join(', ')}
                   onChange={(e) => setC('bloqueio_progressivo')(e.target.value.split(',').map((x) => parseInt(x, 10)).filter((x) => x > 0))} /></label>
               <label className="flex items-center justify-between">Detectar ferramentas de ataque<Interruptor ligado={cfg.detectar_scanners} onChange={setC('detectar_scanners')} rotulo="Detectar scanners" /></label>
+              <label className="flex items-center justify-between gap-3">Rajada máxima por IP (requisições em 10 s)<input type="number" min={10} max={2000} className="campo h-9 w-24" value={cfg.rajada_10s} onChange={setC('rajada_10s')} /></label>
+              <label className="flex items-center justify-between gap-3">Bloquear servidores de nuvem sem login<Interruptor ligado={cfg.bloquear_nuvem} onChange={setC('bloquear_nuvem')} rotulo="Bloquear nuvem" /></label>
+              <div className="rounded-lg border border-red-500/25 bg-red-500/5 p-3">
+                <label className="flex items-center justify-between font-medium">Escudo anti-DDoS automático<Interruptor ligado={cfg.escudo_auto} onChange={setC('escudo_auto')} rotulo="Escudo automático" /></label>
+                <div className="mt-2 space-y-2">
+                  {[['ddos_req_seg', 'Liga com (req/s)', 5, 5000], ['ddos_ips_min', 'ou com IPs diferentes por minuto', 10, 100000], ['escudo_minutos', 'Fica ligado por (min)', 5, 1440], ['limite_escudo_por_minuto', 'Limite por IP no escudo (req/min)', 10, 1000]].map(([k, r, mn, mx]) => (
+                    <label key={k} className="flex items-center justify-between gap-3 text-xs">{r}<input type="number" min={mn} max={mx} className="campo h-8 w-24" value={cfg[k]} onChange={setC(k)} /></label>
+                  ))}
+                  <label className="flex items-center justify-between gap-3 text-xs">Ligar junto o modo de ataque da Vercel<Interruptor ligado={cfg.escudo_vercel} onChange={setC('escudo_vercel')} rotulo="Modo de ataque da Vercel" /></label>
+                </div>
+              </div>
               <label className="flex items-center justify-between">Registrar logins bem-sucedidos<Interruptor ligado={cfg.registrar_logins_ok} onChange={setC('registrar_logins_ok')} rotulo="Registrar logins" /></label>
               <label className="block">Países bloqueados (códigos, ex.: CN, RU)
                 <input className="campo mt-1.5 font-mono uppercase" value={cfg.paises_bloqueados.join(', ')} onChange={(e) => setC('paises_bloqueados')(e.target.value.split(',').map((x) => x.trim()))} /></label>

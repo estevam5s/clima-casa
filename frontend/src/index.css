@@ -80,3 +80,8 @@
   background-image: radial-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1.2px);
   background-size: 18px 18px;
 }
+
+/* Alerta de ataque em massa: faixa vermelha com varredura de luz */
+.alerta-ataque::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.18) 50%, transparent 70%); transform: translateX(-100%); animation: varredura-alerta 2.4s ease-in-out infinite; }
+@keyframes varredura-alerta { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .alerta-ataque::before { animation: none; } }
