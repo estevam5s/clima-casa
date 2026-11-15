@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CloudDownload, Pencil, Radio, RefreshCw, Search, Trash2, Wand2 } from 'lucide-react'
+import { ChevronDown, CloudDownload, Pencil, Radio, RefreshCw, Search, Trash2, Wand2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Ponto, Selo, Vazio, useDados, useToast } from '../components/ui'
@@ -139,6 +139,52 @@ function Editar({ hub, onFechar, aoSalvar }) {
   )
 }
 
+// Orientação de troca de Wi-Fi: o que o sistema faz sozinho e o que só a pessoa pode fazer.
+function GuiaRede() {
+  const [aberto, setAberto] = useState(() => { try { return localStorage.getItem('clima-guia-rede') !== '0' } catch { return true } })
+  const alternar = () => { const v = !aberto; setAberto(v); try { localStorage.setItem('clima-guia-rede', v ? '1' : '0') } catch { /* sem armazenamento */ } }
+  return (
+    <section className="cartao mb-6">
+      <button onClick={alternar} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={aberto}>
+        <span className="flex items-center gap-2 text-sm font-semibold"><Wifi className="h-4 w-4 text-primary" /> Mudou de Wi-Fi ou de lugar?</span>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${aberto ? 'rotate-180' : ''}`} />
+      </button>
+      {aberto && (
+        <div className="grid gap-6 border-t border-border px-4 py-4 text-sm lg:grid-cols-[1.3fr_1fr]">
+          <div>
+            <p className="text-muted-foreground">
+              O transmissor guarda o nome e a senha de um Wi-Fi só. Trocou a rede (roteador novo, senha nova, outro escritório), ele fica offline até
+              ser pareado de novo. Isso é do próprio aparelho Tuya, não do sistema. Mesmo Wi-Fi, só reiniciou ou o roteador deu outro IP? Não precisa fazer nada.
+            </p>
+            <ol className="mt-3 space-y-2">
+              {[
+                ['No app Smart Life', 'abra o Smart IR, toque no lápis (ou "...") e em Remover dispositivo.'],
+                ['No transmissor', 'segure o botão uns 5 segundos, até a luz piscar rápido.'],
+                ['No Smart Life', 'toque em + → Adicionar dispositivo e escolha o Wi-Fi 2,4 GHz do roteador onde está o computador do agente. Rede 5 GHz não funciona; com o mesmo nome para as duas bandas, fique perto do roteador.'],
+                ['Aqui no sistema', 'nada para apagar nem cadastrar. Em até 1 minuto o agente acha o IP novo e busca a chave nova na conta Smart Life. Para não esperar, clique em Reconectar agora.'],
+              ].map(([q, t], i) => (
+                <li key={q} className="flex gap-3">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border text-[11px] font-semibold tabular">{i + 1}</span>
+                  <span><b className="font-medium">{q}:</b> <span className="text-muted-foreground">{t}</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">O que precisa estar junto</p>
+            <ul className="space-y-2">
+              <li><b className="font-medium">Transmissor e computador do agente</b> <span className="text-muted-foreground">na mesma rede. É o agente (Mac ou outro PC ligado) que fala com o transmissor pela rede local.</span></li>
+              <li><b className="font-medium">O painel, o celular e a Alexa</b> <span className="text-muted-foreground">não precisam: funcionam de qualquer lugar pela internet.</span></li>
+              <li><b className="font-medium">Conta Smart Life conectada</b> <span className="text-muted-foreground">uma vez só, em <Link to="/configuracoes?aba=contas" className="text-primary hover:underline">Configurações → Contas</Link>. É por ela que o sistema pega a chave nova sozinho.</span></li>
+              <li><b className="font-medium">Botões gravados</b> <span className="text-muted-foreground">continuam valendo. Não precisa gravar de novo.</span></li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function Transmissores() {
   const { filtro } = useProjeto()
   const { dados: hubs, erro, recarregar, setDados } = useDados(() => api.get(comFiltro('/api/hubs', filtro)), [filtro])
@@ -192,11 +238,7 @@ export default function Transmissores() {
         </>}
       />
 
-      {hubs.length > 0 && (
-        <div className="mb-4 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          <b className="text-foreground">Mudou de Wi-Fi?</b> Pareie o transmissor de novo no Smart Life (rede 2,4 GHz). O agente do Mac encontra o IP novo e busca a Local Key nova na conta Smart Life sozinho, em até 2 minutos. Os botões gravados continuam valendo.
-        </div>
-      )}
+      {hubs.length > 0 && <GuiaRede />}
       {hubs.length > 0 && (
         <div className="mb-6">
           <FaixaMetricas itens={[
@@ -209,7 +251,7 @@ export default function Transmissores() {
       )}
       {hubs.length === 0 ? (
         <Vazio icone={Radio} titulo="Nenhum transmissor"
-          texto="Pareie o SRW-004 no app Smart Life (Wi-Fi 2.4 GHz), conecte a conta em Configurações e importe por aqui." />
+          texto="Pareie o SRW-004 no app Smart Life (Wi-Fi 2.4 GHz), conecte a conta em Configurações → Contas e importe por aqui." />
       ) : (
         <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
           {hubs.map((h) => (
