@@ -10,6 +10,9 @@ from .. import musica
 from ..seguranca import exigir_login
 
 rotas_musica = APIRouter(prefix="/api/musica", dependencies=[Depends(exigir_login)])
+# volta do Spotify sem exigir login: o "state" (aleatório, 10 min, uso único, criado por um admin logado) é a prova.
+# Assim funciona mesmo quando o Spotify devolve num navegador ou app onde o painel não está logado.
+publico_musica = APIRouter(prefix="/api/musica")
 
 
 def _admin():
@@ -64,6 +67,12 @@ class Retorno(BaseModel):
 def retorno(d: Retorno):
     _admin()
     return _sp(musica.concluir_login, d.code, d.state)
+
+
+@publico_musica.post("/spotify-retorno")
+def retorno_publico(d: Retorno):
+    e = _sp(musica.concluir_login, d.code, d.state)
+    return {"conectado": e["conectado"], "conta": (e.get("conta") or {}).get("nome")}
 
 
 @rotas_musica.post("/desconectar")

@@ -126,6 +126,7 @@ app.include_router(rotas_api.publico)
 app.include_router(rotas_contas.publico_contas)
 app.include_router(rotas_contas.contas)
 app.include_router(rotas_api.api)
+app.include_router(rotas_musica.publico_musica)
 app.include_router(rotas_musica.rotas_musica)
 app.include_router(rotas_alexa.roteador)
 

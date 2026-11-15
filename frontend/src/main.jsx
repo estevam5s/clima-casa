@@ -62,6 +62,22 @@ function Protegido({ children }) {
 import NaoEncontrado from './pages/NaoEncontrado'
 import Cursor from './components/Cursor'
 
+// Volta do login do Spotify (/musica?code=…&state=…): troca o código na hora, antes da checagem de login do painel.
+// Funciona mesmo se o Spotify devolveu num navegador/app onde o painel não está logado; o resultado fica guardado
+// nesta aba e aparece na tela Música.
+;(() => {
+  const u = new URL(window.location.href)
+  const code = u.searchParams.get('code'), state = u.searchParams.get('state'), err = u.searchParams.get('error')
+  if (u.pathname !== '/musica' || (!code && !err)) return
+  window.history.replaceState(null, '', '/musica')
+  const guardar = (x) => { try { sessionStorage.setItem('spotify-retorno', JSON.stringify(x)) } catch { /* sem armazenamento */ } window.__spotifyRetorno = x; window.dispatchEvent(new Event('spotify-retorno')) }
+  if (err) { guardar({ ok: false, msg: err === 'access_denied' ? 'Login do Spotify cancelado.' : `O Spotify devolveu: ${err}` }); return }
+  window.__spotifyRetorno = { processando: true }
+  fetch('/api/musica/spotify-retorno', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, state }) })
+    .then(async (r) => { const j = await r.json().catch(() => ({})); guardar(r.ok ? { ok: true, conta: j.conta } : { ok: false, msg: typeof j.detail === 'string' ? j.detail : `Falha ${r.status} ao concluir o login.` }) })
+    .catch(() => guardar({ ok: false, msg: 'Sem conexão para concluir o login do Spotify. Tente de novo.' }))
+})()
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <TemaProvider>

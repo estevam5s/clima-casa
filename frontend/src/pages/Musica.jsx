@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CalendarClock, Disc3, ExternalLink, KeyRound, ListMusic, LogOut, Music2, Pause, Pencil, Play, Plus, Repeat, Repeat1, Search, Shuffle, SkipBack, SkipForward, Smartphone, Speaker, Trash2, Tv, Volume2, Zap } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
@@ -220,8 +219,6 @@ function descreverRotina(r, ares) {
 
 export default function Musica() {
   const toast = useToast()
-  const navegar = useNavigate()
-  const [params] = useSearchParams()
   const { sessao } = useProjeto()
   const admin = ['dono', 'admin'].includes(sessao?.papel)
   const podeControlar = !!sessao?.permissoes?.includes('aparelhos.controlar')
@@ -233,15 +230,22 @@ export default function Musica() {
 
   const carregar = () => api.get('/api/musica/estado').then(setEstado).catch((e) => setErro(e.message))
   useEffect(() => { carregar(); api.get('/api/musica/rotinas').then(setRotinas).catch(() => setRotinas([])); api.get('/api/aparelhos').then((l) => setAres(Array.isArray(l) ? l : l.aparelhos || [])).catch(() => {}) }, [])
-  // volta do login do Spotify: /musica?code=…&state=…
+  // resultado da volta do login do Spotify (a troca do código é feita em main.jsx, assim que a página carrega)
+  const [processando, setProcessando] = useState(() => !!window.__spotifyRetorno?.processando)
   useEffect(() => {
-    const code = params.get('code'), state = params.get('state'), err = params.get('error')
-    if (voltou.current || (!code && !err)) return
-    voltou.current = true
-    navegar('/musica', { replace: true })
-    if (err) { toast(err === 'access_denied' ? 'Login do Spotify cancelado.' : `O Spotify devolveu: ${err}`, 'erro'); return }
-    api.post('/api/musica/retorno', { code, state }).then((e) => { setEstado(e); toast(`Spotify conectado: ${e.conta?.nome}.`) }).catch((e) => toast(e.message, 'erro'))
-  }, [params]) // eslint-disable-line react-hooks/exhaustive-deps
+    const ver = () => {
+      let x = window.__spotifyRetorno
+      if (!x || x.processando) { try { x = JSON.parse(sessionStorage.getItem('spotify-retorno') || 'null') } catch { x = null } }
+      if (!x || x.processando || voltou.current) return
+      voltou.current = true; setProcessando(false)
+      try { sessionStorage.removeItem('spotify-retorno') } catch { /* sem armazenamento */ }
+      window.__spotifyRetorno = null
+      if (x.ok) { toast(`Spotify conectado${x.conta ? `: ${x.conta}` : ''}.`); carregar() } else { toast(x.msg || 'Não deu para conectar o Spotify.', 'erro'); setErroLogin(x.msg || '') ; carregar() }
+    }
+    ver(); window.addEventListener('spotify-retorno', ver)
+    return () => window.removeEventListener('spotify-retorno', ver)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [erroLogin, setErroLogin] = useState('')
   useEffect(() => { if (estado?.conectado) api.get('/api/musica/tocando').then((p) => setAparelhosSp(p.aparelhos)).catch(() => {}) }, [estado?.conectado])
 
   const conectar = async () => { try { window.location.href = (await api.get('/api/musica/conectar')).url } catch (e) { toast(e.message, 'erro') } }
@@ -260,6 +264,8 @@ export default function Musica() {
           {admin && <Botao variante="secundario" icone={LogOut} onClick={desconectar}>Desconectar</Botao>}
         </>) : null} />
 
+      {processando && <Aviso tipo="info">Concluindo o login do Spotify…</Aviso>}
+      {erroLogin && !estado.conectado && <Aviso tipo="alerta">{erroLogin}</Aviso>}
       {estado.conectado ? (
         <>
           <div className="flex flex-wrap items-center gap-3 text-sm">

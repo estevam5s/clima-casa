@@ -69,6 +69,7 @@ def url_login() -> str:
     estado_oauth = secrets.token_urlsafe(24)
     c["oauth_estado"] = {"valor": estado_oauth, "expira": int(time.time()) + 600}
     _salvar(c)
+    db.registrar("musica", "Login no Spotify iniciado", detalhe=f"volta em {c.get('redirect_uri') or REDIRECIONAR}")
     q = {"client_id": c["client_id"], "response_type": "code", "redirect_uri": c.get("redirect_uri") or REDIRECIONAR,
          "scope": ESCOPOS, "state": estado_oauth, "show_dialog": "true"}
     return f"{CONTA}/authorize?{urllib.parse.urlencode(q)}"
@@ -82,16 +83,30 @@ def concluir_login(code: str, estado_oauth: str) -> dict:
     c = _cfg()
     esp = c.get("oauth_estado") or {}
     if not esp or not secrets.compare_digest(esp.get("valor", ""), estado_oauth or "") or esp.get("expira", 0) < time.time():
+        db.registrar("musica", "Volta do Spotify recusada", ok=False, detalhe="state ausente, diferente ou vencido (mais de 10 min)")
         raise ErroSpotify(400, "O login do Spotify expirou ou não começou por aqui. Clique em Conectar de novo.")
+    c.pop("oauth_estado", None); _salvar(c)   # uso único
     r = httpx.post(f"{CONTA}/api/token", headers={"Authorization": _basic(c)}, timeout=15,
                    data={"grant_type": "authorization_code", "code": code, "redirect_uri": c.get("redirect_uri") or REDIRECIONAR})
     if r.status_code != 200:
-        raise ErroSpotify(400, f"O Spotify recusou o login ({r.json().get('error_description', r.status_code)}). Confira o Redirect URI do app.")
+        try:
+            motivo = r.json().get("error_description") or r.json().get("error") or r.status_code
+        except ValueError:
+            motivo = r.status_code
+        db.registrar("musica", "Spotify recusou a troca do código", ok=False, detalhe=str(motivo)[:200])
+        dica = (" Em developer.spotify.com → app → Settings, o Redirect URI tem que ser exatamente " + (c.get("redirect_uri") or REDIRECIONAR) + "."
+                if "redirect" in str(motivo).lower() else " Clique em Conectar com o Spotify de novo (cada código vale uma vez, por poucos minutos).")
+        raise ErroSpotify(400, f"O Spotify recusou o login ({motivo}).{dica}")
     t = r.json()
-    c.pop("oauth_estado", None)
     c.update({"refresh_token": t["refresh_token"], "access_token": t["access_token"], "expira": int(time.time()) + t.get("expires_in", 3600) - 60})
     _salvar(c)
-    eu = chamar("GET", "/me")
+    try:
+        eu = chamar("GET", "/me")
+    except ErroSpotify as e:
+        db.registrar("musica", "Spotify conectado, mas a conta não pôde ser lida", ok=False, detalhe=str(e)[:200])
+        if e.status == 403:
+            raise ErroSpotify(403, "O Spotify autorizou, mas bloqueou o acesso à conta: em developer.spotify.com, abra o app → User Management e adicione o e-mail desta conta Spotify.") from e
+        raise
     c = _cfg()
     c["conta"] = {"nome": eu.get("display_name") or eu.get("id"), "id": eu.get("id"), "produto": eu.get("product"), "pais": eu.get("country"),
                   "foto": ((eu.get("images") or [{}])[0] or {}).get("url"), "conectado_em": int(time.time())}
