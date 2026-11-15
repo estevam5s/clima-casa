@@ -240,6 +240,7 @@ function ContaGoogle() {
     }
     carregar().catch((x) => { setErro(x.message); setGoogle(null) })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // (a URL só é limpa depois de o cliente do Supabase já ter lido os tokens: supabase() é criado antes, no layout)
   const conectar = async () => {
     setOcupado(true); setErro('')
     try {

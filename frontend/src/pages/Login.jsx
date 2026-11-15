@@ -38,7 +38,9 @@ export default function Login() {
   const estadoNav = useLocation().state
   const destino = estadoNav?.de || '/'
   const veio2fa = estadoNav?.etapa === '2fa'
-  const [codigo, setCodigo] = useState('')
+  const [codigo, setCodigoEstado] = useState('')
+  const codigoAtual = useRef('')
+  const setCodigo = (v) => { codigoAtual.current = v; setCodigoEstado(v) }
   const [robo, setRobo] = useState('')          // token do Turnstile ('' = ainda não, null = desligado)
   const roboRef = useRef(null)
   const [temBio, setTemBio] = useState(false)
@@ -50,10 +52,13 @@ export default function Login() {
   const setTema = (t) => setEscolha(t)
 
   // Já tem sessão válida guardada? Vai direto (a rota protegida confere no servidor), sem mostrar o login.
-  const sessaoGuardada = (() => {
+  // Conferido UMA vez, ao abrir a página. (Antes era a cada render: logo depois da senha certa a sessão já fica
+  // guardada e a tela sumia, ficando preta, justo quando ia pedir o código do Google Authenticator.)
+  const [sessaoGuardada] = useState(() => {
     try { const s = JSON.parse(localStorage.getItem('clima-casa-auth') || 'null'); return !!(s?.access_token && (s.expires_at || 0) * 1000 > Date.now() + 5000) } catch { return false }
-  })()
+  })
   useEffect(() => { if (veio2fa) { setModo('2fa'); setPronto(true) } else if (sessaoGuardada) navegar(destino, { replace: true }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (veio2fa) { setModo('2fa'); setPronto(true); setOcupado(false) } }, [veio2fa])
 
   useEffect(() => {
     if (sessaoGuardada || veio2fa) return
@@ -61,8 +66,9 @@ export default function Login() {
     const url = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1))
     const erroGoogle = url.get('error_description') || url.get('error')
     const veioGoogle = !!(url.get('access_token') || url.get('code') || erroGoogle)
-    if (veioGoogle) window.history.replaceState(null, '', window.location.pathname)
+    // o cliente do Supabase lê a sessão do endereço (#access_token) ao ser criado: só depois limpamos a URL
     supabase().then(async (sb) => {
+      if (veioGoogle) { await sb.auth.getSession(); window.history.replaceState(null, '', window.location.pathname) }
       if (erroGoogle) {
         setErro(/signup|not allowed|registr/i.test(erroGoogle)
           ? 'Essa conta Google não está ligada a nenhum usuário do sistema. Entre com e-mail e senha e conecte o Google em Configurações → Segurança, ou peça ao administrador uma conta com esse e-mail.'
@@ -98,9 +104,10 @@ export default function Login() {
     } catch (err) { setErro(err.message); setOcupado(false) }
   }
 
-  const confirmar2fa = async (e) => {
-    e.preventDefault()
-    if (ocupado) return
+  const confirmar2fa = async (e, codigoDigitado) => {
+    e?.preventDefault?.()
+    const codigo = codigoDigitado ?? codigoAtual.current
+    if (ocupado || codigo.replace(/\D/g, '').length !== 6) return
     setErro(''); setOcupado(true)
     try {
       const sb = await supabase()
@@ -166,7 +173,7 @@ export default function Login() {
   }
 
   const meu = sistemaAtual()
-  if (sessaoGuardada && !veio2fa) return null
+  if (sessaoGuardada && !veio2fa && modo === 'entrar') return null
   return (
     <div style={TEMAS[tema]} className="relative grid min-h-dvh w-full grid-cols-1 gap-3 overflow-x-clip bg-[var(--bg)] p-3 text-[var(--ink)] transition-colors duration-700 lg:grid-cols-[1.08fr_1fr]">
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 opacity-40" style={{ backgroundImage: GRAO, mixBlendMode: 'var(--grain-blend)' }} />
@@ -275,7 +282,7 @@ export default function Login() {
                 <p className="mt-3 text-[15px] text-[var(--muted)]">Abra o Google Authenticator e digite o código de 6 dígitos do Clima Escritório.</p>
                 <form onSubmit={confirmar2fa} className="mt-8 space-y-4">
                   <input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} autoFocus required value={codigo}
-                    onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setCodigo(v) }}
+                    onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setCodigo(v); if (v.length === 6) confirmar2fa(null, v) }}
                     aria-label="Código de 6 dígitos" placeholder="000000"
                     className={`${campo} text-center font-mono text-[28px] tracking-[0.5em]`} />
                   {erro && <p role="alert" className="rounded-[12px] border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-600 dark:text-red-400">{erro}</p>}
