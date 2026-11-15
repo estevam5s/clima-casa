@@ -41,7 +41,13 @@ def sessao(request: Request):
 
 @api.post("/sessao/registrar-login")
 def registrar_login(request: Request):
+    from .. import firewall
     db.registrar("sistema", "Login do administrador", detalhe=request.state.usuario.get("email", ""))
+    try:
+        firewall.registrar(firewall.ip_do_pedido(request), "login_ok", "/api/sessao/registrar-login", request.state.usuario.get("email", ""),
+                           request.headers.get("x-vercel-ip-country", ""), request.headers.get("user-agent", ""))
+    except Exception:  # noqa: BLE001
+        pass
     return {"ok": True}
 
 

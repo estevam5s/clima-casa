@@ -40,6 +40,8 @@ export default function Rodape() {
                 <li><Link href="/telas">Telas</Link></li>
                 <li><Link href="/faq">Perguntas frequentes</Link></li>
                 <li><Link href="/contato">Contato</Link></li>
+                <li><Link href="/privacidade">Privacidade</Link></li>
+                <li><Link href="/termos">Termos de uso</Link></li>
               </ul>
             </div>
           </div>

@@ -57,14 +57,46 @@ export default function Login() {
 
   useEffect(() => {
     if (sessaoGuardada || veio2fa) return
+    // Volta do Google: o Supabase devolve a sessão (ou o erro) na própria URL do /login
+    const url = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1))
+    const erroGoogle = url.get('error_description') || url.get('error')
+    const veioGoogle = !!(url.get('access_token') || url.get('code') || erroGoogle)
+    if (veioGoogle) window.history.replaceState(null, '', window.location.pathname)
     supabase().then(async (sb) => {
+      if (erroGoogle) {
+        setErro(/signup|not allowed|registr/i.test(erroGoogle)
+          ? 'Esse e-mail do Google ainda não tem conta no sistema. Peça ao administrador para criar a sua conta com o mesmo e-mail.'
+          : `O Google não concluiu o login: ${erroGoogle}`)
+        return setPronto(true)
+      }
       const { data } = await sb.auth.getSession()
       if (data.session) {
-        try { await api.get('/api/sessao'); return navegar(destino, { replace: true }) } catch { await sb.auth.signOut() }
+        try {
+          await api.get('/api/sessao')
+          if (veioGoogle) api.post('/api/sessao/registrar-login', { metodo: 'google' }).catch(() => {})
+          return navegar(destino, { replace: true })
+        } catch (err) {
+          if (err.precisa2fa) { setModo('2fa'); return setPronto(true) }   // conta com autenticador: falta o código
+          await sb.auth.signOut()
+          if (veioGoogle) setErro(err.message)
+        }
       }
       setPronto(true)
     }).catch((e) => { setErro(e.message); setPronto(true) })
   }, [navegar, destino])
+
+  const entrarGoogle = async () => {
+    if (ocupado) return
+    setErro(''); setOcupado(true)
+    try {
+      const sb = await supabase()
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/login`, queryParams: { prompt: 'select_account' } },
+      })
+      if (error) throw new Error(error.message)
+    } catch (err) { setErro(err.message); setOcupado(false) }
+  }
 
   const confirmar2fa = async (e) => {
     e.preventDefault()
@@ -214,6 +246,16 @@ export default function Login() {
                     <button type="submit" disabled={ocupado}
                       className="group relative flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--btn)] text-[15px] font-medium text-[var(--btn-ink)] transition-[transform,box-shadow] duration-300 hover:shadow-[0_14px_30px_-12px_var(--accent)] active:scale-[0.985] disabled:opacity-80">
                       {ocupado ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" /> : <>Entrar <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" /></>}
+                    </button>
+                    <button type="button" onClick={entrarGoogle} disabled={ocupado}
+                      className="mt-2.5 flex h-12 w-full items-center justify-center gap-2.5 rounded-[14px] border border-[var(--line)] bg-[var(--field)] text-[15px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60">
+                      <svg viewBox="0 0 48 48" className="h-[18px] w-[18px]" aria-hidden="true">
+                        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+                        <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+                        <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+                        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+                      </svg>
+                      Entrar com Google
                     </button>
                     {temBio && (
                       <button type="button" onClick={entrarBio} disabled={ocupado}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -12,6 +12,7 @@ import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, useDados, useToast }
 // Mapa do escritório: planta em SVG onde cada sala é um projeto e cada sala pode ter vários ares.
 // Ver: estado ao vivo de cada ar (cor do modo, fluxo de ar animado quando ligado) e controle direto.
 // Editar (quem pode gerenciar projetos): mover e redimensionar salas, posicionar ares, portas, janelas e móveis.
+const Mapa3D = lazy(() => import('../components/Mapa3D'))
 const GRADE = 10
 const COR_MODO = { frio: '#3b82f6', quente: '#f97316', ventilar: '#14b8a6', seco: '#a855f7', auto: '#22c55e' }
 const ICONE_MODO = { frio: Snowflake, quente: Sun, ventilar: Wind, seco: Droplets, auto: Sparkles }
@@ -250,6 +251,8 @@ export default function Mapa() {
   const [historico, setHistorico] = useState([])
   const [sel, setSel] = useState(null) // { tipo: 'sala'|'ar'|'elemento', id }
   const [filtro, setFiltro] = useState('todos')
+  const [vista, setVistaEstado] = useState(() => { try { return localStorage.getItem('clima-mapa-vista') || '3d' } catch { return '3d' } })
+  const setVista = (v) => { setVistaEstado(v); try { localStorage.setItem('clima-mapa-vista', v) } catch { /* sem armazenamento */ } }
   const [zoom, setZoom] = useState(1)
   const [salvando, setSalvando] = useState(false)
   const svgRef = useRef(null)
@@ -277,7 +280,7 @@ export default function Mapa() {
   // ---------- edição ----------
   const mexer = (fn) => setRascunho((r) => { setHistorico((h) => [...h.slice(-49), r]); const n = copia(r); fn(n); return n })
   const desfazer = () => setHistorico((h) => { if (!h.length) return h; setRascunho(h[h.length - 1]); return h.slice(0, -1) })
-  const comecarEdicao = () => { const r = copia(base); r.elementos = r.elementos.filter((e) => !(r.consumidos || []).includes(e.id)); r.consumidos = []; setRascunho(r); setHistorico([]); setEditando(true); setSel(null) }
+  const comecarEdicao = () => { setVista('2d'); const r = copia(base); r.elementos = r.elementos.filter((e) => !(r.consumidos || []).includes(e.id)); r.consumidos = []; setRascunho(r); setHistorico([]); setEditando(true); setSel(null) }
   const sairEdicao = () => {
     if (historico.length && !window.confirm('Descartar as mudanças da planta?')) return
     setEditando(false); setRascunho(null); setSel(null)
@@ -423,6 +426,14 @@ export default function Mapa() {
               </button>
             ))}
           </div>
+          <div className="flex rounded-lg border border-border bg-card p-0.5">
+            {[['3d', '3D'], ['2d', 'Planta']].map(([k, r]) => (
+              <button key={k} onClick={() => setVista(k)} className={`relative rounded-md px-3 py-1.5 text-sm ${vista === k ? 'font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
+                {vista === k && <motion.span layoutId="vista-mapa" className="absolute inset-0 rounded-md bg-muted" transition={{ type: 'spring', duration: 0.3 }} />}
+                <span className="relative">{r}</span>
+              </button>
+            ))}
+          </div>
           {dados.pode_editar && <Botao variante="secundario" icone={Pencil} onClick={comecarEdicao}>Editar planta</Botao>}
         </>)} />
 
@@ -455,12 +466,19 @@ export default function Mapa() {
             )}
             <div className="flex items-center gap-1">
               {editando && <button onClick={reorganizar} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" title="Reorganizar salas"><LayoutGrid className="h-4 w-4" /></button>}
+{(editando || vista === '2d') && (<>
               <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" title="Afastar"><ZoomOut className="h-4 w-4" /></button>
               <span className="w-10 text-center text-xs tabular text-muted-foreground">{Math.round(zoom * 100)}%</span>
               <button onClick={() => setZoom((z) => Math.min(2.5, +(z + 0.15).toFixed(2)))} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" title="Aproximar"><ZoomIn className="h-4 w-4" /></button>
               <button onClick={() => { setZoom(1); caixaRef.current?.scrollTo({ left: 0, top: 0, behavior: 'smooth' }) }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" title="Caber na tela"><Expand className="h-4 w-4" /></button>
+              </>)}
             </div>
           </div>
+          {!editando && vista === '3d' ? (
+            <Suspense fallback={<div className="flex h-[68vh] items-center justify-center text-sm text-muted-foreground">Montando o escritório em 3D…</div>}>
+              <Mapa3D mapa={mapa} ares={ares} projetos={projetos} filtro={filtro} selecionado={sel} aoSelecionar={setSel} />
+            </Suspense>
+          ) : (
           <div ref={caixaRef} className="max-h-[72vh] overflow-auto bg-card">
             <svg ref={svgRef} viewBox={vb.join(' ')} style={{ width: `${zoom * 100}%`, minWidth: zoom * 640 }} className="block select-none touch-none"
               onPointerMove={editando ? mover : undefined} onPointerUp={soltar} onPointerLeave={soltar} onClick={() => setSel(null)}>
@@ -519,6 +537,7 @@ export default function Mapa() {
               ))}
             </svg>
           </div>
+          )}
           <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
             {editando ? 'Arraste salas, ares e elementos · quadrado azul no canto redimensiona · R gira · Delete apaga · setas ajustam · ⌘Z desfaz'
               : `Atualiza sozinho a cada 10 s${dados.mapa.atualizado_em ? ` · planta editada ${haQuanto(dados.mapa.atualizado_em)}` : ' · planta automática: clique em Editar planta para desenhar o escritório'}`}
