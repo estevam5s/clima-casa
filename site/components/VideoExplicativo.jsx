@@ -3,18 +3,23 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AirVent, Check, Cloud, Cpu, Maximize2, Mic, Minimize2, Pause, Play, RotateCcw, Smartphone, Subtitles, Volume2, VolumeX, X } from 'lucide-react'
 import { APPS_URL, ENTRAR_URL, MARCA } from '@/lib/dados'
+import { FALAS } from '@/lib/falas'
+import NARRACAO from '@/lib/narracao.json'
+
+// cada cena dura pelo menos o tempo da fala gravada + uma folga para a animação respirar
+const duracao = (id, minimo) => Math.max(minimo, (NARRACAO.duracoes?.[id] || 0) + 1.1)
 
 // Vídeo explicativo feito em código (sem arquivo de vídeo): 7 cenas animadas com as telas reais do sistema,
 // legendas, capítulos, barra de progresso arrastável, tela cheia e narração em português pela voz do navegador.
 // Leve (só CSS + algumas imagens), nítido em qualquer tela e fácil de atualizar quando o produto muda.
 const CENAS = [
-  { id: 'problema', capitulo: 'O problema', dur: 6.5, fala: 'Ar-condicionado split comum não tem Wi-Fi. Ele só obedece ao controle remoto, e alguém precisa estar na sala para ligar.' },
-  { id: 'gravar', capitulo: 'Grave o controle', dur: 7.5, fala: 'Um transmissor infravermelho Wi-Fi aprende os botões do controle original. Você grava cada botão uma vez, pelo sistema.' },
-  { id: 'comandar', capitulo: 'Comande de qualquer lugar', dur: 8, fala: 'Depois é só comandar: pelo painel, pelo celular, pelo computador ou pela voz, com a Alexa e o Google.' },
-  { id: 'caminho', capitulo: 'Como o comando chega', dur: 7.5, fala: 'O comando passa pela nuvem, o agente no escritório recebe em cerca de um segundo e o transmissor envia o sinal para o ar.' },
-  { id: 'automatizar', capitulo: 'Agenda e automações', dur: 7.5, fala: 'Com a agenda e as automações, o ar liga antes de a equipe chegar e desliga sozinho no fim do expediente.' },
-  { id: 'acompanhar', capitulo: 'Relatórios e segurança', dur: 7.5, fala: 'Relatórios mostram horas ligado, consumo e custo de cada aparelho, e a tela de segurança mostra quem acessa e bloqueia ataques.' },
-  { id: 'comecar', capitulo: 'Comece agora', dur: 6, fala: `Esse é o ${MARCA}. Entre no sistema ou baixe os apps para começar.` },
+  { id: 'problema', capitulo: 'O problema', dur: duracao('problema', 6.5), fala: FALAS.problema },
+  { id: 'gravar', capitulo: 'Grave o controle', dur: duracao('gravar', 7.5), fala: FALAS.gravar },
+  { id: 'comandar', capitulo: 'Comande de qualquer lugar', dur: duracao('comandar', 8), fala: FALAS.comandar },
+  { id: 'caminho', capitulo: 'Como o comando chega', dur: duracao('caminho', 7.5), fala: FALAS.caminho },
+  { id: 'automatizar', capitulo: 'Agenda e automações', dur: duracao('automatizar', 7.5), fala: FALAS.automatizar },
+  { id: 'acompanhar', capitulo: 'Relatórios e segurança', dur: duracao('acompanhar', 7.5), fala: FALAS.acompanhar },
+  { id: 'comecar', capitulo: 'Comece agora', dur: duracao('comecar', 6), fala: FALAS.comecar },
 ]
 const TOTAL = CENAS.reduce((s, c) => s + c.dur, 0)
 const INICIO = CENAS.reduce((a, c, i) => [...a, i ? a[i - 1] + CENAS[i - 1].dur : 0], [])
@@ -116,7 +121,8 @@ export function PlayerExplicativo({ autoplay = false, aoFechar }) {
   const [t, setT] = useState(0)
   const [tocando, setTocando] = useState(autoplay)
   const [legenda, setLegenda] = useState(true)
-  const [voz, setVoz] = useState(false)
+  const [voz, setVoz] = useState(true)
+  const audio = useRef(null), audioCena = useRef(-1), semAudio = useRef(false)
   const [cheia, setCheia] = useState(false)
   const caixa = useRef(null), ult = useRef(null), cenaFalada = useRef(-1)
   const cena = Math.max(0, INICIO.findLastIndex((s) => t >= s))
@@ -133,23 +139,34 @@ export function PlayerExplicativo({ autoplay = false, aoFechar }) {
     return () => cancelAnimationFrame(q)
   }, [tocando])
 
-  // narração: fala a legenda de cada cena ao entrar nela (voz pt-BR do sistema operacional)
+  // narração gravada (Fish Audio, um MP3 por capítulo) sincronizada com o tempo do vídeo; se o áudio falhar, usa a voz do navegador
   useEffect(() => {
-    const sintese = typeof window !== 'undefined' && window.speechSynthesis
-    if (!sintese) return
-    if (!voz || !tocando) { sintese.cancel(); cenaFalada.current = -1; return }
-    if (cenaFalada.current === cena) return
+    if (!audio.current) {
+      audio.current = new Audio(); audio.current.preload = 'auto'
+      audio.current.addEventListener('error', () => { semAudio.current = true })
+    }
+    const el = audio.current, sintese = window.speechSynthesis
+    if (!voz || !tocando) { el.pause(); sintese?.cancel(); cenaFalada.current = -1; return }
+    const dentro = t - INICIO[cena]
+    if (!semAudio.current) {
+      if (audioCena.current !== cena) {
+        audioCena.current = cena
+        el.src = `/audio/narracao-${c.id}.mp3`
+        el.currentTime = Math.max(0, dentro)
+      } else if (Math.abs(el.currentTime - dentro) > 0.6 && dentro < (NARRACAO.duracoes?.[c.id] || 0)) el.currentTime = dentro
+      if (el.paused && dentro < (NARRACAO.duracoes?.[c.id] || 99)) el.play().catch(() => { semAudio.current = true })
+      return
+    }
+    if (!sintese || cenaFalada.current === cena) return
     cenaFalada.current = cena
     sintese.cancel()
-    const u = new SpeechSynthesisUtterance(c.fala)
-    u.lang = 'pt-BR'; u.rate = 1.04
-    const v = sintese.getVoices().find((x) => /pt-BR/i.test(x.lang) && /Luciana|Google|Francisca|Thalita|Natural/i.test(x.name)) || sintese.getVoices().find((x) => /pt/i.test(x.lang))
-    if (v) u.voice = v
+    const u = new SpeechSynthesisUtterance(c.fala); u.lang = 'pt-BR'; u.rate = 1.04
+    const v = sintese.getVoices().find((x) => /pt-BR/i.test(x.lang)); if (v) u.voice = v
     sintese.speak(u)
-  }, [cena, voz, tocando, c.fala])
-  useEffect(() => () => window.speechSynthesis?.cancel(), [])
+  }, [cena, voz, tocando, c.fala, c.id, t])
+  useEffect(() => () => { audio.current?.pause(); window.speechSynthesis?.cancel() }, [])
 
-  const ir = useCallback((s) => { setT(Math.max(0, Math.min(TOTAL - 0.01, s))); cenaFalada.current = -1 }, [])
+  const ir = useCallback((s) => { setT(Math.max(0, Math.min(TOTAL - 0.01, s))); cenaFalada.current = -1; audioCena.current = -1 }, [])
   const alternar = useCallback(() => { if (t >= TOTAL) { ir(0); setTocando(true) } else setTocando((v) => !v) }, [t, ir])
   const telaCheia = async () => {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await caixa.current?.requestFullscreen() } catch { /* sem suporte */ }
@@ -222,7 +239,7 @@ export function VideoExplicativo({ capa = '/telas/painel.jpg' }) {
   return (
     <div className="video-imagem vx-capa">
       <img src={capa} alt={`Painel do ${MARCA}`} />
-      <div className="vx-capa-info"><span>Vídeo · {tempo(TOTAL)}</span><strong>Como o {MARCA} funciona</strong><small>7 capítulos, com legendas e narração</small></div>
+      <div className="vx-capa-info"><span>Vídeo · {tempo(TOTAL)}</span><strong>Como o {MARCA} funciona</strong><small>7 capítulos, narrado, com legendas</small></div>
       <div className="play"><button onClick={() => setAberto(true)} aria-label="Assistir ao vídeo explicativo"><Play size={26} fill="currentColor" /></button></div>
       {montado && aberto && createPortal(
         <div className="vx-modal" onClick={() => setAberto(false)} role="dialog" aria-modal="true" aria-label="Vídeo explicativo">

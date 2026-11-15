@@ -26,7 +26,7 @@ export default function ComoFunciona() {
       <BannerPagina titulo="Como funciona" texto="Do controle remoto ao comando de voz: o caminho de cada clique até o ar gelado." trilha={[{ rotulo: 'Como funciona' }]} />
       <section className="pt-130 pb-80">
         <div className="container">
-          <Titulo sub="Vídeo · 50 segundos" className="mb-40">Assista e entenda em menos de um minuto</Titulo>
+          <Titulo sub="Vídeo narrado · menos de 1 minuto" className="mb-40">Assista e entenda em menos de um minuto</Titulo>
           <div className="pf_fadeup"><PlayerExplicativo /></div>
         </div>
       </section>

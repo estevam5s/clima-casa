@@ -6,7 +6,7 @@ import { GOOGLE_V4, GOOGLE_V6 } from './lib/google-ips.mjs'
 import { TURNSTILE_SITE_KEY } from './lib/dados'
 
 export const config = {
-  matcher: ['/((?!api/|_next/|og/|telas/|icone|apple-touch-icon|favicon|robots\\.txt|sitemap\\.xml|manifest\\.webmanifest|verificacao\\.js|.*\\.(?:png|jpg|jpeg|webp|svg|ico|woff2?|txt|xml)$).*)'],
+  matcher: ['/((?!api/|_next/|og/|telas/|icone|apple-touch-icon|favicon|robots\\.txt|sitemap\\.xml|manifest\\.webmanifest|verificacao\\.js|audio/|.*\\.(?:png|jpg|jpeg|webp|svg|ico|woff2?|txt|xml|mp3)$).*)'],
 }
 
 export async function proxy(request) {
