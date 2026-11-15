@@ -32,6 +32,11 @@ async def laco():
             await asyncio.to_thread(_rodar_pendentes, datetime.datetime.now())
             await asyncio.to_thread(automacao.ciclo)
             try:
+                from . import musica
+                await asyncio.to_thread(musica.ciclo)   # rotinas de música por horário
+            except Exception as e:  # noqa: BLE001
+                log.warning("rotinas de música: %s", e)
+            try:
                 from . import vercel_ataque
                 await asyncio.to_thread(vercel_ataque.sincronizar)   # escudo anti-DDoS → modo de ataque da Vercel
             except Exception as e:  # noqa: BLE001

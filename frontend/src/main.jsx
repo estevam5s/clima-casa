@@ -31,6 +31,8 @@ import { MarcaProvider } from './marca'
 import Automacoes from './pages/Automacoes'
 import ComandosAlexa from './pages/ComandosAlexa'
 import Apps from './pages/Apps'
+import Musica from './pages/Musica'
+import Guia from './pages/Guia'
 
 function Protegido({ children }) {
   const [estado, setEstado] = useState(null)
@@ -90,6 +92,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="automacoes" element={<Automacoes />} />
             <Route path="comandos-alexa" element={<ComandosAlexa />} />
             <Route path="apps" element={<Apps />} />
+            <Route path="musica" element={<Musica />} />
+            <Route path="guia" element={<Guia />} />
             <Route path="configuracoes" element={<Configuracoes />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Route>

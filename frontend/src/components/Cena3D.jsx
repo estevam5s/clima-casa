@@ -219,6 +219,7 @@ export default function Cena3D({ estado, className = '' }) {
     const relogio = new THREE.Clock()
     let abertura = 0, intensidade = 0, pulso = 0, ultimoLigado = null, quadro
     let ultimoPainel = ''
+    let corAtual = ''
     let mostrada = estadoRef.current?.externa ?? estadoRef.current?.temperatura ?? 23
     const cor = new THREE.Color()
     const laco = () => {
@@ -227,6 +228,15 @@ export default function Cena3D({ estado, className = '' }) {
       const dt = Math.min(relogio.getDelta(), 0.05)
       const tempo = relogio.elapsedTime
       const e = estadoRef.current || {}
+      // cor da carcaça escolhida no mapa (Editar planta → ar → cor)
+      if ((e.cor || '') !== corAtual) {
+        corAtual = e.cor || ''
+        const c = new THREE.Color(corAtual || t.corpo)
+        matCorpo.color.copy(c); frente.material.color.copy(c); aba.material.color.copy(c).offsetHSL(0, 0, corAtual ? -0.04 : 0)
+        if (!corAtual) aba.material.color.setHex(t.aba)
+        const escura = c.getHSL({}).l < 0.4
+        matCorpo.metalness = corAtual === '#9ca3af' ? 0.55 : 0.06; matCorpo.roughness = escura ? 0.3 : 0.38
+      }
       const ligado = !!e.ligado
 
       if (ultimoLigado !== null && ultimoLigado !== ligado) pulso = 1 // ligou ou desligou: pequeno "pulo"

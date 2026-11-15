@@ -273,10 +273,12 @@ export default function Mapa() {
   const salvarEquipe = async (lista) => setDados(await api.put('/api/mapa/pessoas', lista))
   const acoes3d = useMemo(() => ({
     persiana: async (id, aberta) => { try { setDados(await api.post(`/api/mapa/elementos/${encodeURIComponent(id)}/estado`, { aberta })) } catch (e) { toast(e.message, 'erro') } },
+    decorar: async (id, x) => { try { setDados(await api.post(`/api/mapa/elementos/${encodeURIComponent(id)}/estado`, x)) } catch (e) { toast(e.message, 'erro') } },
     ligarItem: async (id, ligado) => { try { setDados(await api.post(`/api/mapa/elementos/${encodeURIComponent(id)}/estado`, { ligado })) } catch (e) { toast(e.message, 'erro') } },
     salvarEscritas: async (lista) => { try { setDados(await api.put('/api/mapa/escritas', lista)) } catch (e) { toast(e.message, 'erro'); throw e } },
     editarPessoa: (id, preset) => setEditandoPessoa(id ? pessoasAtuais.find((p) => p.id === id) || null : novaPessoa(preset)),
   }), [setDados, toast, pessoasAtuais])
+  const aparenciaAr = async (id, x) => { try { setDados(await api.post(`/api/mapa/ares/${id}/aparencia`, x)); toast('Aparência do ar atualizada no mapa e no painel.') } catch (e) { toast(e.message, 'erro') } }
   const salvarPessoa = async (p) => {
     setSalvandoPessoa(true)
     try { await salvarEquipe([...pessoasAtuais.filter((x) => x.id !== p.id), p]); setEditandoPessoa(null); toast(`${p.nome} salvo na equipe.`) } catch (e) { toast(e.message, 'erro') } finally { setSalvandoPessoa(false) }
@@ -361,7 +363,10 @@ export default function Mapa() {
     setSel({ tipo: 'elemento', id })
   }
   const [lojaAberta, setLojaAberta] = useState(false)
+  const [itemPendente, setItemPendente] = useState(null)   // escolhido na loja fora da edição: entra na edição e coloca
+  useEffect(() => { if (editando && rascunho && itemPendente) { const [c, esc] = itemPendente; setItemPendente(null); doCatalogo(c, esc) } })   // eslint-disable-line react-hooks/exhaustive-deps
   const doCatalogo = (c, esc) => {
+    if (!editando) { setItemPendente([c, esc]); setLojaAberta(false); comecarEdicao(); return }
     const id = `${c.tipo}-${Date.now().toString(36)}`
     const caixa = caixaRef.current
     const w = c.tipo === 'monitor' ? larguraTV(esc.modelo) : c.w, h = c.h
@@ -458,6 +463,7 @@ export default function Mapa() {
               </button>
             ))}
           </div>
+          {dados.pode_editar && dados.edita_elementos && <Botao variante="secundario" icone={Store} onClick={() => setLojaAberta(true)}>Loja</Botao>}
           {dados.pode_editar && <Botao variante="secundario" icone={Pencil} onClick={comecarEdicao}>Editar planta</Botao>}
         </>)} />
 
@@ -502,7 +508,7 @@ export default function Mapa() {
           {!editando && vista === '3d' ? (
             <Suspense fallback={<div className="flex h-[68vh] items-center justify-center text-sm text-muted-foreground">Montando o escritório em 3D…</div>}>
               <Mapa3D mapa={mapa} ares={ares} projetos={projetos} filtro={filtro} selecionado={sel} aoSelecionar={setSel}
-                acoes={acoes3d} perm={{ controlar: !!(dados.pode_controlar || dados.pode_editar), admin: !!dados.admin }}
+                acoes={acoes3d} perm={{ controlar: !!(dados.pode_controlar || dados.pode_editar), admin: !!dados.admin, decorar: !!(dados.pode_editar && dados.edita_elementos) }}
                 extra={editandoPessoa && <EditorPessoa key={editandoPessoa.id} dentro inicial={editandoPessoa} postos={postosDoMapa(mapa, projetos)} projetos={projetos} ocupado={salvandoPessoa}
                   onSalvar={salvarPessoa} onApagar={pessoasAtuais.some((x) => x.id === editandoPessoa.id) ? () => apagarPessoa(editandoPessoa) : null} onFechar={() => setEditandoPessoa(null)} />} />
             </Suspense>
@@ -662,6 +668,20 @@ export default function Mapa() {
                   <div><dt className="text-muted-foreground">{arSel.ligado ? 'Ligado' : 'Última mudança'}</dt><dd className="mt-0.5 font-medium">{arSel.ligado && arSel.ligado_desde ? haQuanto(arSel.ligado_desde) : arSel.atualizado_em ? haQuanto(arSel.atualizado_em) : '—'}</dd></div>
                   <div><dt className="text-muted-foreground">Desliga sozinho</dt><dd className="mt-0.5 font-medium">{arSel.desliga_em ? new Date(arSel.desliga_em * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'não'}</dd></div>
                 </dl>
+                {dados.pode_editar && mapa.ares[arSel.id] && (
+                  <div className="mt-4 space-y-2 border-t border-border pt-4">
+                    <p className="text-xs font-medium">Aparência no 3D <span className="font-normal text-muted-foreground">· mapa e painel</span></p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {CORES_AR.map(([c, nome]) => {
+                        const atualCor = mapa.ares[arSel.id].cor || '#f8fafc'
+                        return <button key={c} onClick={() => aparenciaAr(arSel.id, { cor: c === '#f8fafc' ? '' : c })} title={nome} aria-label={nome} aria-pressed={atualCor === c}
+                          className={`h-7 w-7 rounded-full border ${atualCor === c ? 'ring-2 ring-[hsl(var(--primary))] ring-offset-1 ring-offset-[hsl(var(--card))]' : 'border-border'}`} style={{ background: c }} />
+                      })}
+                      <input type="color" defaultValue={mapa.ares[arSel.id].cor || '#f8fafc'} onChange={(e) => { clearTimeout(window.__corAr); const v = e.target.value; window.__corAr = setTimeout(() => aparenciaAr(arSel.id, { cor: v }), 500) }} className="h-7 w-9 cursor-pointer rounded border border-border bg-transparent" aria-label="Qualquer cor" title="Qualquer cor" />
+                    </div>
+                    <select value={mapa.ares[arSel.id].modelo || 'split'} onChange={(e) => aparenciaAr(arSel.id, { modelo: e.target.value })} className="campo h-9 text-sm" aria-label="Modelo do ar no 3D">{MODELOS_AR.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
+                  </div>
+                )}
                 <Link to={`/aparelhos/${arSel.id}`} className="mt-4 flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted">Detalhes, botões e histórico<ArrowRight className="h-4 w-4" /></Link>
               </motion.div>
             ) : salaSel ? (

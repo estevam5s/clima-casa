@@ -1114,6 +1114,14 @@ def salvar_mapa(d: MapaIn, request: Request):
 class ItemMapaIn(BaseModel):
     aberta: int | None = Field(None, ge=0, le=100)
     ligado: bool | None = None
+    cor: str | None = Field(None, max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    modelo: str | None = Field(None, max_length=30)
+
+
+def _pode_decorar():
+    from .. import acesso
+    if not (acesso.pode("projetos.gerenciar") and acesso.projetos_permitidos() is None):
+        raise HTTPException(403, "Só quem gerencia todos os projetos muda cor e modelo dos itens do mapa.")
 
 
 @api.post("/mapa/elementos/{eid}/estado")
@@ -1131,9 +1139,44 @@ def mexer_item_mapa(eid: str, d: ItemMapaIn, request: Request):
         el["aberta"] = d.aberta
     if d.ligado is not None:
         el["ligado"] = d.ligado
+    if d.cor is not None or d.modelo is not None:
+        _pode_decorar()
+        if d.cor is not None:
+            el["cor"] = d.cor
+        if d.modelo is not None:
+            el["modelo"] = d.modelo
     db.set_cfg("mapa", mapa)
-    acao = f"persiana {d.aberta}% aberta" if d.aberta is not None else ("ligado" if d.ligado else "desligado")
+    acao = (f"persiana {d.aberta}% aberta" if d.aberta is not None else ("ligado" if d.ligado else "desligado") if d.ligado is not None
+            else f"cor {d.cor or 'padrão'}" if d.cor is not None else f"modelo {d.modelo}")
     db.registrar("painel", f"Mapa: {el.get('rotulo') or el.get('tipo')} {acao}")
+    return ver_mapa(request)
+
+
+class AparenciaArIn(BaseModel):
+    cor: str | None = Field(None, max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    modelo: str | None = Field(None, pattern=r"^(split|cassete|piso_teto|janela)$")
+
+
+@api.post("/mapa/ares/{aid}/aparencia")
+def aparencia_ar_mapa(aid: int, d: AparenciaArIn, request: Request):
+    """Cor e modelo do ar no 3D (mapa e painel), sem entrar na edição da planta."""
+    from .. import acesso
+    if not acesso.pode("projetos.gerenciar"):
+        raise HTTPException(403, "Sem permissão para mudar a aparência dos ares.")
+    a = db.consultar("SELECT projeto_id FROM aparelhos WHERE id = ?", (aid,))
+    if not a:
+        raise HTTPException(404, "Ar não encontrado.")
+    acesso.checar_projeto(a[0]["projeto_id"])
+    mapa = {**MAPA_PADRAO, **(db.cfg("mapa") or {})}
+    pos = mapa["ares"].get(str(aid))
+    if not pos:
+        raise HTTPException(409, "Este ar ainda não está posicionado na planta.")
+    if d.cor is not None:
+        pos["cor"] = d.cor
+    if d.modelo is not None:
+        pos["modelo"] = d.modelo
+    db.set_cfg("mapa", mapa)
+    db.registrar("painel", "Aparência do ar no mapa mudada", aparelho_id=aid, detalhe=f"cor {pos.get('cor') or 'branco'} · modelo {pos.get('modelo') or 'split'}")
     return ver_mapa(request)
 
 

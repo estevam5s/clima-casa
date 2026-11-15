@@ -14,6 +14,7 @@ from . import agenda, cripto, db, firewall, sinric, transmissor
 from .rotas import alexa as rotas_alexa
 from .rotas import api as rotas_api
 from .rotas import contas as rotas_contas
+from .rotas import musica as rotas_musica
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -103,7 +104,7 @@ async def cabecalhos(request: Request, chamar):
     if dinamica and "cache-control" not in resp.headers:
         resp.headers["Cache-Control"] = "no-store"
     resp.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data: https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; img-src 'self' data: https://challenges.cloudflare.com https://*.scdn.co https://*.spotifycdn.com; style-src 'self' 'unsafe-inline'; "
         "script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; "
         "font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://api.pwnedpasswords.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests")
     if request.url.scheme == "https":
@@ -125,6 +126,7 @@ app.include_router(rotas_api.publico)
 app.include_router(rotas_contas.publico_contas)
 app.include_router(rotas_contas.contas)
 app.include_router(rotas_api.api)
+app.include_router(rotas_musica.rotas_musica)
 app.include_router(rotas_alexa.roteador)
 
 

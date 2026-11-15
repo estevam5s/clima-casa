@@ -3,8 +3,10 @@ import { AirVent, Armchair, Archive, Box, Camera, Columns2, Coffee, Droplets, Fa
 // Catálogo da "loja" do mapa: itens que entram na planta (não é compra; é o que aparece no escritório em 3D).
 // w/h = tamanho na planta (cm); modelos e cores mudam o desenho 3D.
 export const CORES_ITEM = [
-  ['#f8fafc', 'Branco'], ['#18181b', 'Preto'], ['#9ca3af', 'Prata'], ['#e7dcc6', 'Bege'], ['#7a4a2a', 'Madeira'],
-  ['#0f766a', 'Verde'], ['#1d4ed8', 'Azul'], ['#b91c1c', 'Vermelho'], ['#475569', 'Grafite'],
+  ['#f8fafc', 'Branco'], ['#e5e7eb', 'Cinza claro'], ['#9ca3af', 'Prata'], ['#475569', 'Grafite'], ['#18181b', 'Preto'],
+  ['#e7dcc6', 'Bege'], ['#c8a27a', 'Carvalho'], ['#8a6440', 'Nogueira'], ['#7a4a2a', 'Madeira escura'], ['#3f2a1d', 'Tabaco'],
+  ['#0f766a', 'Verde'], ['#65a30d', 'Verde-limão'], ['#0ea5e9', 'Azul-claro'], ['#1d4ed8', 'Azul'], ['#1e3a8a', 'Marinho'],
+  ['#7c3aed', 'Roxo'], ['#db2777', 'Rosa'], ['#b91c1c', 'Vermelho'], ['#ea580c', 'Laranja'], ['#eab308', 'Amarelo'],
 ]
 export const CATALOGO = [
   { tipo: 'rack', nome: 'Rack de servidores', grupo: 'Rede e servidores', icone: Server, w: 60, h: 100, modelos: ['42U fechado', '24U fechado', '42U aberto'], cor: '#18181b', desc: 'Rack 19" com servidores, switch, patch panel e nobreak, com LEDs de atividade.' },
@@ -30,8 +32,10 @@ export const CATALOGO = [
   { tipo: 'planta', nome: 'Planta', grupo: 'Móveis', icone: Leaf, w: 34, h: 34, modelos: ['Vaso'], cor: '#78716c', desc: 'Vaso com planta.' },
   { tipo: 'ar_previsto', nome: 'Ar previsto', grupo: 'Ar-condicionado', icone: AirVent, w: 86, h: 22, modelos: ['Split hi-wall', 'Cassete', 'Piso-teto'], cor: '#f8fafc', desc: 'Lugar reservado para um ar (ainda não cadastrado).' },
 ]
+// itens que têm liga/desliga no 3D (telas, LEDs, hélice)
+export const ELETRONICOS = ['rack', 'roteador', 'impressora', 'nobreak', 'projetor', 'camera', 'alexa', 'ventilador', 'purificador', 'bebedouro', 'frigobar', 'monitor']
 export const ITEM = Object.fromEntries(CATALOGO.map((c) => [c.tipo, c]))
 // tamanho da TV pelo modelo (polegadas → largura em cm)
 export const larguraTV = (m) => Math.round((parseInt(m, 10) || 47) * 2.54 * 0.87)
 export const MODELOS_AR = [['split', 'Split hi-wall'], ['cassete', 'Cassete (teto)'], ['piso_teto', 'Piso-teto'], ['janela', 'De janela']]
-export const CORES_AR = [['#f8fafc', 'Branco'], ['#18181b', 'Preto'], ['#9ca3af', 'Prata'], ['#e7dcc6', 'Bege']]
+export const CORES_AR = [['#f8fafc', 'Branco'], ['#e5e7eb', 'Cinza claro'], ['#9ca3af', 'Prata'], ['#475569', 'Grafite'], ['#18181b', 'Preto'], ['#e7dcc6', 'Bege'], ['#7a4a2a', 'Madeira'], ['#1e3a8a', 'Marinho']]

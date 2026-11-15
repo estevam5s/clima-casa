@@ -8,7 +8,7 @@ node "$ORIGEM/scripts/gerar-repositorio.mjs" || echo "aviso: não gerei o reposi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 rsync -a --exclude .git --exclude /apps --exclude /docs --exclude /site --exclude node_modules --exclude .venv --exclude data \
-  --exclude backend/static --exclude "__pycache__" --exclude ".env" --exclude ".env.local" "$ORIGEM/" "$TMP/"
+  --exclude backend/static --exclude "__pycache__" --exclude ".env" --exclude ".env.local" --exclude .sec-scan --exclude "SECURITY-REPORT.*" --exclude "/*.jpeg" --exclude "/.md" "$ORIGEM/" "$TMP/"
 mkdir -p "$TMP/.vercel" && cp "$ORIGEM/.vercel/project.json" "$TMP/.vercel/"
 TOKEN="${VERCEL_TOKEN:-$(grep ^VERCEL_TOKEN= "$ORIGEM/.env" | cut -d= -f2-)}"
 cd "$TMP" && vercel deploy --prod --yes --token "$TOKEN"

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -60,7 +60,24 @@ function DicaGrafico({ active, payload, label }) {
   )
 }
 
-function Destaque({ aparelhos, aoMudar }) {
+// monta o filho só quando o cartão chega perto da tela (os 3D de baixo não pesam na abertura do painel)
+function QuandoVisivel({ children, fallback }) {
+  const ref = useRef(null)
+  const [ver, setVer] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || ver) return undefined
+    const io = new IntersectionObserver(([en]) => { if (en.isIntersecting) { setVer(true); io.disconnect() } }, { rootMargin: '300px' })
+    io.observe(el)
+    // monta também num momento ocioso depois da abertura, para não engasgar quando a rolagem chegar nele
+    const ocioso = window.requestIdleCallback || ((f) => setTimeout(f, 1))
+    const t = setTimeout(() => ocioso(() => setVer(true), { timeout: 4000 }), 2500)
+    return () => { io.disconnect(); clearTimeout(t) }
+  }, [ver])
+  return <div ref={ref} className="h-full">{ver ? children : fallback}</div>
+}
+
+function Destaque({ aparelhos, aoMudar, aparencia = {} }) {
   const { escuro } = useTema()
   const [id, setId] = useState(() => (aparelhos.find((a) => a.ligado) || aparelhos[0])?.id)
   const [ocupado, setOcupado] = useState(false)
@@ -86,7 +103,7 @@ function Destaque({ aparelhos, aoMudar }) {
       <div className="grid md:grid-cols-[1.25fr_1fr]">
         <div className="relative h-64 border-b border-border md:h-auto md:min-h-[320px] md:border-b-0 md:border-r">
           <Suspense fallback={<div className="h-full animate-pulse bg-muted" />}>
-            <Cena3D key={escuro ? 'escuro' : 'claro'} estado={{ ...ar, externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
+            <Cena3D key={escuro ? 'escuro' : 'claro'} estado={{ ...ar, cor: aparencia[ar.id]?.cor || '', externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
           </Suspense>
           <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs backdrop-blur">
             <Ponto ativo={ar.ligado} /> {ar.ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador].toLowerCase()}` : 'Desligado'}
@@ -189,6 +206,27 @@ export default function Painel() {
         </div>
       </motion.div>
 
+      {(() => {
+        // o que impede o ar de obedecer agora, com o caminho para resolver
+        const avisos = []
+        if (totais.hubs && totais.hubs_online < totais.hubs) avisos.push({ t: `${totais.hubs - totais.hubs_online} transmissor${totais.hubs - totais.hubs_online > 1 ? 'es' : ''} fora da rede`, d: 'Os comandos não chegam ao ar. Confira se o transmissor está na tomada e no mesmo Wi-Fi 2,4 GHz do Mac.', l: '/transmissores', b: 'Ver transmissores' })
+        const semBotao = aparelhos.filter((a) => !a.total_codigos)
+        if (semBotao.length) avisos.push({ t: `${semBotao.map((a) => a.nome).join(', ')} sem botões gravados`, d: 'Sem o botão Desligar e as temperaturas gravados, o ar não liga nem desliga por aqui, pela Alexa ou pelo celular.', l: `/aparelhos/${semBotao[0].id}`, b: 'Gravar botões' })
+        if (!dados.agente.online) avisos.push({ t: 'Agente do Mac offline', d: 'É o Mac do escritório que manda o sinal ao transmissor. Ligue o Mac e confira o serviço.', l: '/guia', b: 'Ver o passo a passo' })
+        if (!avisos.length) return null
+        return (
+          <motion.div variants={entrar} initial="hidden" animate="show" className="cartao divide-y divide-border border-amber-300/60 dark:border-amber-700/50">
+            {avisos.map((a) => (
+              <div key={a.t} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
+                <AlertTriangle className="hidden h-4 w-4 shrink-0 text-amber-500 sm:block" />
+                <div className="min-w-0 flex-1"><p className="text-sm font-medium"><AlertTriangle className="mr-1.5 inline h-4 w-4 text-amber-500 sm:hidden" />{a.t}</p><p className="text-xs text-muted-foreground">{a.d}</p></div>
+                <Link to={a.l} className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted">{a.b}<ChevronRight className="h-3.5 w-3.5" /></Link>
+              </div>
+            ))}
+          </motion.div>
+        )
+      })()}
+
       <motion.div variants={entrar} initial="hidden" animate="show" custom={1}>
         <FaixaMetricas itens={[
           { rotulo: 'Aparelhos ligados agora', valor: totais.ligados, sufixo: ` de ${totais.aparelhos}`, dica: totais.aparelhos ? `${Math.round((totais.ligados / totais.aparelhos) * 100)}% do escritório em uso` : 'nenhum aparelho cadastrado' },
@@ -200,7 +238,7 @@ export default function Painel() {
       </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {aparelhos.length > 0 ? <Destaque aparelhos={aparelhos} aoMudar={atualizar} /> : (
+        {aparelhos.length > 0 ? <Destaque aparelhos={aparelhos} aoMudar={atualizar} aparencia={planta?.mapa?.ares || {}} /> : (
           <div className="cartao flex flex-col items-center justify-center p-10 text-center lg:col-span-2">
             <AirVent className="mb-3 h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
             <p className="font-medium">Nenhum aparelho neste projeto</p>
@@ -255,11 +293,11 @@ export default function Painel() {
             <div><h2 className="titulo-secao">Escritório ao vivo</h2><p className="text-xs text-muted-foreground">Planta em 3D com o estado de cada ar · arraste para girar</p></div>
             <Link to="/mapa" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><MapaIcone className="h-3.5 w-3.5" />Abrir o mapa</Link>
           </div>
-          <div className="relative h-[380px]">
+          <div className="relative h-[320px] sm:h-[380px]">
             {plantaPronta ? (
-              <Suspense fallback={<Esqueleto className="h-full rounded-none" />}>
+              <QuandoVisivel fallback={<Esqueleto className="h-full rounded-none" />}><Suspense fallback={<Esqueleto className="h-full rounded-none" />}>
                 <Mapa3D compacto mapa={plantaPronta.mapa} ares={plantaPronta.ares} projetos={plantaPronta.projetos} aoSelecionar={() => {}} />
-              </Suspense>
+              </Suspense></QuandoVisivel>
             ) : <Esqueleto className="h-full rounded-none" />}
           </div>
         </motion.div>
@@ -332,7 +370,7 @@ export default function Painel() {
           <div className="flex items-end justify-between border-b border-border px-5 py-3.5">
             <div><h2 className="titulo-secao">Mapa de uso em 3D</h2><p className="text-xs text-muted-foreground">Cada barra é um dia da semana numa hora; a altura é o número de comandos (7 dias). Passe o mouse para ver o valor.</p></div>
           </div>
-          <div className="h-[340px]"><Suspense fallback={<Esqueleto className="h-full rounded-none" />}><Barras3D mapa={analise.semana.mapa_calor} /></Suspense></div>
+          <div className="h-[300px] sm:h-[340px]"><QuandoVisivel fallback={<Esqueleto className="h-full rounded-none" />}><Suspense fallback={<Esqueleto className="h-full rounded-none" />}><Barras3D mapa={analise.semana.mapa_calor} /></Suspense></QuandoVisivel></div>
         </motion.div>
       )}
 

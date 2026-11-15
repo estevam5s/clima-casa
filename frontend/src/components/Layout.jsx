@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import {
-  Activity, AirVent, BarChart3, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe, Inbox, Map as MapIcon, LifeBuoy, Wrench,
-} from 'lucide-react'
+import { Activity, AirVent, BarChart3, BookOpen, CalendarClock, Check, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Sun, Workflow, Wrench, X } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -29,6 +26,7 @@ export const GRUPOS = [
     { para: '/automacoes', rotulo: 'Automações', icone: Workflow },
     { para: '/agendamentos', rotulo: 'Agenda', icone: CalendarClock },
     { para: '/transmissores', rotulo: 'Transmissores IR', icone: Radio },
+    { para: '/musica', rotulo: 'Música', icone: Music2 },
   ] },
   { titulo: 'Integrações', itens: [
     { para: '/integracoes', rotulo: 'Alexa e Google', icone: Plug, perm: 'integracoes.gerenciar' },
@@ -42,6 +40,7 @@ export const GRUPOS = [
     { para: '/mensagens', rotulo: 'Mensagens do site', icone: Inbox, contador: 'mensagens_nao_lidas', perm: 'mensagens.ver' },
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
+    { para: '/guia', rotulo: 'Passo a passo', icone: BookOpen },
   ] },
 ]
 const TODAS = GRUPOS.flatMap((g) => g.itens)

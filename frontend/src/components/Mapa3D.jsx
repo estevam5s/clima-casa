@@ -416,7 +416,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const escuro = document.documentElement.classList.contains('dark')
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, compacto ? 1.5 : 2))
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05
@@ -435,19 +435,20 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const relogio = new THREE.Clock()
     const laco = () => {
       quadro = requestAnimationFrame(laco)
-      if (document.hidden) return
+      if (document.hidden || estado.current.foraDaTela) { relogio.getDelta(); return }   // fora da tela não desenha (não pesa na rolagem)
       const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime
       estado.current.tick?.(dt, calmo ? 0 : t)
       if (!estado.current.ctrl) controles.update()
-      renderer.render(cena, camera)
+      if (!estado.current.compilando) renderer.render(cena, camera)
       estado.current.rotulos?.()
     }
     laco()
     const ajustar = () => { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix() }
     ajustar()
     const ro = new ResizeObserver(ajustar); ro.observe(el)
+    const io = new IntersectionObserver(([en]) => { estado.current.foraDaTela = !en.isIntersecting }, { rootMargin: '80px' }); io.observe(el)
     return () => {
-      cancelAnimationFrame(quadro); ro.disconnect(); controles.dispose()
+      cancelAnimationFrame(quadro); ro.disconnect(); io.disconnect(); controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); if (o.material) [].concat(o.material).forEach((m) => { m.map?.dispose?.(); m.dispose?.() }) })
       renderer.dispose(); el.removeChild(renderer.domElement)
     }
@@ -491,7 +492,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       sol.shadow.camera.updateProjectionMatrix()
     }
     sol.castShadow = true
-    sol.shadow.mapSize.set(comPredio ? 4096 : 2048, comPredio ? 4096 : 2048)
+    sol.shadow.mapSize.set(comPredio ? 4096 : compacto ? 1024 : 2048, comPredio ? 4096 : compacto ? 1024 : 2048)
     ajustarSombra(comPredio && !E.aberto)
     E.ajustarSombra = ajustarSombra
     sol.shadow.bias = -0.0004; sol.shadow.normalBias = 0.02
@@ -567,6 +568,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const vidros = []       // painéis de vidro (onde dá para escrever)
     const obstaculos = []   // retângulos que ninguém atravessa (metros): paredes, mesas, cadeiras, armários
     const bloquear = (x, z, w, d, ry = 0) => obstaculos.push({ x, z, w, d, ry })
+    // caixa invisível de clique para móveis (o cartão deixa trocar a cor)
+    const alvoItem = (id, x, z, w, d, h, ry = 0, pai = null) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ visible: false }))
+      m.position.set(x, h / 2, z); m.rotation.y = ry; m.userData = { tipo: 'item', id }; (pai || mundo).add(m); clicaveis.push(m)
+    }
     const vidro = (horiz, k, a, b, ya, yb) => {
       const comp = (b - a) * S, alt = yb - ya
       if (comp <= 0.01 || alt <= 0) return
@@ -825,6 +831,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const divisoria = new THREE.Mesh(new RoundedBoxGeometry(comp - 0.08, 0.34, 0.035, 2, 0.012), new THREE.MeshStandardMaterial({ color: escuro ? 0x475569 : 0x64748b, roughness: 0.95 }))
         divisoria.position.y = 0.94; divisoria.castShadow = true; g.add(divisoria)
         bloquear(x, z, comp + 0.1, prof + 1.25, g.rotation.y)
+        alvoItem(e.id, 0, 0, comp, prof, 0.8, 0, g)
         for (let i = 0; i < n; i++) {
           const ax = -longo / 2 + longo * (i + 0.5) / n
           estacao(g, ax, -meio, Math.PI, r() > 0.35, null, true, `${e.id}:${i}:a`)
@@ -835,6 +842,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const sala = salas.find((s) => mx > s.x && mx < s.x + s.w && my > s.y && my < s.y + s.h)
         const nome = e.rotulo || (sala && /^sala\s+(.+)/i.test(sala.p.nome.trim()) && !NAO_PESSOA.test(sala.p.nome.trim()) ? sala.p.nome.trim().replace(/^sala\s+/i, '') : null)
         estacao(mundo, x, z, ry, true, nome, false, e.id, e.cor || null)
+        alvoItem(e.id, x, z, 1.32, 0.74, 0.8, ry)
         bloquear(x + Math.sin(ry) * 0.2, z + Math.cos(ry) * 0.2, 1.36, 1.25, ry)
       } else if (e.tipo === 'bancada') {
         // bancada técnica encostada na parede: um posto a cada ~1,2 m, cada um com monitor, teclado, mouse e cadeira.
@@ -857,6 +865,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           cadeira(g, ax, prof / 2 + 0.25, Math.PI)
           assentos.push({ g, posto: `${e.id}:${i}`, comPessoa: i === 0 && r() > 0.3, nome: null, x: ax, z: prof / 2 + 0.2, ry: Math.PI })
         }
+        alvoItem(e.id, 0, 0, longo, prof, 0.8, 0, g)
         const th = g.rotation.y; bloquear(x + Math.sin(th) * 0.3, z + Math.cos(th) * 0.3, longo + 0.06, prof + 0.6, th)
       } else if (e.tipo === 'gaveteiro') {
         // armário marrom de gavetas etiquetadas (material de TI); rot 0 = frente para baixo da planta (vertical: para a direita)
@@ -867,15 +876,17 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         caixa(longo + 0.03, 0.03, prof + 0.03, matArmarioTopo, 0, alt + 0.075, 0, 0, g)
         const frente = new THREE.Mesh(new THREE.PlaneGeometry(longo - 0.03, alt - 0.03), new THREE.MeshStandardMaterial({ map: texGavetas(longo, alt), roughness: 0.6 }))
         frente.position.set(0, alt / 2 + 0.06, prof / 2 + 0.002); g.add(frente)
+        alvoItem(e.id, 0, 0, longo, prof, alt + 0.1, 0, g)
         bloquear(x, z, w, d, ry)
       } else if (e.tipo === 'armario') {
         bloquear(x, z, w, d, ry)
         caixa(w, 1.0, d, e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.6 }) : matMadeira, x, 0.5, z, ry)
         caixa(w * 0.95, 0.03, d * 0.95, matMesa, x, 1.015, z, ry)
         const cafe = caixa(0.25, 0.32, 0.25, matPreto, x, 1.19, z, ry); cafe.castShadow = true   // cafeteira
+        alvoItem(e.id, x, z, w, d, 1.1, ry)
       } else if (e.tipo === 'sofa') {
         bloquear(x, z, w, d, ry)
-        const mSofa = e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.8 }) : matCadeira; caixa(w, 0.42, d, mSofa, x, 0.21, z, ry); caixa(w, 0.4, 0.18, mSofa, x, 0.6, z, ry)
+        const mSofa = e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.8 }) : matCadeira; caixa(w, 0.42, d, mSofa, x, 0.21, z, ry); caixa(w, 0.4, 0.18, mSofa, x, 0.6, z, ry); alvoItem(e.id, x, z, w, d, 0.8, ry)
       } else if (e.tipo === 'coluna' || e.tipo === 'parede') {
         bloquear(x, z, w, d, ry)
         caixa(w, ALT, d, matParede, x, ALT / 2, z, ry)
@@ -902,6 +913,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const folha = new THREE.Group(); folha.position.set(W(hx), 0, Z(hy)); folha.rotation.y = -ang + 1.45; mundo.add(folha)
         caixa(e.w * S * 0.95, 2.05, 0.04, e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.55 }) : matMadeira, e.w * S * 0.475, 1.025, 0, 0, folha)
         const maca = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), matPerfil); maca.position.set(e.w * S * 0.85, 1.0, 0.04); folha.add(maca)
+        alvoItem(e.id, e.w * S * 0.475, 0, e.w * S * 0.95, 0.12, 2.05, 0, folha)
         const L = e.w * S * 0.95, fr = folha.rotation.y
         bloquear(W(hx) + Math.cos(fr) * L / 2, Z(hy) - Math.sin(fr) * L / 2, L, 0.05, fr)
       }
@@ -967,7 +979,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // gente andando: rota por A* numa grade de 10 cm (paredes, mesas, cadeiras e portas viram obstáculo), desviando
     // umas das outras pela direita, parando um pouco em cada destino e voltando a andar
     const dentroDeSala = (x, z) => salas.some((s) => x > W(s.x) - 0.12 && x < W(s.x + s.w) + 0.12 && z > Z(s.y) - 0.12 && z < Z(s.y + s.h) + 0.12)
-    const grade = criarGrade(W(x0) - 0.3, Z(y0) - 0.3, W(x1) + 0.3, Z(y1) + 0.3, obstaculos, dentroDeSala, 0.22)
+    const grade = criarGrade(W(x0) - 0.3, Z(y0) - 0.3, W(x1) + 0.3, Z(y1) + 0.3, obstaculos, dentroDeSala, 0.22, compacto ? 0.2 : 0.1)   // no painel, grade mais grossa (monta 4x mais rápido)
     E.grade = grade
     const salao = [...salas].sort((a, b) => b.w * b.h - a.w * a.h)[0]
     const pontoLivre = (s) => {
@@ -1296,6 +1308,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     }
     if (!E.enquadrado) enquadrar()   // remontar (persiana, escrita, pessoa) não tira a câmera do lugar
     E.enquadrar = enquadrar
+    // compila os shaders em paralelo (extensão KHR_parallel_shader_compile) antes do primeiro quadro: sem isso a
+    // primeira renderização trava a página enquanto o WebGL compila dezenas de materiais
+    E.compilando = true
+    renderer.compileAsync(cena, camera).catch(() => {}).finally(() => { E.compilando = false })
 
     // clique e cursor
     const ray = new THREE.Raycaster(), mouse = new THREE.Vector2()

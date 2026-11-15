@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Blinds, Eye, Footprints, PenLine, Power, Trash2, UserRound, Video, X } from 'lucide-react'
-import { ITEM } from '../catalogoMapa'
+import { CORES_ITEM, ELETRONICOS, ITEM } from '../catalogoMapa'
 import { DIAS_SEMANA, girarPonto, situacaoExpediente } from '../mapaUtil'
 
 // Cartões que abrem ao clicar em algo no 3D: persiana da janela, item eletrônico, pessoa (com controle em
@@ -55,17 +55,35 @@ export function CartaoMapa({ mapa, projetos, cartao, fechar, acoes, perm, ocupad
     const el = mapa.elementos.find((e) => e.id === cartao.id)
     if (!el) return null
     const cat = ITEM[el.tipo] || {}, I = cat.icone || Power, ligado = el.ligado !== false
+    const eletronico = ELETRONICOS.includes(el.tipo)
+    const nome = el.rotulo || cat.nome || ({ porta: 'Porta', mesa: 'Fileira de mesas', estacao: 'Mesa individual' })[el.tipo] || el.tipo
+    const corAtual = el.cor || ''
+    const decorar = (x) => executar(() => acoes.decorar(el.id, x))
     return (
       <div className={caixaCls}>
-        <Topo icone={I} titulo={el.rotulo || cat.nome || el.tipo} sub={`${el.modelo || cat.modelos?.[0] || ''} · ${salaDe(el)?.nome || 'escritório'}`} fechar={fechar} />
+        <Topo icone={I} titulo={nome} sub={[el.modelo || (cat.modelos?.length > 1 ? cat.modelos[0] : ''), salaDe(el)?.nome || 'escritório'].filter(Boolean).join(' · ')} fechar={fechar} />
         <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
-          <div className="rounded-md border border-border p-2"><p className="text-muted-foreground">Estado</p><p className={`font-medium ${ligado ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>{ligado ? 'Ligado' : 'Desligado'}</p></div>
-          <div className="rounded-md border border-border p-2"><p className="text-muted-foreground">Cor</p><p className="flex items-center gap-1 font-medium"><span className="inline-block h-3 w-3 rounded-full border border-border" style={{ background: el.cor || cat.cor || '#ccc' }} />{el.cor ? 'própria' : 'padrão'}</p></div>
+          <div className="rounded-md border border-border p-2"><p className="text-muted-foreground">Estado</p><p className={`font-medium ${eletronico && ligado ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>{eletronico ? (ligado ? 'Ligado' : 'Desligado') : 'Móvel'}</p></div>
+          <div className="rounded-md border border-border p-2"><p className="text-muted-foreground">Cor</p><p className="flex items-center gap-1 font-medium"><span className="inline-block h-3 w-3 rounded-full border border-border" style={{ background: corAtual || cat.cor || '#ccc' }} />{corAtual ? (CORES_ITEM.find((c) => c[0] === corAtual)?.[1] || corAtual) : 'padrão'}</p></div>
           <div className="rounded-md border border-border p-2"><p className="text-muted-foreground">Tamanho</p><p className="font-medium tabular-nums">{Math.round(el.w)}×{Math.round(el.h)} cm</p></div>
         </div>
         {cat.desc && <p className="mb-2 text-xs text-muted-foreground">{cat.desc}</p>}
-        <button disabled={ocupado || !perm.controlar} onClick={() => executar(() => acoes.ligarItem(el.id, !ligado))} className={ligado ? btn : btnPri}><Power className="h-3.5 w-3.5" />{ligado ? 'Desligar' : 'Ligar'}</button>
-        <p className="mt-2 text-[11px] text-muted-foreground">Item do mapa: liga e desliga só o desenho 3D, não um aparelho de verdade. Modelo, cor e lugar mudam em Editar planta.</p>
+        {perm.decorar && (
+          <div className="mb-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Cor">
+              <button disabled={ocupado} onClick={() => decorar({ cor: '' })} className={`h-6 rounded-full border px-2 text-[11px] ${!corAtual ? 'ring-2 ring-[hsl(var(--primary))]' : 'border-border'}`}>Padrão</button>
+              {CORES_ITEM.map(([c, n]) => <button key={c} disabled={ocupado} onClick={() => decorar({ cor: c })} title={n} aria-label={n} role="radio" aria-checked={corAtual === c}
+                className={`h-6 w-6 rounded-full border ${corAtual === c ? 'ring-2 ring-[hsl(var(--primary))] ring-offset-1 ring-offset-[hsl(var(--card))]' : 'border-border'}`} style={{ background: c }} />)}
+              <input type="color" disabled={ocupado} defaultValue={corAtual || '#888888'} onBlur={(e) => e.target.value !== corAtual && decorar({ cor: e.target.value })} onChange={(e) => { clearTimeout(window.__corT); const v = e.target.value; window.__corT = setTimeout(() => decorar({ cor: v }), 500) }}
+                className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent" aria-label="Qualquer cor" title="Qualquer cor" />
+            </div>
+            {cat.modelos?.length > 1 && el.tipo !== 'monitor' && (
+              <select disabled={ocupado} value={el.modelo || cat.modelos[0]} onChange={(e) => decorar({ modelo: e.target.value })} className="campo h-8 text-xs" aria-label="Modelo">{cat.modelos.map((m) => <option key={m}>{m}</option>)}</select>
+            )}
+          </div>
+        )}
+        {eletronico && <button disabled={ocupado || !perm.controlar} onClick={() => executar(() => acoes.ligarItem(el.id, !ligado))} className={ligado ? btn : btnPri}><Power className="h-3.5 w-3.5" />{ligado ? 'Desligar' : 'Ligar'}</button>}
+        <p className="mt-2 text-[11px] text-muted-foreground">{eletronico ? 'Item do mapa: liga e desliga só o desenho 3D, não um aparelho de verdade. ' : ''}Lugar e tamanho mudam em Editar planta.</p>
       </div>
     )
   }

@@ -79,6 +79,11 @@ def processar_evento(aparelho_id: int, origem: str, ligado: bool):
     if origem.startswith("automacao"):
         return
     tipo = "ligou" if ligado else "desligou"
+    try:
+        from . import musica
+        musica.evento_ar(aparelho_id, ligado)   # rotinas de música "quando o ar ligar/desligar"
+    except Exception as e:  # noqa: BLE001
+        log.warning("rotinas de música: %s", e)
     for auto in _ativas(tipo):
         g = auto["gatilho"]
         if g.get("aparelho_id") and int(g["aparelho_id"]) != aparelho_id:

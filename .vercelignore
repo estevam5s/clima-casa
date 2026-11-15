@@ -11,3 +11,15 @@ __pycache__
 /docs
 docs/credentials
 /site
+# fora do deploy: saídas de varredura, relatórios, imagens soltas e ferramentas locais
+.sec-scan
+frontend/.sec-scan
+SECURITY-REPORT.*
+/*.jpeg
+/*.jpg
+/*.png
+/.md
+/scripts
+/iniciar.sh
+/instalar-servico.sh
+/infra-vermelho.json
