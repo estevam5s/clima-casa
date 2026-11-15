@@ -7,7 +7,7 @@ ORIGEM="$(cd "$(dirname "$0")" && pwd)"
 node "$ORIGEM/scripts/gerar-repositorio.mjs" || echo "aviso: não gerei o repositorio.json (a tela /apps mostra o último gerado)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-rsync -a --exclude .git --exclude apps --exclude docs --exclude site --exclude node_modules --exclude .venv --exclude data \
+rsync -a --exclude .git --exclude /apps --exclude /docs --exclude /site --exclude node_modules --exclude .venv --exclude data \
   --exclude backend/static --exclude "__pycache__" --exclude ".env" --exclude ".env.local" "$ORIGEM/" "$TMP/"
 mkdir -p "$TMP/.vercel" && cp "$ORIGEM/.vercel/project.json" "$TMP/.vercel/"
 TOKEN="${VERCEL_TOKEN:-$(grep ^VERCEL_TOKEN= "$ORIGEM/.env" | cut -d= -f2-)}"
