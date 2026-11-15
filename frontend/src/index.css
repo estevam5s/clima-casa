@@ -64,3 +64,12 @@
 /* menu lateral: rola sem mostrar a barra (no recolhido ela cortava os ícones) */
 .sem-barra { scrollbar-width: none; -ms-overflow-style: none; }
 .sem-barra::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* Mapa do escritório: ondas de ar saindo do aparelho ligado */
+.fluxo-ar path { animation: fluxo-ar 1.8s ease-out infinite; opacity: 0; transform-box: fill-box; transform-origin: center top; }
+@keyframes fluxo-ar {
+  0% { opacity: 0; transform: translateY(-4px) scaleX(0.7); }
+  25% { opacity: 0.85; }
+  100% { opacity: 0; transform: translateY(26px) scaleX(1.25); }
+}
+@media (prefers-reduced-motion: reduce) { .fluxo-ar path { animation: none; opacity: 0.6; } }

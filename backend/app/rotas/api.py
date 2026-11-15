@@ -725,6 +725,99 @@ def apagar_projeto(pid: int):
     return {"ok": True}
 
 
+# ---------------- mapa do escritório ----------------
+# Planta guardada em config.mapa: tamanho, retângulo de cada sala (projeto), posição de cada ar e elementos
+# (porta, janela, mesa, bancada, parede, coluna, planta, texto). Quem só vê alguns projetos só mexe nas salas deles.
+MAPA_TIPOS = {"porta", "janela", "mesa", "bancada", "parede", "coluna", "planta", "texto", "armario", "sofa"}
+
+
+class SalaMapa(BaseModel):
+    x: float = Field(ge=0, le=6000)
+    y: float = Field(ge=0, le=6000)
+    w: float = Field(ge=40, le=6000)
+    h: float = Field(ge=40, le=6000)
+
+
+class ArMapa(BaseModel):
+    x: float = Field(ge=0, le=6000)
+    y: float = Field(ge=0, le=6000)
+    rot: int = Field(0, ge=0, le=270)
+
+
+class ElementoMapa(BaseModel):
+    id: str = Field(min_length=1, max_length=40, pattern=r"^[\w-]+$")
+    tipo: str
+    x: float = Field(ge=0, le=6000)
+    y: float = Field(ge=0, le=6000)
+    w: float = Field(ge=4, le=6000)
+    h: float = Field(ge=4, le=6000)
+    rot: int = Field(0, ge=0, le=270)
+    rotulo: str = Field("", max_length=40)
+
+
+class MapaIn(BaseModel):
+    largura: int = Field(1400, ge=400, le=6000)
+    altura: int = Field(900, ge=300, le=6000)
+    salas: dict[str, SalaMapa] = Field(default_factory=dict, max_length=200)
+    ares: dict[str, ArMapa] = Field(default_factory=dict, max_length=500)
+    elementos: list[ElementoMapa] = Field(default_factory=list, max_length=400)
+
+
+MAPA_PADRAO = {"largura": 1400, "altura": 900, "salas": {}, "ares": {}, "elementos": []}
+
+
+@api.get("/mapa")
+def ver_mapa(request: Request):
+    from .. import acesso
+    mapa = {**MAPA_PADRAO, **(db.cfg("mapa") or {})}
+    fp, pp = acesso.filtro_sql("p.id")
+    projetos = db.consultar(f"SELECT p.id, p.nome, p.cor, p.descricao FROM projetos p WHERE true{fp} ORDER BY p.nome", pp)
+    fa, pa = acesso.filtro_sql("a.projeto_id")
+    ares = db.consultar(f"""
+        SELECT a.id, a.nome, a.comodo, a.marca, a.projeto_id, a.hub_id, a.ligado, a.modo, a.temperatura, a.ventilador,
+               a.temp_min, a.temp_max, a.modos, a.potencia_w, a.ligado_desde, a.atualizado_em,
+               COALESCE(h.online, 0) AS hub_online, h.nome AS hub_nome,
+               (SELECT COUNT(*) FROM codigos c WHERE c.aparelho_id = a.id) AS botoes,
+               (SELECT t.executar_em FROM temporizadores t WHERE t.aparelho_id = a.id ORDER BY t.executar_em LIMIT 1) AS desliga_em
+        FROM aparelhos a LEFT JOIN hubs h ON h.id = a.hub_id WHERE true{fa} ORDER BY a.nome""", pa)
+    ids_p = {str(p["id"]) for p in projetos}
+    ids_a = {str(a["id"]) for a in ares}
+    tudo = acesso.projetos_permitidos() is None
+    return {
+        "mapa": {"largura": mapa["largura"], "altura": mapa["altura"],
+                 "salas": {k: v for k, v in mapa["salas"].items() if k in ids_p},
+                 "ares": {k: v for k, v in mapa["ares"].items() if k in ids_a},
+                 "elementos": mapa["elementos"], "atualizado_em": mapa.get("atualizado_em")},
+        "projetos": projetos, "ares": ares, "pode_editar": acesso.pode("projetos.gerenciar"),
+        "edita_elementos": tudo,
+    }
+
+
+@api.put("/mapa")
+def salvar_mapa(d: MapaIn, request: Request):
+    from .. import acesso
+    antigo = {**MAPA_PADRAO, **(db.cfg("mapa") or {})}
+    permitidos = acesso.projetos_permitidos()
+    for e in d.elementos:
+        if e.tipo not in MAPA_TIPOS:
+            raise HTTPException(422, f"Tipo de elemento desconhecido: {e.tipo}.")
+    if permitidos is None:
+        novo = d.model_dump()
+    else:
+        # só as salas e os ares dos projetos da pessoa mudam; o resto (e os elementos) fica como estava
+        meus_ares = {str(r["id"]) for r in db.consultar(
+            f"SELECT id FROM aparelhos WHERE projeto_id IN ({','.join('?' * len(permitidos)) or 'NULL'})", tuple(permitidos))} if permitidos else set()
+        salas = {k: v for k, v in antigo["salas"].items() if int(k) not in permitidos}
+        salas.update({k: v.model_dump() for k, v in d.salas.items() if k.isdigit() and int(k) in permitidos})
+        ares = {k: v for k, v in antigo["ares"].items() if k not in meus_ares}
+        ares.update({k: v.model_dump() for k, v in d.ares.items() if k in meus_ares})
+        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"]}
+    novo["atualizado_em"] = db.agora()
+    db.set_cfg("mapa", novo)
+    db.registrar("painel", "Mapa do escritório atualizado", detalhe=f"{len(novo['salas'])} sala(s), {len(novo['ares'])} ar(es), {len(novo['elementos'])} elemento(s)")
+    return ver_mapa(request)
+
+
 # ---------------- cenas ----------------
 class AcaoCena(BaseModel):
     aparelho_id: int
@@ -1680,7 +1773,7 @@ MARCA_PADRAO = {
 }
 _CSS_PROIBIDO = re.compile(r"(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|</style)", re.I)
 _COR = re.compile(r"^#[0-9a-fA-F]{6}$")
-ROTAS_MENU = {"/", "/projetos", "/relatorios", "/aparelhos", "/cenas", "/automacoes", "/agendamentos", "/transmissores",
+ROTAS_MENU = {"/", "/projetos", "/mapa", "/relatorios", "/aparelhos", "/cenas", "/automacoes", "/agendamentos", "/transmissores",
               "/integracoes", "/comandos-alexa", "/alexa", "/supabase", "/atividade", "/seguranca", "/mensagens", "/apps"}
 
 

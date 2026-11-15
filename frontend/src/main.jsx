@@ -18,6 +18,7 @@ import Autorizar from './pages/Autorizar'
 import Supabase from './pages/Supabase'
 import RedefinirSenha from './pages/RedefinirSenha'
 import Projetos from './pages/Projetos'
+import Mapa from './pages/Mapa'
 import Cenas from './pages/Cenas'
 import Relatorios from './pages/Relatorios'
 import Seguranca from './pages/Seguranca'
@@ -83,6 +84,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="alexa" element={<Alexa />} />
             <Route path="supabase" element={<Supabase />} />
             <Route path="projetos" element={<Projetos />} />
+            <Route path="mapa" element={<Mapa />} />
             <Route path="cenas" element={<Cenas />} />
             <Route path="relatorios" element={<Relatorios />} />
             <Route path="seguranca" element={<Seguranca />} />

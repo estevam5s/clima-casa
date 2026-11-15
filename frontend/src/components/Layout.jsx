@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity, AirVent, BarChart3, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe, Inbox,
+  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe, Inbox, Map as MapIcon,
 } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
@@ -18,6 +18,7 @@ export const GRUPOS = [
   { titulo: 'Visão geral', itens: [
     { para: '/', rotulo: 'Painel', icone: Gauge, fim: true },
     { para: '/projetos', rotulo: 'Projetos', icone: FolderKanban },
+    { para: '/mapa', rotulo: 'Mapa do escritório', icone: MapIcon },
     { para: '/relatorios', rotulo: 'Relatórios', icone: BarChart3, perm: 'relatorios.ver' },
   ] },
   { titulo: 'Controle', itens: [

@@ -362,6 +362,7 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 |---|---|
 | `/` | Painel: faixa de métricas, 3D (Three.js) com controle rápido, integrações, gráfico 14 d, aparelhos, atividade |
 | `/projetos` | projetos (lugares) com resumo e troca rápida |
+| `/mapa` | **Mapa do escritório**: planta SVG, cada sala = um projeto, vários ares por sala, estado ao vivo (cor do modo, fluxo de ar animado), controle (liga, temperatura, modo, ventilação, ligar/desligar a sala toda) e modo de edição (mover/redimensionar salas, posicionar ares, portas, janelas, mesas, bancadas, paredes, texto; desfazer; teclado). Planta em `config.mapa` via `GET/PUT /api/mapa` (PUT exige `projetos.gerenciar`; quem vê só alguns projetos só mexe nas salas deles). Sem planta salva, as salas são arrumadas sozinhas |
 | `/relatorios` | período livre e por aparelho; horas/kWh/custo estimados, comparação com o período anterior, mapa dia×hora, origens, falhas; exportar em 8 formatos |
 | `/aparelhos`, `/aparelhos/:id` | lista (grade/lista, filtros, desligar todos) e detalhe (mostrador, modos, botões, gravação, temporizador, histórico, ajustes) |
 | `/cenas` | cenas |
