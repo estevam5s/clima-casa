@@ -29,7 +29,7 @@ no Supabase Auth.
 | Alexa/Google | https://portal.sinric.pro (dispositivo "Ar do escritório" `6af888eb7d04ce9fd64d6777`) |
 | Painel local do agente | http://localhost:8090 (a porta 8080 do Mac é de outro app; não use) |
 | Site institucional | **https://zynio.com.br** (www redireciona; Next.js em `site/`, projeto Vercel `clima-escritorio-site`, região gru1) |
-| Domínio | zynio.com.br no Registro.br (DNS do Registro.br: A @ → 216.198.79.1 e 64.29.17.1; CNAME www e app → vercel-dns) |
+| Domínio | zynio.com.br registrado no Registro.br; **DNS na Cloudflare** (plano Free, servidores itzel/justin.ns.cloudflare.com, desde 14/11/2026). Registros todos "DNS only" (nuvem cinza; proxy laranja quebra o certificado da Vercel): A @ → 216.198.79.1 e 64.29.17.1; CNAME www e app → vercel-dns; TXT SPF `-all` e DMARC `p=reject` |
 | Bloqueio de bots | Cloudflare Turnstile, widget "Zynio - Clima Escritorio" (hostnames zynio.com.br e subdomínios, os .vercel.app e localhost) |
 
 ---
