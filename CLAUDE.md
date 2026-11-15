@@ -343,7 +343,7 @@ chamadas pela Lambda (`alexa/lambda/index.mjs`, header `X-Clima-Chave`). Expõe 
   servidor e grava o `session_id` em `sessoes_fortes` (vale como segundo fator). Tabelas: `usuarios`, `passkeys`,
   `webauthn_desafios`, `sessoes_fortes`. Perfil (nome, cargo, telefone, bio, foto) agora é por usuário em `usuarios`.
 - Teste de biometria sem sensor: Playwright + CDP `WebAuthn.addVirtualAuthenticator` (já feito, passou).
-- Limitação: o app Android entra direto no Supabase e ainda não tem a tela do código do autenticador.
+- App Android 1.1.0: tem o passo do código do autenticador (aal2 pelo supabase-js, envio automático com 6 dígitos) e usa app.zynio.com.br.
 
 ### 7.8 Autenticação (sessão)
 Front e apps fazem login no Supabase Auth (e-mail + senha; cadastro público **desligado** no projeto). Cada chamada
