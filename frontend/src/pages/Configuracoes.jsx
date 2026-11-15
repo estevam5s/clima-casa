@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Cookie, Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users } from 'lucide-react'
 import { useTema } from '../tema'
@@ -100,6 +100,7 @@ function Agente() {
 
 export default function Configuracoes() {
   const [params, setParams] = useSearchParams()
+  const estadoNav = useLocation().state
   const { sessao } = useProjeto()
   const { dados, erro, recarregar, setDados } = useDados(() => api.get('/api/config'))
   const toast = useToast()
@@ -170,6 +171,7 @@ export default function Configuracoes() {
       {aba === 'cookies' && <CookiesSite />}
       {aba === 'seguranca' && (
         <div className="space-y-8">
+          {estadoNav?.exige2fa && <Aviso tipo="alerta">A política de segurança exige verificação em duas etapas para administradores. Cadastre o Google Authenticator ou a biometria abaixo para liberar o resto do sistema.</Aviso>}
           <SegurancaConta />
           {pode('seguranca.gerenciar') && <div><h2 className="mb-3 text-lg font-semibold">Firewall do sistema</h2><PainelSeguranca /></div>}
         </div>

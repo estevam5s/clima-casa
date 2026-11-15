@@ -402,3 +402,18 @@ create index if not exists ix_site_consentimentos_anon on public.site_consentime
 alter table public.site_consentimentos enable row level security;
 drop policy if exists admin_le on public.site_consentimentos;
 create policy admin_le on public.site_consentimentos for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+-- Sessões de login vistas pelo sistema: inatividade, duração máxima e "encerrar sessão" à distância
+create table if not exists public.sessoes_uso (
+  session_id text primary key,
+  usuario_id uuid not null,
+  criado_em bigint not null,
+  visto_em bigint not null,
+  ip text not null default '',
+  pais text not null default '',
+  cidade text not null default '',
+  agente text not null default '',
+  revogada boolean not null default false
+);
+create index if not exists ix_sessoes_uso_usuario on public.sessoes_uso (usuario_id, visto_em desc);
+alter table public.sessoes_uso enable row level security;

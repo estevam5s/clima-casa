@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { KeyRound, LogOut } from 'lucide-react'
-import { api } from '../api'
+import { api, validarSenhaNova } from '../api'
 import { supabase } from '../supabase'
 import { Aviso, Botao } from '../components/ui'
 
@@ -12,11 +12,12 @@ export default function TrocarSenha({ aoTrocar }) {
   const forca = f.nova.length >= 14 ? 3 : f.nova.length >= 10 ? 2 : f.nova.length ? 1 : 0
   const enviar = async (e) => {
     e.preventDefault(); setErro('')
-    if (f.nova.length < 8) return setErro('A senha precisa ter pelo menos 8 caracteres.')
+    if (f.nova.length < 10) return setErro("A senha precisa ter pelo menos 10 caracteres.")
     if (f.nova !== f.confirma) return setErro('As senhas não conferem.')
     setOcupado(true)
     try {
       const sb = await supabase()
+      await validarSenhaNova(f.nova)
       const { error } = await sb.auth.updateUser({ password: f.nova })
       if (error) throw new Error(error.message.includes('different from the old') ? 'Use uma senha diferente da provisória.' : error.message)
       await api.post('/api/conta/senha-trocada')
@@ -32,7 +33,7 @@ export default function TrocarSenha({ aoTrocar }) {
           <h1 className="text-xl font-semibold">Crie a sua senha</h1>
           <p className="mt-1 text-sm text-muted-foreground">Você entrou com uma senha provisória. Escolha uma senha só sua para continuar.</p>
         </div>
-        <div><label className="rotulo" htmlFor="tn">Nova senha</label><input id="tn" type="password" autoComplete="new-password" className="campo" value={f.nova} onChange={(e) => setF({ ...f, nova: e.target.value })} required minLength={8} autoFocus /></div>
+        <div><label className="rotulo" htmlFor="tn">Nova senha</label><input id="tn" type="password" autoComplete="new-password" className="campo" value={f.nova} onChange={(e) => setF({ ...f, nova: e.target.value })} required minLength={10} autoFocus /></div>
         {forca > 0 && <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full transition-all ${['', 'w-1/3 bg-red-500', 'w-2/3 bg-amber-500', 'w-full bg-emerald-500'][forca]}`} /></div>}
         <div><label className="rotulo" htmlFor="tc">Confirmar</label><input id="tc" type="password" autoComplete="new-password" className="campo" value={f.confirma} onChange={(e) => setF({ ...f, confirma: e.target.value })} required /></div>
         {erro && <Aviso>{erro}</Aviso>}

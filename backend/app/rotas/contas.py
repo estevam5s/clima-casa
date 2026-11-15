@@ -285,6 +285,46 @@ def apagar_usuario(uid: str, request: Request):
     return {"ok": True}
 
 
+@contas.get("/conta/sessoes")
+def minhas_sessoes(request: Request):
+    from .. import sessoes
+    from ..seguranca import _claims
+    atual = _claims(request.headers.get("authorization", "")[7:]).get("session_id", "")
+    return sessoes.listar(request.state.u["id"], atual)
+
+
+class RevogarIn(BaseModel):
+    id: str | None = Field(None, min_length=8, max_length=8, pattern=r"^[0-9a-f-]{8}$")
+    todas_menos_esta: bool = False
+
+
+@contas.post("/conta/sessoes/encerrar")
+def encerrar_sessoes(d: RevogarIn, request: Request):
+    from .. import sessoes
+    from ..seguranca import _claims
+    atual = _claims(request.headers.get("authorization", "")[7:]).get("session_id", "")
+    if not d.id and not d.todas_menos_esta:
+        raise HTTPException(400, "Escolha uma sessão.")
+    if d.id and atual.startswith(d.id):
+        raise HTTPException(400, "Para sair desta sessão, use Sair.")
+    n = sessoes.revogar(request.state.u["id"], d.id, exceto=atual)
+    db.registrar("painel", "Sessões encerradas à distância", detalhe=f"{request.state.u['email']}: {n}")
+    return {"encerradas": n}
+
+
+@contas.post("/usuarios/{uid}/sessoes/encerrar")
+def encerrar_sessoes_usuario(uid: str, request: Request):
+    """Administrador derruba todas as sessões de alguém (ex.: celular perdido, desligamento)."""
+    from .. import sessoes
+    ator = request.state.u
+    alvo = _carregar_alvo(uid)
+    if str(alvo["id"]) != ator["id"] and not _pode_mexer_em(ator, alvo):
+        raise HTTPException(403, "Você não pode alterar esse usuário.")
+    n = sessoes.revogar(uid)
+    db.registrar("painel", f"Todas as sessões encerradas: {alvo['email']}", detalhe=f"por {ator['email']} ({n})")
+    return {"encerradas": n}
+
+
 @contas.post("/conta/senha-trocada")
 def senha_trocada(request: Request):
     db.executar("UPDATE usuarios SET exige_troca_senha = false WHERE id = ?", (request.state.u["id"],))

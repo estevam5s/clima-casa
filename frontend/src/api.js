@@ -29,6 +29,7 @@ async function chamar(metodo, caminho, corpo) {
     let msg = dados?.detail
     if (Array.isArray(msg)) msg = msg.map((d) => d.msg).join('; ')
     if (r.status === 401) window.dispatchEvent(new Event(r.headers.get('x-clima-2fa') ? 'clima:2fa' : 'clima:sessao-expirada'))
+    if (r.status === 403 && r.headers.get('x-clima-exige-2fa')) window.dispatchEvent(new CustomEvent('clima:exige-2fa', { detail: msg }))
     if (r.status === 401 && r.headers.get('x-clima-2fa')) throw Object.assign(new ErroApi(401, msg || 'Confirme o código do Google Authenticator.'), { precisa2fa: true })
     throw new ErroApi(r.status, msg || `Erro ${r.status}`)
   }
@@ -92,4 +93,30 @@ export function rotuloOrigem(o) {
 export function rotaSegura(caminho, padrao = '/') {
   if (typeof caminho !== 'string' || !caminho.startsWith('/') || caminho.startsWith('//') || caminho.includes('\\') || /^\/[a-z][\w+.-]*:/i.test(caminho)) return padrao
   return caminho
+}
+
+// Senha vazada? Have I Been Pwned por k-anonimato: só os 5 primeiros caracteres do SHA-1 saem do navegador.
+export async function senhaVazada(senha) {
+  try {
+    const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(senha))
+    const hex = Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+    const r = await fetch(`https://api.pwnedpasswords.com/range/${hex.slice(0, 5)}`, { headers: { 'Add-Padding': 'true' } })
+    if (!r.ok) return 0
+    const linha = (await r.text()).split('\n').find((l) => l.startsWith(hex.slice(5)))
+    return linha ? Number(linha.split(':')[1]) || 0 : 0
+  } catch { return 0 }   // sem internet ou serviço fora: não trava a troca de senha
+}
+
+// Regra de senha forte (igual à do Supabase Auth): 10+ caracteres com minúscula, maiúscula, número e símbolo
+export function problemaSenha(s) {
+  if ((s || '').length < 10) return 'Use pelo menos 10 caracteres.'
+  if (!/[a-z]/.test(s) || !/[A-Z]/.test(s) || !/\d/.test(s) || !/[^A-Za-z0-9]/.test(s)) return 'Misture letra minúscula, maiúscula, número e símbolo.'
+  return ''
+}
+
+export async function validarSenhaNova(s) {
+  const p = problemaSenha(s)
+  if (p) throw new Error(p)
+  const n = await senhaVazada(s)
+  if (n) throw new Error(`Essa senha já apareceu em ${n.toLocaleString('pt-BR')} vazamentos de dados. Escolha outra.`)
 }

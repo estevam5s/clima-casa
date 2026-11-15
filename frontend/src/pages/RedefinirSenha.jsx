@@ -1,3 +1,4 @@
+import { validarSenhaNova } from '../api'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
@@ -30,10 +31,11 @@ export default function RedefinirSenha() {
   const salvar = async (e) => {
     e.preventDefault()
     setErro('')
-    if (senha.length < 8) return setErro('Use pelo menos 8 caracteres.')
+    if (senha.length < 10) return setErro('Use pelo menos 10 caracteres.')
     if (senha !== confirma) return setErro('As senhas não conferem.')
     setOcupado(true)
     const sb = await supabase()
+    try { await validarSenhaNova(senha) } catch (err) { setOcupado(false); return setErro(err.message) }
     const { error } = await sb.auth.updateUser({ password: senha })
     setOcupado(false)
     if (error) return setErro(error.message)
@@ -56,7 +58,7 @@ export default function RedefinirSenha() {
               <Botao variante="secundario" className="mt-4 w-full" onClick={() => navegar('/login')}>Voltar ao login</Botao></div>
           ) : (
             <form onSubmit={salvar} className="mt-5 space-y-4">
-              <div><label className="rotulo" htmlFor="ns">Senha nova</label><input id="ns" type="password" autoComplete="new-password" className="campo" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={8} autoFocus /></div>
+              <div><label className="rotulo" htmlFor="ns">Senha nova</label><input id="ns" type="password" autoComplete="new-password" className="campo" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={10} autoFocus /></div>
               <div><label className="rotulo" htmlFor="nc">Confirmar</label><input id="nc" type="password" autoComplete="new-password" className="campo" value={confirma} onChange={(e) => setConfirma(e.target.value)} required /></div>
               {erro && <Aviso>{erro}</Aviso>}
               <Botao type="submit" className="w-full" carregando={ocupado}>Salvar senha</Botao>

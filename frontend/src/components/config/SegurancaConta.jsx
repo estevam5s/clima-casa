@@ -291,6 +291,38 @@ function ContaGoogle() {
   )
 }
 
+// Sessões abertas da conta (aparelho, local, último uso) e encerrar à distância
+function Sessoes() {
+  const toast = useToast()
+  const [lista, setLista] = useState(null)
+  const carregar = () => api.get('/api/conta/sessoes').then(setLista).catch(() => setLista([]))
+  useEffect(() => { carregar() }, [])
+  const encerrar = async (corpo, msg) => {
+    try { const r = await api.post('/api/conta/sessoes/encerrar', corpo); toast(`${msg} (${r.encerradas}).`); carregar() } catch (e) { toast(e.message, 'erro') }
+  }
+  const outras = (lista || []).filter((x) => !x.atual).length
+  return (
+    <Secao titulo="Sessões ativas" contexto="Onde a sua conta está aberta agora"
+      acao={outras > 0 && <Botao variante="secundario" tamanho="sm" icone={X} onClick={() => window.confirm('Encerrar todas as outras sessões? Os outros aparelhos vão pedir login de novo.') && encerrar({ todas_menos_esta: true }, 'Sessões encerradas')}>Encerrar as outras</Botao>}>
+      {!lista ? <p className="text-sm text-muted-foreground">Carregando…</p> : lista.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma sessão registrada ainda.</p> : (
+        <ul className="divide-y divide-border">
+          {lista.map((x) => (
+            <li key={x.id} className="flex items-center gap-3 py-3">
+              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${x.atual ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>{/Android|iPhone|iPad/.test(x.agente) ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}</span>
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 text-sm font-medium">{x.agente}{x.atual && <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">ESTE APARELHO</span>}</p>
+                <p className="truncate text-xs text-muted-foreground">{[x.cidade, x.pais].filter(Boolean).join(', ') || 'Local desconhecido'} · {x.ip} · entrou {haQuanto(x.criado_em)} · último uso {haQuanto(x.visto_em)}</p>
+              </div>
+              {!x.atual && <Botao variante="secundario" tamanho="sm" onClick={() => encerrar({ id: x.id }, 'Sessão encerrada')}>Encerrar</Botao>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-3 text-xs text-muted-foreground">Sessões sem uso expiram sozinhas, e cada login tem duração máxima (Segurança → Regras do firewall).</p>
+    </Secao>
+  )
+}
+
 export default function SegurancaConta() {
-  return <div className="grid gap-6 xl:grid-cols-2"><ContaGoogle /><Autenticador /><Biometria /></div>
+  return <div className="grid gap-6 xl:grid-cols-2"><ContaGoogle /><Autenticador /><Biometria /><Sessoes /></div>
 }

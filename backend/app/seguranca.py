@@ -61,6 +61,18 @@ def sessao_forte(session_id: str) -> bool:
     return False
 
 
+_pk_cache: dict[str, tuple[float, bool]] = {}
+
+
+def _tem_passkey(uid: str) -> bool:
+    v = _pk_cache.get(uid)
+    if v and v[0] > time.time():
+        return v[1]
+    r = bool(db.um("SELECT 1 FROM passkeys WHERE usuario_id = ? LIMIT 1", (uid,)))
+    _pk_cache[uid] = (time.time() + 120, r)
+    return r
+
+
 def tem_totp(usuario: dict) -> bool:
     return any(f.get("factor_type") == "totp" and f.get("status") == "verified" for f in (usuario.get("factors") or []))
 
@@ -90,6 +102,14 @@ def _validar(request: Request) -> dict:
     request.state.u = u
     acesso.atual.set(u)   # vale para checar_escopo abaixo (mesma thread)
     rota = getattr(request.scope.get("route"), "path", request.url.path)
+    from . import firewall, sessoes
+    cfg = firewall.config()
+    sessoes.registrar_uso(claims, u, request, cfg)   # inatividade, duração máxima e sessões encerradas
+    # política: administradores precisam de 2 etapas (autenticador ou biometria) para usar o sistema
+    if cfg.get("exigir_2fa_admin") and u["papel"] in ("dono", "admin", "subadmin") and not tem_totp(usuario) \
+            and not sessao_forte(claims.get("session_id", "")) and not _tem_passkey(u["id"]) \
+            and not rota.startswith(("/api/sessao", "/api/conta", "/api/perfil", "/api/notificacoes", "/api/marca", "/api/supabase-config")):
+        raise HTTPException(403, "Ative a verificação em duas etapas (Configurações → Segurança) para continuar.", headers={"X-Clima-Exige-2FA": "1"})
     acesso.checar_rota(request.method, rota, u)
     acesso.checar_escopo(rota, request.path_params, dict(request.query_params))
     if time.time() - _ultimo_acesso.get(u["id"], 0) > 120:

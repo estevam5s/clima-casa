@@ -47,7 +47,9 @@ function Protegido({ children }) {
     const pede2fa = () => navegar('/login', { state: { de, etapa: '2fa' } })
     window.addEventListener('clima:sessao-expirada', expirou)
     window.addEventListener('clima:2fa', pede2fa)
-    return () => { window.removeEventListener('clima:sessao-expirada', expirou); window.removeEventListener('clima:2fa', pede2fa) }
+    const exige2fa = () => { if (!window.location.pathname.startsWith('/configuracoes')) navegar('/configuracoes?aba=seguranca', { state: { exige2fa: true } }) }
+    window.addEventListener('clima:exige-2fa', exige2fa)
+    return () => { window.removeEventListener('clima:sessao-expirada', expirou); window.removeEventListener('clima:2fa', pede2fa); window.removeEventListener('clima:exige-2fa', exige2fa) }
   }, [navegar])
   if (!estado) return <Carregando />
   if (!estado.logado) return <Navigate to="/login" replace state={{ de: local.pathname + local.search }} />

@@ -138,6 +138,15 @@ export default function PainelSeguranca() {
               <label className="flex items-center justify-between">Detectar ferramentas de ataque<Interruptor ligado={cfg.detectar_scanners} onChange={setC('detectar_scanners')} rotulo="Detectar scanners" /></label>
               <label className="flex items-center justify-between gap-3">Rajada máxima por IP (requisições em 10 s)<input type="number" min={10} max={2000} className="campo h-9 w-24" value={cfg.rajada_10s} onChange={setC('rajada_10s')} /></label>
               <label className="flex items-center justify-between gap-3">Bloquear servidores de nuvem sem login<Interruptor ligado={cfg.bloquear_nuvem} onChange={setC('bloquear_nuvem')} rotulo="Bloquear nuvem" /></label>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs font-medium">Sessões e acesso</p>
+                <div className="mt-2 space-y-2">
+                  <label className="flex items-center justify-between gap-3 text-xs">Encerrar após inatividade (min, 0 = nunca)<input type="number" min={0} max={10080} className="campo h-8 w-24" value={cfg.sessao_inatividade_min} onChange={setC('sessao_inatividade_min')} /></label>
+                  <label className="flex items-center justify-between gap-3 text-xs">Duração máxima do login (h, 0 = sem limite)<input type="number" min={0} max={2160} className="campo h-8 w-24" value={cfg.sessao_max_horas} onChange={setC('sessao_max_horas')} /></label>
+                  <label className="flex items-center justify-between gap-3 text-xs">Exigir duas etapas de dono, admin e subadmin<Interruptor ligado={cfg.exigir_2fa_admin} onChange={setC('exigir_2fa_admin')} rotulo="Exigir 2FA de administradores" /></label>
+                  {cfg.exigir_2fa_admin && <p className="text-[11px] text-amber-600">Quem for administrador e ainda não tiver autenticador ou biometria só consegue abrir Configurações → Segurança até cadastrar.</p>}
+                </div>
+              </div>
               <div className="rounded-lg border border-red-500/25 bg-red-500/5 p-3">
                 <label className="flex items-center justify-between font-medium">Escudo anti-DDoS automático<Interruptor ligado={cfg.escudo_auto} onChange={setC('escudo_auto')} rotulo="Escudo automático" /></label>
                 <div className="mt-2 space-y-2">

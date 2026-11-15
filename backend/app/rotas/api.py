@@ -1963,6 +1963,49 @@ class SegurancaIn(BaseModel):
     limite_escudo_por_minuto: int = Field(40, ge=10, le=1000)
     escudo_vercel: bool = True
     bloquear_nuvem: bool = False
+    sessao_inatividade_min: int = Field(240, ge=0, le=10080)
+    sessao_max_horas: int = Field(168, ge=0, le=2160)
+    exigir_2fa_admin: bool = False
+
+
+@api.get("/seguranca/checklist")
+def checklist_seguranca():
+    """Controles de segurança conferidos na hora (não é texto fixo): cada item diz se está ok e como corrigir."""
+    from .. import firewall
+    from ..seguranca import tem_totp  # noqa: F401
+    c = firewall.config()
+    agora = db.agora()
+    sem_rls = [r["tablename"] for r in db.consultar("SELECT tablename FROM pg_tables WHERE schemaname='public' AND NOT rowsecurity")]
+    escrita_anon = db.um("SELECT count(*) n FROM pg_policies WHERE schemaname='public' AND cmd <> 'SELECT'")["n"]
+    admins = db.consultar("SELECT u.id, u.email, u.papel, EXISTS(SELECT 1 FROM passkeys p WHERE p.usuario_id = u.id) AS pk, "
+                          "EXISTS(SELECT 1 FROM auth.mfa_factors f WHERE f.user_id = u.id AND f.status = 'verified') AS totp "
+                          "FROM usuarios u WHERE u.ativo AND u.papel IN ('dono','admin','subadmin')")
+    sem2fa = [a["email"] for a in admins if not (a["pk"] or a["totp"])]
+    backup = db.um("SELECT max(criado_em) AS t FROM backups")
+    ultimo_backup = backup["t"].timestamp() if backup and backup["t"] and hasattr(backup["t"], "timestamp") else (backup or {}).get("t") or 0
+    bloqueados = db.um("SELECT count(*) n FROM seguranca_ips WHERE tipo='bloqueado' AND (expira_em IS NULL OR expira_em > ?)", (agora,))["n"]
+    itens = [
+        ("dados", "RLS em todas as tabelas do banco", not sem_rls, f"Sem RLS: {', '.join(sem_rls)}" if sem_rls else "Nenhuma tabela pública lê ou grava sem passar pelo servidor."),
+        ("dados", "Nenhuma política de escrita direta no banco", escrita_anon == 0, "Toda gravação passa pela API, com permissão por rota."),
+        ("dados", "Segredos cifrados em repouso (AES-256-GCM)", bool(db.ENV.get("CLIMA_CHAVE_MESTRA")), "Chaves de Smart Life, Sinric e Alexa gravadas cifradas."),
+        ("dados", "Backup automático nas últimas 36 h", bool(ultimo_backup) and agora - ultimo_backup < 36 * 3600, "Rotina diária do banco guarda as 14 últimas cópias."),
+        ("acesso", "Dono com verificação em duas etapas", any(a["papel"] == "dono" and (a["pk"] or a["totp"]) for a in admins), "Google Authenticator ou biometria cadastrados."),
+        ("acesso", "Todos os administradores com duas etapas", not sem2fa, f"Sem duas etapas: {', '.join(sem2fa)}" if sem2fa else "Dono, admins e subadmins protegidos."),
+        ("acesso", "Duas etapas obrigatórias para administradores", bool(c.get("exigir_2fa_admin")), "Ligue em Regras do firewall: admin sem 2FA não usa o sistema."),
+        ("acesso", "Sessões expiram por inatividade", bool(c.get("sessao_inatividade_min")), f"Sem uso por {c.get('sessao_inatividade_min')} min pede login de novo."),
+        ("acesso", "Duração máxima de cada login", bool(c.get("sessao_max_horas")), f"Login vale no máximo {c.get('sessao_max_horas')} h."),
+        ("acesso", "Senhas fortes (10+ caracteres, 4 tipos) e conferência de vazamento", True, "Regra no Supabase Auth e checagem no Have I Been Pwned ao trocar a senha."),
+        ("borda", "Verificação anti-robô (Cloudflare Turnstile)", bool(db.ENV.get("TURNSTILE_SECRET_KEY")), "Login, esqueci a senha, formulários e tela de verificação."),
+        ("borda", "Firewall ativo", bool(c.get("ativo")), "Listas de IP, países, assinaturas de ataque e limites."),
+        ("borda", "Escudo anti-DDoS automático", bool(c.get("escudo_auto")), f"Liga com {c.get('ddos_req_seg')} req/s ou {c.get('ddos_ips_min')} IPs/min."),
+        ("borda", "Modo de ataque da Vercel junto com o escudo", bool(c.get("escudo_vercel")), "Ligado pelo agente do escritório."),
+        ("borda", "Detecção de ferramentas de ataque", bool(c.get("detectar_scanners")), f"{bloqueados} IP(s) bloqueado(s) agora."),
+        ("borda", "HTTPS obrigatório (HSTS preload) e cabeçalhos de segurança", True, "CSP restrita, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy."),
+        ("borda", "CORS só para o site oficial", True, "Rotas públicas aceitam só zynio.com.br; o resto, só a mesma origem."),
+        ("privacidade", "Aviso de cookies e prova do consentimento (LGPD)", bool(_cookies_cfg().get("ativo")), "Categorias, registro sem IP em claro e revogação a qualquer momento."),
+    ]
+    lista = [{"grupo": g, "item": i, "ok": bool(ok), "detalhe": d} for g, i, ok, d in itens]
+    return {"itens": lista, "nota": round(sum(x["ok"] for x in lista) / len(lista) * 100), "ok": sum(x["ok"] for x in lista), "total": len(lista)}
 
 
 @api.get("/seguranca/escudo")

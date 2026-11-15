@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Camera, Link2, Loader2, Trash2, Upload } from 'lucide-react'
-import { api } from '../../api'
+import { api, validarSenhaNova } from '../../api'
 import { supabase } from '../../supabase'
 import { Aviso, Botao, Carregando, Secao, useDados, useToast } from '../ui'
 
@@ -103,10 +103,11 @@ export default function Perfil() {
   const trocarSenha = async (e) => {
     e.preventDefault(); setErroSenha('')
     if (senha.nova !== senha.confirma) return setErroSenha('As senhas novas não conferem.')
-    if (senha.nova.length < 8) return setErroSenha('A senha nova precisa ter pelo menos 8 caracteres.')
+    if (senha.nova.length < 10) return setErroSenha('A senha nova precisa ter pelo menos 10 caracteres.')
     try {
       const sb = await supabase()
       await reautenticar(sb, senha.atual)
+      await validarSenhaNova(senha.nova)
       const { error } = await sb.auth.updateUser({ password: senha.nova })
       if (error) throw new Error(error.message)
       setSenha({ atual: '', nova: '', confirma: '' }); toast('Senha alterada.')
@@ -149,7 +150,7 @@ export default function Perfil() {
           <form onSubmit={trocarSenha} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-3">
               <div><label className="rotulo" htmlFor="sa">Atual</label><input id="sa" type="password" autoComplete="current-password" className="campo" value={senha.atual} onChange={(e) => setSenha({ ...senha, atual: e.target.value })} required /></div>
-              <div><label className="rotulo" htmlFor="sn">Nova</label><input id="sn" type="password" autoComplete="new-password" className="campo" value={senha.nova} onChange={(e) => setSenha({ ...senha, nova: e.target.value })} required minLength={8} /></div>
+              <div><label className="rotulo" htmlFor="sn">Nova</label><input id="sn" type="password" autoComplete="new-password" className="campo" value={senha.nova} onChange={(e) => setSenha({ ...senha, nova: e.target.value })} required minLength={10} /></div>
               <div><label className="rotulo" htmlFor="sc">Confirmar</label><input id="sc" type="password" autoComplete="new-password" className="campo" value={senha.confirma} onChange={(e) => setSenha({ ...senha, confirma: e.target.value })} required /></div>
             </div>
             {senha.nova && <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full transition-all ${senha.nova.length >= 14 ? 'w-full bg-emerald-500' : senha.nova.length >= 10 ? 'w-2/3 bg-amber-500' : 'w-1/3 bg-red-500'}`} /></div>}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Copy, Crown, Fingerprint, FolderPlus, KeyRound, Pencil, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react'
+import { Check, Copy, Crown, Fingerprint, FolderPlus, KeyRound, LogOut, Pencil, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../ui'
 
@@ -181,6 +181,7 @@ function AcoesUsuario({ u, aoAtualizar, aoEditar, aoSenha }) {
     { r: 'Editar acesso', I: Pencil, fn: aoEditar },
     { r: 'Nova senha', I: KeyRound, fn: () => setConfirmar({ titulo: 'Gerar senha nova', texto: `A senha atual de ${u.email} deixa de funcionar. A nova aparece uma vez só, para você passar à pessoa, e ela troca no primeiro acesso.`, botao: 'Gerar senha', fn: aoSenha, msg: 'Senha nova gerada.' }) },
     u.totp && { r: 'Remover 2FA', I: ShieldOff, fn: () => setConfirmar({ titulo: 'Remover o Google Authenticator', texto: `${nome} passa a entrar só com a senha até cadastrar o autenticador de novo. Use quando a pessoa perdeu o celular.`, botao: 'Remover 2FA', fn: () => api.del(`/api/usuarios/${u.id}/2fa`), msg: 'Verificação em duas etapas removida.' }) },
+    { r: 'Encerrar sessões', I: LogOut, fn: () => setConfirmar({ titulo: 'Encerrar todas as sessões', texto: `${nome} sai de todos os aparelhos (navegador, celular e computador) e precisa entrar de novo. Use quando um aparelho for perdido ou a pessoa sair da equipe.`, botao: 'Encerrar sessões', perigo: true, fn: () => api.post(`/api/usuarios/${u.id}/sessoes/encerrar`), msg: 'Sessões encerradas.' }) },
     u.papel !== 'dono' && { r: 'Apagar', I: Trash2, perigo: true, fn: () => setConfirmar({ titulo: 'Apagar conta', texto: `A conta ${u.email} é apagada de vez: login, biometria e perfil. O histórico de atividade continua. Não dá para desfazer.`, botao: 'Apagar conta', perigo: true, fn: () => api.del(`/api/usuarios/${u.id}`), msg: 'Usuário apagado.' }) },
   ].filter(Boolean)
   return (

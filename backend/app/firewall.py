@@ -43,6 +43,10 @@ PADRAO = {
     "limite_escudo_por_minuto": 40,    # limite por IP enquanto o escudo está ligado (equipe não entra na conta)
     "escudo_vercel": True,             # o agente liga junto o "modo de ataque" da Vercel
     "bloquear_nuvem": False,           # bloqueia 24 h servidores de nuvem (AWS, Google…) que não são da equipe
+    # sessões (o plano gratuito do Supabase não tem isso: o próprio sistema controla)
+    "sessao_inatividade_min": 240,     # sem uso por 4 h, pede login de novo
+    "sessao_max_horas": 168,           # no máximo 7 dias por login
+    "exigir_2fa_admin": False,         # dono, admin e subadmin só entram com autenticador ou biometria
 }
 AGENTES_MALICIOSOS = re.compile(
     r"sqlmap|nikto|nmap|masscan|zgrab|nuclei|acunetix|wpscan|dirbuster|gobuster|ffuf|feroxbuster|hydra|"

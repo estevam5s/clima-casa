@@ -164,6 +164,51 @@ function Escudo({ escudo, aoMudar }) {
   )
 }
 
+// Checklist ao vivo: cada item é conferido no servidor agora (não é uma lista estática)
+function Checklist() {
+  const { dados } = useDados(() => api.get('/api/seguranca/checklist'))
+  const [aberto, setAberto] = useState(false)
+  if (!dados) return null
+  const falhas = dados.itens.filter((x) => !x.ok)
+  const grupos = [...new Set(dados.itens.map((x) => x.grupo))]
+  return (
+    <section className="cartao">
+      <button onClick={() => setAberto((v) => !v)} className="flex w-full items-center gap-4 px-5 py-4 text-left" aria-expanded={aberto}>
+        <div className="relative grid h-14 w-14 shrink-0 place-items-center">
+          <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90"><circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className="stroke-muted" /><motion.circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className={dados.nota >= 90 ? 'stroke-emerald-500' : dados.nota >= 70 ? 'stroke-amber-500' : 'stroke-red-500'} strokeDasharray="97.4" initial={{ strokeDashoffset: 97.4 }} animate={{ strokeDashoffset: 97.4 * (1 - dados.nota / 100) }} transition={{ duration: 1 }} /></svg>
+          <span className="text-sm font-semibold tabular-nums">{dados.nota}%</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="titulo-secao">Checklist de proteção</h2>
+          <p className="text-xs text-muted-foreground">{dados.ok} de {dados.total} controles ativos agora{falhas.length ? ` · falta: ${falhas.map((x) => x.item).join(', ')}` : ' · tudo no lugar'}</p>
+        </div>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${aberto ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {aberto && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-border">
+            <div className="grid gap-x-8 gap-y-5 p-5 md:grid-cols-2">
+              {grupos.map((g) => (
+                <div key={g}>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g}</p>
+                  <ul className="space-y-2">
+                    {dados.itens.filter((x) => x.grupo === g).map((x) => (
+                      <li key={x.item} className="flex gap-2.5 text-sm">
+                        {x.ok ? <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> : <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />}
+                        <span><span className="font-medium">{x.item}</span><span className="block text-xs text-muted-foreground">{x.detalhe}</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  )
+}
+
 export default function Seguranca() {
   const toast = useToast()
   const [dias, setDias] = useState(7)
@@ -215,6 +260,8 @@ export default function Seguranca() {
           ]} />
 
           <Escudo escudo={escudo} aoMudar={setEscudo} />
+
+          <Checklist />
 
           <Analise analise={dados.analise} total={t.ips_unicos} />
 
