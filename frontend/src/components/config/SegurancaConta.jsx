@@ -202,6 +202,94 @@ function Biometria() {
   )
 }
 
+const LogoGoogle = ({ className = 'h-5 w-5' }) => (
+  <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+    <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+    <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+  </svg>
+)
+
+// Conta Google ligada ao usuário (identidade do Supabase Auth). Ligada, o botão "Entrar com Google" do login abre esta conta,
+// mesmo que o e-mail do Google seja diferente do e-mail do sistema.
+function ContaGoogle() {
+  const toast = useToast()
+  const [google, setGoogle] = useState(undefined)   // undefined = carregando, null = não ligada
+  const [total, setTotal] = useState(0)
+  const [ocupado, setOcupado] = useState(false)
+  const [erro, setErro] = useState('')
+  const carregar = async () => {
+    const sb = await supabase()
+    const { data, error } = await sb.auth.getUserIdentities()
+    if (error) { setErro(error.message); setGoogle(null); return }
+    const ids = data?.identities || []
+    setTotal(ids.length)
+    setGoogle(ids.find((i) => i.provider === 'google') || null)
+  }
+  useEffect(() => {
+    // volta do Google: erro na URL (ex.: conta Google já ligada a outro usuário)
+    const url = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1))
+    const e = url.get('error_description') || url.get('error')
+    if (e) {
+      setErro(/already|exists|linked/i.test(e) ? 'Essa conta Google já está ligada a outro usuário do sistema.' : `O Google não concluiu a conexão: ${e}`)
+      window.history.replaceState(null, '', `${window.location.pathname}?aba=seguranca`)
+    } else if (url.get('access_token') || url.get('code')) {
+      toast('Conta Google conectada. Agora você pode entrar com o Google.')
+      window.history.replaceState(null, '', `${window.location.pathname}?aba=seguranca`)
+    }
+    carregar().catch((x) => { setErro(x.message); setGoogle(null) })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const conectar = async () => {
+    setOcupado(true); setErro('')
+    try {
+      const sb = await supabase()
+      const { error } = await sb.auth.linkIdentity({ provider: 'google', options: { redirectTo: `${window.location.origin}/configuracoes?aba=seguranca`, queryParams: { prompt: 'select_account' } } })
+      if (error) throw new Error(/manual linking/i.test(error.message) ? 'A conexão de contas está desligada no servidor de login.' : error.message)
+    } catch (e) { setErro(e.message); setOcupado(false) }
+  }
+  const desconectar = async () => {
+    if (!window.confirm('Desconectar a conta Google? Você volta a entrar só com e-mail e senha (ou biometria).')) return
+    setOcupado(true); setErro('')
+    try {
+      const sb = await supabase()
+      const { error } = await sb.auth.unlinkIdentity(google)
+      if (error) throw new Error(error.message)
+      toast('Conta Google desconectada.')
+      await carregar()
+    } catch (e) { setErro(e.message) } finally { setOcupado(false) }
+  }
+  const dados = google?.identity_data || {}
+  return (
+    <Secao titulo="Login com Google" contexto="Entre no sistema com a sua conta Google, sem digitar a senha">
+      {erro && <div className="mb-4"><Aviso>{erro}</Aviso></div>}
+      {google === undefined ? <p className="text-sm text-muted-foreground">Carregando…</p> : google ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+            {dados.avatar_url ? <img src={dados.avatar_url} alt="" referrerPolicy="no-referrer" className="h-10 w-10 rounded-full object-cover" /> : <span className="grid h-10 w-10 place-items-center rounded-full bg-muted"><LogoGoogle /></span>}
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1.5 text-sm font-medium"><LogoGoogle className="h-4 w-4" />{dados.full_name || dados.name || 'Conta Google'}</p>
+              <p className="truncate text-xs text-muted-foreground">{dados.email || google.email}{google.created_at ? ` · conectada ${haQuanto(Math.floor(new Date(google.created_at).getTime() / 1000))}` : ''}</p>
+            </div>
+            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-400"><Check className="h-3 w-3" />Conectada</span>
+          </div>
+          <p className="text-sm text-muted-foreground">Na tela de login, use <b className="font-medium text-foreground">Entrar com Google</b> e escolha esta conta. Se você usa o Google Authenticator, o código continua sendo pedido.</p>
+          <Botao variante="secundario" tamanho="sm" icone={X} carregando={ocupado} disabled={total < 2} onClick={desconectar}>Desconectar</Botao>
+          {total < 2 && <p className="text-xs text-muted-foreground">É o único jeito de entrar desta conta: para desconectar, defina antes uma senha no Perfil.</p>}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">Conecte uma conta Google para entrar com um clique. Pode ser um e-mail diferente do seu e-mail do sistema. Só você consegue conectar a sua conta, porque o Google pede a sua confirmação.</p>
+          <button onClick={conectar} disabled={ocupado}
+            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-card text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60 sm:w-auto sm:px-5">
+            <LogoGoogle className="h-[18px] w-[18px]" />{ocupado ? 'Abrindo o Google…' : 'Conectar conta Google'}
+          </button>
+        </div>
+      )}
+    </Secao>
+  )
+}
+
 export default function SegurancaConta() {
-  return <div className="grid gap-6 xl:grid-cols-2"><Autenticador /><Biometria /></div>
+  return <div className="grid gap-6 xl:grid-cols-2"><ContaGoogle /><Autenticador /><Biometria /></div>
 }

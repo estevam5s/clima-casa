@@ -229,7 +229,7 @@ export default function Usuarios() {
         { rotulo: 'Usuários', valor: dados.itens.length, dica: `${ativos} ativo(s)` },
         { rotulo: 'Administradores', valor: dados.itens.filter((u) => ['dono', 'admin', 'subadmin'].includes(u.papel)).length, dica: 'dono, admin e subadmin' },
         { rotulo: 'Com Google Authenticator', valor: dados.itens.filter((u) => u.totp).length, tom: dados.itens.every((u) => u.totp) ? 'bom' : undefined, dica: 'verificação em duas etapas' },
-        { rotulo: 'Com biometria', valor: dados.itens.filter((u) => u.passkeys).length, dica: 'Face ID, digital ou Windows Hello' },
+        { rotulo: 'Com biometria', valor: dados.itens.filter((u) => u.passkeys).length, dica: `Face ID, digital ou Windows Hello · ${dados.itens.filter((u) => u.google).length} com Google` },
       ]} />
       <section className="cartao overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-border p-3">
@@ -259,6 +259,7 @@ export default function Usuarios() {
                     <td>
                       <div className="flex flex-wrap gap-1.5 text-[11px]">
                         <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${u.totp ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>{u.totp ? <ShieldCheck className="h-3 w-3" /> : <ShieldOff className="h-3 w-3" />}2FA</span>
+                        <span title={u.google ? `Google conectado: ${u.google}` : 'Google não conectado (a pessoa conecta em Configurações → Segurança)'} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold ${u.google ? 'bg-sky-500/15 text-sky-700 dark:text-sky-400' : 'bg-muted text-muted-foreground'}`}>G</span>
                         <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${u.passkeys ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}><Fingerprint className="h-3 w-3" />{u.passkeys || 0}</span>
                         {u.exige_troca_senha && <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-400"><KeyRound className="h-3 w-3" />troca de senha</span>}
                       </div>

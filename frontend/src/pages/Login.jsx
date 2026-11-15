@@ -65,7 +65,7 @@ export default function Login() {
     supabase().then(async (sb) => {
       if (erroGoogle) {
         setErro(/signup|not allowed|registr/i.test(erroGoogle)
-          ? 'Esse e-mail do Google ainda não tem conta no sistema. Peça ao administrador para criar a sua conta com o mesmo e-mail.'
+          ? 'Essa conta Google não está ligada a nenhum usuário do sistema. Entre com e-mail e senha e conecte o Google em Configurações → Segurança, ou peça ao administrador uma conta com esse e-mail.'
           : `O Google não concluiu o login: ${erroGoogle}`)
         return setPronto(true)
       }

@@ -407,7 +407,8 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
   Client ID e secret estão no provedor Google do Supabase (o secret não fica no repositório).
 - Domínio verificado no Search Console por TXT na Cloudflare (não apagar o `google-site-verification`).
 - O portão do site libera as faixas oficiais de IP do Google (`site/lib/google-ips.mjs`) e UAs com "Google": sem isso a verificação da marca falha ("página protegida por login").
-- Login: botão "Entrar com Google" (`signInWithOAuth`, volta para /login). Cadastro público segue desligado: só entra quem já tem conta com o mesmo e-mail.
+- Login: botão "Entrar com Google" (`signInWithOAuth`, volta para /login). Cadastro público segue desligado.
+- Cada usuário conecta o próprio Google em Configurações → Segurança (`linkIdentity`; "manual linking" ligado no Supabase). Ligado, entra com essa conta Google mesmo com e-mail diferente; sem ligar, só entra se o e-mail do Google for o da conta. A lista de Usuários mostra o selo G de quem conectou.
 
 ### Tela "Executando verificação de segurança" (portão anti-robô)
 - Quem abre o site ou o sistema sem o passe vê uma tela preta com o Turnstile visível ("Verificando…"); ao passar,

@@ -117,7 +117,8 @@ def _publico(u: dict, auth: dict | None = None, passkeys: int = 0) -> dict:
             "projetos": "*" if u["papel"] in ("dono", "admin") else acesso._json(u["projetos"], "*"),
             "papel_rotulo": acesso.PAPEIS.get(u["papel"], {}).get("rotulo", u["papel"]),
             "totp": bool(auth and tem_totp(auth)), "ultimo_login": (auth or {}).get("last_sign_in_at"),
-            "email_confirmado": bool((auth or {}).get("email_confirmed_at")), "passkeys": passkeys}
+            "email_confirmado": bool((auth or {}).get("email_confirmed_at")), "passkeys": passkeys,
+            "google": next((i.get("identity_data", {}).get("email") or "conectada" for i in (auth or {}).get("identities") or [] if i.get("provider") == "google"), None)}
 
 
 # ---------------- usuários ----------------
