@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   AirVent, AlertTriangle, ArrowLeft, MessageCircle, Bell, BellOff, CheckCheck, CheckCircle2, Cpu, Mic, Radio, Settings, ShieldAlert, Trash2, Wrench, X, Zap,
 } from 'lucide-react'
-import { api, haQuanto } from '../api'
+import { api, haQuanto, rotaSegura } from '../api'
 import { atualizarAba } from '../favicon'
 import { Interruptor, useToast } from './ui'
 import { TONS, avisar, tocar } from '../som'
@@ -181,7 +181,7 @@ export default function Notificacoes({ central }) {
   const abrir = async (n, para) => {
     if (!n.lida) api.post(`/api/notificacoes/${n.id}/lida`).catch(() => {})
     setAberto(false)
-    if (para) navegar(para)
+    if (para) navegar(rotaSegura(para))
     carregar()
   }
   const lerTodas = async () => { await api.post('/api/notificacoes/ler-todas'); carregar() }

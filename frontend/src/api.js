@@ -87,3 +87,9 @@ export function rotuloOrigem(o) {
   if (o.startsWith('automacao:')) return `Automação · ${o.slice(10)}`
   return { painel: 'Painel', alexa: 'Alexa', sistema: 'Sistema', agente: 'Agente do Mac', sinric: 'Alexa/Google', automacao: 'Automação', cena: 'Cena', agenda: 'Agenda', tuya: 'Nuvem Tuya' }[o] || o
 }
+
+// Só caminhos internos ("/algo"): bloqueia "//site", "/\site" e URLs completas (GHSA-wrjc-x8rr-h8h6 no React Router 6)
+export function rotaSegura(caminho, padrao = '/') {
+  if (typeof caminho !== 'string' || !caminho.startsWith('/') || caminho.startsWith('//') || caminho.includes('\\') || /^\/[a-z][\w+.-]*:/i.test(caminho)) return padrao
+  return caminho
+}

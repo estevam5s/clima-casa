@@ -1364,7 +1364,7 @@ def salvar_pref_notificacoes(d: PrefNotificacoesIn):
     from .. import notificacoes
     dados = d.model_dump()
     dados["tipos_ocultos"] = [t for t in dados["tipos_ocultos"] if t in notificacoes.TIPOS]
-    db.set_cfg("notificacoes_pref", dados)
+    notificacoes.salvar_preferencias(dados)   # por usuário: ninguém muda as notificações dos outros
     return dados
 
 

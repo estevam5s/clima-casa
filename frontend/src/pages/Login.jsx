@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Fingerprint, ShieldCheck, Eye, EyeOff, LoaderCircle, MailCheck, Moon, Sun } from 'lucide-react'
-import { api } from '../api'
+import { api, rotaSegura } from '../api'
 import { supabase } from '../supabase'
 import { DOWNLOADS, sistemaAtual } from '../apps'
 import IconeMarca from '../components/IconeMarca'
@@ -36,7 +36,7 @@ export default function Login() {
   const [ocupado, setOcupado] = useState(false)
   const navegar = useNavigate()
   const estadoNav = useLocation().state
-  const destino = estadoNav?.de || '/'
+  const destino = rotaSegura(estadoNav?.de || '/')
   const veio2fa = estadoNav?.etapa === '2fa'
   const [codigo, setCodigoEstado] = useState('')
   const codigoAtual = useRef('')

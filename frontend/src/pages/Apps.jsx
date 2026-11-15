@@ -16,8 +16,61 @@ const RECURSOS = [
   ['Inicia junto com o computador', [0, 1, 1, 1, 0]],
   ['Atalhos de teclado (⌘1 a ⌘4)', [0, 1, 1, 1, 1]],
   ['Tela própria quando está sem internet', [1, 1, 1, 1, 1]],
+  ['Google Authenticator (2 etapas)', [1, 1, 1, 1, 1]],
+  ['Entrar com Google', [0, 1, 1, 1, 1]],
+  ['Biometria (Face ID, digital, Windows Hello)', [0, 0, 0, 0, 1]],
+  ['Mapa do escritório em 3D', [0, 1, 1, 1, 1]],
   ['Atualiza sozinho', [0, 0, 0, 0, 1]],
 ]
+// apps de computador abrem o próprio sistema web: as telas novas chegam na hora; só o "casco" do app muda por versão
+const REQUISITOS = [
+  ['Android', 'Android 7.0 ou mais novo', '120 MB', 'Internet (Wi-Fi ou dados)'],
+  ['macOS', 'macOS 12 Monterey ou mais novo', '300 MB', 'Internet'],
+  ['Windows', 'Windows 10 ou 11 (64 bits)', '400 MB', 'Internet'],
+  ['Linux', 'Ubuntu 20.04+, Fedora 36+ ou Raspberry Pi OS 64 bits; libfuse2', '300 MB', 'Internet'],
+  ['Web/PWA', 'Chrome, Edge, Brave, Firefox ou Safari atualizados', 'Nenhum', 'Internet'],
+]
+const PROBLEMAS = [
+  ['macOS diz que o app "está danificado" ou "não pode ser aberto"', 'O app não é assinado pela Apple. Clique com o botão direito no app → Abrir → Abrir. Se ainda bloquear, rode no Terminal: xattr -dr com.apple.quarantine "/Applications/Clima Casa.app"'],
+  ['Windows mostra "O Windows protegeu o computador"', 'É o SmartScreen avisando que o instalador é novo. Clique em "Mais informações" e depois em "Executar assim mesmo".'],
+  ['Android não deixa instalar o APK', 'Ao abrir o arquivo, o Android pede para permitir apps "desta fonte" (o navegador ou o gerenciador de arquivos). Permita só para essa instalação.'],
+  ['Linux: o AppImage não abre', 'Dê permissão de execução (chmod +x) e instale o libfuse2 (Ubuntu: sudo apt install libfuse2).'],
+  ['O app pede um código depois da senha', 'Sua conta tem o Google Authenticator ligado. Abra o app autenticador e digite os 6 dígitos: a versão 1.1 envia sozinha ao completar.'],
+  ['O app abre numa tela "Sem conexão"', 'Os apps precisam de internet para falar com o servidor. Quando a conexão voltar, toque em Tentar de novo.'],
+]
+
+function NovidadesVersao({ notas }) {
+  const linhas = (notas || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  return (
+    <ul className="space-y-1.5 text-sm">
+      {linhas.map((l, i) => {
+        const titulo = /^#+\s/.test(l)
+        const texto = l.replace(/^#+\s|^[-*]\s/g, '')
+        const partes = texto.split(/\*\*(.+?)\*\*/g)
+        return titulo ? <li key={i} className="pt-2 font-medium">{texto}</li>
+          : <li key={i} className="flex gap-2 text-muted-foreground"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" /><span>{partes.map((p, j) => (j % 2 ? <b key={j} className="font-medium text-foreground">{p}</b> : p))}</span></li>
+      })}
+    </ul>
+  )
+}
+
+function Problema({ p, r }) {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="border-b border-border last:border-0">
+      <button onClick={() => setAberto((a) => !a)} className="flex w-full items-center justify-between gap-3 py-3 text-left text-sm font-medium" aria-expanded={aberto}>
+        {p}<motion.span animate={{ rotate: aberto ? 180 : 0 }}><ChevronDown className="h-4 w-4 text-muted-foreground" /></motion.span>
+      </button>
+      <AnimatePresence initial={false}>{aberto && <motion.p initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden pb-3 text-sm text-muted-foreground">{r}</motion.p>}</AnimatePresence>
+    </div>
+  )
+}
+
+const compararVersao = (a, b) => {
+  const pa = String(a).replace(/^v/, '').split('.').map(Number), pb = String(b).replace(/^v/, '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0) }
+  return 0
+}
 const COLUNAS = [['android', 'Android'], ['mac', 'macOS'], ['windows', 'Windows'], ['linux', 'Linux'], ['pwa', 'Web/PWA']]
 const VERIFICAR = { mac: 'shasum -a 256 ~/Downloads/', linux: 'sha256sum ~/Downloads/', windows: 'certutil -hashfile %USERPROFILE%\\Downloads\\', android: 'sha256sum ' }
 
@@ -86,6 +139,10 @@ export default function Apps() {
     return () => window.removeEventListener('beforeinstallprompt', f)
   }, [])
   useEffect(() => { api.get('/api/apps/qr?alvo=android').then(setQr).catch(() => {}) }, [])
+  const [qrSite, setQrSite] = useState(null)
+  useEffect(() => { api.get('/api/apps/qr?alvo=site').then(setQrSite).catch(() => {}) }, [])
+  const desktop = typeof window !== 'undefined' ? window.climaDesktop : null
+  const desatualizado = desktop?.versao && compararVersao(desktop.versao, RELEASE.versao) < 0
   const destaque = DOWNLOADS.find((d) => d.id === meu)
   const total = DOWNLOADS.reduce((s, d) => s + (d.baixados || 0), 0)
   const instalarPwa = async () => {
@@ -101,6 +158,14 @@ export default function Apps() {
       <Cabecalho titulo="Baixar apps" descricao={`O mesmo login e os mesmos aparelhos no celular e no computador · versão ${RELEASE.versao}, publicada em ${new Date(RELEASE.publicado).toLocaleDateString('pt-BR')}.`}
         acoes={<a href={`${REPO}/releases`} target="_blank" rel="noreferrer"><Botao variante="secundario" icone={ExternalLink}>Todas as versões</Botao></a>} />
 
+      {desktop && (
+        <div className={`mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${desatualizado ? 'border-amber-500/40 bg-amber-500/10' : 'border-emerald-500/30 bg-emerald-500/10'}`}>
+          <p className="text-sm">{desatualizado
+            ? <>Você está no app <b>v{desktop.versao}</b>. Já existe a <b>{RELEASE.versao}</b>: baixe abaixo e instale por cima, sem perder nada.</>
+            : <>Você está usando o app de computador <b>v{desktop.versao || '1.0.0'}</b>, a versão mais nova.</>}</p>
+          {desatualizado && destaque && <a href={destaque.url}><Botao tamanho="sm" icone={Download}>Baixar {RELEASE.versao}</Botao></a>}
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="cartao flex flex-col justify-between gap-6 p-6 sm:flex-row sm:items-center">
           {destaque ? (
@@ -165,17 +230,50 @@ export default function Apps() {
             </table>
           </div>
         </Secao>
-        <Secao titulo={`Versão ${RELEASE.versao}`} contexto={`Publicada em ${new Date(RELEASE.publicado).toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' })}`}>
-          <dl className="grid grid-cols-2 gap-4 text-sm">
-            <div><dt className="text-xs text-muted-foreground">Arquivos</dt><dd className="mt-0.5 text-lg font-semibold tabular">{DOWNLOADS.length}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Downloads</dt><dd className="mt-0.5 text-lg font-semibold tabular">{total}</dd></div>
-          </dl>
-          {RELEASE.notas && <p className="mt-4 whitespace-pre-line text-sm text-muted-foreground">{RELEASE.notas.replace(/\*\*/g, '').slice(0, 600)}</p>}
+        <Secao titulo={`Novidades da ${RELEASE.versao}`} contexto={`Publicada em ${new Date(RELEASE.publicado).toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' })}`}>
+          <NovidadesVersao notas={RELEASE.notas} />
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="mb-2 flex items-center justify-between text-xs font-medium text-muted-foreground"><span>Downloads por arquivo</span><span className="tabular">{total} no total</span></p>
+            {DOWNLOADS.map((d) => (
+              <div key={d.id} className="flex items-center gap-2 py-1 text-xs">
+                <span className="w-36 shrink-0 truncate">{d.nome}</span>
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><motion.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${total ? ((d.baixados || 0) / Math.max(...DOWNLOADS.map((x) => x.baixados || 0), 1)) * 100 : 0}%` }} /></div>
+                <span className="w-6 text-right tabular text-muted-foreground">{d.baixados || 0}</span>
+              </div>
+            ))}
+          </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted px-3 py-2.5 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <span>Repositório privado: o download abre para quem está logado no GitHub com acesso. Cada arquivo tem o SHA-256 em "Como instalar" para conferir que é o original.</span>
           </div>
-          <a href={`${REPO}/releases`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"><IconeMarca nome="github" className="h-4 w-4" />Ver no GitHub</a>
+          <a href={`${REPO}/releases`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"><IconeMarca nome="github" className="h-4 w-4" />Todas as versões no GitHub</a>
+        </Secao>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+        <Secao titulo="Requisitos" contexto="O mínimo para cada plataforma">
+          <div className="-mx-5 -my-5 overflow-x-auto">
+            <table className="tabela w-full min-w-[560px]">
+              <thead><tr><th>Plataforma</th><th>Sistema</th><th>Espaço</th><th>Conexão</th></tr></thead>
+              <tbody>{REQUISITOS.map(([p, s2, e, c]) => <tr key={p}><td className="font-medium">{p}</td><td className="text-muted-foreground">{s2}</td><td className="tabular">{e}</td><td className="text-muted-foreground">{c}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </Secao>
+        <Secao titulo="Abrir em outro aparelho" contexto="Leia com a câmera para abrir o sistema">
+          <div className="flex items-center gap-4">
+            {qrSite ? <img src={qrSite.qr} alt="QR Code para abrir o sistema" className="h-28 w-28 shrink-0 rounded-lg bg-white p-1" /> : <span className="flex h-28 w-28 items-center justify-center rounded-lg bg-muted"><QrCode className="h-6 w-6 text-muted-foreground" /></span>}
+            <div className="min-w-0 space-y-2 text-sm">
+              <p className="text-muted-foreground">Abre o sistema no celular ou no tablet; de lá dá para instalar o app web.</p>
+              <p className="flex flex-wrap items-center gap-2"><code className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">{window.location.origin}</code><Copiar texto={window.location.origin} rotulo="Copiar link" /></p>
+              <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">Esta página:<Copiar texto={`${window.location.origin}/apps`} rotulo="Copiar link dos downloads" /></p>
+            </div>
+          </div>
+        </Secao>
+      </div>
+
+      <div className="mt-6">
+        <Secao titulo="Problemas comuns" contexto="O que costuma travar a instalação e como resolver">
+          <div className="-my-3">{PROBLEMAS.map(([p, r]) => <Problema key={p} p={p} r={r} />)}</div>
         </Secao>
       </div>
     </div>

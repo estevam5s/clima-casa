@@ -22,8 +22,26 @@ _ultima_sync = {"em": 0.0}
 _trava = threading.Lock()
 
 
-def preferencias() -> dict:
-    return {**PREF_PADRAO, **(db.cfg("notificacoes_pref") or {})}
+def _uid() -> str | None:
+    try:
+        from . import acesso
+        u = acesso.atual.get()
+        return u["id"] if u else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def preferencias(uid: str | None = None) -> dict:
+    """Preferências da pessoa logada (cada usuário tem as suas); sem ajuste próprio, herda as gerais."""
+    uid = uid or _uid()
+    geral = db.cfg("notificacoes_pref") or {}
+    proprio = (db.cfg(f"notificacoes_pref:{uid}") or {}) if uid else {}
+    return {**PREF_PADRAO, **geral, **proprio}
+
+
+def salvar_preferencias(dados: dict, uid: str | None = None):
+    uid = uid or _uid()
+    db.set_cfg(f"notificacoes_pref:{uid}" if uid else "notificacoes_pref", dados)
 
 
 def notificar(chave: str, tipo: str, gravidade: str, titulo: str, detalhe: str = "", link: str = "", acao: dict | None = None):

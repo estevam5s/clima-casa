@@ -4,14 +4,17 @@ const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, net } = req
 const path = require('path')
 const fs = require('fs')
 
-const URL_APP = process.env.CLIMA_URL || 'https://clima-casa-lac.vercel.app'
+const URL_APP = process.env.CLIMA_URL || 'https://app.zynio.com.br'
 const ORIGEM = new URL(URL_APP).origin
+// login com Google e verificação anti-robô acontecem dentro da janela (o retorno precisa voltar para o app)
+const LOGIN_EXTERNO = [/^https:\/\/accounts\.google\.com\//, /^https:\/\/[\w-]+\.supabase\.co\/auth\//, /^https:\/\/challenges\.cloudflare\.com\//]
 const ARQ_ESTADO = path.join(app.getPath('userData'), 'janela.json')
 let janela = null
 let bandeja = null
 let saindo = false
 
 if (!app.requestSingleInstanceLock()) app.quit()
+ipcMain.on('versao-app', (e) => { e.returnValue = app.getVersion() })
 app.on('second-instance', () => mostrar())
 
 function lerEstado() {
@@ -31,7 +34,7 @@ function carregar() {
 function criarJanela() {
   const est = lerEstado()
   janela = new BrowserWindow({
-    ...est, minWidth: 380, minHeight: 600, show: false, title: 'Clima Casa',
+    ...est, minWidth: 380, minHeight: 600, show: false, title: 'Clima Escritório',
     backgroundColor: '#0e0e10', titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
@@ -45,7 +48,7 @@ function criarJanela() {
     return { action: 'deny' }
   })
   janela.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(ORIGEM) && !url.startsWith('file://')) { e.preventDefault(); shell.openExternal(url) }
+    if (!url.startsWith(ORIGEM) && !url.startsWith('file://') && !LOGIN_EXTERNO.some((r) => r.test(url))) { e.preventDefault(); shell.openExternal(url) }
   })
   janela.webContents.on('did-fail-load', (_e, codigo, _d, url) => {
     if (codigo !== -3 && url.startsWith(ORIGEM)) janela.loadFile(path.join(__dirname, 'offline.html'))

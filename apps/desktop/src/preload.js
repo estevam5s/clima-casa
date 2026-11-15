@@ -2,5 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('climaDesktop', {
   plataforma: process.platform,
+  versao: ipcRenderer.sendSync('versao-app'),
+  arquitetura: process.arch,
   tentarDeNovo: () => ipcRenderer.send('tentar-de-novo'),
 })

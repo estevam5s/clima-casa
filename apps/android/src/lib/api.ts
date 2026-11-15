@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://clima-casa-lac.vercel.app';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://app.zynio.com.br';
 
 export class ErroApi extends Error {
   status: number;

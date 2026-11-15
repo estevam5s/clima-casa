@@ -7,15 +7,16 @@ import { ProvedorClima, useClima } from '@/lib/contexto';
 SplashScreen.preventAutoHideAsync();
 
 function Rotas() {
-  const { sessao, carregando } = useClima();
+  const { sessao, carregando, precisa2fa } = useClima();
+  const dentro = !!sessao && !precisa2fa;
   useEffect(() => { if (!carregando) SplashScreen.hideAsync(); }, [carregando]);
   if (carregando) return null;
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!!sessao}>
+      <Stack.Protected guard={dentro}>
         <Stack.Screen name="(abas)" />
       </Stack.Protected>
-      <Stack.Protected guard={!sessao}>
+      <Stack.Protected guard={!dentro}>
         <Stack.Screen name="login" />
       </Stack.Protected>
     </Stack>
