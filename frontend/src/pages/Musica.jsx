@@ -141,6 +141,33 @@ function Escolher({ aoEscolher, rotulo = 'Tocar' }) {
   )
 }
 
+// passo a passo de conexão (aberto enquanto não conectou; recolhido depois)
+function PassoConexao({ redirect, aberto }) {
+  const passos = [
+    ['Confira o Redirect URI', <>Em <a className="text-primary hover:underline" href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer">developer.spotify.com</a> → seu app → <b className="text-foreground">Settings</b>, o Redirect URI tem que ser exatamente <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">{redirect}</code>, sem barra no final.</>],
+    ['Libere a sua conta em User Management', <>No mesmo app, abra <b className="text-foreground">User Management</b> e adicione o nome e o e-mail da conta Spotify que vai tocar. Sem isso, o Spotify autoriza, mas bloqueia o acesso à conta (o painel avisa quando for esse o caso).</>],
+    ['Conecte pelo navegador', <>Abra <b className="text-foreground">app.zynio.com.br/musica</b> no navegador em que você está logado no painel e clique em <b className="text-foreground">Conectar com o Spotify</b>.</>],
+    ['Entre no Spotify e aceite', <>Você volta para esta tela com a mensagem <b className="text-foreground">“Spotify conectado”</b>. Se algo der errado, o motivo aparece aqui e fica registrado em Atividade.</>],
+    ['Para tocar', <>A conta precisa ser <b className="text-foreground">Premium</b>. Os Echo aparecem como aparelhos quando o Spotify está vinculado no app Alexa (Mais → Configurações → Música e podcasts → Vincular novo serviço → Spotify). Se nenhum aparelho estiver ativo, o play usa o primeiro disponível.</>],
+  ]
+  return (
+    <details className="cartao group" open={aberto}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3.5">
+        <span><span className="titulo-secao">Passo a passo da conexão</span><span className="block text-xs text-muted-foreground">Spotify for Developers, User Management e login</span></span>
+        <span className="text-xs text-muted-foreground group-open:hidden">Mostrar</span><span className="hidden text-xs text-muted-foreground group-open:inline">Esconder</span>
+      </summary>
+      <ol className="divide-y divide-border border-t border-border">
+        {passos.map(([t, d], i) => (
+          <li key={t} className="flex gap-3 px-5 py-3">
+            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-[11px] font-semibold tabular text-muted-foreground">{i + 1}</span>
+            <div className="min-w-0"><p className="text-sm font-medium">{t}</p><p className="mt-0.5 text-sm text-muted-foreground">{d}</p></div>
+          </li>
+        ))}
+      </ol>
+    </details>
+  )
+}
+
 const NOVA = () => ({ id: `r-${Date.now().toString(36)}`, nome: '', ativo: true, gatilho: { tipo: 'horario', hora: '08:30', dias: [1, 2, 3, 4, 5], aparelho_id: null }, janela: { inicio: null, fim: null }, acao: { tipo: 'tocar', uri: null, nome: '', capa: '', aparelho_nome: '', volume: 30, aleatorio: true } })
 
 function EditorRotina({ inicial, ares, aparelhosSpotify, onSalvar, onFechar }) {
@@ -317,6 +344,8 @@ export default function Musica() {
           </div>
         </div>
       )}
+
+      <PassoConexao redirect={estado.redirect_uri} aberto={!estado.conectado} />
 
       {editando && <EditorRotina inicial={editando} ares={ares} aparelhosSpotify={aparelhosSp} onFechar={() => setEditando(null)}
         onSalvar={async (r) => { const lista = rotinas.some((x) => x.id === r.id) ? rotinas.map((x) => (x.id === r.id ? r : x)) : [...rotinas, r]; if (await salvarRotinas(lista)) { setEditando(null); toast('Rotina salva.') } }} />}
