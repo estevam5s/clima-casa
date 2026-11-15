@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import BotaoCookies from './BotaoCookies'
 import { LogIn, MonitorSmartphone } from 'lucide-react'
 import { TextoEntrar } from './Sessao'
 import Espiral from './Espiral'
@@ -42,6 +43,7 @@ export default function Rodape() {
                 <li><Link href="/contato">Contato</Link></li>
                 <li><Link href="/privacidade">Privacidade</Link></li>
                 <li><Link href="/termos">Termos de uso</Link></li>
+                <li><BotaoCookies /></li>
               </ul>
             </div>
           </div>

@@ -3,6 +3,7 @@ import './globals.css'
 import Cabecalho from '@/components/Cabecalho'
 import Rodape from '@/components/Rodape'
 import Efeitos from '@/components/Efeitos'
+import Cookies from '@/components/Cookies'
 import { MARCA, SISTEMA_URL, SITE_URL } from '@/lib/dados'
 import { DESCRICAO_PADRAO, meta } from '@/lib/seo'
 
@@ -48,6 +49,7 @@ export default function RootLayout({ children }) {
           <main>{children}</main>
           <Rodape />
         </Efeitos>
+        <Cookies />
       </body>
     </html>
   )

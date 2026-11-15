@@ -25,7 +25,7 @@ ATAQUES = ("scanner", "rate_limit", "token_invalido", "login_falhou", "login_neg
 ROTULOS = {"acesso": "Acesso", "login_ok": "Login aceito", "login_falhou": "Senha errada", "login_negado": "Conta sem permissão",
            "auth_negado": "Sem permissão (logado)", "token_invalido": "Token falso ou adulterado", "sem_login": "Abriu sem login",
            "scanner": "Ferramenta de ataque", "rate_limit": "Excesso de requisições", "bot_bloqueado": "Robô barrado (Turnstile)",
-           "esqueci_senha": "Pediu nova senha", "pais_bloqueado": "País bloqueado", "ip_bloqueado_auto": "IP bloqueado"}
+           "esqueci_senha": "Pediu nova senha", "consentimento": "Escolheu cookies no site", "site_contato": "Formulário do site", "pais_bloqueado": "País bloqueado", "ip_bloqueado_auto": "IP bloqueado"}
 _PREVIA = re.compile(r"WhatsApp|facebookexternalhit|Facebot|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|SkypeUriPreview|"
                      r"Googlebot|bingbot|Applebot|DuckDuckBot|YandexBot|Google-InspectionTool|vercel", re.I)
 _AUTOMATICO = re.compile(r"HeadlessChrome|python-requests|python-httpx|curl/|Wget|Go-http-client|okhttp|axios|node-fetch|"

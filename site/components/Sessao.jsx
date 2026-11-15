@@ -1,4 +1,5 @@
 'use client'
+import { consentiu } from '@/lib/consentimento'
 import { useEffect, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import Botao from './Botao'
@@ -20,11 +21,13 @@ function lerSessao() {
     const url = new URL(window.location.href)
     const p = url.searchParams.get('sessao')
     if (p === '1' || p === '0') {
-      if (p === '1') localStorage.setItem(CHAVE, String(Date.now() + VALIDADE))
+      // lembrar entre visitas é cookie de preferência: só com consentimento
+      if (p === '1' && consentiu('preferencias')) localStorage.setItem(CHAVE, String(Date.now() + VALIDADE))
       else localStorage.removeItem(CHAVE)
       url.searchParams.delete('sessao')
       window.history.replaceState(window.history.state, '', url.pathname + (url.search ? url.search : '') + url.hash)
     }
+    if (p === '1') return true
     return Number(localStorage.getItem(CHAVE) || 0) > Date.now()
   } catch { return false }
 }

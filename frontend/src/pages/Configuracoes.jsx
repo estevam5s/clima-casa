@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users } from 'lucide-react'
+import { Cookie, Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users } from 'lucide-react'
 import { useTema } from '../tema'
 import WhiteLabel from '../components/config/WhiteLabel'
 import Perfil from '../components/config/Perfil'
@@ -9,6 +9,7 @@ import Usuarios from '../components/config/Usuarios'
 import SegurancaConta from '../components/config/SegurancaConta'
 import { useProjeto } from '../contexto'
 import PainelSeguranca from '../components/config/PainelSeguranca'
+import CookiesSite from '../components/config/CookiesSite'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { Aviso, Botao, Cabecalho, Carregando, Ponto, useDados, useToast } from '../components/ui'
@@ -124,7 +125,7 @@ export default function Configuracoes() {
   const pode = (perm) => !perm || sessao?.permissoes?.includes(perm)
   const ABAS = [['perfil', 'Perfil', UserRound], ['usuarios', 'Usuários', Users, 'usuarios.gerenciar'], ['seguranca', 'Segurança', ShieldCheck],
     ['geral', 'Geral', Sliders, 'configuracoes.gerenciar'], ['aparencia', 'Aparência', Palette], ['marca', 'White label', Paintbrush, 'configuracoes.gerenciar'],
-    ['contas', 'Contas', KeyRound, 'integracoes.gerenciar'], ['sistema', 'Sistema', Server, 'configuracoes.gerenciar']].filter((a) => pode(a[3]))
+    ['contas', 'Contas', KeyRound, 'integracoes.gerenciar'], ['cookies', 'Cookies do site', Cookie, 'configuracoes.gerenciar'], ['sistema', 'Sistema', Server, 'configuracoes.gerenciar']].filter((a) => pode(a[3]))
   const pedida = params.get('aba')
   const aba = ABAS.some((a) => a[0] === pedida) ? pedida : (pode('configuracoes.gerenciar') ? 'geral' : 'perfil')
   return (
@@ -166,6 +167,7 @@ export default function Configuracoes() {
       {aba === 'aparencia' && <Aparencia />}
       {aba === 'marca' && <WhiteLabel />}
       {aba === 'usuarios' && <Usuarios />}
+      {aba === 'cookies' && <CookiesSite />}
       {aba === 'seguranca' && (
         <div className="space-y-8">
           <SegurancaConta />

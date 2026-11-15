@@ -1634,6 +1634,148 @@ def salvar_respostas_prontas(d: list[RespostaProntaIn]):
     return lista
 
 
+# ---------------- cookies do site (aviso de consentimento LGPD + gestão no admin) ----------------
+COOKIES_PADRAO = {
+    "ativo": True, "versao": 1, "dias_validade": 180, "posicao": "rodape",
+    "titulo": "Sua privacidade",
+    "texto": "Usamos cookies essenciais para o site funcionar e ficar seguro. Com a sua permissão, usamos também cookies de preferências. Você escolhe e pode mudar quando quiser.",
+    "categorias": [
+        {"id": "essenciais", "nome": "Essenciais", "obrigatoria": True,
+         "descricao": "Necessários para o site funcionar e se proteger de robôs. Não podem ser desligados."},
+        {"id": "preferencias", "nome": "Preferências", "obrigatoria": False,
+         "descricao": "Lembram escolhas suas, como mostrar o botão certo para entrar no sistema."},
+        {"id": "estatisticas", "nome": "Estatísticas", "obrigatoria": False,
+         "descricao": "Ajudariam a entender o uso do site de forma agregada. Hoje o site não usa nenhum cookie desta categoria."},
+        {"id": "marketing", "nome": "Marketing", "obrigatoria": False,
+         "descricao": "Serviriam para anúncios personalizados. O site não usa nenhum cookie desta categoria."},
+    ],
+    "cookies": [
+        {"nome": "zv", "categoria": "essenciais", "provedor": "zynio.com.br", "finalidade": "Lembrar que o acesso passou na verificação de segurança", "duracao": "12 horas"},
+        {"nome": "Cookies do Turnstile", "categoria": "essenciais", "provedor": "Cloudflare", "finalidade": "Confirmar que o acesso não é de um robô", "duracao": "Durante a verificação"},
+        {"nome": "zynio-cookies", "categoria": "essenciais", "provedor": "zynio.com.br", "finalidade": "Guardar as suas escolhas de cookies", "duracao": "6 meses"},
+        {"nome": "clima-sessao-sistema", "categoria": "preferencias", "provedor": "zynio.com.br", "finalidade": "Mostrar o botão Entrar no sistema para quem já entrou", "duracao": "30 dias"},
+    ],
+}
+
+
+def _cookies_cfg() -> dict:
+    return {**COOKIES_PADRAO, **(db.cfg("cookies_site") or {})}
+
+
+@publico.get("/site/cookies")
+def cookies_publico():
+    c = _cookies_cfg()
+    return {k: c[k] for k in ("ativo", "versao", "dias_validade", "posicao", "titulo", "texto", "categorias", "cookies")}
+
+
+class ConsentimentoIn(BaseModel):
+    id_anonimo: str = Field(min_length=8, max_length=64, pattern=r"^[\w-]+$")
+    versao: int = Field(ge=1, le=100000)
+    acao: str = Field(pattern="^(aceitar_todos|rejeitar|personalizar)$")
+    escolhas: dict[str, bool] = Field(default_factory=dict, max_length=12)
+
+
+@publico.post("/site/cookies/consentimento")
+def registrar_consentimento(d: ConsentimentoIn, request: Request):
+    import hashlib
+    from .. import firewall
+    ip = firewall.ip_do_pedido(request)
+    if firewall.falhas_recentes(ip, ("consentimento",), 60) >= 30:
+        raise HTTPException(429, "Muitos registros. Tente mais tarde.")
+    firewall.registrar(ip, "consentimento", "/api/site/cookies/consentimento", d.acao)
+    validas = {c["id"] for c in _cookies_cfg()["categorias"]}
+    escolhas = {k: bool(v) for k, v in d.escolhas.items() if k in validas}
+    escolhas["essenciais"] = True
+    sal = db.ENV.get("CLIMA_CHAVE_MESTRA", "")[:16]
+    db.executar("INSERT INTO site_consentimentos (quando, id_anonimo, versao, acao, escolhas, pais, ip_hash, agente) VALUES (?,?,?,?,CAST(? AS jsonb),?,?,?)",
+                (db.agora(), d.id_anonimo, d.versao, d.acao, json.dumps(escolhas), request.headers.get("x-vercel-ip-country", "")[:4],
+                 hashlib.sha256(f"{sal}:{ip}".encode()).hexdigest()[:24], request.headers.get("user-agent", "")[:160]))
+    return {"ok": True}
+
+
+@api.get("/site/cookies/config")
+def ver_cookies_config():
+    return _cookies_cfg()
+
+
+class CategoriaCookie(BaseModel):
+    id: str = Field(min_length=2, max_length=30, pattern=r"^[a-z_]+$")
+    nome: str = Field(min_length=1, max_length=40)
+    descricao: str = Field("", max_length=400)
+    obrigatoria: bool = False
+
+
+class CookieItem(BaseModel):
+    nome: str = Field(min_length=1, max_length=60)
+    categoria: str = Field(min_length=2, max_length=30)
+    provedor: str = Field("", max_length=60)
+    finalidade: str = Field("", max_length=200)
+    duracao: str = Field("", max_length=40)
+
+
+class CookiesConfigIn(BaseModel):
+    ativo: bool = True
+    dias_validade: int = Field(180, ge=1, le=730)
+    posicao: str = Field("rodape", pattern="^(rodape|canto)$")
+    titulo: str = Field(min_length=1, max_length=60)
+    texto: str = Field(min_length=10, max_length=600)
+    categorias: list[CategoriaCookie] = Field(min_length=1, max_length=8)
+    cookies: list[CookieItem] = Field(default_factory=list, max_length=60)
+    nova_versao: bool = False
+
+
+@api.put("/site/cookies/config")
+def salvar_cookies_config(d: CookiesConfigIn):
+    atual = _cookies_cfg()
+    dados = d.model_dump(exclude={"nova_versao"})
+    if not any(c["id"] == "essenciais" for c in dados["categorias"]):
+        raise HTTPException(400, "A categoria Essenciais precisa existir.")
+    for c in dados["categorias"]:
+        if c["id"] == "essenciais":
+            c["obrigatoria"] = True
+    ids = {c["id"] for c in dados["categorias"]}
+    for k in dados["cookies"]:
+        if k["categoria"] not in ids:
+            raise HTTPException(400, f"O cookie {k['nome']} está numa categoria que não existe.")
+    dados["versao"] = atual["versao"] + (1 if d.nova_versao else 0)
+    db.set_cfg("cookies_site", dados)
+    db.registrar("painel", "Cookies do site atualizados", detalhe=f"versão {dados['versao']}" + (" (novo consentimento pedido)" if d.nova_versao else ""))
+    return dados
+
+
+@api.get("/site/cookies/relatorio")
+def relatorio_cookies(dias: int = 30):
+    desde = db.agora() - min(dias, 365) * 86400
+    linhas = db.consultar("SELECT quando, id_anonimo, versao, acao, escolhas, pais FROM site_consentimentos WHERE quando > ? ORDER BY quando DESC LIMIT 20000", (desde,))
+    total = len(linhas)
+    acoes = {a: sum(1 for l in linhas if l["acao"] == a) for a in ("aceitar_todos", "personalizar", "rejeitar")}
+    cats = {}
+    for l in linhas:
+        e = l["escolhas"] if isinstance(l["escolhas"], dict) else json.loads(l["escolhas"] or "{}")
+        for k, v in e.items():
+            c = cats.setdefault(k, [0, 0]); c[0] += bool(v); c[1] += 1
+    por_dia = {}
+    import datetime as _dt
+    for l in linhas:
+        k = _dt.datetime.fromtimestamp(l["quando"], _dt.timezone(_dt.timedelta(hours=-3))).strftime("%Y-%m-%d")
+        d = por_dia.setdefault(k, {"dia": k, "aceitar_todos": 0, "personalizar": 0, "rejeitar": 0}); d[l["acao"]] += 1
+    serie = []
+    for n in range(min(dias, 90) - 1, -1, -1):
+        k = _dt.datetime.fromtimestamp(db.agora() - n * 86400, _dt.timezone(_dt.timedelta(hours=-3))).strftime("%Y-%m-%d")
+        serie.append(por_dia.get(k, {"dia": k, "aceitar_todos": 0, "personalizar": 0, "rejeitar": 0}))
+    return {"total": total, "visitantes": len({l["id_anonimo"] for l in linhas}), "acoes": acoes,
+            "categorias": {k: {"aceitos": a, "total": t, "taxa": round(a / t * 100) if t else 0} for k, (a, t) in cats.items()},
+            "por_dia": serie, "recentes": [{**l, "escolhas": l["escolhas"] if isinstance(l["escolhas"], dict) else json.loads(l["escolhas"] or "{}")} for l in linhas[:60]],
+            "versao": _cookies_cfg()["versao"]}
+
+
+@api.delete("/site/cookies/consentimento/{id_anonimo}")
+def apagar_consentimento(id_anonimo: str):
+    db.executar("DELETE FROM site_consentimentos WHERE id_anonimo = ?", (id_anonimo,))
+    db.registrar("painel", "Registro de consentimento apagado a pedido do titular", detalhe=id_anonimo[:12])
+    return {"ok": True}
+
+
 # ---------------- perfil do administrador (nome, cargo, foto) ----------------
 class PerfilIn(BaseModel):
     nome: str = Field("", max_length=80)

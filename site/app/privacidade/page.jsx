@@ -66,10 +66,11 @@ const SECOES = [
       ['zv', 'Cookie essencial', 'Lembrar que o acesso já passou na verificação de segurança', '12 horas'],
       ['Cookies da Cloudflare (Turnstile)', 'Essencial, de segurança', 'Confirmar que o acesso não é de um robô', 'Durante a verificação'],
       ['clima-casa-auth', 'Armazenamento local', 'Manter a sessão de login do sistema', 'Até sair da conta ou a sessão vencer'],
-      ['clima-sessao-sistema', 'Armazenamento local', 'Mostrar no site o botão certo (Login ou Entrar no sistema)', '30 dias'],
+      ['zynio-cookies', 'Armazenamento local', 'Guardar as suas escolhas de cookies (prova do consentimento)', '6 meses'],
+      ['clima-sessao-sistema', 'Preferência (pede consentimento)', 'Mostrar no site o botão certo (Login ou Entrar no sistema)', '30 dias'],
       ['Preferências', 'Armazenamento local', 'Tema claro ou escuro, menu fixo e vista do mapa', 'Até você limpar o navegador'],
     ] },
-    'Como são essenciais, esses itens não dependem de consentimento. Você pode apagá-los nas configurações do navegador; nesse caso, será preciso passar de novo pela verificação e entrar de novo.',
+    'Os itens essenciais não dependem de consentimento. Os de preferência só são gravados se você aceitar no aviso de cookies, que aparece na primeira visita. Você muda a escolha quando quiser pelo botão de cookie no canto da tela ou pelo link “Preferências de cookies” no rodapé. Cada escolha fica registrada no sistema sem o seu IP em claro, como prova do consentimento.',
   ] },
   { id: 'retencao', titulo: 'Por quanto tempo guardamos', blocos: [
     { tabela: [

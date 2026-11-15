@@ -65,6 +65,7 @@ REGRAS = [
     ("*", r"^/api/(relatorios|metricas)", "relatorios.ver"),
     ("*", r"^/api/atividade", "atividade.ver"),
     ("*", r"^/api/site/(mensagens|conversas?|respostas-prontas)", "mensagens.ver"),
+    ("*", r"^/api/site/cookies/(config|relatorio|consentimento/)", "configuracoes.gerenciar"),
     ("*", r"^/api/(sinric|tuya|alexa/(?!comandos)|oauth/aprovar)", "integracoes.gerenciar"),
     ("GET", r"^/api/alexa$", "integracoes.gerenciar"),
     ("*", r"^/api/seguranca", "seguranca.gerenciar"),

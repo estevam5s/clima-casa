@@ -384,3 +384,21 @@ create index if not exists ix_site_respostas_email on public.site_respostas (ema
 alter table public.site_respostas enable row level security;
 drop policy if exists admin_le on public.site_respostas;
 create policy admin_le on public.site_respostas for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+-- Consentimento de cookies do site (prova de consentimento para a LGPD; sem IP em claro, só hash com sal)
+create table if not exists public.site_consentimentos (
+  id bigint generated always as identity primary key,
+  quando bigint not null,
+  id_anonimo text not null,
+  versao integer not null,
+  acao text not null,                      -- aceitar_todos | rejeitar | personalizar
+  escolhas jsonb not null default '{}',
+  pais text not null default '',
+  ip_hash text not null default '',
+  agente text not null default ''
+);
+create index if not exists ix_site_consentimentos_quando on public.site_consentimentos (quando desc);
+create index if not exists ix_site_consentimentos_anon on public.site_consentimentos (id_anonimo);
+alter table public.site_consentimentos enable row level security;
+drop policy if exists admin_le on public.site_consentimentos;
+create policy admin_le on public.site_consentimentos for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
