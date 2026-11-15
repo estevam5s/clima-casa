@@ -1,10 +1,12 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Ban, ChevronDown, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
+import { Activity, AlertOctagon, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Secao, useDados, useToast } from '../components/ui'
 import PainelSeguranca from '../components/config/PainelSeguranca'
+import { useSearchParams } from 'react-router-dom'
+import { Acessos, Conformidade, Incidentes, Integridade, Riscos, TestesAoVivo } from '../components/seguranca/Governanca'
 
 const Globo3D = lazy(() => import('../components/Globo3D'))
 const PERIODOS = [[1, '24 h'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']]
@@ -209,7 +211,40 @@ function Checklist() {
   )
 }
 
+const ABAS = [['monitoramento', 'Monitoramento', Activity], ['conformidade', 'Conformidade ISO', Scale], ['riscos', 'Riscos', ClipboardList], ['incidentes', 'Incidentes', AlertOctagon],
+  ['acessos', 'Acessos', Users], ['testes', 'Testes ao vivo', Radar], ['integridade', 'Integridade', FileLock2]]
+
 export default function Seguranca() {
+  const [params, setParams] = useSearchParams()
+  const aba = ABAS.some(([k]) => k === params.get('aba')) ? params.get('aba') : 'monitoramento'
+  const barra = (
+    <nav className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-border px-1" aria-label="Seções da segurança">
+      {ABAS.map(([k, r, I]) => (
+        <button key={k} onClick={() => setParams(k === 'monitoramento' ? {} : { aba: k }, { replace: true })} className={`relative flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-sm ${aba === k ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+          <I className="h-4 w-4" />{r}
+          {aba === k && <motion.span layoutId="aba-seg" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
+        </button>
+      ))}
+    </nav>
+  )
+  if (aba !== 'monitoramento') {
+    const Comp = { conformidade: Conformidade, riscos: Riscos, incidentes: Incidentes, acessos: Acessos, testes: TestesAoVivo, integridade: Integridade }[aba]
+    const desc = { conformidade: 'ISO/IEC 27001:2022 e 27002 com ligação para 27005, 27017, 27018, 27701, 27035, 22301 e LGPD. O que dá para conferir sozinho é conferido na hora.',
+      riscos: 'Avaliação e tratamento de riscos (ISO 27005, cláusula 6.1 da 27001).', incidentes: 'Registro, resposta e lições de incidentes (ISO 27035 e LGPD).',
+      acessos: 'Quem tem acesso a quê, duas etapas e revisão periódica (A.5.15 a A.5.18).', testes: 'Conferência externa de HTTPS, certificado, cabeçalhos, arquivos expostos e CORS.',
+      integridade: 'Selos SHA-256 encadeados que mostram se algum registro foi alterado.' }[aba]
+    return (
+      <>
+        <Cabecalho titulo="Segurança" descricao={desc} />
+        {barra}
+        <Comp />
+      </>
+    )
+  }
+  return <Monitoramento barra={barra} />
+}
+
+function Monitoramento({ barra }) {
   const toast = useToast()
   const [dias, setDias] = useState(7)
   const [aoVivo, setAoVivo] = useState(true)
@@ -247,6 +282,7 @@ export default function Seguranca() {
           <Botao variante="secundario" icone={aoVivo ? Pause : Play} onClick={() => setAoVivo((v) => !v)}>{aoVivo ? 'Ao vivo' : 'Pausado'}</Botao>
           <Exportar dias={dias} />
         </>} />
+      {barra}
 
       {erro && <Aviso>{erro}</Aviso>}
       {!dados && !erro && <div className="grid gap-4"><Esqueleto className="h-24" /><Esqueleto className="h-[520px]" /></div>}

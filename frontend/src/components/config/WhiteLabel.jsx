@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckCircle2, Download, History, ImagePlus, Laptop, Palette, Pipette, RotateCcw, Save, Smartphone, Trash2, Upload, Wrench, XCircle } from 'lucide-react'
+import { BookmarkPlus, CheckCircle2, Copy, Download, FileDown, GitCompare, History, ImagePlus, Laptop, Palette, Pipette, RotateCcw, Save, Search, Smartphone, Trash2, Upload, Wrench, XCircle } from 'lucide-react'
 import { api, dataHora } from '../../api'
-import { MARCA_PADRAO, NOMES_FONTES, aplicarMarca, contraste, useMarca } from '../../marca'
+import { MARCA_PADRAO, NOMES_FONTES, aplicarMarca, contraste, escalaDeTons, sazonalNoAr, useMarca } from '../../marca'
+import { MODELOS } from '../../cursores'
 import { Aviso, Botao, Interruptor, Modal, useToast } from '../ui'
 
 const PALETAS = [
@@ -24,7 +25,13 @@ const RECURSOS = ['Nome do sistema', 'Nome curto (app instalado)', 'Slogan e des
   'Tom do fundo (zinco, pedra, ardósia, oliva)', 'Estilo dos botões (sólido, contorno, pílula)', 'Estilo dos cartões (borda, sombra, plano)',
   'Largura do conteúdo', 'Espessura dos ícones', 'Login centralizado ou dividido', 'Aviso na tela de login', 'Página inicial depois do login',
   'Mostrar ou esconder "Voltar ao site"', 'Modo manutenção (só administradores entram)', 'Previsão de volta na manutenção',
-  'Logo da empresa nos relatórios', 'Rodapé próprio nos relatórios (razão social, CNPJ)', 'Pré-visualização no celular']
+  'Logo da empresa nos relatórios', 'Rodapé próprio nos relatórios (razão social, CNPJ)', 'Pré-visualização no celular',
+  'Cores de sucesso e de aviso', 'Escala de tons 50 a 950 (variáveis CSS)', 'Auditoria de acessibilidade de todas as cores', 'Fonte própria para os títulos',
+  'Peso dos títulos', 'Espaçamento entre letras', 'Intensidade das sombras', 'Espessura das bordas', 'Fundo do sistema (liso, pontos, grade, gradiente)',
+  'Cabeçalho (vidro, sólido ou na cor da marca)', 'Largura do menu lateral', 'Alto contraste', 'Foco do teclado reforçado', 'Links sublinhados',
+  'Sem transparências', 'Marca d’água (ex.: Confidencial)', 'Formato do título da aba', 'Tema sazonal com período (Natal, Outubro Rosa…)',
+  'Cursor padrão da empresa', 'Redes sociais no rodapé', 'Tela de abertura com o logo', 'Temas próprios salvos', 'Comparar versões campo a campo',
+  'Kit da marca para baixar', 'Busca nas opções', 'Índice das seções']
 
 // temas completos: cores, fonte, cantos, densidade, menu e tema padrão de uma vez
 const TEMAS_PRONTOS = [
@@ -89,9 +96,14 @@ function Campo({ rotulo, ajuda, children }) {
   return <div><span className="rotulo">{rotulo}</span>{children}{ajuda && <p className="ajuda">{ajuda}</p>}</div>
 }
 
-function Bloco({ titulo, descricao, children }) {
+const BuscaCtx = createContext('')
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const ancora = (t) => `wl-${semAcento(t).replace(/[^a-z0-9]+/g, '-')}`
+function Bloco({ titulo, descricao, palavras = '', children }) {
+  const busca = useContext(BuscaCtx)
+  if (busca && !semAcento(`${titulo} ${descricao || ''} ${palavras}`).includes(semAcento(busca))) return null
   return (
-    <section className="cartao p-5">
+    <section id={ancora(titulo)} className="cartao scroll-mt-24 p-5">
       <h3 className="titulo-secao">{titulo}</h3>
       {descricao && <p className="mb-4 text-xs text-muted-foreground">{descricao}</p>}
       <div className={descricao ? '' : 'mt-4'}>{children}</div>
@@ -107,6 +119,94 @@ function lerImagem(arquivo, max = 300_000) {
   })
 }
 
+const SECOES = ['Temas prontos', 'Meus temas', 'Identidade', 'Cores', 'Tipografia e layout', 'Acabamento', 'Cores avançadas', 'Tipografia dos títulos', 'Superfícies',
+  'Acessibilidade', 'Tela de login', 'Abertura e redes', 'Marca d’água e aba', 'Tema sazonal', 'Cursor padrão', 'Comunicação', 'Modo manutenção',
+  'Relatórios exportados', 'Menu lateral', 'Regional e avançado']
+const SAZONAIS = [['Natal', '#b91c1c', '#15803d'], ['Outubro Rosa', '#db2777', '#be185d'], ['Novembro Azul', '#1d4ed8', '#0369a1'], ['Copa', '#15803d', '#ca8a04'], ['Aniversário', '#7c3aed', '#c026d3']]
+const EFEITOS_CURSOR = [['rastro', 'Rastro'], ['brilho', 'Brilho'], ['ondas', 'Ondas'], ['faiscas', 'Faíscas'], ['magnetico', 'Magnético'], ['arco_iris', 'Arco-íris']]
+const NOMES_CAMPOS = { cor_primaria: 'Cor principal', cor_destaque: 'Cor de destaque', cor_alerta: 'Cor de alerta', nome: 'Nome', fonte: 'Fonte', raio: 'Cantos', tema_padrao: 'Tema padrão', menu_estilo: 'Menu', densidade: 'Densidade', escala: 'Tamanho do texto' }
+
+// todas as cores contra fundo claro e escuro, com nota geral
+function Auditoria({ f }) {
+  const cores = [['Principal', f.cor_primaria], ['Destaque', f.cor_destaque], ['Alerta', f.cor_alerta], ['Sucesso', f.cor_sucesso], ['Aviso', f.cor_aviso]].filter(([, c]) => /^#[0-9a-f]{6}$/i.test(c || ''))
+  const testes = cores.flatMap(([n, c]) => [[n, c, '#ffffff', 'no claro'], [n, c, '#0b0b0f', 'no escuro']])
+  const ok = testes.filter(([, a, b]) => contraste(a, b) >= 3).length
+  const nota = Math.round((ok / Math.max(1, testes.length)) * 100)
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-2 flex items-center justify-between"><p className="text-xs font-medium text-muted-foreground">Auditoria de acessibilidade (texto grande e ícones, 3:1)</p>
+        <span className={`text-sm font-semibold tabular ${nota >= 90 ? 'text-emerald-600 dark:text-emerald-400' : nota >= 70 ? 'text-amber-600' : 'text-red-600'}`}>{nota}%</span></div>
+      <div className="grid gap-1 sm:grid-cols-2">
+        {testes.map(([n, a, b, onde]) => { const v = contraste(a, b); return (
+          <div key={n + onde} className="flex items-center justify-between gap-2 text-xs">
+            <span className="flex items-center gap-2"><span className="grid h-5 w-8 place-items-center rounded text-[9px] font-bold" style={{ background: b, color: a }}>Aa</span>{n} {onde}</span>
+            <span className={`tabular ${v >= 4.5 ? 'text-emerald-600 dark:text-emerald-400' : v >= 3 ? 'text-amber-600' : 'text-red-600'}`}>{v.toFixed(1)}:1</span>
+          </div>) })}
+      </div>
+    </div>
+  )
+}
+
+function Tons({ cor, toast }) {
+  const tons = escalaDeTons(cor)
+  const css = tons.map(([k, v]) => `  --marca-${k}: ${v};`).join('\n')
+  return (
+    <div>
+      <div className="flex overflow-hidden rounded-lg border border-border">{tons.map(([k, v]) => <span key={k} title={`${k} · ${v}`} className="flex h-12 flex-1 items-end justify-center pb-1 text-[9px] font-medium" style={{ background: v, color: Number(k) >= 500 ? '#fff' : '#111' }}>{k}</span>)}</div>
+      <button type="button" onClick={() => { navigator.clipboard?.writeText(`:root {\n${css}\n}`); toast('Variáveis copiadas. Use como hsl(var(--marca-500)) no CSS personalizado.') }} className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary hover:underline"><Copy className="h-3.5 w-3.5" />Copiar variáveis CSS</button>
+    </div>
+  )
+}
+
+// página HTML com logo, cores, tons, fontes e regras de uso, para mandar a quem faz material da empresa
+function baixarKit(f) {
+  const esc = (t) => String(t || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+  const linha = (n, c) => `<div class="cor"><span style="background:${c}"></span><b>${n}</b><code>${c}</code></div>`
+  const tons = escalaDeTons(f.cor_primaria).map(([k, v]) => `<span style="background:${v};color:${Number(k) >= 500 ? '#fff' : '#111'}">${k}</span>`).join('')
+  const fonte = (NOMES_FONTES.find(([k]) => k === f.fonte) || [])[1] || f.fonte
+  const html = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kit da marca · ${esc(f.nome)}</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:32px 16px;color:#18181b;background:#fafafa}main{max-width:860px;margin:auto}h1{margin:0 0 4px}section{background:#fff;border:1px solid #e4e4e7;border-radius:${f.raio}px;padding:20px;margin:16px 0}
+.cor{display:flex;align-items:center;gap:12px;margin:8px 0}.cor span{width:48px;height:32px;border-radius:6px;border:1px solid #0001}.cor code{color:#71717a}.tons{display:flex;border-radius:8px;overflow:hidden}.tons span{flex:1;padding:22px 0 6px;text-align:center;font-size:11px}
+img{max-height:96px;max-width:240px}.logos{display:flex;gap:24px;flex-wrap:wrap;align-items:center}.escuro{background:#0b0b0f;padding:12px;border-radius:8px}</style>
+<main><h1>${esc(f.nome)}</h1><p>${esc(f.slogan)}</p>
+<section><h2>Logo</h2><div class="logos">${f.logo ? `<img src="${f.logo}" alt="Logo">` : '<p>Sem logo enviado.</p>'}${f.logo_escuro ? `<div class="escuro"><img src="${f.logo_escuro}" alt="Logo no escuro"></div>` : ''}</div></section>
+<section><h2>Cores</h2>${linha('Principal', f.cor_primaria)}${linha('Destaque', f.cor_destaque)}${linha('Alerta', f.cor_alerta)}${linha('Sucesso', f.cor_sucesso)}${linha('Aviso', f.cor_aviso)}<h3>Tons da cor principal</h3><div class="tons">${tons}</div></section>
+<section><h2>Tipografia</h2><p>Texto: <b>${esc(fonte)}</b> · Títulos com peso ${f.peso_titulos} · Cantos de ${f.raio}px</p></section>
+<section><h2>Contato</h2><p>${esc([f.site, f.suporte_email, f.suporte_telefone].filter(Boolean).join(' · ') || 'Sem contatos cadastrados.')}</p></section>
+<p style="color:#71717a;font-size:12px">Gerado em ${new Date().toLocaleString('pt-BR')}.</p></main></html>`
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  a.download = `kit-da-marca-${f.nome_curto.toLowerCase().replace(/\W+/g, '-')}.html`; a.click(); URL.revokeObjectURL(a.href)
+}
+
+function MeusTemas({ f, setF, toast }) {
+  const [temas, setTemas] = useState(null)
+  const [nome, setNome] = useState('')
+  useEffect(() => { api.get('/api/marca/temas').then(setTemas).catch(() => setTemas([])) }, [])
+  const salvar = async () => {
+    if (!nome.trim()) return
+    try { setTemas(await api.post('/api/marca/temas', { nome: nome.trim(), valores: f })); setNome(''); toast('Tema salvo. Ele fica disponível para todos os administradores.') } catch (e) { toast(e.message, 'erro') }
+  }
+  const apagar = async (n) => { try { setTemas(await api.del(`/api/marca/temas/${encodeURIComponent(n)}`)) } catch (e) { toast(e.message, 'erro') } }
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2"><input className="campo" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={40} placeholder="Nome do tema (ex.: Filial Centro)" onKeyDown={(e) => e.key === 'Enter' && salvar()} />
+        <Botao variante="secundario" icone={BookmarkPlus} disabled={!nome.trim()} onClick={salvar} className="shrink-0 whitespace-nowrap">Salvar o atual</Botao></div>
+      {temas?.length === 0 && <p className="text-xs text-muted-foreground">Nenhum tema salvo. Monte cores, fontes e acabamento e guarde aqui para trocar depois com um clique.</p>}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {temas?.map((t) => (
+          <div key={t.nome} className="flex items-center gap-2 rounded-lg border border-border p-2">
+            <span className="flex shrink-0 overflow-hidden rounded"><span className="h-6 w-4" style={{ background: t.valores.cor_primaria }} /><span className="h-6 w-4" style={{ background: t.valores.cor_destaque }} /></span>
+            <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{t.nome}</span><span className="block text-[11px] text-muted-foreground">{dataHora(t.em)}</span></span>
+            <Botao tamanho="sm" variante="secundario" onClick={() => { setF((x) => ({ ...x, ...t.valores })); toast(`Tema “${t.nome}” aplicado. Salve para valer.`) }}>Aplicar</Botao>
+            <button onClick={() => apagar(t.nome)} className="rounded-md p-1.5 text-muted-foreground hover:text-red-600" aria-label={`Apagar ${t.nome}`}><Trash2 className="h-4 w-4" /></button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function WhiteLabel() {
   const { marca, setMarcaLocal } = useMarca()
   const [f, setF] = useState(marca)
@@ -114,6 +214,8 @@ export default function WhiteLabel() {
   const [historico, setHistorico] = useState(null)
   const original = useRef(marca)
   const [aparelho, setAparelho] = useState('computador')
+  const [busca, setBusca] = useState('')
+  const [comparar, setComparar] = useState(null)
   const importar = useRef(null)
   const toast = useToast()
   const mudou = JSON.stringify(f) !== JSON.stringify(original.current)
@@ -146,6 +248,13 @@ export default function WhiteLabel() {
     try { setF({ ...MARCA_PADRAO, ...JSON.parse(await a.text()) }); toast('Configuração carregada. Revise e salve.') } catch { toast('Arquivo JSON inválido.', 'erro') }
   }
   const abrirHistorico = async () => setHistorico(await api.get('/api/marca/historico'))
+  const compararVersao = async (i) => {
+    try {
+      const v = await api.get(`/api/marca/historico/${i}`)
+      const difs = Object.keys(v.marca).filter((k) => JSON.stringify(v.marca[k]) !== JSON.stringify(original.current[k]))
+      setComparar({ em: v.em, indice: i, difs: difs.map((k) => [k, v.marca[k], original.current[k]]) })
+    } catch (e) { toast(e.message, 'erro') }
+  }
   const restaurar = async (i) => {
     const novo = await api.post(`/api/marca/historico/${i}/restaurar`)
     original.current = novo; setF(novo); setMarcaLocal(novo); setHistorico(null); toast('Versão restaurada.')
@@ -163,6 +272,7 @@ export default function WhiteLabel() {
           <p className="text-xs text-muted-foreground">{RECURSOS.length} recursos. As mudanças aparecem na hora; nada vale até você salvar.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Botao variante="secundario" tamanho="sm" icone={FileDown} onClick={() => baixarKit(f)}>Kit da marca</Botao>
           <Botao variante="secundario" tamanho="sm" icone={History} onClick={abrirHistorico}>Versões</Botao>
           <Botao variante="secundario" tamanho="sm" icone={Download} onClick={exportar}>Exportar</Botao>
           <Botao variante="secundario" tamanho="sm" icone={Upload} onClick={() => importar.current?.click()}>Importar</Botao>
@@ -172,6 +282,13 @@ export default function WhiteLabel() {
         </div>
       </div>
 
+      <div className="space-y-3">
+        <label className="relative block"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input className="campo pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar opção (ex.: cursor, sombra, login, contraste)" aria-label="Buscar nas opções do white label" /></label>
+        {!busca && <nav className="flex flex-wrap gap-1.5" aria-label="Seções do white label">{SECOES.map((t) => <a key={t} href={`#${ancora(t)}`} onClick={(e) => { e.preventDefault(); document.getElementById(ancora(t))?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">{t}</a>)}</nav>}
+      </div>
+
+      <BuscaCtx.Provider value={busca}>
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
           <Bloco titulo="Temas prontos" descricao="Aplica cores, fonte, cantos, densidade, menu e tema de uma vez. Ajuste o que quiser depois.">
@@ -192,6 +309,10 @@ export default function WhiteLabel() {
                 )
               })}
             </div>
+          </Bloco>
+
+          <Bloco titulo="Meus temas" descricao="Guarde combinações de cores, fontes e acabamento com um nome e troque com um clique." palavras="salvar tema favorito filial">
+            <MeusTemas f={f} setF={setF} toast={toast} />
           </Bloco>
 
           <Bloco titulo="Identidade" descricao="Nome, textos e imagens que identificam o sistema.">
@@ -278,6 +399,49 @@ export default function WhiteLabel() {
             </div>
           </Bloco>
 
+
+          <Bloco titulo="Cores avançadas" descricao="Sucesso e aviso, a escala de tons da cor principal e a auditoria de contraste de todas as cores." palavras="sucesso aviso tons paleta 50 950 variaveis acessibilidade contraste wcag">
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[['cor_sucesso', 'Sucesso'], ['cor_aviso', 'Aviso']].map(([k, r]) => (
+                  <Campo key={k} rotulo={r}><div className="flex gap-2"><input type="color" value={f[k]} onChange={set(k)} className="h-10 w-12 cursor-pointer rounded-lg border border-border bg-card p-1" aria-label={r} /><input className="campo font-mono" value={f[k]} onChange={set(k)} maxLength={7} /></div></Campo>
+                ))}
+              </div>
+              {/^#[0-9a-fA-F]{6}$/.test(f.cor_primaria) && <Tons cor={f.cor_primaria} toast={toast} />}
+              <Auditoria f={f} />
+            </div>
+          </Bloco>
+
+          <Bloco titulo="Tipografia dos títulos" descricao="Títulos com fonte e peso próprios, e o espaço entre as letras do sistema inteiro." palavras="fonte titulo peso negrito letras espacamento">
+            <div className="grid gap-4 md:grid-cols-3">
+              <Campo rotulo="Fonte dos títulos"><select className="campo" value={f.fonte_titulos} onChange={set('fonte_titulos')}><option value="mesma">A mesma do texto</option>{NOMES_FONTES.map(([k, r]) => <option key={k} value={k}>{r}</option>)}</select></Campo>
+              <Campo rotulo={`Peso dos títulos · ${f.peso_titulos}`}><input type="range" min={400} max={800} step={100} value={f.peso_titulos} onChange={set('peso_titulos')} className="w-full accent-[hsl(var(--primary))]" /></Campo>
+              <Campo rotulo={`Espaço entre letras · ${(f.espaco_letras / 100).toFixed(2)}em`}><input type="range" min={-3} max={6} step={1} value={f.espaco_letras} onChange={set('espaco_letras')} className="w-full accent-[hsl(var(--primary))]" /></Campo>
+            </div>
+            <p className="mt-3 text-2xl" style={{ fontFamily: 'var(--fonte-titulos)', fontWeight: f.peso_titulos }}>Sala de reunião a 23°</p>
+          </Bloco>
+
+          <Bloco titulo="Superfícies" descricao="Sombra, bordas, fundo, cabeçalho e menu." palavras="sombra borda fundo pontos grade gradiente cabecalho vidro menu largura">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Campo rotulo="Sombra dos cartões"><div className="flex gap-2">{[['nenhuma', 'Nenhuma'], ['suave', 'Suave'], ['media', 'Média'], ['forte', 'Forte']].map(([k, r]) => <button key={k} type="button" onClick={() => set('sombra')(k)} className={`flex-1 rounded-lg border px-2 py-2 text-xs font-medium ${f.sombra === k ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'}`}>{r}</button>)}</div></Campo>
+              <Campo rotulo={`Espessura das bordas · ${f.borda_espessura}px`}><input type="range" min={0} max={3} step={1} value={f.borda_espessura} onChange={set('borda_espessura')} className="w-full accent-[hsl(var(--primary))]" /></Campo>
+              <Campo rotulo="Fundo do sistema"><div className="grid grid-cols-4 gap-2">{[['liso', 'Liso'], ['pontos', 'Pontos'], ['grade', 'Grade'], ['gradiente', 'Gradiente']].map(([k, r]) => (
+                <button key={k} type="button" onClick={() => set('fundo_app')(k)} className={`rounded-lg border px-1 pb-1.5 pt-1 text-[11px] font-medium ${f.fundo_app === k ? 'border-primary text-primary ring-1 ring-primary' : 'border-border hover:bg-muted'}`}>
+                  <span className="mb-1 block h-8 rounded-md bg-background" style={k === 'pontos' ? { backgroundImage: 'radial-gradient(hsl(var(--foreground) / .25) 1px, transparent 1px)', backgroundSize: '6px 6px' } : k === 'grade' ? { backgroundImage: 'linear-gradient(hsl(var(--foreground) / .15) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground) / .15) 1px, transparent 1px)', backgroundSize: '8px 8px' } : k === 'gradiente' ? { backgroundImage: 'radial-gradient(circle at 80% 0, hsl(var(--primary) / .35), transparent 70%)' } : {}} />{r}</button>))}</div></Campo> {/* marca: amostras do fundo */}
+              <Campo rotulo="Cabeçalho"><select className="campo" value={f.cabecalho_estilo} onChange={set('cabecalho_estilo')}><option value="vidro">Vidro (desfoca o conteúdo)</option><option value="solido">Sólido</option><option value="marca">Na cor da marca</option></select></Campo>
+              <Campo rotulo={`Largura do menu aberto · ${f.menu_largura}px`}><input type="range" min={200} max={320} step={8} value={f.menu_largura} onChange={set('menu_largura')} className="w-full accent-[hsl(var(--primary))]" /></Campo>
+            </div>
+          </Bloco>
+
+          <Bloco titulo="Acessibilidade" descricao="Vale para todos os usuários. Quem pede menos movimento no aparelho já recebe animações reduzidas." palavras="contraste foco teclado links sublinhado transparencia leitura">
+            <div className="grid gap-2 md:grid-cols-2">
+              {[['alto_contraste', 'Alto contraste', 'Textos secundários e bordas mais escuros.'], ['foco_reforcado', 'Foco do teclado reforçado', 'Contorno grosso no item focado com Tab.'],
+                ['sublinhar_links', 'Links sublinhados', 'Ajuda quem não distingue cores.'], ['reduzir_transparencia', 'Sem transparências', 'Tira o efeito vidro do cabeçalho e dos painéis.']].map(([k, r, d]) => (
+                <label key={k} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-sm"><span>{r}<span className="block text-xs text-muted-foreground">{d}</span></span><Interruptor ligado={f[k]} onChange={set(k)} rotulo={r} /></label>
+              ))}
+            </div>
+          </Bloco>
+
           <Bloco titulo="Tela de login">
             <div className="grid gap-4 md:grid-cols-2">
               <Campo rotulo="Título"><input className="campo" value={f.login_titulo} onChange={set('login_titulo')} maxLength={60} /></Campo>
@@ -304,6 +468,50 @@ export default function WhiteLabel() {
                 {ROTAS.map(([r, n]) => <option key={r} value={r}>{n}</option>)}<option value="/mapa">Mapa do escritório</option><option value="/seguranca">Segurança</option></select></Campo>
               <div className="md:col-span-2"><Campo rotulo="Aviso na tela de login" ajuda="Ex.: Sistema em atualização às 18h. Vazio = sem aviso."><input className="campo" value={f.login_aviso} onChange={set('login_aviso')} maxLength={200} /></Campo></div>
               <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm md:col-span-2">Mostrar o botão “Voltar ao site”<Interruptor ligado={f.mostrar_link_site} onChange={set('mostrar_link_site')} rotulo="Voltar ao site" /></label>
+            </div>
+          </Bloco>
+
+
+          <Bloco titulo="Abertura e redes" descricao="Tela de abertura com o logo (uma vez por sessão) e links das redes no rodapé." palavras="splash abertura instagram linkedin youtube redes sociais">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm md:col-span-2">Tela de abertura ao entrar<Interruptor ligado={f.abertura} onChange={set('abertura')} rotulo="Tela de abertura" /></label>
+              {f.abertura && <div className="md:col-span-2"><Campo rotulo="Frase da abertura" ajuda="Opcional. Aparece embaixo do nome."><input className="campo" value={f.abertura_texto} onChange={set('abertura_texto')} maxLength={120} /></Campo></div>}
+              {[['rede_instagram', 'Instagram', 'https://instagram.com/suaempresa'], ['rede_linkedin', 'LinkedIn', 'https://linkedin.com/company/suaempresa'], ['rede_youtube', 'YouTube', 'https://youtube.com/@suaempresa']].map(([k, r, ph]) => (
+                <Campo key={k} rotulo={r}><input className="campo" value={f[k]} onChange={set(k)} placeholder={ph} /></Campo>))}
+            </div>
+          </Bloco>
+
+          <Bloco titulo="Marca d’água e aba" descricao="Texto discreto sobre todas as telas e o formato do título da aba do navegador." palavras="marca dagua confidencial titulo aba navegador">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Campo rotulo="Marca d’água" ajuda="Ex.: Confidencial, Uso interno. Vazio = sem marca d’água."><input className="campo" value={f.marca_dagua} onChange={set('marca_dagua')} maxLength={60} /></Campo>
+              <Campo rotulo={`Intensidade · ${f.marca_dagua_opacidade}%`}><input type="range" min={2} max={20} value={f.marca_dagua_opacidade} onChange={set('marca_dagua_opacidade')} className="w-full accent-[hsl(var(--primary))]" /></Campo>
+              <div className="md:col-span-2"><Campo rotulo="Título da aba" ajuda="Use {pagina}, {sistema} e {curto}. Ex.: {pagina} · {sistema}">
+                <input className="campo font-mono" value={f.titulo_aba} onChange={set('titulo_aba')} maxLength={80} />
+                <div className="mt-2 flex flex-wrap gap-1.5">{['{sistema}', '{pagina} · {sistema}', '{curto} | {pagina}', '{pagina}'].map((m) => <button key={m} type="button" onClick={() => set('titulo_aba')(m)} className="rounded border border-border px-2 py-0.5 font-mono text-[11px] hover:bg-muted">{m}</button>)}</div>
+                <p className="mt-2 text-xs text-muted-foreground">Fica assim: <b>{(f.titulo_aba || '{sistema}').replace(/\{sistema\}/g, f.nome).replace(/\{curto\}/g, f.nome_curto).replace(/\{pagina\}/g, 'Configurações')}</b></p></Campo></div>
+            </div>
+          </Bloco>
+
+          <Bloco titulo="Tema sazonal" descricao="Troca as cores sozinho durante um período e volta ao normal depois. As outras opções continuam as mesmas." palavras="natal outubro rosa novembro azul copa aniversario sazonal periodo">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm md:col-span-2 ${sazonalNoAr(f) ? 'border-primary/50 bg-primary/5' : 'border-border'}`}>
+                <span>Tema sazonal ligado<span className="block text-xs text-muted-foreground">{f.sazonal_ativo ? (sazonalNoAr(f) ? 'No ar agora.' : 'Fora do período: as cores normais continuam.') : 'Desligado.'}</span></span><Interruptor ligado={f.sazonal_ativo} onChange={set('sazonal_ativo')} rotulo="Tema sazonal" /></label>
+              <div className="flex flex-wrap gap-2 md:col-span-2">{SAZONAIS.map(([n, a, b]) => <button key={n} type="button" onClick={() => setF((x) => ({ ...x, sazonal_nome: n, sazonal_cor: a, sazonal_destaque: b }))} className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${f.sazonal_nome === n ? 'border-primary' : 'border-border hover:bg-muted'}`}><span className="flex"><span className="h-4 w-4 rounded-l" style={{ background: a }} /><span className="h-4 w-4 rounded-r" style={{ background: b }} /></span>{n}</button>)}</div>
+              <Campo rotulo="Nome"><input className="campo" value={f.sazonal_nome} onChange={set('sazonal_nome')} maxLength={40} /></Campo>
+              <div className="grid grid-cols-2 gap-2">{[['sazonal_cor', 'Principal'], ['sazonal_destaque', 'Destaque']].map(([k, r]) => <Campo key={k} rotulo={r}><input type="color" value={f[k]} onChange={set(k)} className="h-10 w-full cursor-pointer rounded-lg border border-border bg-card p-1" aria-label={r} /></Campo>)}</div>
+              <Campo rotulo="Começa em"><input type="datetime-local" className="campo" value={f.sazonal_inicio} onChange={set('sazonal_inicio')} /></Campo>
+              <Campo rotulo="Termina em"><input type="datetime-local" className="campo" value={f.sazonal_fim} onChange={set('sazonal_fim')} /></Campo>
+            </div>
+          </Bloco>
+
+          <Bloco titulo="Cursor padrão" descricao="Efeito do mouse que todos recebem enquanto não escolherem o próprio em Configurações → Aparência." palavras="cursor mouse ponteiro efeito padrao empresa">
+            <div className="space-y-4">
+              <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm">Definir um cursor padrão<Interruptor ligado={f.cursor_empresa} onChange={set('cursor_empresa')} rotulo="Cursor padrão" /></label>
+              <div className={f.cursor_empresa ? 'grid gap-4 md:grid-cols-2' : 'pointer-events-none grid gap-4 opacity-50 md:grid-cols-2'}>
+                <Campo rotulo="Estilo"><select className="campo" value={f.cursor_empresa_estilo} onChange={set('cursor_empresa_estilo')}>{[['anel_ponto', 'Anel com ponto'], ['anel', 'Só o anel'], ['ponto', 'Só o ponto'], ['mira', 'Mira'], ['quadrado', 'Quadrado'], ['bolha', 'Bolha de luz'], ['sem_ponteiro', 'Sem ponteiro'], ['nenhum', 'Nenhum (só efeitos)']].map(([k, r]) => <option key={k} value={k}>{r}</option>)}</select></Campo>
+                <Campo rotulo="Modelo do ponteiro"><select className="campo" value={f.cursor_empresa_modelo} onChange={set('cursor_empresa_modelo')}><option value="sistema">Do sistema</option>{Object.entries(MODELOS).map(([k, m]) => <option key={k} value={k}>{m.nome}</option>)}</select></Campo>
+                <div className="flex flex-wrap gap-2 md:col-span-2">{EFEITOS_CURSOR.map(([k, r]) => { const on = (f.cursor_empresa_efeitos || []).includes(k); return <button key={k} type="button" onClick={() => setF((x) => ({ ...x, cursor_empresa_efeitos: on ? x.cursor_empresa_efeitos.filter((e) => e !== k) : [...(x.cursor_empresa_efeitos || []), k] }))} className={`rounded-lg border px-3 py-1.5 text-xs ${on ? 'border-primary bg-primary/10 font-medium text-primary' : 'border-border hover:bg-muted'}`}>{r}</button> })}</div>
+              </div>
             </div>
           </Bloco>
 
@@ -399,6 +607,7 @@ export default function WhiteLabel() {
           {mudou && <Aviso tipo="alerta">Há alterações não salvas.</Aviso>}
         </aside>
       </div>
+      </BuscaCtx.Provider>
 
       <Modal aberto={!!historico} titulo="Versões anteriores" onFechar={() => setHistorico(null)}>
         {historico?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma versão salva ainda.</p>}
@@ -406,10 +615,22 @@ export default function WhiteLabel() {
           {historico?.map((h) => (
             <div key={h.indice} className="flex items-center justify-between gap-3 py-2.5 text-sm">
               <span className="flex items-center gap-2"><span className="h-4 w-4 rounded" style={{ background: h.cor }} />{h.nome} · {dataHora(h.em)}</span>
-              <Botao tamanho="sm" variante="secundario" onClick={() => restaurar(h.indice)}>Restaurar</Botao>
+              <span className="flex gap-1.5"><Botao tamanho="sm" variante="secundario" icone={GitCompare} onClick={() => compararVersao(h.indice)}>Comparar</Botao><Botao tamanho="sm" variante="secundario" onClick={() => restaurar(h.indice)}>Restaurar</Botao></span>
             </div>
           ))}
         </div>
+      </Modal>
+      <Modal aberto={!!comparar} titulo="Comparar com a versão salva agora" onFechar={() => setComparar(null)}>
+        {comparar && (comparar.difs.length === 0 ? <p className="text-sm text-muted-foreground">Esta versão é igual à atual (sem contar imagens).</p> : (
+          <div className="max-h-[60vh] overflow-auto">
+            <p className="mb-2 text-xs text-muted-foreground">Versão de {dataHora(comparar.em)} · {comparar.difs.length} diferença(s)</p>
+            <table className="w-full text-xs"><thead><tr className="text-left text-muted-foreground"><th className="py-1.5 pr-2 font-medium">Campo</th><th className="py-1.5 pr-2 font-medium">Antes</th><th className="py-1.5 font-medium">Agora</th></tr></thead>
+              <tbody className="divide-y divide-border">{comparar.difs.map(([k, a, b]) => {
+                const fmt = (v) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded" style={{ background: v }} />{v}</span> : typeof v === 'boolean' ? (v ? 'sim' : 'não') : (JSON.stringify(v) || '').replace(/^"|"$/g, '').slice(0, 60) || '—')
+                return <tr key={k}><td className="py-1.5 pr-2 font-medium">{NOMES_CAMPOS[k] || k.replace(/_/g, ' ')}</td><td className="py-1.5 pr-2 text-muted-foreground">{fmt(a)}</td><td className="py-1.5">{fmt(b)}</td></tr>
+              })}</tbody></table>
+            <Botao className="mt-3" tamanho="sm" variante="secundario" onClick={() => { restaurar(comparar.indice); setComparar(null) }}>Restaurar esta versão</Botao>
+          </div>))}
       </Modal>
     </div>
   )

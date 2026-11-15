@@ -14,6 +14,7 @@ import { siteComSessao } from '../site'
 import { Avatar } from './config/Perfil'
 import { useTema } from '../tema'
 import { useMarca, bannerNoAr, logoDaMarca } from '../marca'
+import { definirPagina } from '../favicon'
 
 export const GRUPOS = [
   { titulo: 'Visão geral', itens: [
@@ -45,7 +46,6 @@ export const GRUPOS = [
 ]
 const TODAS = GRUPOS.flatMap((g) => g.itens)
 const FECHADA = 64
-const ABERTA = 264
 const MOLA = { type: 'spring', stiffness: 380, damping: 34 }
 
 function Marca({ aberta }) {
@@ -353,11 +353,13 @@ function Banner() {
 function Rodape() {
   const { marca } = useMarca()
   const contatos = [marca.suporte_email && `Suporte: ${marca.suporte_email}`, marca.suporte_telefone, marca.suporte_whatsapp && `WhatsApp ${marca.suporte_whatsapp}`].filter(Boolean)
-  if (!marca.rodape && !contatos.length && !marca.mostrar_creditos) return null
+  if (!marca.rodape && !contatos.length && !marca.mostrar_creditos && !marca.rede_instagram && !marca.rede_linkedin && !marca.rede_youtube) return null
   return (
     <footer className="mt-12 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
       <span>{marca.rodape || `© ${new Date().getFullYear()} ${marca.nome}`}</span>
-      <span className="flex flex-wrap gap-3">{contatos.map((c) => <span key={c}>{c}</span>)}{marca.mostrar_creditos && <span>Infravermelho · Alexa · Supabase</span>}</span>
+      <span className="flex flex-wrap items-center gap-3">{contatos.map((c) => <span key={c}>{c}</span>)}
+        {[['rede_instagram', 'Instagram'], ['rede_linkedin', 'LinkedIn'], ['rede_youtube', 'YouTube']].filter(([k]) => marca[k]).map(([k, r]) => <a key={k} href={marca[k]} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">{r}</a>)}
+        {marca.mostrar_creditos && <span>Infravermelho · Alexa · Supabase</span>}</span>
     </footer>
   )
 }
@@ -403,6 +405,14 @@ export default function Layout() {
   const central = useCentral()
 
   useEffect(() => setMovel(false), [local.pathname])
+  // nome da página no título da aba (formato definido no white label)
+  useEffect(() => {
+    const item = [...TODAS].sort((a, b) => b.para.length - a.para.length).find((i) => (i.para === '/' ? local.pathname === '/' : local.pathname.startsWith(i.para)))
+    definirPagina(item ? (marca.menu_rotulos?.[item.para] || item.rotulo) : '')
+  }, [local.pathname, marca.menu_rotulos])
+  const ABERTA = Math.max(200, Math.min(320, Number(marca.menu_largura) || 264))
+  const [abertura, setAbertura] = useState(() => { try { return marca.abertura && !sessionStorage.getItem('clima-abertura') } catch { return false } })
+  useEffect(() => { if (!abertura) return undefined; try { sessionStorage.setItem('clima-abertura', '1') } catch { /* sem storage */ } const t = setTimeout(() => setAbertura(false), 1600); return () => clearTimeout(t) }, [abertura])
   useEffect(() => {
     const atalho = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaleta((p) => !p) } }
     window.addEventListener('keydown', atalho)
@@ -441,7 +451,7 @@ export default function Layout() {
       </AnimatePresence>
 
       <motion.div className="min-w-0" initial={false} animate={{ paddingLeft: desktop ? (aberta ? ABERTA : FECHADA) : 0 }} transition={MOLA}>
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
+        <header data-cabecalho-app className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
           <button onClick={() => setMovel(true)} className="-ml-1 rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
           <BarraStatus status={central.dados?.status} />
           {marca.selo_ambiente && <span className="hidden shrink-0 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 sm:inline">{marca.selo_ambiente}</span>}
@@ -472,6 +482,25 @@ export default function Layout() {
         </main>
       </motion.div>
       <Paleta aberta={paleta} fechar={() => setPaleta(false)} />
+      {marca.marca_dagua && <MarcaDagua texto={marca.marca_dagua} />}
+      <AnimatePresence>
+        {abertura && (
+          <motion.div key="abertura" initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.45 }} className="fixed inset-0 z-[90] flex flex-col items-center justify-center gap-4 bg-background">
+            <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', duration: 0.7 }}>
+              {logoDaMarca(marca, document.documentElement.classList.contains('dark')) ? <img src={logoDaMarca(marca, document.documentElement.classList.contains('dark'))} alt="" className="h-20 w-20 object-contain" /> : <span className="block h-16 w-16 rounded-2xl bg-primary" />}
+            </motion.div>
+            <motion.p initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25 }} className="text-lg font-semibold">{marca.nome}</motion.p>
+            {marca.abertura_texto && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }} className="max-w-sm px-6 text-center text-sm text-muted-foreground">{marca.abertura_texto}</motion.p>}
+            <motion.span className="h-1 w-32 overflow-hidden rounded-full bg-muted"><motion.span className="block h-full bg-primary" initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: 1.3, ease: 'easeInOut' }} /></motion.span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
+}
+
+// marca d'água em mosaico (ex.: "Confidencial"): não atrapalha cliques e sai junto na captura de tela
+function MarcaDagua({ texto }) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" transform="rotate(-24 160 90)" font-family="system-ui, sans-serif" font-size="20" font-weight="600" fill="#808080">${texto.replace(/[<>&"']/g, '')}</text></svg>`
+  return <div aria-hidden className="pointer-events-none fixed inset-0 z-[60]" style={{ backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`, opacity: 'var(--dagua-opacidade)' }} />
 }

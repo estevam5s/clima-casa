@@ -1,11 +1,19 @@
 // Ícone da aba com o número de notificações e título "(N) Clima Escritório".
 let TITULO = 'Clima Escritório'
+let NOME = 'Clima Escritório', CURTO = 'Clima', FORMATO = '{sistema}', PAGINA = ''
 let original = null
 let imagem = null
 let ultimoTotal = 0
 
-export function definirNomeAba(nome, img) {
-  TITULO = nome || TITULO
+// formato do título vindo do white label: {sistema}, {curto} e {pagina}
+function montarTitulo() {
+  const t = (FORMATO || '{sistema}').replace(/\{sistema\}/g, NOME).replace(/\{curto\}/g, CURTO).replace(/\{pagina\}/g, PAGINA)
+  return t.replace(/^\s*[·|\-–]\s*|\s*[·|\-–]\s*$/g, '').trim() || NOME
+}
+export function definirPagina(nome) { PAGINA = nome || ''; TITULO = montarTitulo(); atualizarAba(ultimoTotal) }
+export function definirNomeAba(nome, img, formato, curto) {
+  NOME = nome || NOME; CURTO = curto || CURTO; FORMATO = formato || FORMATO
+  TITULO = montarTitulo()
   if (img) { const i = new Image(); i.onload = () => { imagem = i; atualizarAba(ultimoTotal) }; i.src = img } else imagem = null
   atualizarAba(ultimoTotal)
 }

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { marcaAtual } from './marcaAtual'
 import { definirNomeAba } from './favicon'
 import { useTema } from './tema'
+import { definirPadraoEmpresa } from './preferencias'
 
 export const MARCA_PADRAO = {
   nome: 'Clima Escritório', nome_curto: 'Clima', slogan: 'O ar do escritório no ponto certo, antes de você chegar.',
@@ -18,6 +19,28 @@ export const MARCA_PADRAO = {
   tom_neutro: 'zinco', estilo_botao: 'solido', estilo_cartao: 'borda', largura: 'padrao', icone_espessura: 20,
   login_layout: 'dividido', login_aviso: '', pagina_inicial: '/', mostrar_link_site: true,
   manutencao: false, manutencao_mensagem: '', manutencao_previsao: '', relatorio_logo: true, relatorio_rodape: '',
+  cor_sucesso: '#16a34a', cor_aviso: '#d97706', fonte_titulos: 'mesma', peso_titulos: 600, espaco_letras: 0,
+  sombra: 'suave', borda_espessura: 1, fundo_app: 'liso', cabecalho_estilo: 'vidro', menu_largura: 264,
+  alto_contraste: false, foco_reforcado: false, sublinhar_links: false, reduzir_transparencia: false,
+  marca_dagua: '', marca_dagua_opacidade: 6, titulo_aba: '{sistema}',
+  sazonal_ativo: false, sazonal_nome: '', sazonal_cor: '#b91c1c', sazonal_destaque: '#15803d', sazonal_inicio: '', sazonal_fim: '',
+  cursor_empresa: false, cursor_empresa_estilo: 'anel_ponto', cursor_empresa_modelo: 'sistema', cursor_empresa_efeitos: [],
+  rede_instagram: '', rede_linkedin: '', rede_youtube: '', abertura: false, abertura_texto: '',
+}
+
+// tema sazonal (Natal, aniversário da empresa…): troca as cores só dentro do período
+export function sazonalNoAr(m, agora = new Date()) {
+  if (!m.sazonal_ativo) return false
+  if (m.sazonal_inicio && agora < new Date(m.sazonal_inicio)) return false
+  if (m.sazonal_fim && agora > new Date(m.sazonal_fim)) return false
+  return true
+}
+
+// escala de tons 50…950 a partir de uma cor (para CSS personalizado e para o kit da marca)
+export function escalaDeTons(hex) {
+  const [h, s] = hexParaHsl(hex)
+  const luz = { 50: 97, 100: 94, 200: 86, 300: 76, 400: 62, 500: 50, 600: 42, 700: 34, 800: 27, 900: 21, 950: 13 }
+  return Object.entries(luz).map(([k, l]) => [k, `hsl(${h} ${Math.min(95, s)}% ${l}%)`, h, Math.min(95, s), l])
 }
 
 // logo certo para o tema (o escuro cai no normal quando não foi enviado)
@@ -76,14 +99,17 @@ export function hexParaHsl(hex) {
 }
 
 // Aplica a marca no documento (também usada pela pré-visualização ao vivo).
-export function aplicarMarca(m) {
+export function aplicarMarca(marcaBase) {
   const raiz = document.documentElement
+  const m = sazonalNoAr(marcaBase) ? { ...marcaBase, cor_primaria: marcaBase.sazonal_cor, cor_destaque: marcaBase.sazonal_destaque } : marcaBase
   const [h, s, l] = hexParaHsl(m.cor_primaria || '#0f766a')
   let estilo = document.getElementById('marca-vars')
   if (!estilo) { estilo = document.createElement('style'); estilo.id = 'marca-vars'; document.head.appendChild(estilo) }
   // contraste garantido: no claro a cor fica entre 22% e 42% de luminosidade; no escuro, entre 38% e 55%
   const claro = Math.min(42, Math.max(22, l)), escuro = Math.min(55, Math.max(38, l + 12))
-  estilo.textContent = `:root{--primary:${h} ${s}% ${claro}%;--destaque:${m.cor_destaque};--alerta:${m.cor_alerta};--raio:${m.raio}px;--fonte:${FONTES[m.fonte] || FONTES.sistema}}
+  const tons = escalaDeTons(m.cor_primaria || '#0f766a').map(([k, , hh, ss, ll]) => `--marca-${k}:${hh} ${ss}% ${ll}%`).join(';')
+  const fonteTitulos = m.fonte_titulos && m.fonte_titulos !== 'mesma' ? (FONTES[m.fonte_titulos] || FONTES.sistema) : 'var(--fonte)'
+  estilo.textContent = `:root{--primary:${h} ${s}% ${claro}%;--destaque:${m.cor_destaque};--alerta:${m.cor_alerta};--sucesso:${m.cor_sucesso || '#16a34a'};--aviso:${m.cor_aviso || '#d97706'};--raio:${m.raio}px;--fonte:${FONTES[m.fonte] || FONTES.sistema};--fonte-titulos:${fonteTitulos};--peso-titulos:${m.peso_titulos || 600};--espaco-letras:${(m.espaco_letras || 0) / 100}em;--borda:${m.borda_espessura ?? 1}px;--dagua-opacidade:${(m.marca_dagua_opacidade || 6) / 100};${tons}}
 :root.dark{--primary:${h} ${Math.min(s, 80)}% ${escuro}%}`
   raiz.style.fontSize = `${(m.escala / 100) * (DENSIDADE[m.densidade] || 1) * 100}%`
   raiz.dataset.densidade = m.densidade
@@ -94,7 +120,15 @@ export function aplicarMarca(m) {
   raiz.dataset.cartao = m.estilo_cartao || 'borda'
   raiz.dataset.largura = m.largura || 'padrao'
   raiz.style.setProperty('--icone', String((m.icone_espessura || 20) / 10))
+  raiz.dataset.sombra = m.sombra || 'suave'
+  raiz.dataset.fundo = m.fundo_app || 'liso'
+  raiz.dataset.cabecalho = m.cabecalho_estilo || 'vidro'
+  raiz.dataset.titulos = m.fonte_titulos && m.fonte_titulos !== 'mesma' ? 'proprio' : 'mesma'
+  for (const [k, attr] of [['alto_contraste', 'altoContraste'], ['foco_reforcado', 'focoReforcado'], ['sublinhar_links', 'sublinharLinks'], ['reduzir_transparencia', 'semTransparencia']]) {
+    if (m[k]) raiz.dataset[attr] = '1'; else delete raiz.dataset[attr]
+  }
   CARREGAR_FONTE[m.fonte]?.().catch(() => {})
+  if (m.fonte_titulos && m.fonte_titulos !== m.fonte) CARREGAR_FONTE[m.fonte_titulos]?.().catch(() => {})
   // barra do navegador no celular na cor da marca
   let tc = document.querySelector('meta[name="theme-color"]')
   if (!tc) { tc = document.createElement('meta'); tc.name = 'theme-color'; document.head.appendChild(tc) }
@@ -104,7 +138,8 @@ export function aplicarMarca(m) {
   css.textContent = m.css || ''
   document.querySelector('meta[name="description"]')?.setAttribute('content', m.meta_descricao || m.descricao)
   Object.assign(marcaAtual, { unidade: m.unidade_temperatura, hora12: m.formato_hora === '12h', nome: m.nome, favicon: m.favicon || m.logo })
-  definirNomeAba(m.nome, m.favicon || m.logo)
+  definirNomeAba(m.nome, m.favicon || m.logo, m.titulo_aba, m.nome_curto)
+  definirPadraoEmpresa(m.cursor_empresa ? { cursor: true, cursor_estilo: m.cursor_empresa_estilo, cursor_modelo: m.cursor_empresa_modelo, cursor_efeitos: m.cursor_empresa_efeitos || [] } : {})
 }
 
 const Ctx = createContext({ marca: MARCA_PADRAO, recarregar: () => {}, setMarcaLocal: () => {} })

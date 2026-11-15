@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Globe2, Minus, Orbit, Pause, Play, Plus, RotateCcw, X } from 'lucide-react'
+import { Compass, FastForward, Gamepad2, Globe2, Info, Maximize2, Minimize2, Minus, Orbit, Pause, Play, Plus, RotateCcw, Route, SkipForward, X } from 'lucide-react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { criarUniverso, luzesDasCidades } from './universo'
+import { COR_ASTRO, GRUPOS_ASTROS, INFO_ASTROS } from './astros-info'
 
 // Globo de acessos em Three.js, desenhado a partir de dados reais:
 // - Terra: países do world-atlas (Natural Earth 1:50m) pintados numa textura equirretangular, com fronteiras e litoral;
@@ -181,6 +182,14 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   const [girando, setGirando] = useState(true)
   const [explorar, setExplorar] = useState(false)
   const astrosRef = useRef(null)
+  const caixaRef = useRef(null)
+  const [info, setInfo] = useState(null)          // astro em foco (ficha)
+  const [aba, setAba] = useState('dados')
+  const [tour, setTour] = useState(false)
+  const [nave, setNave] = useState(false)         // voo livre pelo teclado
+  const [tempo, setTempo] = useState(1)
+  const [telaCheia, setTelaCheia] = useState(false)
+  const [viajando, setViajando] = useState(false)
   const [pronto, setPronto] = useState(false)
 
   useEffect(() => {
@@ -370,26 +379,37 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       }
       requestAnimationFrame(passo)
     }
+    // viagem: curva suave; em trechos longos, dobra espacial (linhas de luz) e a lente abre no meio do caminho
+    const viagem = { ativa: false }
     const voar = (alvo, destino, ms = 1600) => {
       const de = camera.position.clone(), deAlvo = controles.target.clone(); let t0 = null
+      const longe = de.distanceTo(destino) > 25 && !calmo
+      const msReal = longe ? Math.min(4200, ms + de.distanceTo(destino) * 9) : ms
+      viagem.ativa = true; acoesRef.current.viajando?.(longe)
       const passo = (ts) => {
         t0 ??= ts
-        const k = Math.min(1, (ts - t0) / ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2
-        controles.target.lerpVectors(deAlvo, alvo, e); camera.position.lerpVectors(de, destino, e); controles.update()
+        const k = Math.min(1, (ts - t0) / msReal), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2
+        controles.target.lerpVectors(deAlvo, alvo, e); camera.position.lerpVectors(de, destino, e)
+        if (longe) { const sino = Math.sin(Math.PI * k); universo.dobra = sino; camera.fov = 38 + sino * 34; camera.updateProjectionMatrix() }
+        controles.update()
         if (k < 1) requestAnimationFrame(passo)
+        else { viagem.ativa = false; universo.dobra = 0; camera.fov = 38; camera.updateProjectionMatrix(); acoesRef.current.viajando?.(false); seguir.pos = null }
       }
       requestAnimationFrame(passo)
     }
+    // acompanha astros que se movem (luas em órbita): câmera e alvo andam junto
+    const seguir = { pos: null }
     const foco = { atual: 'terra' }
     const irPara = (chave) => {
       const c = universo.corpos[chave]; if (!c) return
       foco.atual = chave
-      if (chave === 'terra') { controles.minDistance = 1.5; voar(new THREE.Vector3(), inicioCam.clone()); return }
+      acoesRef.current.aoFocar?.(chave)
+      if (chave === 'terra') { controles.minDistance = 1.5; voar(new THREE.Vector3(), controles.maxDistance > 50 ? new THREE.Vector3(2.2, 1.2, 4.2) : inicioCam.clone()); return }
       const alvo = c.obj.getWorldPosition(new THREE.Vector3())
       // chega pelo lado iluminado (entre o astro e o Sol), um pouco acima
       const lado = universo.solPos.clone().sub(alvo).normalize().multiplyScalar(0.55).add(camera.position.clone().sub(alvo).normalize().multiplyScalar(0.45)).normalize()
-      const dist = chave === 'sol' ? 40 : c.raio * 4.2 + 0.6
-      controles.minDistance = Math.max(0.4, c.raio * 1.4)
+      const dist = chave === 'sol' ? 40 : c.obj.isSprite ? c.raio * 2.6 : c.raio * 4.2 + 0.6
+      controles.minDistance = Math.max(0.25, c.raio * 1.4)
       voar(alvo, alvo.clone().add(lado.multiplyScalar(dist)).add(new THREE.Vector3(0, c.raio * 0.8, 0)), chave === 'sol' ? 2400 : 1800)
     }
     acoesRef.current = {
@@ -398,10 +418,11 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       girar: (v) => { controles.autoRotate = v && !calmo },
       explorar: (v) => {
         controles.enableZoom = v; controles.zoomToCursor = false
-        controles.maxDistance = v ? 420 : 5.5
-        if (!v) irPara('terra')
+        controles.maxDistance = v ? 600 : 5.5
+        if (!v) { universo.escala = 1; irPara('terra') }
         else voar(new THREE.Vector3(), new THREE.Vector3(5, 3.4, 9))
       },
+      tempo: (v) => { universo.escala = v },
       irPara,
       corpos: () => Object.entries(universo.corpos).map(([k, c]) => ({ chave: k, nome: c.nome, distancia: c.distancia })),
     }
@@ -437,13 +458,24 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       const b = el.getBoundingClientRect()
       mouse.x = ((e.clientX - b.left) / b.width) * 2 - 1; mouse.y = -((e.clientY - b.top) / b.height) * 2 + 1
       ray.setFromCamera(mouse, camera)
-      const lista = Object.entries(universo.corpos).filter(([k]) => k !== 'terra').map(([k, c]) => [k, c.obj.type === 'Group' ? c.obj.children[0] : c.obj])
-      const hit = ray.intersectObjects([terra, ...lista.map(([, o]) => o)])[0]
+      const lista = Object.entries(universo.corpos).filter(([k]) => k !== 'terra').map(([k, c]) => [k, c.alvo || (c.obj.type === 'Group' ? c.obj.children[0] : c.obj)])
+      const hit = ray.intersectObjects([terra, ...lista.map(([, o]) => o).filter((o) => o.isMesh || o.isSprite)])[0]
       if (!hit) return
       const achado = hit.object === terra ? 'terra' : lista.find(([, o]) => o === hit.object)?.[0]
       if (achado) { if (achado !== 'terra' && controles.maxDistance < 50) acoesRef.current.explorarExterno?.(true); irPara(achado) }
     }
     el.addEventListener('dblclick', duplo)
+    // voo livre: W/S ou ↑/↓ avançam e recuam, A/D ou ←/→ de lado, Q/E sobem e descem, Shift acelera
+    const teclas = new Set()
+    let dobraNave = 0
+    const tecla = (e) => {
+      if (!acoesRef.current.naveLigada || /input|textarea|select/i.test(e.target.tagName)) return
+      const k = e.key.toLowerCase()
+      if (!['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) return
+      if (e.type === 'keydown') { teclas.add(k); if (k.startsWith('arrow')) e.preventDefault() } else teclas.delete(k)
+    }
+    const soltar = () => teclas.clear()
+    window.addEventListener('keydown', tecla); window.addEventListener('keyup', tecla); window.addEventListener('blur', soltar)
     el.addEventListener('pointermove', mover); el.addEventListener('click', clicar); el.addEventListener('pointerleave', sair)
     let retomar
     controles.addEventListener('start', () => { clearTimeout(retomar); controles.autoRotate = false })
@@ -492,7 +524,30 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       const fs = (t * 0.5) % 1
       anelServ.scale.setScalar(1 + fs * (ataqueRef.current ? 4 : 2)); anelServ.material.opacity = 1 - fs
       anelServ.material.color.setHex(ataqueRef.current ? 0xef4444 : 0xffffff)
-      universo.atualizar(dt, t)
+      universo.atualizar(dt, t, camera)
+      // acompanha o astro em foco se ele estiver em órbita
+      if (!viagem.ativa && foco.atual !== 'terra' && controles.maxDistance > 50) {
+        const c = universo.corpos[foco.atual]
+        if (c) { c.obj.getWorldPosition(tmp); if (seguir.pos) { const d = tmp.clone().sub(seguir.pos); if (d.lengthSq() > 1e-10 && d.length() < 2) { camera.position.add(d); controles.target.add(d) } } seguir.pos = (seguir.pos || new THREE.Vector3()).copy(tmp) }
+      }
+      // voo livre
+      if (teclas.size && acoesRef.current.naveLigada) {
+        const frente = new THREE.Vector3(); camera.getWorldDirection(frente)
+        const lado = new THREE.Vector3().crossVectors(frente, camera.up).normalize()
+        const vel = (teclas.has('shift') ? 60 : 12) * dt * Math.max(0.15, Math.min(4, camera.position.distanceTo(controles.target) / 8))
+        const mov = new THREE.Vector3()
+        if (teclas.has('w') || teclas.has('arrowup')) mov.addScaledVector(frente, vel)
+        if (teclas.has('s') || teclas.has('arrowdown')) mov.addScaledVector(frente, -vel)
+        if (teclas.has('d') || teclas.has('arrowright')) mov.addScaledVector(lado, vel)
+        if (teclas.has('a') || teclas.has('arrowleft')) mov.addScaledVector(lado, -vel)
+        if (teclas.has('e')) mov.addScaledVector(camera.up, vel)
+        if (teclas.has('q')) mov.addScaledVector(camera.up, -vel)
+        camera.position.add(mov); controles.target.add(mov); seguir.pos = null; foco.atual = 'livre'
+      }
+      const acelerando = teclas.has('shift') && (teclas.has('w') || teclas.has('arrowup'))
+      const antes = dobraNave
+      dobraNave = acelerando ? Math.min(0.7, dobraNave + dt * 1.5) : Math.max(0, dobraNave - dt * 2)
+      if (!viagem.ativa && (dobraNave || antes)) universo.dobra = dobraNave
       controles.update()
       renderer.render(cena, camera)
       // rótulos dos astros (no modo explorar)
@@ -534,6 +589,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     return () => {
       cancelAnimationFrame(quadro); ro.disconnect(); clearTimeout(retomar)
       el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair); el.removeEventListener('dblclick', duplo)
+      window.removeEventListener('keydown', tecla); window.removeEventListener('keyup', tecla); window.removeEventListener('blur', soltar)
       universo.descartar()
       controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
@@ -548,25 +604,80 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   useEffect(() => { acoesRef.current.girando = girando; acoesRef.current.girar?.(girando) }, [girando])
   useEffect(() => { acoesRef.current.explorar?.(explorar) }, [explorar])
   useEffect(() => { acoesRef.current.explorarExterno = (v) => setExplorar(v) }, [])
-  const ASTROS = [['terra', 'Terra'], ['lua', 'Lua'], ['sol', 'Sol'], ['mercurio', 'Mercúrio'], ['venus', 'Vênus'], ['marte', 'Marte'], ['jupiter', 'Júpiter'], ['saturno', 'Saturno']]
+  useEffect(() => { acoesRef.current.aoFocar = (k) => { setInfo(k); setAba('dados') }; acoesRef.current.viajando = setViajando }, [])
+  useEffect(() => { acoesRef.current.naveLigada = explorar && nave }, [explorar, nave])
+  useEffect(() => { acoesRef.current.tempo?.(explorar ? tempo : 1) }, [tempo, explorar])
+  useEffect(() => { if (!explorar) { setInfo(null); setTour(false); setNave(false); setTempo(1) } }, [explorar])
+  // tour guiado: visita cada astro com a ficha aberta
+  const ROTEIRO = ['terra', 'lua', 'sol', 'mercurio', 'venus', 'marte', 'cinturao', 'ceres', 'jupiter', 'europa', 'saturno', 'tita', 'urano', 'netuno', 'plutao', 'cometa', 'pleiades', 'orion', 'andromeda', 'magalhaes']
+  const passoTour = useRef(0)
+  useEffect(() => {
+    if (!tour) return undefined
+    const ir = () => { acoesRef.current.irPara?.(ROTEIRO[passoTour.current % ROTEIRO.length]); passoTour.current += 1 }
+    ir()
+    const t = setInterval(ir, 11000)
+    return () => clearInterval(t)
+  }, [tour]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const f = () => setTelaCheia(document.fullscreenElement === caixaRef.current)
+    document.addEventListener('fullscreenchange', f)
+    return () => document.removeEventListener('fullscreenchange', f)
+  }, [])
+  const alternarTelaCheia = () => { if (document.fullscreenElement) document.exitFullscreen?.(); else caixaRef.current?.requestFullscreen?.().catch(() => {}) }
+  const ficha = info ? INFO_ASTROS[info] : null
 
   const botao = 'flex h-8 w-8 items-center justify-center hover:bg-white/10'
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#03070d]"> {/* marca: fundo do espaço atrás do globo */}
+    <div ref={caixaRef} className="relative h-full w-full overflow-hidden bg-[#03070d]"> {/* marca: fundo do espaço atrás do globo */}
       <div ref={ref} className={`h-full w-full touch-none transition-opacity duration-700 [&>canvas]:h-full [&>canvas]:w-full ${className}`} role="img"
         aria-label="Globo 3D com a origem dos acessos e ataques, dia e noite pela hora real; arraste para girar" />
       <div ref={rotulosRef} className="pointer-events-none absolute inset-0 transition-opacity duration-500 [&>div]:left-0 [&>div]:top-0" />
       <div ref={astrosRef} className="pointer-events-none absolute inset-0" />
+      {viajando && <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center"><span className="rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[11px] font-medium tracking-wide text-sky-200 backdrop-blur">Em dobra espacial…</span></div>} {/* marca: aviso durante a viagem */}
       {explorar && (
-        <div className="absolute left-3 top-3 w-44 overflow-hidden rounded-lg border border-white/15 bg-black/55 text-white backdrop-blur"> {/* marca: painel flutua sobre o espaço */}
-          <div className="flex items-center justify-between border-b border-white/15 px-3 py-2"><span className="text-xs font-semibold">Ir para</span><button onClick={() => setExplorar(false)} aria-label="Sair do modo universo" className="rounded p-0.5 hover:bg-white/10"><X className="h-3.5 w-3.5" /></button></div>
-          {ASTROS.map(([k, n]) => <button key={k} onClick={() => acoesRef.current.irPara?.(k)} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/10"><span className="h-2 w-2 rounded-full" style={{ background: { terra: '#3b82f6', lua: '#cbd5e1', sol: '#fbbf24', mercurio: '#a8a29e', venus: '#fde68a', marte: '#f97316', jupiter: '#d6b38a', saturno: '#e9d7a5' }[k] }} />{n}</button>)}
-          <p className="border-t border-white/15 px-3 py-2 text-[10px] leading-snug text-white/60">Role para aproximar. Dois cliques num astro para ir até ele. Posições e fase da Lua reais de agora.</p>
+        <div className="absolute left-3 top-3 flex max-h-[calc(100%-3rem)] w-48 flex-col overflow-hidden rounded-lg border border-white/15 bg-black/60 text-white backdrop-blur"> {/* marca: painel flutua sobre o espaço */}
+          <div className="flex items-center justify-between border-b border-white/15 px-3 py-2"><span className="text-xs font-semibold">Viajar para</span><button onClick={() => setExplorar(false)} aria-label="Sair do modo universo" className="rounded p-0.5 hover:bg-white/10"><X className="h-3.5 w-3.5" /></button></div>
+          <div className="min-h-0 flex-1 overflow-y-auto py-1 [scrollbar-width:thin]">
+            {GRUPOS_ASTROS.map(([g, lista]) => (
+              <div key={g}>
+                <p className="px-3 pb-0.5 pt-2 text-[9px] font-semibold uppercase tracking-wider text-white/45">{g}</p>
+                {lista.map((k) => <button key={k} onClick={() => { setTour(false); acoesRef.current.irPara?.(k) }} className={`flex w-full items-center gap-2 px-3 py-1 text-left text-xs hover:bg-white/10 ${info === k ? 'bg-white/15' : ''}`}><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: COR_ASTRO[k] }} />{INFO_ASTROS[k]?.nome || k}</button>)}
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2 border-t border-white/15 px-3 py-2">
+            <div className="grid grid-cols-2 gap-1.5">
+              <button onClick={() => setTour((v) => !v)} className={`flex items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] ${tour ? 'bg-white/20' : 'hover:bg-white/10'}`}><Route className="h-3 w-3" />{tour ? 'Parar tour' : 'Tour'}</button>
+              <button onClick={() => setNave((v) => !v)} className={`flex items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] ${nave ? 'bg-white/20' : 'hover:bg-white/10'}`} title="Voo livre pelo teclado"><Gamepad2 className="h-3 w-3" />Voo livre</button>
+            </div>
+            {tour && <button onClick={() => { acoesRef.current.irPara?.(ROTEIRO[passoTour.current % ROTEIRO.length]); passoTour.current += 1 }} className="flex w-full items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] hover:bg-white/10"><SkipForward className="h-3 w-3" />Próximo destino</button>}
+            <label className="block text-[10px] text-white/70"><span className="flex items-center justify-between"><span className="flex items-center gap-1"><FastForward className="h-3 w-3" />Tempo</span><span className="tabular-nums">{tempo}×</span></span>
+              <input type="range" min={0} max={6} step={1} value={[0, 1, 5, 20, 100, 500, 2000].indexOf(tempo)} onChange={(e) => setTempo([0, 1, 5, 20, 100, 500, 2000][Number(e.target.value)])} className="w-full accent-sky-400" aria-label="Velocidade do tempo" /></label>
+            {nave && <p className="text-[10px] leading-snug text-sky-200">W/S ou ↑/↓ avança e recua · A/D de lado · Q/E desce e sobe · Shift acelera. Arraste para olhar.</p>}
+            {!nave && <p className="text-[10px] leading-snug text-white/55">Role para aproximar · dois cliques num astro para ir até ele. Direções reais; tamanhos fora de escala.</p>}
+          </div>
         </div>
       )}
+      <AnimatePresenceLite mostrar={explorar && !!ficha}>
+        {ficha && (
+          <div className="absolute right-14 top-3 max-h-[70%] w-80 overflow-hidden rounded-lg border border-white/15 bg-black/65 text-white backdrop-blur max-sm:left-3 max-sm:right-3 max-sm:top-auto max-sm:bottom-12 max-sm:w-auto max-sm:max-h-[45%]"> {/* marca: ficha do astro sobre o espaço */}
+            <div className="flex items-start justify-between gap-2 border-b border-white/15 px-3 py-2">
+              <div className="min-w-0"><p className="flex items-center gap-1.5 text-sm font-semibold"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_ASTRO[info] }} />{ficha.nome}</p><p className="text-[11px] text-white/60">{ficha.tipo}</p></div>
+              <button onClick={() => setInfo(null)} aria-label="Fechar ficha" className="rounded p-0.5 hover:bg-white/10"><X className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="flex gap-1 border-b border-white/10 px-2 py-1.5 text-[11px]">{[['dados', 'Dados', Info], ['historia', 'História', Compass], ['curiosidades', 'Curiosidades', Orbit]].map(([k, r, I]) => <button key={k} onClick={() => setAba(k)} className={`flex items-center gap-1 rounded px-2 py-0.5 ${aba === k ? 'bg-white/15 font-medium' : 'text-white/65 hover:text-white'}`}><I className="h-3 w-3" />{r}</button>)}</div>
+            <div className="max-h-56 overflow-y-auto px-3 py-2 text-xs leading-relaxed [scrollbar-width:thin]">
+              {aba === 'dados' && <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">{ficha.dados.flatMap(([k, v]) => [<dt key={`${k}-t`} className="text-white/55">{k}</dt>, <dd key={`${k}-v`} className="text-white/90">{v}</dd>])}</dl>}
+              {aba === 'historia' && <p className="text-white/85">{ficha.historia}</p>}
+              {aba === 'curiosidades' && <ul className="space-y-1.5">{ficha.curiosidades.map((c) => <li key={c} className="flex gap-2 text-white/85"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-sky-300" />{c}</li>)}</ul>}
+            </div>
+          </div>
+        )}
+      </AnimatePresenceLite>
       {!pronto && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/60">Desenhando o mapa…</div>}
       <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border border-white/15 bg-black/50 text-white backdrop-blur">
-        <button onClick={() => setExplorar((v) => !v)} className={`${botao} ${explorar ? 'bg-white/15' : ''}`} aria-label={explorar ? 'Voltar ao globo' : 'Explorar o universo'} title={explorar ? 'Voltar ao globo' : 'Explorar o universo'}>{explorar ? <Globe2 className="h-3.5 w-3.5" /> : <Orbit className="h-3.5 w-3.5" />}</button>
+        <button onClick={alternarTelaCheia} className={botao} aria-label={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'} title={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}>{telaCheia ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
+        <button onClick={() => setExplorar((v) => !v)} className={`${botao} border-t border-white/15 ${explorar ? 'bg-white/15' : ''}`} aria-label={explorar ? 'Voltar ao globo' : 'Explorar o universo'} title={explorar ? 'Voltar ao globo' : 'Explorar o universo'}>{explorar ? <Globe2 className="h-3.5 w-3.5" /> : <Orbit className="h-3.5 w-3.5" />}</button>
         <button onClick={() => acoesRef.current.zoom?.(0.8)} className={`${botao} border-t border-white/15`} aria-label="Aproximar" title="Aproximar"><Plus className="h-3.5 w-3.5" /></button>
         <button onClick={() => acoesRef.current.zoom?.(1.25)} className={`${botao} border-t border-white/15`} aria-label="Afastar" title="Afastar"><Minus className="h-3.5 w-3.5" /></button>
         <button onClick={() => acoesRef.current.inicio?.()} className={`${botao} border-t border-white/15`} aria-label="Voltar à vista inicial" title="Vista inicial"><RotateCcw className="h-3.5 w-3.5" /></button>
@@ -575,4 +686,9 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       <div ref={dicaRef} className="pointer-events-none absolute z-10 hidden rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl" /> {/* marca: dica flutua */}
     </div>
   )
+}
+
+// aparece com um fade simples (sem depender do framer-motion neste componente pesado)
+function AnimatePresenceLite({ mostrar, children }) {
+  return <div className={`transition-opacity duration-300 ${mostrar ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>{children}</div>
 }

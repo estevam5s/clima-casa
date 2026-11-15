@@ -2323,6 +2323,243 @@ def checklist_seguranca():
     return {"itens": lista, "nota": round(sum(x["ok"] for x in lista) / len(lista) * 100), "ok": sum(x["ok"] for x in lista), "total": len(lista)}
 
 
+# ---------------- conformidade ISO 27001/27002/27701, riscos, incidentes, acessos, integridade e testes ao vivo ----------------
+class ControleIn(BaseModel):
+    status: str = Field(pattern="^(implementado|parcial|pendente|nao_aplicavel)$")
+    evidencia: str = Field("", max_length=800)
+    responsavel: str = Field("", max_length=80)
+
+
+class PlanoIn(BaseModel):
+    escopo: str = Field("", max_length=1500)
+    responsavel: str = Field("", max_length=120)
+    contato_anpd: str = Field("", max_length=200)
+
+
+@api.get("/seguranca/conformidade")
+def ver_conformidade():
+    from .. import conformidade
+    return conformidade.avaliar()
+
+
+@api.put("/seguranca/conformidade/plano")
+def salvar_plano_seguranca(d: PlanoIn):
+    db.set_cfg("seguranca_plano", {k: v.strip() for k, v in d.model_dump().items()})
+    db.registrar("painel", "Plano de segurança atualizado")
+    return {"ok": True}
+
+
+@api.put("/seguranca/conformidade/{chave}")
+def salvar_controle_iso(chave: str, d: ControleIn, request: Request):
+    from .. import conformidade
+    try:
+        r = conformidade.salvar_controle(chave, d.status, d.evidencia, d.responsavel or getattr(request.state, "u", {}).get("email", ""))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    db.registrar("painel", f"Controle ISO {chave.lstrip('c')} marcado como {d.status}")
+    return r
+
+
+@api.get("/seguranca/conformidade/declaracao")
+def declaracao_aplicabilidade(formato: str = "csv"):
+    """Declaração de Aplicabilidade (SoA): cada controle do Anexo A, se se aplica, situação, como é atendido e evidência."""
+    from fastapi.responses import Response
+    from .. import conformidade
+    a = conformidade.avaliar()
+    rotulo = {"implementado": "Implementado", "parcial": "Parcial", "pendente": "Pendente", "nao_aplicavel": "Não se aplica"}
+    linhas = [[x["id"], x["tema"], x["titulo"], "Não" if x["status"] == "nao_aplicavel" else "Sim", rotulo[x["status"]],
+               {"automatico": "Conferido pelo sistema", "sistema": "Do próprio sistema", "manual": "Declarado"}[x["origem"]],
+               x["detalhe"], x["evidencia"], x["responsavel"]] for x in a["controles"]]
+    cab = ["Controle", "Tema", "Título", "Aplicável", "Situação", "Origem", "Como é atendido", "Evidência", "Responsável"]
+    nome = "declaracao-aplicabilidade-%s" % time.strftime("%Y%m%d")
+    if formato == "html":
+        import html as h
+        corpo = "".join("<tr>" + "".join(f"<td>{h.escape(str(c))}</td>" for c in l) + "</tr>" for l in linhas)
+        doc = (f"<!doctype html><meta charset='utf-8'><title>Declaração de Aplicabilidade</title><style>body{{font-family:system-ui;margin:24px}}"
+               f"table{{border-collapse:collapse;width:100%;font-size:12px}}td,th{{border:1px solid #ddd;padding:6px;vertical-align:top;text-align:left}}th{{background:#f4f4f5}}</style>"
+               f"<h1>Declaração de Aplicabilidade · ISO/IEC 27001:2022</h1><p>Gerada em {time.strftime('%d/%m/%Y %H:%M')} · conformidade do Anexo A: {a['nota_anexo']}% · cláusulas: {a['nota_clausulas']}%</p>"
+               f"<table><tr>{''.join(f'<th>{c}</th>' for c in cab)}</tr>{corpo}</table>")
+        return Response(doc, media_type="text/html; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{nome}.html"'})
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";")
+    w.writerow(cab)
+    w.writerows(linhas)
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})
+
+
+@api.get("/seguranca/testes")
+def ver_testes_seguranca():
+    from .. import conformidade
+    return conformidade.ultimos_testes() or {"em": None, "hosts": {}, "ok": 0, "total": 0}
+
+
+@api.post("/seguranca/testes")
+def rodar_testes_seguranca():
+    from .. import conformidade
+    r = conformidade.rodar_testes()
+    db.registrar("painel", "Testes de segurança ao vivo", detalhe=f"{r['ok']}/{r['total']} aprovados")
+    return r
+
+
+@api.get("/seguranca/integridade")
+def ver_integridade():
+    from .. import conformidade
+    conformidade.selar()
+    return conformidade.verificar()
+
+
+@api.post("/seguranca/integridade/selar")
+def selar_integridade():
+    from .. import conformidade
+    r = conformidade.selar(max_dias=120)
+    db.registrar("painel", "Registros selados", detalhe=f"{r['novos']} dia(s)")
+    return {**r, **conformidade.verificar()}
+
+
+class RiscoIn(BaseModel):
+    titulo: str = Field(min_length=3, max_length=140)
+    ativo: str = Field("", max_length=120)
+    ameaca: str = Field("", max_length=200)
+    probabilidade: int = Field(3, ge=1, le=5)
+    impacto: int = Field(3, ge=1, le=5)
+    tratamento: str = Field("pendente", pattern="^(pendente|mitigar|aceitar|transferir|evitar)$")
+    controles: list[str] = []
+    responsavel: str = Field("", max_length=80)
+    plano: str = Field("", max_length=600)
+
+
+def _salvar_lista(chave: str, lista: list) -> list:
+    db.set_cfg(chave, lista[:300])
+    return lista[:300]
+
+
+@api.get("/seguranca/riscos")
+def listar_riscos():
+    return db.cfg("seguranca_riscos") or []
+
+
+@api.post("/seguranca/riscos")
+def criar_risco(d: RiscoIn):
+    lista = db.cfg("seguranca_riscos") or []
+    novo = {**d.model_dump(), "controles": [c for c in d.controles if re.match(r"^[5-8]\.\d{1,2}$", c)][:12], "id": f"r{int(time.time() * 1000):x}", "criado_em": db.agora(), "revisado_em": db.agora()}
+    db.registrar("painel", "Risco de segurança registrado", detalhe=d.titulo)
+    return _salvar_lista("seguranca_riscos", [novo, *lista])
+
+
+@api.post("/seguranca/riscos/sugeridos")
+def riscos_sugeridos():
+    from .. import conformidade
+    lista = db.cfg("seguranca_riscos") or []
+    titulos = {x["titulo"] for x in lista}
+    agora = db.agora()
+    novos = [{**r, "responsavel": "", "plano": "", "id": f"r{int(time.time() * 1000) + i:x}", "criado_em": agora, "revisado_em": agora}
+             for i, r in enumerate(conformidade.RISCOS_SUGERIDOS) if r["titulo"] not in titulos]
+    return _salvar_lista("seguranca_riscos", [*lista, *novos])
+
+
+@api.put("/seguranca/riscos/{rid}")
+def editar_risco(rid: str, d: RiscoIn):
+    lista = db.cfg("seguranca_riscos") or []
+    if not any(x["id"] == rid for x in lista):
+        raise HTTPException(404, "Risco não encontrado.")
+    lista = [{**x, **d.model_dump(), "controles": [c for c in d.controles if re.match(r"^[5-8]\.\d{1,2}$", c)][:12], "revisado_em": db.agora()} if x["id"] == rid else x for x in lista]
+    return _salvar_lista("seguranca_riscos", lista)
+
+
+@api.delete("/seguranca/riscos/{rid}")
+def apagar_risco(rid: str):
+    return _salvar_lista("seguranca_riscos", [x for x in (db.cfg("seguranca_riscos") or []) if x["id"] != rid])
+
+
+class IncidenteIn(BaseModel):
+    titulo: str = Field(min_length=3, max_length=140)
+    severidade: str = Field("media", pattern="^(baixa|media|alta|critica)$")
+    status: str = Field("aberto", pattern="^(aberto|contido|resolvido)$")
+    descricao: str = Field("", max_length=2000)
+    acoes: str = Field("", max_length=2000)
+    licoes: str = Field("", max_length=2000)
+    dados_pessoais: bool = False
+    anpd_comunicada: bool = False
+    ip: str = Field("", max_length=60)
+
+
+@api.get("/seguranca/incidentes")
+def listar_incidentes():
+    return {"itens": db.cfg("seguranca_incidentes") or [], "plano": db.cfg("seguranca_plano") or {}}
+
+
+@api.post("/seguranca/incidentes")
+def criar_incidente(d: IncidenteIn, request: Request):
+    lista = db.cfg("seguranca_incidentes") or []
+    agora = db.agora()
+    novo = {**d.model_dump(), "id": f"i{int(time.time() * 1000):x}", "aberto_em": agora, "resolvido_em": agora if d.status == "resolvido" else None,
+            "por": getattr(request.state, "u", {}).get("email", ""), "linha": [{"em": agora, "texto": f"Aberto como {d.status}"}]}
+    db.registrar("painel", f"Incidente de segurança aberto ({d.severidade})", detalhe=d.titulo)
+    return _salvar_lista("seguranca_incidentes", [novo, *lista])
+
+
+@api.put("/seguranca/incidentes/{iid}")
+def editar_incidente(iid: str, d: IncidenteIn):
+    lista = db.cfg("seguranca_incidentes") or []
+    atual = next((x for x in lista if x["id"] == iid), None)
+    if not atual:
+        raise HTTPException(404, "Incidente não encontrado.")
+    agora = db.agora()
+    linha = list(atual.get("linha") or [])
+    if atual.get("status") != d.status:
+        linha.append({"em": agora, "texto": f"Situação: {atual.get('status')} → {d.status}"})
+    novo = {**atual, **d.model_dump(), "linha": linha[-50:], "resolvido_em": (atual.get("resolvido_em") or agora) if d.status == "resolvido" else None}
+    if d.status == "resolvido" and atual.get("status") != "resolvido":
+        db.registrar("painel", "Incidente de segurança resolvido", detalhe=d.titulo)
+    return _salvar_lista("seguranca_incidentes", [novo if x["id"] == iid else x for x in lista])
+
+
+@api.delete("/seguranca/incidentes/{iid}")
+def apagar_incidente(iid: str):
+    return _salvar_lista("seguranca_incidentes", [x for x in (db.cfg("seguranca_incidentes") or []) if x["id"] != iid])
+
+
+@api.get("/seguranca/acessos")
+def revisao_acessos():
+    """Revisão de acessos (ISO 5.18): cada conta com papel, último login, duas etapas e sinais de risco."""
+    linhas = db.consultar(
+        "SELECT u.id, u.email, u.nome, u.papel, u.ativo, u.permissoes, u.projetos, extract(epoch FROM a.last_sign_in_at)::bigint AS ultimo_login, "
+        "extract(epoch FROM a.created_at)::bigint AS criado, "
+        "EXISTS(SELECT 1 FROM passkeys p WHERE p.usuario_id = u.id) AS passkey, "
+        "EXISTS(SELECT 1 FROM auth.mfa_factors f WHERE f.user_id = u.id AND f.status = 'verified') AS totp "
+        "FROM usuarios u LEFT JOIN auth.users a ON a.id = u.id ORDER BY u.papel, u.email")
+    agora = db.agora()
+    itens = []
+    for u in linhas:
+        alertas = []
+        priv = u["papel"] in ("dono", "admin", "subadmin")
+        if u["ativo"] and priv and not (u["passkey"] or u["totp"]):
+            alertas.append("privilegiado sem duas etapas")
+        if u["ativo"] and (not u["ultimo_login"] or agora - u["ultimo_login"] > 90 * 86400):
+            alertas.append("sem login há mais de 90 dias")
+        if u["ativo"] and u["papel"] == "dono" and sum(1 for x in linhas if x["papel"] == "dono" and x["ativo"]) > 2:
+            alertas.append("muitos donos")
+        itens.append({"id": str(u["id"]), "email": u["email"], "nome": u.get("nome") or "", "papel": u["papel"], "ativo": bool(u["ativo"]),
+                      "ultimo_login": u["ultimo_login"], "duas_etapas": bool(u["passkey"] or u["totp"]), "alertas": alertas})
+    return {"itens": itens, "revisoes": (db.cfg("revisoes_acesso") or [])[:20]}
+
+
+class RevisaoIn(BaseModel):
+    nota: str = Field("", max_length=600)
+
+
+@api.post("/seguranca/acessos/revisao")
+def registrar_revisao_acessos(d: RevisaoIn, request: Request):
+    revs = db.cfg("revisoes_acesso") or []
+    n = db.um("SELECT count(*) n FROM usuarios")["n"]
+    revs.insert(0, {"em": db.agora(), "por": getattr(request.state, "u", {}).get("email", ""), "nota": d.nota.strip(), "contas": n})
+    db.set_cfg("revisoes_acesso", revs[:50])
+    db.registrar("painel", "Revisão de acessos concluída", detalhe=f"{n} conta(s)")
+    return revs[:20]
+
+
 @api.get("/seguranca/escudo")
 def ver_escudo():
     from .. import firewall
@@ -2486,11 +2723,27 @@ MARCA_PADRAO = {
     "manutencao": False, "manutencao_mensagem": "", "manutencao_previsao": "",
     # relatórios exportados
     "relatorio_logo": True, "relatorio_rodape": "",
+    # cores e tipografia avançadas
+    "cor_sucesso": "#16a34a", "cor_aviso": "#d97706", "fonte_titulos": "mesma", "peso_titulos": 600, "espaco_letras": 0,
+    "sombra": "suave", "borda_espessura": 1, "fundo_app": "liso", "cabecalho_estilo": "vidro", "menu_largura": 264,
+    # acessibilidade
+    "alto_contraste": False, "foco_reforcado": False, "sublinhar_links": False, "reduzir_transparencia": False,
+    # marca d'água, título da aba e tema sazonal
+    "marca_dagua": "", "marca_dagua_opacidade": 6, "titulo_aba": "{sistema}",
+    "sazonal_ativo": False, "sazonal_nome": "", "sazonal_cor": "#b91c1c", "sazonal_destaque": "#15803d", "sazonal_inicio": "", "sazonal_fim": "",
+    # cursor padrão da empresa (para quem nunca escolheu um)
+    "cursor_empresa": False, "cursor_empresa_estilo": "anel_ponto", "cursor_empresa_modelo": "sistema", "cursor_empresa_efeitos": [],
+    # contato e redes no rodapé, tela de abertura
+    "rede_instagram": "", "rede_linkedin": "", "rede_youtube": "", "abertura": False, "abertura_texto": "",
 }
 _CSS_PROIBIDO = re.compile(r"(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|</style)", re.I)
 _COR = re.compile(r"^#[0-9a-fA-F]{6}$")
 ROTAS_MENU = {"/", "/projetos", "/mapa", "/relatorios", "/aparelhos", "/cenas", "/automacoes", "/agendamentos", "/transmissores",
               "/integracoes", "/comandos-alexa", "/alexa", "/supabase", "/atividade", "/seguranca", "/mensagens", "/apps"}
+
+
+_EFEITOS_CURSOR = {"rastro", "brilho", "ondas", "faiscas", "magnetico", "arco_iris"}
+_FONTES = ("sistema", "arredondada", "serifada", "mono", "condensada", "inter", "manrope", "dm_sans", "nunito", "outfit", "plex")
 
 
 def _marca() -> dict:
@@ -2507,6 +2760,8 @@ def _validar_marca(m: dict) -> dict:
             v = int(v)
         elif isinstance(padrao, dict):
             v = {str(a)[:40]: str(b)[:40] for a, b in (v or {}).items() if str(a) in ROTAS_MENU and str(b).strip()}
+        elif isinstance(padrao, list) and k == "cursor_empresa_efeitos":
+            v = [str(x) for x in (v or []) if str(x) in _EFEITOS_CURSOR][:6]
         elif isinstance(padrao, list):
             v = [str(x) for x in (v or []) if str(x) in ROTAS_MENU and str(x) != "/"]
         else:
@@ -2530,7 +2785,7 @@ def _validar_marca(m: dict) -> dict:
     limpo["escala"] = max(85, min(120, limpo["escala"]))
     limpo["raio"] = max(0, min(24, limpo["raio"]))
     if limpo["tema_padrao"] not in ("claro", "escuro", "sistema"): limpo["tema_padrao"] = "sistema"
-    if limpo["fonte"] not in ("sistema", "arredondada", "serifada", "mono", "condensada", "inter", "manrope", "dm_sans", "nunito", "outfit", "plex"): limpo["fonte"] = "sistema"
+    if limpo["fonte"] not in _FONTES: limpo["fonte"] = "sistema"
     for k, ok in (("tom_neutro", ("zinco", "pedra", "ardosia", "oliva")), ("estilo_botao", ("solido", "contorno", "pilula")),
                   ("estilo_cartao", ("borda", "sombra", "plano")), ("largura", ("padrao", "larga", "total")), ("login_layout", ("dividido", "centralizado"))):
         if limpo[k] not in ok: limpo[k] = ok[0]
@@ -2540,6 +2795,27 @@ def _validar_marca(m: dict) -> dict:
     for k in ("login_aviso", "manutencao_mensagem", "relatorio_rodape"):
         limpo[k] = limpo[k].strip()[:300]
     if limpo["densidade"] not in ("compacta", "confortavel", "espacosa"): limpo["densidade"] = "confortavel"
+    for k, padrao_cor in (("cor_sucesso", "#16a34a"), ("cor_aviso", "#d97706"), ("sazonal_cor", "#b91c1c"), ("sazonal_destaque", "#15803d")):
+        if not _COR.match(limpo[k]): limpo[k] = padrao_cor
+    if limpo["fonte_titulos"] != "mesma" and limpo["fonte_titulos"] not in _FONTES: limpo["fonte_titulos"] = "mesma"
+    limpo["peso_titulos"] = max(400, min(800, round(limpo["peso_titulos"] / 100) * 100))
+    limpo["espaco_letras"] = max(-3, min(6, limpo["espaco_letras"]))
+    limpo["borda_espessura"] = max(0, min(3, limpo["borda_espessura"]))
+    limpo["menu_largura"] = max(200, min(320, limpo["menu_largura"]))
+    limpo["marca_dagua_opacidade"] = max(2, min(20, limpo["marca_dagua_opacidade"]))
+    for k, ok in (("sombra", ("suave", "nenhuma", "media", "forte")), ("fundo_app", ("liso", "pontos", "grade", "gradiente")),
+                  ("cabecalho_estilo", ("vidro", "solido", "marca")), ("cursor_empresa_estilo", ("anel_ponto", "anel", "ponto", "mira", "quadrado", "bolha", "sem_ponteiro", "nenhum")),
+                  ("cursor_empresa_modelo", ("sistema", "seta", "neon", "vazado", "mira", "ponto", "triangulo", "pixel"))):
+        if limpo[k] not in ok: limpo[k] = ok[0]
+    limpo["marca_dagua"] = limpo["marca_dagua"].strip()[:60]
+    limpo["titulo_aba"] = (limpo["titulo_aba"].strip() or "{sistema}")[:80]
+    limpo["sazonal_nome"] = limpo["sazonal_nome"].strip()[:40]
+    limpo["abertura_texto"] = limpo["abertura_texto"].strip()[:120]
+    for k in ("sazonal_inicio", "sazonal_fim"):
+        if limpo[k] and not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$", limpo[k]): limpo[k] = ""
+    for k, dominio in (("rede_instagram", "instagram.com"), ("rede_linkedin", "linkedin.com"), ("rede_youtube", "youtube.com")):
+        if limpo[k] and not re.match(r"^https://(www\.)?" + re.escape(dominio) + r"/[\w./@%-]*$", limpo[k]):
+            raise HTTPException(400, f"Link inválido em {k}: use https://{dominio}/…")
     if limpo["banner_cor"] not in ("info", "alerta", "sucesso", "marca"): limpo["banner_cor"] = "info"
     if limpo["unidade_temperatura"] not in ("C", "F"): limpo["unidade_temperatura"] = "C"
     if limpo["formato_hora"] not in ("24h", "12h"): limpo["formato_hora"] = "24h"
@@ -2584,6 +2860,48 @@ def salvar_marca(m: dict):
 def historico_marca():
     return [{"indice": i, "em": h["em"], "nome": h["marca"].get("nome"), "cor": h["marca"].get("cor_primaria")}
             for i, h in enumerate(db.cfg("white_label_historico") or [])]
+
+
+@api.get("/marca/historico/{indice}")
+def versao_marca(indice: int):
+    """Uma versão completa, para comparar com a atual campo a campo."""
+    historico = db.cfg("white_label_historico") or []
+    if not 0 <= indice < len(historico):
+        raise HTTPException(404, "Versão não encontrada.")
+    return {"em": historico[indice]["em"], "marca": {k: v for k, v in historico[indice]["marca"].items() if k not in ("logo", "logo_escuro", "favicon", "login_imagem")}}
+
+
+class TemaMarcaIn(BaseModel):
+    nome: str = Field(min_length=1, max_length=40)
+    valores: dict
+
+
+# temas próprios da empresa (sem imagens): aplicar um tema é só um atalho, nada muda até salvar a marca
+_CAMPOS_TEMA = ("cor_primaria", "cor_destaque", "cor_alerta", "cor_sucesso", "cor_aviso", "fonte", "fonte_titulos", "peso_titulos", "raio",
+                "densidade", "menu_estilo", "tema_padrao", "tom_neutro", "estilo_botao", "estilo_cartao", "sombra", "borda_espessura",
+                "fundo_app", "cabecalho_estilo", "espaco_letras", "escala", "icone_espessura")
+
+
+@api.get("/marca/temas")
+def temas_marca():
+    return db.cfg("white_label_temas") or []
+
+
+@api.post("/marca/temas")
+def salvar_tema_marca(d: TemaMarcaIn):
+    temas = [t for t in (db.cfg("white_label_temas") or []) if t["nome"].lower() != d.nome.strip().lower()]
+    base = _validar_marca({**_marca(), **{k: d.valores[k] for k in _CAMPOS_TEMA if k in d.valores}})
+    temas.insert(0, {"nome": d.nome.strip(), "em": db.agora(), "valores": {k: base[k] for k in _CAMPOS_TEMA}})
+    db.set_cfg("white_label_temas", temas[:24])
+    db.registrar("painel", "Tema da marca salvo", detalhe=d.nome.strip())
+    return temas[:24]
+
+
+@api.delete("/marca/temas/{nome}")
+def apagar_tema_marca(nome: str):
+    temas = [t for t in (db.cfg("white_label_temas") or []) if t["nome"] != nome]
+    db.set_cfg("white_label_temas", temas)
+    return temas
 
 
 @api.post("/marca/historico/{indice}/restaurar")

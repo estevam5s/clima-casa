@@ -1,0 +1,6 @@
+# Relato de falhas de segurança (RFC 9116)
+Contact: https://zynio.com.br/contato
+Expires: 2027-11-15T00:00:00.000Z
+Preferred-Languages: pt, en
+Canonical: https://zynio.com.br/.well-known/security.txt
+Policy: https://zynio.com.br/seguranca
