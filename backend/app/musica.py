@@ -193,6 +193,17 @@ def _aparelho_por_nome(nome: str | None) -> str | None:
 def comando(acao: str, device_id: str | None = None, uri: str | None = None, volume: int | None = None, valor=None, aparelho_nome: str | None = None):
     if aparelho_nome and not device_id:
         device_id = _aparelho_por_nome(aparelho_nome)
+    if not device_id and acao in ("tocar", "pausar", "proxima", "anterior", "volume", "aleatorio", "repetir", "fila"):
+        # sem aparelho ativo, o Spotify recusa o comando: usa o que estiver ativo ou o primeiro disponível (ex.: o Echo)
+        aparelhos = chamar("GET", "/me/player/devices").get("devices", [])
+        if not any(d.get("is_active") for d in aparelhos):
+            livres = [d for d in aparelhos if not d.get("is_restricted")]
+            if not livres:
+                raise ErroSpotify(409, MENSAGENS["NO_ACTIVE_DEVICE"])
+            device_id = livres[0]["id"]
+            if acao == "tocar" and not uri:   # retomar: acorda o aparelho e continua de onde parou
+                chamar("PUT", "/me/player", json={"device_ids": [device_id], "play": True})
+                return
     q = {"device_id": device_id} if device_id else {}
     if acao == "tocar":
         corpo = {}
