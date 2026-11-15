@@ -2,7 +2,7 @@
 // Passe = "<expira_epoch>.<hmac_sha256_hex(segredo, expira)>" no cookie "zv" (12 h, HttpOnly, domínio .zynio.com.br).
 
 // Robôs que precisam ver a página como ela é: buscadores e quem monta prévia de link (WhatsApp, redes sociais).
-export const ROBOS_LIBERADOS = /Googlebot|Google-InspectionTool|bingbot|DuckDuckBot|Applebot|YandexBot|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|WhatsApp|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Pinterestbot/i
+export const ROBOS_LIBERADOS = /Google|bingbot|DuckDuckBot|Applebot|YandexBot|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|WhatsApp|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Pinterestbot/i
 
 export async function passeValido(cookie, segredo) {
   if (!segredo) return true
@@ -44,4 +44,27 @@ export function paginaPortao({ host, chave, endpoint, volta }) {
 </main>
 <footer>Desempenho e segurança por Cloudflare Turnstile</footer>
 <script src="/verificacao.js" defer></script></body></html>`
+}
+
+// IP dentro das faixas oficiais do Google (verificador de marca do OAuth, Googlebot, ferramentas do Search Console)
+function ipParaBig(ip) {
+  if (ip.includes(':')) {
+    let [a, b = ''] = ip.split('::')
+    const p1 = a ? a.split(':') : [], p2 = b ? b.split(':') : []
+    const meio = Array(8 - p1.length - p2.length).fill('0')
+    return [...p1, ...meio, ...p2].reduce((acc, h) => (acc << 16n) + BigInt(parseInt(h || '0', 16)), 0n)
+  }
+  return ip.split('.').reduce((acc, n) => (acc << 8n) + BigInt(+n), 0n)
+}
+const _cache = new Map()
+function faixas(lista, bits) {
+  if (!_cache.has(lista)) _cache.set(lista, lista.map((c) => { const [ip, m] = c.split('/'); const mask = ((1n << BigInt(m)) - 1n) << BigInt(bits - +m); return [ipParaBig(ip) & mask, mask] }))
+  return _cache.get(lista)
+}
+export function ipDoGoogle(ip, v4, v6) {
+  if (!ip) return false
+  try {
+    const v = ipParaBig(ip), seis = ip.includes(':')
+    return faixas(seis ? v6 : v4, seis ? 128 : 32).some(([rede, mask]) => (v & mask) === rede)
+  } catch { return false }
 }

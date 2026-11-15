@@ -1,7 +1,8 @@
 // Proxy do Next 16 (antigo middleware): quem abre o site sem o passe "zv" vê a tela
 // "Executando verificação de segurança" (Cloudflare Turnstile). Buscadores e prévias de link passam direto (SEO e WhatsApp).
 import { NextResponse } from 'next/server'
-import { ROBOS_LIBERADOS, paginaPortao, passeValido } from './lib/portao.mjs'
+import { ROBOS_LIBERADOS, ipDoGoogle, paginaPortao, passeValido } from './lib/portao.mjs'
+import { GOOGLE_V4, GOOGLE_V6 } from './lib/google-ips.mjs'
 import { TURNSTILE_SITE_KEY } from './lib/dados'
 
 export const config = {
@@ -14,6 +15,8 @@ export async function proxy(request) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return NextResponse.next()
   if (request.headers.get('rsc') || request.headers.get('next-router-prefetch')) return NextResponse.next() // navegação interna já passou
   if (ROBOS_LIBERADOS.test(request.headers.get('user-agent') || '')) return NextResponse.next()
+  const ip = request.headers.get('x-real-ip') || (request.headers.get('x-forwarded-for') || '').split(',')[0].trim()
+  if (ipDoGoogle(ip, GOOGLE_V4, GOOGLE_V6)) return NextResponse.next()   // verificador de marca do Google e Googlebot
   if (await passeValido(request.headers.get('cookie'), segredo)) return NextResponse.next()
   const url = request.nextUrl
   return new NextResponse(paginaPortao({ host: url.hostname, chave: TURNSTILE_SITE_KEY, endpoint: '/api/verificacao', volta: url.pathname + url.search }), {
