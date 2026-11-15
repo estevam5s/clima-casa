@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react'
 import { simboloTemp, temp } from '../marcaAtual'
 
@@ -192,6 +193,22 @@ export function NumeroAnimado({ valor, casas = 0 }) {
 }
 
 // Faixa de métricas: um cartão com divisórias; a primeira métrica é a principal.
+// Linha de tendência curta (sem eixo) para indicadores: desenha ao entrar e destaca o último ponto
+export function Tendencia({ valores, cor = 'hsl(var(--primary))', altura = 28 }) {
+  const max = Math.max(...valores, 1), min = Math.min(...valores, 0), w = 120
+  const pts = valores.map((v, i) => [(i / (valores.length - 1)) * w, altura - 3 - ((v - min) / (max - min || 1)) * (altura - 6)])
+  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const [ux, uy] = pts[pts.length - 1]
+  return (
+    <svg viewBox={`0 0 ${w} ${altura}`} className="mt-2 h-7 w-full max-w-[160px] overflow-visible" preserveAspectRatio="none" aria-hidden>
+      <path d={`${d} L${w},${altura} L0,${altura} Z`} fill={cor} opacity="0.08" />
+      <motion.path d={d} fill="none" stroke={cor} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"
+        initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.9, ease: 'easeOut' }} />
+      <circle cx={ux} cy={uy} r="2.4" fill={cor} />
+    </svg>
+  )
+}
+
 export function FaixaMetricas({ itens }) {
   return (
     <div /* marca: esta é a faixa de métricas */ className="cartao grid grid-cols-2 divide-border overflow-hidden md:grid-cols-4 md:divide-x [&>*:nth-child(n+3)]:border-t md:[&>*:nth-child(n+3)]:border-t-0 [&>*:nth-child(2)]:border-l md:[&>*:nth-child(2)]:border-l-0">
@@ -203,6 +220,7 @@ export function FaixaMetricas({ itens }) {
             {m.sufixo && <span className="ml-0.5 text-base font-medium text-muted-foreground">{m.sufixo}</span>}
           </p>
           {m.dica && <p className={`mt-1.5 text-xs ${m.tom === 'ruim' ? 'text-red-600 dark:text-red-400' : m.tom === 'bom' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>{m.dica}</p>}
+          {m.serie?.length > 1 && <Tendencia valores={m.serie} />}
         </div>
       ))}
     </div>

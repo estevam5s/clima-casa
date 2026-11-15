@@ -121,6 +121,21 @@ def painel(projeto_id: int | None = None):
     }
 
 
+@api.get("/painel/analise")
+def painel_analise(projeto_id: int | None = None):
+    """Leitura rápida para o Painel: 7 dias (uso por hora e dia, origens, horas ligado, conclusões) e o mês (custo e projeção)."""
+    import datetime as _dt
+    from .. import relatorio
+    agora = db.agora()
+    semana = relatorio.montar(agora - 7 * 86400, agora, projeto_id=projeto_id)
+    inicio_mes = int(_dt.datetime.now(relatorio.FUSO).replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp())
+    mes = relatorio.montar(inicio_mes, agora, projeto_id=projeto_id)["resumo"]
+    meta = db.um("SELECT coalesce(sum(meta_custo_mes), 0) AS m FROM projetos" + (" WHERE id = ?" if projeto_id else ""), (projeto_id,) if projeto_id else ())["m"]
+    return {"semana": {k: semana[k] for k in ("resumo", "por_dia", "por_hora", "por_origem", "mapa_calor", "modos", "conclusoes", "por_aparelho")},
+            "mes": {"custo": mes["custo"], "kwh": mes["kwh"], "horas": mes["horas_ligado"], "projecao": mes["projecao_mes"],
+                    "dias": mes["dias"], "fora_expediente_pct": mes["fora_expediente_pct"], "meta": float(meta or 0)}}
+
+
 def _atividade(limite, aparelho_id=None, origem=None, so_falhas=False, antes=None):
     sql = ("SELECT t.*, a.nome AS aparelho_nome FROM atividade t LEFT JOIN aparelhos a ON a.id = t.aparelho_id "
            "WHERE 1=1")

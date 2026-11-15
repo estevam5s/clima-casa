@@ -140,11 +140,11 @@ function etiqueta(texto, cor = '#ffffff', fundo = 'rgba(15,23,42,0.82)') {
   return sp
 }
 
-export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecionado, aoSelecionar }) {
+export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecionado, aoSelecionar, compacto = false }) {
   const ref = useRef(null)
   const rotulosRef = useRef(null)
   const estado = useRef({})
-  const [girando, setGirando] = useState(false)
+  const [girando, setGirando] = useState(compacto && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const [paredesAltas, setParedesAltas] = useState(true)
   const [pronto, setPronto] = useState(false)
   // só remonta a cena quando algo visível muda (a lista chega nova a cada 10 s, mesmo igual)
@@ -470,7 +470,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // câmera enquadrando o prédio
     const enquadrar = (topo = false) => {
       const alvo = new THREE.Vector3(0, 0, 0)
-      const dist = Math.max(x1 - x0, y1 - y0) * S * (topo ? 1.05 : 0.95)
+      const dist = Math.max(x1 - x0, y1 - y0) * S * (topo ? 1.05 : 0.95) * (compacto ? 1.12 : 1)
       const destino = topo ? new THREE.Vector3(0, dist * 1.25, 0.01) : new THREE.Vector3(-dist * 0.25, dist * 0.78, dist * 0.78)
       const de = camera.position.clone(), deAlvo = controles.target.clone()
       if (!E.enquadrado) { camera.position.copy(destino); controles.target.copy(alvo); E.enquadrado = true; return }
@@ -507,7 +507,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
 
   const botao = 'flex h-8 items-center gap-1.5 px-2.5 text-xs hover:bg-black/5 dark:hover:bg-white/10'
   return (
-    <div className="relative h-[68vh] min-h-[440px] w-full overflow-hidden">
+    <div className={`relative w-full overflow-hidden ${compacto ? 'h-full' : 'h-[68vh] min-h-[440px]'}`}>
       <div ref={ref} className="h-full w-full touch-none [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label="Escritório em 3D com as salas, os ares e as pessoas; arraste para girar, role para aproximar" />
       <div ref={rotulosRef} className="pointer-events-none absolute inset-0" />
       <div className="absolute bottom-3 right-3 flex overflow-hidden rounded-lg border border-border bg-card/90 backdrop-blur">
@@ -516,7 +516,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         <button onClick={() => setParedesAltas((v) => !v)} className={`${botao} border-l border-border`} title="Altura das paredes">{paredesAltas ? <Box className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}{paredesAltas ? 'Paredes baixas' : 'Paredes altas'}</button>
         <button onClick={() => setGirando((g) => !g)} className={`${botao} border-l border-border`} title={girando ? 'Parar' : 'Girar'}>{girando ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{girando ? 'Parar' : 'Girar'}</button>
       </div>
-      <p className="pointer-events-none absolute bottom-3 left-4 text-[11px] text-muted-foreground">Arraste para girar · role para aproximar · clique num ar</p>
+      <p className={`pointer-events-none absolute bottom-3 left-4 text-[11px] text-muted-foreground ${compacto ? 'hidden' : ''}`}>Arraste para girar · role para aproximar · clique num ar</p>
     </div>
   )
 }

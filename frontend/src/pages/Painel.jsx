@@ -1,15 +1,49 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { AirVent, ChevronRight, Minus, Plus, Power, Sparkles } from 'lucide-react'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { AirVent, AlertTriangle, CheckCircle2, ChevronRight, Info, Map as MapaIcone, Minus, Plus, Power, Sparkles } from 'lucide-react'
 import { MODOS, VENTILACAO, api, haQuanto, rotuloOrigem } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
-import { Aviso, Botao, Carregando, FaixaMetricas, Ponto, Selo, useToast } from '../components/ui'
+import { Aviso, Botao, Carregando, Esqueleto, FaixaMetricas, Ponto, Selo, useToast } from '../components/ui'
+import { completar } from '../mapaUtil'
 
 const Cena3D = lazy(() => import('../components/Cena3D'))
+const Mapa3D = lazy(() => import('../components/Mapa3D'))
+const Barras3D = lazy(() => import('../components/Barras3D'))
+const CORES_ORIGEM = ['hsl(var(--primary))', '#2563a8', '#c2410c', '#7c3aed', '#0891b2', '#71717a']
+const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const NOMES_ORIGEM = { painel: 'Painel', alexa: 'Alexa', sinric: 'Alexa/Google', agenda: 'Agenda', automacao: 'Automação', cena: 'Cena', sistema: 'Sistema', app: 'App' }
+
+// Medidor do gasto do mês: arco animado; com meta, compara a projeção com ela
+function Medidor({ mes }) {
+  const alvo = mes.meta || Math.max(mes.projecao, 1)
+  const pct = Math.min(1, mes.projecao / alvo)
+  const pctAgora = Math.min(1, mes.custo / alvo)
+  const R = 70, C = Math.PI * R
+  const cor = !mes.meta ? 'hsl(var(--primary))' : mes.projecao > mes.meta ? '#dc2626' : mes.projecao > mes.meta * 0.85 ? '#d97706' : '#059669'
+  return (
+    <div className="flex flex-col items-center">
+      <svg viewBox="0 0 180 104" className="w-full max-w-[260px]">
+        <path d="M20,94 A70,70 0 0 1 160,94" fill="none" stroke="hsl(var(--muted))" strokeWidth="14" strokeLinecap="round" />
+        <motion.path d="M20,94 A70,70 0 0 1 160,94" fill="none" stroke={cor} strokeOpacity="0.3" strokeWidth="14" strokeLinecap="round" strokeDasharray={C}
+          initial={{ strokeDashoffset: C }} animate={{ strokeDashoffset: C * (1 - pct) }} transition={{ duration: 1.1, ease: 'easeOut' }} />
+        <motion.path d="M20,94 A70,70 0 0 1 160,94" fill="none" stroke={cor} strokeWidth="14" strokeLinecap="round" strokeDasharray={C}
+          initial={{ strokeDashoffset: C }} animate={{ strokeDashoffset: C * (1 - pctAgora) }} transition={{ duration: 1.1, ease: 'easeOut', delay: 0.15 }} />
+      </svg>
+      <p className="-mt-12 text-3xl font-semibold tabular">{brl(mes.custo)}</p>
+      <p className="mt-1 text-xs text-muted-foreground">gasto estimado em {mes.dias} dia(s) do mês</p>
+      <dl className="mt-4 grid w-full grid-cols-3 divide-x divide-border rounded-lg border border-border text-center text-xs">
+        <div className="py-2"><dt className="text-muted-foreground">Projeção</dt><dd className="mt-0.5 font-semibold tabular" style={{ color: mes.meta && mes.projecao > mes.meta ? '#dc2626' : undefined }}>{brl(mes.projecao)}</dd></div>
+        <div className="py-2"><dt className="text-muted-foreground">Meta</dt><dd className="mt-0.5 font-semibold tabular">{mes.meta ? brl(mes.meta) : '—'}</dd></div>
+        <div className="py-2"><dt className="text-muted-foreground">Consumo</dt><dd className="mt-0.5 font-semibold tabular">{mes.kwh.toLocaleString('pt-BR')} kWh</dd></div>
+      </dl>
+      {!mes.meta && <Link to="/projetos" className="mt-2 text-[11px] text-muted-foreground hover:text-foreground">Defina metas de gasto em Projetos</Link>}
+    </div>
+  )
+}
 const entrar = { hidden: { opacity: 0, y: 10 }, show: (i = 0) => ({ opacity: 1, y: 0, transition: { delay: i * 0.05, duration: 0.35, ease: [0.2, 0.7, 0.2, 1] } }) }
 
 function DicaGrafico({ active, payload, label }) {
@@ -106,13 +140,22 @@ export default function Painel() {
   const { marca } = useMarca()
   const [dados, setDados] = useState(null)
   const [metricas, setMetricas] = useState([])
+  const [analise, setAnalise] = useState(null)
+  const [planta, setPlanta] = useState(null)
   const [erro, setErro] = useState('')
 
   useEffect(() => {
     setDados(null)
     api.get(comFiltro('/api/painel', filtro)).then(setDados).catch((e) => setErro(e.message))
     api.get('/api/metricas?dias=14').then(setMetricas).catch(() => {})
+    setAnalise(null)
+    api.get(comFiltro('/api/painel/analise', filtro)).then(setAnalise).catch(() => setAnalise(false))
   }, [filtro])
+  useEffect(() => {
+    const buscar = () => { if (!document.hidden) api.get('/api/mapa').then(setPlanta).catch(() => {}) }
+    buscar(); const t = setInterval(buscar, 20000); return () => clearInterval(t)
+  }, [])
+  const plantaPronta = useMemo(() => (planta ? { ...planta, mapa: completar(planta.mapa, planta.projetos, planta.ares) } : null), [planta])
 
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
@@ -150,8 +193,9 @@ export default function Painel() {
         <FaixaMetricas itens={[
           { rotulo: 'Aparelhos ligados agora', valor: totais.ligados, sufixo: ` de ${totais.aparelhos}`, dica: totais.aparelhos ? `${Math.round((totais.ligados / totais.aparelhos) * 100)}% do escritório em uso` : 'nenhum aparelho cadastrado' },
           { rotulo: 'Transmissores online', valor: totais.hubs_online, sufixo: ` / ${totais.hubs}`, dica: totais.hubs_online === totais.hubs ? 'todos respondendo' : 'algum transmissor fora da rede', tom: totais.hubs_online === totais.hubs ? 'bom' : 'ruim' },
-          { rotulo: 'Comandos nas últimas 24 h', valor: totais.comandos_24h, dica: totais.falhas_24h ? `${totais.falhas_24h} com falha` : 'nenhuma falha', tom: totais.falhas_24h ? 'ruim' : '' },
-          { rotulo: 'Agendamentos ativos', valor: totais.agendamentos, dica: `${dados.projetos} projeto${dados.projetos === 1 ? '' : 's'} no total` },
+          { rotulo: 'Comandos nas últimas 24 h', valor: totais.comandos_24h, dica: totais.falhas_24h ? `${totais.falhas_24h} com falha` : 'nenhuma falha', tom: totais.falhas_24h ? 'ruim' : '', serie: metricas.map((m) => m.comandos) },
+          analise ? { rotulo: 'Gasto estimado no mês', valor: brl(analise.mes.custo), dica: `projeção ${brl(analise.mes.projecao)}${analise.mes.meta ? ` · meta ${brl(analise.mes.meta)}` : ''}`, tom: analise.mes.meta && analise.mes.projecao > analise.mes.meta ? 'ruim' : undefined, serie: analise.semana.por_dia.map((d) => d.horas) }
+            : { rotulo: 'Agendamentos ativos', valor: totais.agendamentos, dica: `${dados.projetos} projeto${dados.projetos === 1 ? '' : 's'} no total` },
         ]} />
       </motion.div>
 
@@ -183,7 +227,66 @@ export default function Painel() {
         </motion.div>
       </div>
 
-      <motion.div custom={6} variants={entrar} initial="hidden" animate="show" className="cartao p-5">
+      {analise && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <motion.div custom={6} variants={entrar} initial="hidden" animate="show" className="cartao p-5 lg:col-span-2">
+            <div className="mb-3 flex items-end justify-between">
+              <div><h2 className="titulo-secao">O que mudou na semana</h2><p className="text-xs text-muted-foreground">Leitura automática dos últimos 7 dias</p></div>
+              <Link to="/relatorios" className="text-xs text-muted-foreground hover:text-foreground">Relatório completo</Link>
+            </div>
+            <ul className="space-y-2.5">
+              {analise.semana.conclusoes.map((c, i) => {
+                const [I, cor] = c.tipo === 'alerta' ? [AlertTriangle, 'text-amber-500'] : c.tipo === 'bom' ? [CheckCircle2, 'text-emerald-500'] : [Info, 'text-sky-500']
+                return <motion.li key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + i * 0.05 }} className="flex gap-2.5 text-sm"><I className={`mt-0.5 h-4 w-4 shrink-0 ${cor}`} /><span>{c.texto}</span></motion.li>
+              })}
+            </ul>
+          </motion.div>
+          <motion.div custom={7} variants={entrar} initial="hidden" animate="show" className="cartao p-5">
+            <h2 className="titulo-secao">Gasto com os ares</h2>
+            <p className="mb-3 text-xs text-muted-foreground">Mês atual, estimado pela potência de cada aparelho</p>
+            <Medidor mes={analise.mes} />
+          </motion.div>
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <motion.div custom={8} variants={entrar} initial="hidden" animate="show" className="cartao overflow-hidden lg:col-span-2">
+          <div className="flex items-end justify-between border-b border-border px-5 py-3.5">
+            <div><h2 className="titulo-secao">Escritório ao vivo</h2><p className="text-xs text-muted-foreground">Planta em 3D com o estado de cada ar · arraste para girar</p></div>
+            <Link to="/mapa" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><MapaIcone className="h-3.5 w-3.5" />Abrir o mapa</Link>
+          </div>
+          <div className="relative h-[380px]">
+            {plantaPronta ? (
+              <Suspense fallback={<Esqueleto className="h-full rounded-none" />}>
+                <Mapa3D compacto mapa={plantaPronta.mapa} ares={plantaPronta.ares} projetos={plantaPronta.projetos} aoSelecionar={() => {}} />
+              </Suspense>
+            ) : <Esqueleto className="h-full rounded-none" />}
+          </div>
+        </motion.div>
+        <motion.div custom={9} variants={entrar} initial="hidden" animate="show" className="cartao p-5">
+          <h2 className="titulo-secao">De onde vêm os comandos</h2>
+          <p className="text-xs text-muted-foreground">Últimos 7 dias</p>
+          {!analise ? <Esqueleto className="mt-4 h-56" /> : !analise.semana.por_origem.length ? <p className="pt-16 text-center text-sm text-muted-foreground">Sem comandos na semana.</p> : (
+            <>
+              <div className="relative mx-auto mt-2 h-44 w-44">
+                <ResponsiveContainer><PieChart><Pie data={analise.semana.por_origem.map((o) => ({ ...o, nome: NOMES_ORIGEM[o.origem] || o.origem }))} dataKey="comandos" nameKey="nome" innerRadius="64%" outerRadius="100%" paddingAngle={2} stroke="none">
+                  {analise.semana.por_origem.map((o, i) => <Cell key={o.origem} fill={CORES_ORIGEM[i % CORES_ORIGEM.length]} />)}
+                </Pie><Tooltip content={<DicaGrafico />} /></PieChart></ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-semibold tabular">{analise.semana.resumo.comandos}</span><span className="text-[11px] text-muted-foreground">comandos</span></div>
+              </div>
+              <ul className="mt-3 space-y-1.5 text-sm">
+                {analise.semana.por_origem.map((o, i) => (
+                  <li key={o.origem} className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: CORES_ORIGEM[i % CORES_ORIGEM.length] }} /><span className="flex-1">{NOMES_ORIGEM[o.origem] || o.origem}</span>
+                    <span className="tabular text-muted-foreground">{o.comandos} · {Math.round((o.comandos / Math.max(1, analise.semana.resumo.comandos)) * 100)}%</span></li>
+                ))}
+              </ul>
+            </>
+          )}
+        </motion.div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+      <motion.div custom={10} variants={entrar} initial="hidden" animate="show" className="cartao p-5 lg:col-span-2">
         <div className="mb-4 flex items-end justify-between">
           <div>
             <h2 className="titulo-secao">Comandos por dia</h2>
@@ -206,6 +309,32 @@ export default function Painel() {
           )}
         </div>
       </motion.div>
+        <motion.div custom={11} variants={entrar} initial="hidden" animate="show" className="cartao p-5">
+          <h2 className="titulo-secao">Uso por hora</h2>
+          <p className="mb-3 text-xs text-muted-foreground">Comandos nos últimos 7 dias, horário de Brasília</p>
+          <div className="h-56">
+            {!analise ? <Esqueleto className="h-full" /> : (
+              <ResponsiveContainer><BarChart data={analise.semana.por_hora.map((h) => ({ ...h, rotulo: `${h.hora}h` }))} margin={{ left: -18, right: 0 }}>
+                <XAxis dataKey="rotulo" interval={5} tickLine={false} axisLine={false} fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} stroke="hsl(var(--muted-foreground))" />
+                <Tooltip content={<DicaGrafico />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                <Bar dataKey="comandos" name="Comandos" radius={[3, 3, 0, 0]}>
+                  {analise.semana.por_hora.map((h) => <Cell key={h.hora} fill={`hsl(var(--primary) / ${0.3 + (h.comandos / Math.max(1, ...analise.semana.por_hora.map((x) => x.comandos))) * 0.7})`} />)}
+                </Bar>
+              </BarChart></ResponsiveContainer>
+            )}
+          </div>
+        </motion.div>
+      </div>
+
+      {analise && (
+        <motion.div custom={12} variants={entrar} initial="hidden" animate="show" className="cartao overflow-hidden">
+          <div className="flex items-end justify-between border-b border-border px-5 py-3.5">
+            <div><h2 className="titulo-secao">Mapa de uso em 3D</h2><p className="text-xs text-muted-foreground">Cada barra é um dia da semana numa hora; a altura é o número de comandos (7 dias). Passe o mouse para ver o valor.</p></div>
+          </div>
+          <div className="h-[340px]"><Suspense fallback={<Esqueleto className="h-full rounded-none" />}><Barras3D mapa={analise.semana.mapa_calor} /></Suspense></div>
+        </motion.div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <motion.div custom={7} variants={entrar} initial="hidden" animate="show" className="cartao p-5">

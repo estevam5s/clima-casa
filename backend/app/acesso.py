@@ -64,7 +64,7 @@ REGRAS = [
     ("GET", r"^/api/projetos/\{pid\}/exportar$", "projetos.gerenciar"),
     ("POST|PUT|DELETE", r"^/api/projetos", "projetos.gerenciar"),
     ("PUT", r"^/api/mapa$", "projetos.gerenciar"),
-    ("*", r"^/api/(relatorios|metricas)", "relatorios.ver"),
+    ("*", r"^/api/(relatorios|metricas|painel/analise)", "relatorios.ver"),
     ("*", r"^/api/atividade", "atividade.ver"),
     ("*", r"^/api/site/(mensagens|conversas?|respostas-prontas)", "mensagens.ver"),
     ("*", r"^/api/site/cookies/(config|relatorio|consentimento/)", "configuracoes.gerenciar"),
