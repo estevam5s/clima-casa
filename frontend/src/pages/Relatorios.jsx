@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { ArrowDown, ArrowUp, ChevronDown, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe, Printer, RefreshCw } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Download, Eye, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe, Info, Printer, RefreshCw } from 'lucide-react'
 import { api, dataHora, rotuloOrigem } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Secao, useDados, useToast } from '../components/ui'
@@ -18,7 +18,9 @@ const FORMATOS = [
   ['json', 'JSON', 'Dados completos, para scripts e BI', FileJson],
   ['md', 'Markdown', 'Para colar em wiki, Notion ou GitHub', FileText],
 ]
-const ORIGENS = [['painel', 'Painel', 'hsl(var(--primary))'], ['alexa', 'Alexa', '#2563a8'], ['agenda', 'Agenda', '#c2410c'], ['automacao', 'Automação', '#7c3aed']]
+const ORIGENS = [['painel', 'Painel', 'hsl(var(--primary))'], ['alexa', 'Alexa', '#2563a8'], ['agenda', 'Agenda', '#c2410c'], ['automacao', 'Automação', '#7c3aed'], ['cena', 'Cena', '#0891b2']]
+const CORES_MODO = ['hsl(var(--primary))', '#2563a8', '#f59e0b', '#7c3aed', '#0891b2', '#71717a']
+const varTxt = (v) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toLocaleString('pt-BR')}%`)
 const eixo = { tickLine: false, axisLine: false, fontSize: 11, stroke: 'hsl(var(--muted-foreground))' }
 const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const hoje = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10)
@@ -139,7 +141,7 @@ export default function Relatorios() {
   const { dados, erro, recarregar } = useDados(() => api.get(`/api/relatorios/completo?${consulta}`), [consulta])
 
   const r = dados?.resumo
-  const diario = useMemo(() => (dados?.por_dia || []).map((d) => ({ ...d, rotulo: `${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)}`, outros: d.comandos - d.alexa - d.agenda - d.painel - d.automacao })), [dados])
+  const diario = useMemo(() => (dados?.por_dia || []).map((d) => ({ ...d, rotulo: `${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)}`, outros: Math.max(0, d.comandos - d.alexa - d.agenda - d.painel - d.automacao - (d.cena || 0)) })), [dados])
   const horas = (dados?.por_hora || []).map((h) => ({ ...h, rotulo: `${String(h.hora).padStart(2, '0')}h` }))
   const maxHora = Math.max(1, ...horas.map((h) => h.comandos))
   const pico = horas.reduce((m, h) => (h.comandos > m.comandos ? h : m), { comandos: 0 })
@@ -158,6 +160,10 @@ export default function Relatorios() {
       <Cabecalho titulo="Relatórios"
         descricao={`Uso, consumo estimado e falhas ${projeto ? `em ${projeto.nome}` : 'em todos os projetos'}${periodo ? ` · ${periodo}` : ''}.`}
         acoes={<>
+          <Botao variante="secundario" icone={Eye} onClick={async () => {
+            const w = window.open('', '_blank'); if (w) w.document.write('<p style="font:14px sans-serif;padding:24px">Gerando o relatório…</p>')
+            try { const html = await api.texto(`/api/relatorios/exportar?formato=html&${consulta}`); if (w) { w.document.open(); w.document.write(html); w.document.close() } } catch (e) { if (w) w.close() }
+          }} className="print:hidden">Pré-visualizar</Botao>
           <Botao variante="secundario" icone={Printer} onClick={() => window.print()} className="print:hidden">Imprimir</Botao>
           <MenuExportar consulta={consulta} />
         </>} />
@@ -198,8 +204,35 @@ export default function Relatorios() {
               dica: variacao == null ? 'Sem dados do período anterior' : `${variacao > 0 ? '+' : ''}${variacao.toLocaleString('pt-BR')}% vs período anterior (${r.comandos_periodo_anterior})` },
             { rotulo: 'Taxa de sucesso', valor: r.sucesso_pct, casas: 1, sufixo: '%', tom: r.falhas ? 'ruim' : 'bom', dica: r.falhas ? `${r.falhas} falha(s)` : 'Nenhuma falha' },
             { rotulo: 'Horas ligado (estimado)', valor: r.horas_ligado, casas: 1, sufixo: 'h', dica: `${r.kwh.toLocaleString('pt-BR')} kWh estimados` },
-            { rotulo: 'Custo estimado', valor: brl(r.custo), dica: r.temperatura_media ? `Temperatura média ${temp(r.temperatura_media)}${simboloTemp()}` : `${r.aparelhos} aparelho(s)` },
+            { rotulo: 'Custo estimado', valor: brl(r.custo), tom: r.variacao_custo_pct == null ? undefined : r.variacao_custo_pct <= 0 ? 'bom' : 'ruim', dica: `${varTxt(r.variacao_custo_pct)} vs anterior · projeção ${brl(r.projecao_mes ?? 0)}/mês` },
           ]} />
+
+          <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+            <Secao titulo="O que os números dizem" contexto="Leitura automática do período, a mesma que abre o PDF">
+              <ul className="-my-1 space-y-2.5">
+                {(dados.conclusoes || []).map((c, i) => {
+                  const [I, cor] = c.tipo === 'alerta' ? [AlertTriangle, 'text-amber-500'] : c.tipo === 'bom' ? [CheckCircle2, 'text-emerald-500'] : [Info, 'text-sky-500']
+                  return <motion.li key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }} className="flex gap-2.5 text-sm"><I className={`mt-0.5 h-4 w-4 shrink-0 ${cor}`} /><span>{c.texto}</span></motion.li>
+                })}
+              </ul>
+            </Secao>
+            <Secao titulo="Comparado ao período anterior" contexto="Mesma duração, logo antes">
+              <dl className="-my-1 divide-y divide-border text-sm">
+                {[['Comandos', r.comandos, r.comandos_periodo_anterior, r.variacao_comandos_pct, (v) => v],
+                  ['Horas ligado', r.horas_ligado, r.horas_periodo_anterior, r.variacao_horas_pct, (v) => `${(v ?? 0).toLocaleString('pt-BR')} h`],
+                  ['Consumo', r.kwh, r.kwh_periodo_anterior, r.variacao_custo_pct, (v) => `${(v ?? 0).toLocaleString('pt-BR')} kWh`],
+                  ['Custo', r.custo, r.custo_periodo_anterior, r.variacao_custo_pct, (v) => brl(v ?? 0)]].map(([rot, a, b, v, f]) => (
+                  <div key={rot} className="flex items-baseline justify-between gap-3 py-2">
+                    <dt className="text-muted-foreground">{rot}</dt>
+                    <dd className="text-right"><span className="font-medium tabular">{f(a)}</span><span className="ml-2 text-xs text-muted-foreground">antes {f(b)}</span>
+                      <span className={`ml-2 text-xs font-medium ${v == null ? 'text-muted-foreground' : v > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{varTxt(v)}</span></dd>
+                  </div>
+                ))}
+                <div className="flex justify-between py-2"><dt className="text-muted-foreground">Fora do expediente</dt><dd className="tabular">{(r.fora_expediente_h ?? 0).toLocaleString('pt-BR')} h · {(r.fora_expediente_pct ?? 0).toLocaleString('pt-BR')}% · {brl(r.custo_fora_expediente ?? 0)}</dd></div>
+                <div className="flex justify-between py-2"><dt className="text-muted-foreground">Projeção para 30 dias</dt><dd className="font-medium tabular">{brl(r.projecao_mes ?? 0)} <span className="text-xs font-normal text-muted-foreground">({(r.projecao_kwh_mes ?? 0).toLocaleString('pt-BR')} kWh)</span></dd></div>
+              </dl>
+            </Secao>
+          </div>
 
           <Secao titulo="Comandos por dia" contexto="Empilhado por origem do comando">
             <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
@@ -295,6 +328,86 @@ export default function Relatorios() {
               </table>
             </div>
           </Secao>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Secao titulo="Horas ligado por dia" contexto="Soma de todos os aparelhos" className="lg:col-span-2">
+              <div className="h-56">
+                {diario.length === 0 ? <p className="pt-20 text-center text-sm text-muted-foreground">Sem sessões no período.</p> : (
+                  <ResponsiveContainer><LineChart data={diario} margin={{ left: 0, right: 8 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="rotulo" {...eixo} minTickGap={12} /><YAxis {...eixo} width={30} />
+                    <Tooltip content={<Dica />} />
+                    <Line type="monotone" dataKey="horas" name="Horas" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                  </LineChart></ResponsiveContainer>
+                )}
+              </div>
+            </Secao>
+            <Secao titulo="Modos escolhidos" contexto="Ao ligar">
+              {!(dados.modos || []).length ? <p className="text-sm text-muted-foreground">Nenhum ligar com modo no período.</p> : (
+                <div className="flex items-center gap-4">
+                  <div className="h-40 w-40 shrink-0"><ResponsiveContainer><PieChart><Pie data={dados.modos} dataKey="vezes" nameKey="modo" innerRadius="58%" outerRadius="100%" stroke="none">
+                    {dados.modos.map((m, i) => <Cell key={m.modo} fill={CORES_MODO[i % CORES_MODO.length]} />)}</Pie><Tooltip content={<Dica />} /></PieChart></ResponsiveContainer></div>
+                  <ul className="space-y-1.5 text-sm">{dados.modos.map((m, i) => <li key={m.modo} className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: CORES_MODO[i % CORES_MODO.length] }} />{m.modo}<span className="tabular text-muted-foreground">{m.vezes}</span></li>)}</ul>
+                </div>
+              )}
+            </Secao>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Secao titulo="Por dia da semana" contexto="Comandos e horas ligado">
+              <div className="h-52">
+                <ResponsiveContainer><BarChart data={dados.por_dia_semana || []} margin={{ left: 0, right: 0 }}>
+                  <XAxis dataKey="dia" {...eixo} /><YAxis {...eixo} width={30} />
+                  <Tooltip content={<Dica />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                  <Bar dataKey="horas" name="Horas ligado" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="comandos" name="Comandos" fill="#2563a8" radius={[3, 3, 0, 0]} />
+                </BarChart></ResponsiveContainer>
+              </div>
+            </Secao>
+            <Secao titulo="Por projeto" contexto="Custo estimado de cada lugar">
+              {!(dados.por_projeto || []).length ? <p className="text-sm text-muted-foreground">Sem dados.</p> : (
+                <ul className="space-y-3">{dados.por_projeto.map((pj, i) => {
+                  const max = Math.max(...dados.por_projeto.map((x) => x.custo), 0.01)
+                  return (<li key={pj.projeto}><div className="flex justify-between text-sm"><span className="font-medium">{pj.projeto}</span><span className="tabular text-muted-foreground">{brl(pj.custo)} · {pj.horas_ligado.toLocaleString('pt-BR')} h · {pj.aparelhos} ar(es)</span></div>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><motion.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${(pj.custo / max) * 100}%` }} transition={{ delay: i * 0.05 }} /></div></li>)
+                })}</ul>
+              )}
+            </Secao>
+          </div>
+
+          <Secao titulo="Sessões mais longas" contexto={`${r.sessoes ?? 0} sessão(ões) no período, média de ${(r.sessao_media_h ?? 0).toLocaleString('pt-BR')} h. Expediente: ${dados.expediente || 'seg a sex, 7h às 19h'}`}>
+            {!(dados.sessoes || []).length ? <p className="text-sm text-muted-foreground">Nenhuma sessão completa (ligar seguido de desligar) no período.</p> : (
+              <div className="-mx-5 -my-5 overflow-x-auto">
+                <table className="tabela w-full min-w-[720px]">
+                  <thead><tr><th>Aparelho</th><th>Ligou</th><th>Desligou</th><th className="!text-right">Horas</th><th className="!text-right">Fora do expediente</th><th>Ligado por</th><th>Desligado por</th></tr></thead>
+                  <tbody>{dados.sessoes.slice(0, 10).map((x, i) => (
+                    <tr key={i}><td className="font-medium">{x.aparelho}</td><td className="tabular">{dataHora(x.inicio)}</td><td className="tabular">{dataHora(x.fim)}</td>
+                      <td className={`text-right tabular ${x.horas >= 10 ? 'font-medium text-amber-600' : ''}`}>{x.horas.toLocaleString('pt-BR')}</td><td className="text-right tabular">{x.fora_expediente_h.toLocaleString('pt-BR')} h</td>
+                      <td>{rotuloOrigem(x.origem)}</td><td className="text-muted-foreground">{x.origem_fim === 'ainda ligado' ? 'ainda ligado' : rotuloOrigem(x.origem_fim)}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
+          </Secao>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Secao titulo="Transmissores" contexto="Taxa de sucesso dos envios">
+              {!(dados.por_transmissor || []).length ? <p className="text-sm text-muted-foreground">Sem dados.</p> : (
+                <ul className="-my-2 divide-y divide-border">{dados.por_transmissor.map((h) => (
+                  <li key={h.transmissor} className="flex items-center justify-between gap-3 py-2.5 text-sm"><span><span className="font-medium">{h.transmissor}</span><span className="block text-xs text-muted-foreground">{h.aparelhos} aparelho(s) · {h.comandos} comandos · {h.falhas} falha(s)</span></span>
+                    <span className={`text-base font-semibold tabular ${h.sucesso_pct >= 95 ? 'text-emerald-600' : 'text-amber-600'}`}>{h.sucesso_pct.toLocaleString('pt-BR')}%</span></li>
+                ))}</ul>
+              )}
+            </Secao>
+            <Secao titulo="Automações e cenas" contexto="O que rodou sozinho no período">
+              {!(dados.rotinas || []).length ? <p className="text-sm text-muted-foreground">Nenhuma automação ou cena rodou no período.</p> : (
+                <ul className="-my-2 divide-y divide-border">{dados.rotinas.map((x) => (
+                  <li key={x.tipo + x.nome} className="flex items-center justify-between gap-3 py-2.5 text-sm"><span><span className="mr-2 rounded bg-muted px-1.5 py-0.5 text-[11px]">{x.tipo}</span>{x.nome}</span>
+                    <span className="tabular text-muted-foreground">{x.execucoes} execução(ões){x.falhas ? <span className="text-red-600"> · {x.falhas} falha(s)</span> : ''}</span></li>
+                ))}</ul>
+              )}
+            </Secao>
+          </div>
 
           <Secao titulo="Falhas no período" contexto={dados.falhas.length ? `${dados.falhas.length} mais recentes` : 'Tudo certo'}>
             {dados.falhas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum comando falhou neste período.</p> : (

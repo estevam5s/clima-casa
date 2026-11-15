@@ -53,8 +53,17 @@ async function baixar(caminho) {
   return nome
 }
 
+// Busca uma resposta como texto (ex.: o relatório em HTML para pré-visualizar)
+async function texto(caminho) {
+  const token = await tokenAtual().catch(() => null)
+  const r = await fetch(caminho, { credentials: 'same-origin', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (!r.ok) throw new ErroApi(r.status, `Erro ${r.status}`)
+  return r.text()
+}
+
 export const api = {
   baixar,
+  texto,
   get: (c) => chamar('GET', c),
   post: (c, b = {}) => chamar('POST', c, b),
   put: (c, b) => chamar('PUT', c, b),

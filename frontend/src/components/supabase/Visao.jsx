@@ -29,7 +29,7 @@ export default function Visao({ irPara }) {
           <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary"><Database className="h-5 w-5" /></span>
           <div><p className="font-semibold">Arcondicionado</p><p className="font-mono text-xs text-muted-foreground">{v.projeto}</p></div>
         </div>
-        <span className="flex items-center gap-2 text-sm"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>Saudável</span>
+        <span className="flex items-center gap-2 text-sm"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>Saudável</span> {/* marca: pulso de status ao vivo */}
         <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
           <div><dt className="text-xs text-muted-foreground">Região</dt><dd>{v.regiao}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Postgres</dt><dd>{v.versao_curta}</dd></div>
