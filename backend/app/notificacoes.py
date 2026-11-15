@@ -12,9 +12,12 @@ import time
 
 from . import db
 
-PREF_PADRAO = {"tipos_ocultos": [], "som": False, "contador_so_importantes": False, "arquivar_resolvidas_h": 24}
+PREF_PADRAO = {"tipos_ocultos": [], "som": True, "contador_so_importantes": False, "arquivar_resolvidas_h": 24,
+               "som_tom": "mensagem", "som_alerta": "alerta", "som_volume": 70, "som_so_importantes": False,
+               "desktop": False, "vibrar": True, "nao_perturbe": False, "nao_perturbe_inicio": "22:00", "nao_perturbe_fim": "07:00"}
 TIPOS = {"alerta": "Alertas", "falha": "Falhas de comando", "transmissor": "Transmissores", "agente": "Agente do Mac",
-         "alexa": "Alexa e Google", "configuracao": "Configuração", "seguranca": "Segurança", "sistema": "Sistema"}
+         "alexa": "Alexa e Google", "configuracao": "Configuração", "seguranca": "Segurança", "sistema": "Sistema",
+         "mensagem": "Mensagens do site"}
 _ultima_sync = {"em": 0.0}
 _trava = threading.Lock()
 

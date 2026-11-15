@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AirVent, AlertTriangle, ArrowLeft, Bell, BellOff, CheckCheck, CheckCircle2, Cpu, Mic, Radio, Settings, ShieldAlert, Trash2, Wrench, X, Zap,
+  AirVent, AlertTriangle, ArrowLeft, MessageCircle, Bell, BellOff, CheckCheck, CheckCircle2, Cpu, Mic, Radio, Settings, ShieldAlert, Trash2, Wrench, X, Zap,
 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { atualizarAba } from '../favicon'
 import { Interruptor, useToast } from './ui'
+import { TONS, avisar, tocar } from '../som'
 
 const ICONES = {
   alerta: [AlertTriangle, 'bg-amber-500/15 text-amber-600 dark:text-amber-400'],
@@ -17,31 +18,32 @@ const ICONES = {
   configuracao: [Wrench, 'bg-muted text-muted-foreground'],
   seguranca: [ShieldAlert, 'bg-rose-500/15 text-rose-600 dark:text-rose-400'],
   sistema: [AirVent, 'bg-primary/15 text-primary'],
+  mensagem: [MessageCircle, 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'],
 }
 const ABAS = [['todas', 'Todas'], ['nao_lidas', 'Não lidas'], ['importantes', 'Importantes'], ['seguranca', 'Segurança']]
 const diaHora = (ts) => new Date(ts * 1000).toLocaleString('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).replace('.', '')
 
-function bip() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    const o = ctx.createOscillator(); const g = ctx.createGain()
-    o.frequency.value = 880; g.gain.setValueAtTime(0.08, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25)
-    o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.25)
-  } catch { /* sem áudio */ }
-}
 
 // Busca a central a cada 30 s e ao trocar de tela; devolve também o status usado no cabeçalho.
 export function useCentral() {
   const [dados, setDados] = useState(null)
   const [aba, setAba] = useState('todas')
   const local = useLocation()
-  const anterior = useRef(null)
+  const vistas = useRef(null)   // ids não lidos já conhecidos: só toca para o que é novo de verdade
   const carregar = useCallback(() => api.get(`/api/notificacoes?filtro=${aba}`).then((d) => {
     setDados(d); atualizarAba(d.total)
-    if (anterior.current !== null && d.total > anterior.current && d.preferencias?.som) bip()
-    anterior.current = d.total
+    const naoLidas = d.itens.filter((n) => !n.lida && !n.resolvida)
+    if (vistas.current) {
+      const novas = naoLidas.filter((n) => !vistas.current.has(`${n.id}:${n.atualizado_em}`))
+      if (novas.length) {
+        const principal = novas.find((n) => n.gravidade === 'alta' || n.tipo === 'seguranca') || novas[0]
+        avisar(principal, d.preferencias)
+        window.dispatchEvent(new CustomEvent('clima:notificacao', { detail: novas }))
+      }
+    }
+    vistas.current = new Set(naoLidas.map((n) => `${n.id}:${n.atualizado_em}`))
   }).catch(() => {}), [aba])
-  useEffect(() => { carregar(); const t = setInterval(carregar, 30000); return () => clearInterval(t) }, [carregar])
+  useEffect(() => { carregar(); const t = setInterval(carregar, 15000); return () => clearInterval(t) }, [carregar])
   useEffect(() => { carregar() }, [local.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
   return { dados, aba, setAba, carregar }
 }
@@ -112,7 +114,41 @@ function Preferencias({ dados, voltar, aoAtualizar }) {
       </div>
       <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">Comportamento</p>
       <div className="mt-2 divide-y divide-border rounded-lg border border-border">
-        <label className="flex items-center gap-3 px-3 py-2.5 text-sm"><span className="flex-1">Som ao chegar notificação nova</span><Interruptor ligado={p.som} onChange={(v) => salvar({ ...p, som: v })} rotulo="Som" /></label>
+        <label className="flex items-center gap-3 px-3 py-2.5 text-sm"><span className="flex-1">Som ao chegar notificação nova</span><Interruptor ligado={p.som} onChange={(v) => { salvar({ ...p, som: v }); if (v) tocar(p.som_tom, p.som_volume) }} rotulo="Som" /></label>
+        {p.som && (<>
+          {[['som_tom', 'Toque normal', Object.keys(TONS).filter((k) => k !== 'alerta')], ['som_alerta', 'Toque de alerta (importantes e segurança)', Object.keys(TONS)]].map(([campo, rotulo, opcoes]) => (
+            <div key={campo} className="flex items-center gap-2 px-3 py-2.5 text-sm">
+              <span className="flex-1">{rotulo}</span>
+              <select value={p[campo]} onChange={(e) => { salvar({ ...p, [campo]: e.target.value }); tocar(e.target.value, p.som_volume) }} className="campo h-8 w-auto py-0 text-sm" aria-label={rotulo}>
+                {opcoes.map((k) => <option key={k} value={k}>{TONS[k].rotulo}</option>)}
+              </select>
+              <button onClick={() => tocar(p[campo], p.som_volume)} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted">Ouvir</button>
+            </div>
+          ))}
+          <label className="flex items-center gap-3 px-3 py-2.5 text-sm"><span className="w-28 shrink-0">Volume</span>
+            <input type="range" min="5" max="100" step="5" value={p.som_volume} onChange={(e) => salvar({ ...p, som_volume: +e.target.value })} onMouseUp={() => tocar(p.som_tom, p.som_volume)} className="flex-1 accent-[hsl(var(--primary))]" aria-label="Volume" />
+            <span className="w-9 text-right text-xs tabular text-muted-foreground">{p.som_volume}%</span>
+          </label>
+          <label className="flex items-center gap-3 px-3 py-2.5 text-sm"><span className="flex-1">Tocar só para as importantes</span><Interruptor ligado={p.som_so_importantes} onChange={(v) => salvar({ ...p, som_so_importantes: v })} rotulo="Só importantes" /></label>
+        </>)}
+        <label className="flex items-center gap-3 px-3 py-2.5 text-sm"><span className="flex-1">Aviso do sistema (com a aba em segundo plano)</span><Interruptor ligado={p.desktop} onChange={async (v) => {
+          if (v && 'Notification' in window && Notification.permission !== 'granted') {
+            const r = await Notification.requestPermission().catch(() => 'denied')
+            if (r !== 'granted') { toast('O navegador bloqueou os avisos. Libere em Configurações do site (cadeado na barra de endereço).', 'erro'); return }
+          }
+          salvar({ ...p, desktop: v })
+        }} rotulo="Aviso do sistema" /></label>
+        <label className="flex items-center gap-3 px-3 py-2.5 text-sm"><span className="flex-1">Vibrar no celular</span><Interruptor ligado={p.vibrar} onChange={(v) => salvar({ ...p, vibrar: v })} rotulo="Vibrar" /></label>
+        <div className="px-3 py-2.5 text-sm">
+          <label className="flex items-center gap-3"><span className="flex-1">Não perturbe</span><Interruptor ligado={p.nao_perturbe} onChange={(v) => salvar({ ...p, nao_perturbe: v })} rotulo="Não perturbe" /></label>
+          {p.nao_perturbe && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">sem som de
+              <input type="time" value={p.nao_perturbe_inicio} onChange={(e) => salvar({ ...p, nao_perturbe_inicio: e.target.value })} className="campo h-8 w-auto py-0 text-sm" aria-label="Início" />
+              até
+              <input type="time" value={p.nao_perturbe_fim} onChange={(e) => salvar({ ...p, nao_perturbe_fim: e.target.value })} className="campo h-8 w-auto py-0 text-sm" aria-label="Fim" />
+            </div>
+          )}
+        </div>
         <label className="flex items-center gap-3 px-3 py-2.5 text-sm"><span className="flex-1">Contador só com as importantes</span><Interruptor ligado={p.contador_so_importantes} onChange={(v) => salvar({ ...p, contador_so_importantes: v })} rotulo="Contador só importantes" /></label>
         <label className="flex items-center gap-3 px-3 py-2.5 text-sm"><span className="flex-1">Limpar resolvidas depois de</span>
           <select value={p.arquivar_resolvidas_h} onChange={(e) => salvar({ ...p, arquivar_resolvidas_h: +e.target.value })} className="campo h-8 w-auto py-0 text-sm">

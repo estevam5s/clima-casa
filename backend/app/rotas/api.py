@@ -1339,10 +1339,19 @@ def acao_notificacao(nid: int):
 
 
 class PrefNotificacoesIn(BaseModel):
-    tipos_ocultos: list[str] = Field([], max_length=10)
+    tipos_ocultos: list[str] = Field([], max_length=12)
     som: bool = False
     contador_so_importantes: bool = False
     arquivar_resolvidas_h: int = Field(24, ge=0, le=720)
+    som_tom: str = Field("mensagem", pattern="^(mensagem|gota|sino|digital|suave)$")
+    som_alerta: str = Field("alerta", pattern="^(alerta|mensagem|gota|sino|digital|suave)$")
+    som_volume: int = Field(70, ge=0, le=100)
+    som_so_importantes: bool = False
+    desktop: bool = False
+    vibrar: bool = True
+    nao_perturbe: bool = False
+    nao_perturbe_inicio: str = Field("22:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    nao_perturbe_fim: str = Field("07:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 @api.get("/notificacoes/historico")
@@ -1389,7 +1398,7 @@ def site_contato(d: SiteContatoIn, request: Request):
     else:
         titulo = f"Mensagem do site: {d.nome.strip()}" + (f" · {d.assunto.strip()}" if d.assunto.strip() else "")
         detalhe = f"{d.email.strip()} · {d.mensagem.strip()}"
-    notificacoes.notificar(f"site-{mid}", "sistema", "media", titulo, detalhe, f"/mensagens?id={mid}",
+    notificacoes.notificar(f"site-{mid}", "mensagem", "media", titulo, detalhe, f"/mensagens?id={mid}",
                            {"rotulo": "Abrir mensagem", "tipo": "link", "para": f"/mensagens?id={mid}"})
     return {"ok": True}
 
