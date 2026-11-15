@@ -1478,6 +1478,162 @@ def exportar_mensagens_site(tipo: str = "todas"):
                     headers={"Content-Disposition": 'attachment; filename="mensagens-do-site-%s.csv"' % time.strftime("%Y%m%d")})
 
 
+# ---------------- mensagens do site em formato de conversa (uma conversa por e-mail) ----------------
+def _conversa_estado(email: str) -> dict:
+    c = db.um("SELECT * FROM site_conversas WHERE email = ?", (email,))
+    if c:
+        c["etiquetas"] = c["etiquetas"] if isinstance(c["etiquetas"], list) else json.loads(c["etiquetas"] or "[]")
+    return c or {"email": email, "fixada": False, "favorita": False, "arquivada": False, "silenciada": False, "etiquetas": []}
+
+
+@api.get("/site/conversas")
+def listar_conversas(filtro: str = "tudo", busca: str = ""):
+    p, w = [], ""
+    if busca.strip():
+        w = " WHERE (m.nome ILIKE ? OR m.email ILIKE ? OR m.assunto ILIKE ? OR m.mensagem ILIKE ?)"
+        p = [f"%{busca.strip()}%"] * 4
+    linhas = db.consultar(f"""
+        WITH ult AS (SELECT DISTINCT ON (email) email, nome, assunto, mensagem, tipo, quando, pais, cidade FROM site_mensagens m{w} ORDER BY email, quando DESC),
+             cnt AS (SELECT email, count(*) AS total, count(*) FILTER (WHERE NOT lida) AS nao_lidas, bool_or(tipo = 'contato') AS contato,
+                            bool_or(tipo = 'novidades') AS novidades, min(quando) AS primeira FROM site_mensagens GROUP BY email),
+             resp AS (SELECT DISTINCT ON (email) email, texto, quando, tipo FROM site_respostas ORDER BY email, quando DESC)
+        SELECT u.*, c.total, c.nao_lidas, c.contato, c.novidades, c.primeira,
+               r.texto AS resp_texto, r.quando AS resp_quando, r.tipo AS resp_tipo,
+               COALESCE(s.fixada, false) AS fixada, COALESCE(s.favorita, false) AS favorita, COALESCE(s.arquivada, false) AS arquivada,
+               COALESCE(s.silenciada, false) AS silenciada, COALESCE(s.etiquetas, '[]'::jsonb) AS etiquetas
+        FROM ult u JOIN cnt c USING (email) LEFT JOIN resp r USING (email) LEFT JOIN site_conversas s USING (email)""", p)
+    itens = []
+    for c in linhas:
+        c["etiquetas"] = c["etiquetas"] if isinstance(c["etiquetas"], list) else json.loads(c["etiquetas"] or "[]")
+        ultima_resp = c["resp_quando"] and c["resp_quando"] > c["quando"]
+        c["ultimo"] = {"quando": c["resp_quando"] if ultima_resp else c["quando"], "de": ("admin" if c["resp_tipo"] == "resposta" else "nota") if ultima_resp else "contato",
+                       "texto": (c["resp_texto"] if ultima_resp else (c["mensagem"] or ("Inscreveu-se nas novidades" if c["tipo"] == "novidades" else c["assunto"])))[:160]}
+        c["respondida"] = bool(c["resp_quando"] and c["resp_tipo"] == "resposta")
+        itens.append(c)
+    contagem = {"tudo": sum(not c["arquivada"] for c in itens), "nao_lidas": sum(bool(c["nao_lidas"]) and not c["arquivada"] for c in itens),
+                "favoritas": sum(c["favorita"] for c in itens), "contato": sum(c["contato"] and not c["arquivada"] for c in itens),
+                "novidades": sum(c["novidades"] and not c["arquivada"] for c in itens), "respondidas": sum(c["respondida"] for c in itens),
+                "sem_resposta": sum(c["contato"] and not c["respondida"] and not c["arquivada"] for c in itens), "arquivadas": sum(c["arquivada"] for c in itens)}
+    filtros = {"tudo": lambda c: not c["arquivada"], "nao_lidas": lambda c: c["nao_lidas"] and not c["arquivada"], "favoritas": lambda c: c["favorita"],
+               "contato": lambda c: c["contato"] and not c["arquivada"], "novidades": lambda c: c["novidades"] and not c["arquivada"],
+               "respondidas": lambda c: c["respondida"], "sem_resposta": lambda c: c["contato"] and not c["respondida"] and not c["arquivada"],
+               "arquivadas": lambda c: c["arquivada"]}
+    f = filtros.get(filtro, filtros["tudo"])
+    itens = sorted((c for c in itens if f(c)), key=lambda c: (not c["fixada"], -c["ultimo"]["quando"]))
+    return {"itens": itens[:300], "contagem": contagem, "etiquetas": sorted({e for c in linhas for e in (c["etiquetas"] or [])})}
+
+
+@api.get("/site/conversa")
+def ver_conversa(email: str):
+    msgs = db.consultar("SELECT * FROM site_mensagens WHERE email = ? ORDER BY quando", (email,))
+    if not msgs:
+        raise HTTPException(404, "Conversa não encontrada.")
+    resp = db.consultar("SELECT * FROM site_respostas WHERE email = ? ORDER BY quando", (email,))
+    linha = [{"id": f"m{m['id']}", "mid": m["id"], "de": "contato", "quando": m["quando"], "tipo": m["tipo"], "assunto": m["assunto"],
+              "texto": m["mensagem"], "lida": m["lida"]} for m in msgs]
+    linha += [{"id": f"r{r['id']}", "rid": r["id"], "de": "admin" if r["tipo"] == "resposta" else "nota", "quando": r["quando"], "texto": r["texto"],
+               "autor": r["autor_nome"]} for r in resp]
+    linha.sort(key=lambda x: x["quando"])
+    ult = msgs[-1]
+    contato = {"email": email, "nome": next((m["nome"] for m in reversed(msgs) if m["nome"]), ""), "pais": ult["pais"], "cidade": ult["cidade"],
+               "primeira": msgs[0]["quando"], "total": len(msgs), "respostas": sum(r["tipo"] == "resposta" for r in resp),
+               "notas": sum(r["tipo"] == "nota" for r in resp), "novidades": any(m["tipo"] == "novidades" for m in msgs),
+               "assunto": next((m["assunto"] for m in reversed(msgs) if m["assunto"]), "")}
+    return {"contato": contato, "estado": _conversa_estado(email), "linha": linha}
+
+
+class ConversaIn(BaseModel):
+    fixada: bool | None = None
+    favorita: bool | None = None
+    arquivada: bool | None = None
+    silenciada: bool | None = None
+    lida: bool | None = None
+    etiquetas: list[str] | None = Field(None, max_length=12)
+
+
+@api.put("/site/conversa")
+def atualizar_conversa(email: str, d: ConversaIn):
+    if not db.um("SELECT 1 FROM site_mensagens WHERE email = ? LIMIT 1", (email,)):
+        raise HTTPException(404, "Conversa não encontrada.")
+    est = _conversa_estado(email)
+    for k in ("fixada", "favorita", "arquivada", "silenciada"):
+        if getattr(d, k) is not None:
+            est[k] = getattr(d, k)
+    if d.etiquetas is not None:
+        est["etiquetas"] = [e.strip()[:24] for e in d.etiquetas if e.strip()][:12]
+    db.executar("INSERT INTO site_conversas (email, fixada, favorita, arquivada, silenciada, etiquetas, atualizado_em) VALUES (?,?,?,?,?,CAST(? AS jsonb),?) "
+                "ON CONFLICT (email) DO UPDATE SET fixada = excluded.fixada, favorita = excluded.favorita, arquivada = excluded.arquivada, "
+                "silenciada = excluded.silenciada, etiquetas = excluded.etiquetas, atualizado_em = excluded.atualizado_em",
+                (email, est["fixada"], est["favorita"], est["arquivada"], est["silenciada"], json.dumps(est["etiquetas"]), db.agora()))
+    if d.lida is not None:
+        db.executar("UPDATE site_mensagens SET lida = ? WHERE email = ?", (d.lida, email))
+        if d.lida:
+            db.executar("UPDATE notificacoes SET lida = true WHERE chave IN (SELECT 'site-' || id FROM site_mensagens WHERE email = ?)", (email,))
+    if d.arquivada is not None:
+        db.executar("UPDATE site_mensagens SET arquivada = ? WHERE email = ?", (d.arquivada, email))
+    return est
+
+
+class RespostaIn(BaseModel):
+    texto: str = Field(min_length=1, max_length=5000)
+    nota: bool = False
+
+
+@api.post("/site/conversa/responder")
+def responder_conversa(email: str, d: RespostaIn, request: Request):
+    if not db.um("SELECT 1 FROM site_mensagens WHERE email = ? LIMIT 1", (email,)):
+        raise HTTPException(404, "Conversa não encontrada.")
+    u = getattr(request.state, "u", {}) or {}
+    rid = db.executar("INSERT INTO site_respostas (email, quando, autor_id, autor_nome, texto, tipo) VALUES (?,?,?,?,?,?)",
+                      (email, db.agora(), u.get("id"), u.get("nome") or u.get("email", ""), d.texto.strip(), "nota" if d.nota else "resposta"))
+    if not d.nota:
+        db.executar("UPDATE site_mensagens SET respondida = true, lida = true WHERE email = ?", (email,))
+    db.registrar("painel", "Nota interna em mensagem do site" if d.nota else "Resposta a mensagem do site", detalhe=email)
+    return {"id": rid}
+
+
+@api.delete("/site/conversa/resposta/{rid}")
+def apagar_resposta(rid: int):
+    db.executar("DELETE FROM site_respostas WHERE id = ?", (rid,))
+    return {"ok": True}
+
+
+@api.delete("/site/conversa")
+def apagar_conversa(email: str):
+    ids = [r["id"] for r in db.consultar("SELECT id FROM site_mensagens WHERE email = ?", (email,))]
+    db.executar("DELETE FROM site_mensagens WHERE email = ?", (email,))
+    db.executar("DELETE FROM site_respostas WHERE email = ?", (email,))
+    db.executar("DELETE FROM site_conversas WHERE email = ?", (email,))
+    for i in ids:
+        db.executar("UPDATE notificacoes SET arquivada = true WHERE chave = ?", (f"site-{i}",))
+    db.registrar("painel", "Conversa do site apagada", detalhe=f"{email} ({len(ids)} mensagem(ns))")
+    return {"ok": True}
+
+
+RESPOSTAS_PADRAO = [
+    {"titulo": "Agradecimento", "texto": "Olá! Obrigado pelo contato. Recebemos sua mensagem e respondemos em breve."},
+    {"titulo": "Pedir detalhes", "texto": "Olá! Para ajudar melhor, pode contar quantos ares-condicionados são, as marcas e se o escritório tem Wi-Fi 2,4 GHz?"},
+    {"titulo": "Como funciona", "texto": "O sistema usa um transmissor infravermelho Wi-Fi em cada sala e controla os ares pelo painel, pelo celular e pela Alexa. Posso mostrar uma demonstração?"},
+]
+
+
+@api.get("/site/respostas-prontas")
+def ver_respostas_prontas():
+    return db.cfg("respostas_prontas") or RESPOSTAS_PADRAO
+
+
+class RespostaProntaIn(BaseModel):
+    titulo: str = Field(min_length=1, max_length=40)
+    texto: str = Field(min_length=1, max_length=2000)
+
+
+@api.put("/site/respostas-prontas")
+def salvar_respostas_prontas(d: list[RespostaProntaIn]):
+    lista = [x.model_dump() for x in d][:30]
+    db.set_cfg("respostas_prontas", lista)
+    return lista
+
+
 # ---------------- perfil do administrador (nome, cargo, foto) ----------------
 class PerfilIn(BaseModel):
     nome: str = Field("", max_length=80)

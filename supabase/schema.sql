@@ -357,3 +357,30 @@ create policy admin_le on seguranca_ip_info for select using ((auth.jwt() -> 'ap
 -- 401 sem token nas rotas que o navegador chama ao abrir o sistema era contado como ataque: é só visita sem login.
 update seguranca_eventos set tipo = 'sem_login', detalhe = 'abriu o sistema sem estar logado'
  where tipo = 'auth_negado' and detalhe = '401' and rota in ('/api/sessao', '/api/notificacoes', '/api/marca', '/api/supabase-config');
+
+-- Caixa de mensagens do site em formato de conversa (uma por e-mail): estado da conversa e respostas/notas do admin
+create table if not exists public.site_conversas (
+  email text primary key,
+  fixada boolean not null default false,
+  favorita boolean not null default false,
+  arquivada boolean not null default false,
+  silenciada boolean not null default false,
+  etiquetas jsonb not null default '[]',
+  atualizado_em bigint not null default 0
+);
+alter table public.site_conversas enable row level security;
+drop policy if exists admin_le on public.site_conversas;
+create policy admin_le on public.site_conversas for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+create table if not exists public.site_respostas (
+  id bigint generated always as identity primary key,
+  email text not null,
+  quando bigint not null,
+  autor_id uuid,
+  autor_nome text not null default '',
+  texto text not null,
+  tipo text not null default 'resposta'      -- resposta (enviada pelo e-mail do admin) | nota (interna)
+);
+create index if not exists ix_site_respostas_email on public.site_respostas (email, quando);
+alter table public.site_respostas enable row level security;
+drop policy if exists admin_le on public.site_respostas;
+create policy admin_le on public.site_respostas for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');

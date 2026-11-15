@@ -73,3 +73,10 @@
   100% { opacity: 0; transform: translateY(26px) scaleX(1.25); }
 }
 @media (prefers-reduced-motion: reduce) { .fluxo-ar path { animation: none; opacity: 0.6; } }
+
+/* Mensagens: fundo da conversa com pontilhado discreto nas cores do tema */
+.fundo-conversa {
+  background-color: hsl(var(--muted) / 0.45);
+  background-image: radial-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+}
