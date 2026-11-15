@@ -3,6 +3,7 @@ const GRADE = 10
 export const AR_L = 86
 const snap = (v) => Math.round(v / GRADE) * GRADE
 const copia = (o) => JSON.parse(JSON.stringify(o))
+const lim = (v, a, b) => Math.max(a, Math.min(b, v))
 const salaDoPonto = (s, e) => { const cx = e.x + e.w / 2, cy = e.y + e.h / 2; return cx >= s.x && cx <= s.x + s.w && cy >= s.y && cy <= s.y + s.h }
 
 // Salas sem posição ganham um lugar automático (linhas da esquerda para a direita, tamanho pelo número de ares).
@@ -37,6 +38,72 @@ export function completar(mapa, projetos, ares) {
       const passo = s.w / (sem.length + 1)
       m.ares[a.id] = { x: snap(s.x + passo * (i + 1) - AR_L / 2), y: s.y + 30, rot: 0 }
     })
+  }
+  colocarMoveis(m, projetos)
+  return m
+}
+
+// ponto local (lx, ly) de um elemento girado em torno do próprio centro → coordenada da planta
+export function girarPonto(e, lx, ly) {
+  const t = (e.rot || 0) * Math.PI / 180, cx = e.w / 2, cy = e.h / 2
+  const dx = lx - cx, dy = ly - cy
+  return [e.x + cx + dx * Math.cos(t) - dy * Math.sin(t), e.y + cy + dx * Math.sin(t) + dy * Math.cos(t)]
+}
+
+// Salas privativas (de uma pessoa ou função: Analista, Diretor, Sala Deison…): não são o salão (a maior), nem reunião,
+// bancada, copa ou recepção, e têm uma porta numa das bordas. Devolve a sala, o lado da porta e o centro da porta.
+const NAO_PRIVATIVA = /bancada|reuni|escrit|sal[aã]o|copa|cozinha|recep|banheiro|apoio|t[eé]cnica|almox|dep[oó]sito/i
+export function salasPrivativas(mapa, projetos) {
+  const salas = projetos.filter((p) => mapa.salas[p.id]).map((p) => ({ ...mapa.salas[p.id], p }))
+  if (!salas.length) return []
+  const maior = Math.max(...salas.map((s) => s.w * s.h))
+  const out = []
+  for (const s of salas) {
+    if (NAO_PRIVATIVA.test(s.p.nome) || s.w * s.h >= maior * 0.6) continue
+    for (const e of mapa.elementos) {
+      if (e.tipo !== 'porta') continue
+      const [ax, ay] = girarPonto(e, 0, e.h), [bx, by] = girarPonto(e, e.w, e.h)
+      const mx = (ax + bx) / 2, my = (ay + by) / 2
+      const horiz = Math.abs(ay - by) < Math.abs(ax - bx)
+      let lado = null
+      if (horiz && mx > s.x && mx < s.x + s.w) lado = Math.abs(my - s.y) < 16 ? 'cima' : Math.abs(my - (s.y + s.h)) < 16 ? 'baixo' : null
+      if (!horiz && my > s.y && my < s.y + s.h) lado = Math.abs(mx - s.x) < 16 ? 'esq' : Math.abs(mx - (s.x + s.w)) < 16 ? 'dir' : null
+      if (lado) { out.push({ s, p: s.p, lado, porta: [mx, my] }); break }
+    }
+  }
+  return out
+}
+
+// Uma vez por sala privativa: mesa individual de frente para a porta, do lado direito, e uma janela na parede
+// em frente à porta (quando essa parede é externa). Viram elementos comuns: dá para mover, girar ou apagar.
+// Os ids criados ficam em mapa.auto, para não voltarem depois de apagados.
+export function colocarMoveis(m, projetos) {
+  m.auto = Array.isArray(m.auto) ? m.auto : []
+  const todas = Object.values(m.salas)
+  if (!todas.length) return m
+  const X0 = Math.min(...todas.map((s) => s.x)), Y0 = Math.min(...todas.map((s) => s.y))
+  const X1 = Math.max(...todas.map((s) => s.x + s.w)), Y1 = Math.max(...todas.map((s) => s.y + s.h))
+  const dentro = (s, e) => salaDoPonto(s, e)
+  for (const { s, p, lado, porta } of salasPrivativas(m, projetos)) {
+    const idMesa = `estacao-${p.id}`, idJanela = `janela-frente-${p.id}`
+    const temMovel = m.elementos.some((e) => ['mesa', 'bancada', 'sofa', 'estacao'].includes(e.tipo) && dentro(s, e))
+    if (!m.auto.includes(idMesa) && !temMovel) {
+      // pessoa olhando para a parede da porta; mesa do lado direito da sala (visto da planta)
+      const [rot, fx, fy] = { cima: [0, 0.7, 0.42], baixo: [180, 0.7, 0.58], esq: [270, 0.42, 0.7], dir: [90, 0.58, 0.7] }[lado]
+      const cx = s.x + s.w * fx, cy = s.y + s.h * fy
+      m.elementos.push({ id: idMesa, tipo: 'estacao', x: snap(cx - 60), y: snap(cy - 35), w: 120, h: 70, rot, rotulo: '' })
+    }
+    if (!m.auto.includes(idMesa)) m.auto.push(idMesa)
+    if (!m.auto.includes(idJanela)) {
+      const L = 140
+      let el = null
+      if (lado === 'cima' && Math.abs(s.y + s.h - Y1) < 8) el = { x: lim(porta[0] - L / 2, s.x + 20, s.x + s.w - L - 20), y: s.y + s.h - 5, rot: 0 }
+      if (lado === 'baixo' && Math.abs(s.y - Y0) < 8) el = { x: lim(porta[0] - L / 2, s.x + 20, s.x + s.w - L - 20), y: s.y - 5, rot: 0 }
+      if (lado === 'esq' && Math.abs(s.x + s.w - X1) < 8) el = { x: s.x + s.w - L / 2, y: lim(porta[1], s.y + 20 + L / 2, s.y + s.h - 20 - L / 2) - 5, rot: 90 }
+      if (lado === 'dir' && Math.abs(s.x - X0) < 8) el = { x: s.x - L / 2, y: lim(porta[1], s.y + 20 + L / 2, s.y + s.h - 20 - L / 2) - 5, rot: 90 }
+      if (el) m.elementos.push({ id: idJanela, tipo: 'janela', x: snap(el.x), y: el.y, w: L, h: 10, rot: el.rot, rotulo: '' })
+      m.auto.push(idJanela)
+    }
   }
   return m
 }

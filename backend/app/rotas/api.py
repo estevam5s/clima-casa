@@ -6,6 +6,8 @@ import time
 import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Annotated
+
 from pydantic import BaseModel, Field
 
 from .. import clima, cripto, db, supabase_painel, transmissor, tuya_nuvem
@@ -957,7 +959,7 @@ def apagar_projeto(pid: int):
 # ---------------- mapa do escritório ----------------
 # Planta guardada em config.mapa: tamanho, retângulo de cada sala (projeto), posição de cada ar e elementos
 # (porta, janela, mesa, bancada, parede, coluna, planta, texto). Quem só vê alguns projetos só mexe nas salas deles.
-MAPA_TIPOS = {"porta", "janela", "mesa", "bancada", "parede", "coluna", "planta", "texto", "armario", "sofa", "monitor", "ar_previsto"}
+MAPA_TIPOS = {"porta", "janela", "mesa", "bancada", "parede", "coluna", "planta", "texto", "armario", "sofa", "monitor", "ar_previsto", "estacao"}
 
 
 class SalaMapa(BaseModel):
@@ -990,6 +992,8 @@ class MapaIn(BaseModel):
     salas: dict[str, SalaMapa] = Field(default_factory=dict, max_length=200)
     ares: dict[str, ArMapa] = Field(default_factory=dict, max_length=500)
     elementos: list[ElementoMapa] = Field(default_factory=list, max_length=400)
+    # ids de móveis/janelas criados sozinhos uma vez (mesa de cada sala, janela em frente à porta): apagar não os recria
+    auto: list[Annotated[str, Field(max_length=40)]] = Field(default_factory=list, max_length=400)
 
 
 MAPA_PADRAO = {"largura": 1400, "altura": 900, "salas": {}, "ares": {}, "elementos": []}
@@ -1040,7 +1044,7 @@ def salvar_mapa(d: MapaIn, request: Request):
         salas.update({k: v.model_dump() for k, v in d.salas.items() if k.isdigit() and int(k) in permitidos})
         ares = {k: v for k, v in antigo["ares"].items() if k not in meus_ares}
         ares.update({k: v.model_dump() for k, v in d.ares.items() if k in meus_ares})
-        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"]}
+        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"], "auto": antigo.get("auto", [])}
     novo["atualizado_em"] = db.agora()
     db.set_cfg("mapa", novo)
     db.registrar("painel", "Mapa do escritório atualizado", detalhe=f"{len(novo['salas'])} sala(s), {len(novo['ares'])} ar(es), {len(novo['elementos'])} elemento(s)")
