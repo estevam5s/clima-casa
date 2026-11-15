@@ -639,3 +639,10 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
 - **Notas das releases**: escreva as novidades em `docs/releases/vX.Y.Z.md` e rode `node scripts/gerar-notas-release.mjs vX.Y.Z`
   (downloads, SHA-256, instalação, commits e estatísticas são automáticos).
 - **Vídeo do site**: o áudio de cada capítulo é o relógio enquanto toca (não recomeça nem salta).
+
+### 17.x Mapa 3D: equipe, itens, persianas e vidros (2026-11-15)
+- `config.mapa` ganhou `pessoas` (nome, cargo, sala, posto, expediente `inicio`/`fim`/`dias` em horário de Brasília, `aparencia`) e `escritas` (texto de caneta azul/preta/vermelha num vidro: `x`,`y`,`horiz`,`lado`,`altura`). Elementos têm `cor`, `modelo`, `aberta` (persiana 0–100) e `ligado`; ares do mapa têm `modelo` (split, cassete, piso_teto, janela) e `cor`.
+- Rotas: `POST /api/mapa/elementos/{id}/estado` (persiana/ligar, quem controla aparelhos), `PUT /api/mapa/pessoas` e `PUT /api/mapa/escritas` (só dono/admin). `GET /api/mapa` devolve também `auto`, `andar`, `pessoas`, `escritas`, `pode_controlar` e `admin`.
+- Postos (onde cada pessoa senta) usam o mesmo id na planta e no 3D: `postosDoMapa()` em `mapaUtil.js` (mesa individual = id do elemento; fileira = `id:i:a|b`; bancada = `id:i`; mesa automática = `sala-<id>`). Fora do expediente o posto fica vazio.
+- Catálogo da "Loja" (itens só do mapa, não compra nada): `frontend/src/catalogoMapa.js`; modelos 3D em `components/dispositivos3d.js`; cartões de clique e barra do controle 1ª/3ª pessoa em `components/CartoesMapa3D.jsx`; equipe, editor de pessoa e loja em `components/EquipeMapa.jsx`.
+- Edição 2D: o clique que vem depois de apertar num item cai no SVG (pointer capture); `cliqueDeItem` evita que ele limpe a seleção.

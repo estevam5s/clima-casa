@@ -959,7 +959,9 @@ def apagar_projeto(pid: int):
 # ---------------- mapa do escritório ----------------
 # Planta guardada em config.mapa: tamanho, retângulo de cada sala (projeto), posição de cada ar e elementos
 # (porta, janela, mesa, bancada, parede, coluna, planta, texto). Quem só vê alguns projetos só mexe nas salas deles.
-MAPA_TIPOS = {"porta", "janela", "mesa", "bancada", "parede", "coluna", "planta", "texto", "armario", "sofa", "monitor", "ar_previsto", "estacao", "gaveteiro"}
+MAPA_TIPOS = {"porta", "janela", "mesa", "bancada", "parede", "coluna", "planta", "texto", "armario", "sofa", "monitor", "ar_previsto", "estacao", "gaveteiro",
+              "rack", "roteador", "impressora", "nobreak", "projetor", "camera", "alexa", "ventilador", "purificador",
+              "bebedouro", "frigobar", "cadeira", "quadro"}
 
 
 class SalaMapa(BaseModel):
@@ -969,10 +971,15 @@ class SalaMapa(BaseModel):
     h: float = Field(ge=40, le=6000)
 
 
+COR_HEX = r"^#[0-9a-fA-F]{6}$"
+
+
 class ArMapa(BaseModel):
     x: float = Field(ge=0, le=6000)
     y: float = Field(ge=0, le=6000)
     rot: int = Field(0, ge=0, le=270)
+    modelo: str = Field("", max_length=30)   # aparência no 3D: split, cassete, piso_teto, janela
+    cor: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
 
 
 class ElementoMapa(BaseModel):
@@ -984,6 +991,50 @@ class ElementoMapa(BaseModel):
     h: float = Field(ge=4, le=6000)
     rot: int = Field(0, ge=0, le=270)
     rotulo: str = Field("", max_length=40)
+    cor: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    modelo: str = Field("", max_length=30)
+    aberta: int = Field(50, ge=0, le=100)     # janela: quanto a persiana está aberta (0 = fechada)
+    ligado: bool = True                       # dispositivo do mapa: aceso ou apagado
+
+
+class AparenciaPessoa(BaseModel):
+    pele: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    cabelo: str = Field("curto", max_length=12)
+    cor_cabelo: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    roupa: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    calca: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    sapato: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    traje: str = Field("camisa", max_length=12)    # camisa, camiseta, social, blusa, saia
+    corpo: str = Field("a", max_length=2)
+    oculos: bool = False
+    barba: bool = False
+    cracha: bool = True
+
+
+class PessoaMapa(BaseModel):
+    id: str = Field(min_length=1, max_length=40, pattern=r"^[\w-]+$")
+    nome: str = Field(min_length=1, max_length=40)
+    cargo: str = Field("", max_length=40)
+    sala: str = Field("", max_length=12)
+    posto: str = Field("", max_length=60)
+    inicio: str = Field("08:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    fim: str = Field("18:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    dias: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5], max_length=7)
+    aparencia: AparenciaPessoa = Field(default_factory=AparenciaPessoa)
+
+
+class EscritaMapa(BaseModel):
+    id: str = Field(min_length=1, max_length=40, pattern=r"^[\w-]+$")
+    x: float = Field(ge=0, le=6000)
+    y: float = Field(ge=0, le=6000)
+    horiz: bool
+    lado: int = Field(1, ge=-1, le=1)
+    altura: float = Field(1.45, ge=0.3, le=2.4)
+    texto: str = Field(min_length=1, max_length=160)
+    cor: str = Field("azul", pattern=r"^(azul|preto|vermelho)$")
+    tamanho: int = Field(2, ge=1, le=4)
+    autor: str = Field("", max_length=80)
+    criado_em: int = 0
 
 
 class MapaIn(BaseModel):
@@ -995,6 +1046,8 @@ class MapaIn(BaseModel):
     # ids de móveis/janelas criados sozinhos uma vez (mesa de cada sala, janela em frente à porta): apagar não os recria
     auto: list[Annotated[str, Field(max_length=40)]] = Field(default_factory=list, max_length=400)
     andar: int = Field(9, ge=0, le=200)   # andar do prédio onde fica o escritório (3D)
+    pessoas: list[PessoaMapa] = Field(default_factory=list, max_length=200)
+    escritas: list[EscritaMapa] = Field(default_factory=list, max_length=300)
 
 
 MAPA_PADRAO = {"largura": 1400, "altura": 900, "salas": {}, "ares": {}, "elementos": []}
@@ -1021,9 +1074,12 @@ def ver_mapa(request: Request):
         "mapa": {"largura": mapa["largura"], "altura": mapa["altura"],
                  "salas": {k: v for k, v in mapa["salas"].items() if k in ids_p},
                  "ares": {k: v for k, v in mapa["ares"].items() if k in ids_a},
-                 "elementos": mapa["elementos"], "atualizado_em": mapa.get("atualizado_em")},
+                 "elementos": mapa["elementos"], "atualizado_em": mapa.get("atualizado_em"),
+                 "auto": mapa.get("auto", []), "andar": mapa.get("andar", 9),
+                 "pessoas": mapa.get("pessoas", []), "escritas": mapa.get("escritas", [])},
         "projetos": projetos, "ares": ares, "pode_editar": acesso.pode("projetos.gerenciar"),
-        "edita_elementos": tudo,
+        "edita_elementos": tudo, "pode_controlar": acesso.pode("aparelhos.controlar"),
+        "admin": (acesso.atual.get() or {}).get("papel") in ("dono", "admin"),
     }
 
 
@@ -1045,11 +1101,80 @@ def salvar_mapa(d: MapaIn, request: Request):
         salas.update({k: v.model_dump() for k, v in d.salas.items() if k.isdigit() and int(k) in permitidos})
         ares = {k: v for k, v in antigo["ares"].items() if k not in meus_ares}
         ares.update({k: v.model_dump() for k, v in d.ares.items() if k in meus_ares})
-        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"], "auto": antigo.get("auto", []), "andar": antigo.get("andar", 9)}
+        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"], "auto": antigo.get("auto", []), "andar": antigo.get("andar", 9),
+                "pessoas": antigo.get("pessoas", []), "escritas": antigo.get("escritas", [])}
     novo["atualizado_em"] = db.agora()
     db.set_cfg("mapa", novo)
     db.registrar("painel", "Mapa do escritório atualizado", detalhe=f"{len(novo['salas'])} sala(s), {len(novo['ares'])} ar(es), {len(novo['elementos'])} elemento(s)")
     return ver_mapa(request)
+
+
+# Ações rápidas fora da edição (não mexem no resto da planta): persiana e liga/desliga de itens do mapa,
+# equipe (avatares com nome, cargo e expediente) e escritas nos vidros.
+class ItemMapaIn(BaseModel):
+    aberta: int | None = Field(None, ge=0, le=100)
+    ligado: bool | None = None
+
+
+@api.post("/mapa/elementos/{eid}/estado")
+def mexer_item_mapa(eid: str, d: ItemMapaIn, request: Request):
+    from .. import acesso
+    if not (acesso.pode("aparelhos.controlar") or acesso.pode("projetos.gerenciar")):
+        raise HTTPException(403, "Sem permissão para mexer nos itens do mapa.")
+    mapa = {**MAPA_PADRAO, **(db.cfg("mapa") or {})}
+    el = next((e for e in mapa["elementos"] if e.get("id") == eid), None)
+    if not el:
+        raise HTTPException(404, "Item não encontrado no mapa.")
+    if d.aberta is not None:
+        if el.get("tipo") != "janela":
+            raise HTTPException(422, "Só janelas têm persiana.")
+        el["aberta"] = d.aberta
+    if d.ligado is not None:
+        el["ligado"] = d.ligado
+    db.set_cfg("mapa", mapa)
+    acao = f"persiana {d.aberta}% aberta" if d.aberta is not None else ("ligado" if d.ligado else "desligado")
+    db.registrar("painel", f"Mapa: {el.get('rotulo') or el.get('tipo')} {acao}")
+    return ver_mapa(request)
+
+
+@api.put("/mapa/pessoas")
+def salvar_pessoas_mapa(pessoas: list[PessoaMapa], request: Request):
+    _so_dono_admin_mapa()
+    if len(pessoas) > 200:
+        raise HTTPException(422, "No máximo 200 pessoas.")
+    mapa = {**MAPA_PADRAO, **(db.cfg("mapa") or {})}
+    mapa["pessoas"] = [p.model_dump() for p in pessoas]
+    db.set_cfg("mapa", mapa)
+    db.registrar("painel", "Equipe do mapa atualizada", detalhe=f"{len(pessoas)} pessoa(s)")
+    return ver_mapa(request)
+
+
+@api.put("/mapa/escritas")
+def salvar_escritas_mapa(escritas: list[EscritaMapa], request: Request):
+    u = _so_dono_admin_mapa()
+    if len(escritas) > 300:
+        raise HTTPException(422, "No máximo 300 escritas.")
+    mapa = {**MAPA_PADRAO, **(db.cfg("mapa") or {})}
+    antigas = {e.get("id"): e for e in mapa.get("escritas", [])}
+    lista = []
+    for e in escritas:
+        x = e.model_dump()
+        velha = antigas.get(e.id)
+        x["autor"] = (velha or {}).get("autor") or u.get("email", "")
+        x["criado_em"] = (velha or {}).get("criado_em") or db.agora()
+        lista.append(x)
+    mapa["escritas"] = lista
+    db.set_cfg("mapa", mapa)
+    db.registrar("painel", "Escritas nos vidros do mapa atualizadas", detalhe=f"{len(lista)} escrita(s)")
+    return ver_mapa(request)
+
+
+def _so_dono_admin_mapa():
+    from .. import acesso
+    u = acesso.atual.get()
+    if not u or u.get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só o dono e os administradores mudam a equipe e as escritas do mapa.")
+    return u
 
 
 # ---------------- cenas ----------------

@@ -108,3 +108,55 @@ export function colocarMoveis(m, projetos) {
   return m
 }
 
+
+// ---------- equipe (avatares com nome, cargo e expediente) ----------
+export const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+// dia da semana e minuto do dia no horário de Brasília
+export function horaBR(d = new Date()) {
+  const x = new Date(d.getTime() - 3 * 3600e3)
+  return { dia: x.getUTCDay(), min: x.getUTCHours() * 60 + x.getUTCMinutes() }
+}
+const minutos = (s) => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0) }
+export function noExpediente(p, agora = horaBR()) {
+  const ini = minutos(p.inicio || '08:00'), fim = minutos(p.fim || '18:00'), dias = p.dias || [1, 2, 3, 4, 5]
+  if (ini === fim) return false
+  if (ini < fim) return dias.includes(agora.dia) && agora.min >= ini && agora.min < fim
+  return (dias.includes(agora.dia) && agora.min >= ini) || (dias.includes((agora.dia + 6) % 7) && agora.min < fim)   // turno que vira a noite
+}
+export function situacaoExpediente(p, agora = horaBR()) {
+  const dias = p.dias || [1, 2, 3, 4, 5]
+  if (!dias.length) return 'Sem dias de expediente'
+  if (noExpediente(p, agora)) return `No expediente até ${p.fim || '18:00'}`
+  const ini = minutos(p.inicio || '08:00')
+  for (let k = 0; k < 8; k++) {
+    const d = (agora.dia + k) % 7
+    if (dias.includes(d) && (k > 0 || agora.min < ini)) return `Fora do expediente · volta ${k === 0 ? 'hoje' : k === 1 ? 'amanhã' : DIAS_SEMANA[d]} às ${p.inicio || '08:00'}`
+  }
+  return 'Fora do expediente'
+}
+
+// Lugares onde alguém pode sentar, com o mesmo id que a planta 3D usa: mesa individual (id do elemento),
+// cada cadeira das fileiras de mesas (id:i:a|b), cada posto da bancada (id:i) e a mesa automática da sala (sala-<id>).
+export function postosDoMapa(mapa, projetos) {
+  const salas = projetos.filter((p) => mapa.salas[p.id]).map((p) => ({ ...mapa.salas[p.id], p }))
+  const salaDe = (e) => { const [x, y] = girarPonto(e, e.w / 2, e.h / 2); return salas.find((s) => x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h) }
+  const out = []
+  for (const e of mapa.elementos) {
+    const s = salaDe(e), nomeSala = s?.p.nome || 'Fora das salas'
+    if (e.tipo === 'estacao') out.push({ id: e.id, rotulo: `${nomeSala} · ${e.rotulo || 'mesa individual'}`, sala: s ? String(s.p.id) : '' })
+    if (e.tipo === 'mesa') {
+      const n = Math.max(1, Math.floor(Math.max(e.w, e.h) * 0.01 / 1.25))
+      for (let i = 0; i < n; i++) for (const l of ['a', 'b']) out.push({ id: `${e.id}:${i}:${l}`, rotulo: `${nomeSala} · ${e.rotulo || 'mesas'} · lugar ${i * 2 + (l === 'a' ? 1 : 2)}`, sala: s ? String(s.p.id) : '' })
+    }
+    if (e.tipo === 'bancada') {
+      const longo = (e.h > e.w * 1.2 ? e.h : e.w) * 0.01, n = Math.max(1, Math.round(longo / 1.2))
+      for (let i = 0; i < n; i++) out.push({ id: `${e.id}:${i}`, rotulo: `${nomeSala} · bancada · posto ${i + 1}`, sala: s ? String(s.p.id) : '' })
+    }
+  }
+  const MOVEIS = ['mesa', 'bancada', 'sofa', 'estacao', 'gaveteiro']
+  for (const s of salas) {
+    if (/reuni/i.test(s.p.nome) || mapa.elementos.some((e) => MOVEIS.includes(e.tipo) && salaDe(e) === s)) continue
+    out.push({ id: `sala-${s.p.id}`, rotulo: `${s.p.nome} · mesa da sala`, sala: String(s.p.id) })
+  }
+  return out
+}

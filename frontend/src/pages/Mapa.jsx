@@ -1,11 +1,13 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AirVent, AppWindow, Archive, Armchair, ArrowRight, Box, ChevronRight, Columns2, DoorOpen, Droplets, Expand, Grid3x3, Laptop, LayoutGrid, Leaf, Minus, Monitor, Pencil, Plus, Power, RotateCw, Save, Snowflake, Sparkles, Square, Sun, Table2, Trash2, Type, Undo2, Wind, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { AirVent, AppWindow, Archive, Armchair, ArrowRight, Store, Box, ChevronRight, Columns2, DoorOpen, Droplets, Expand, Grid3x3, Laptop, LayoutGrid, Leaf, Minus, Monitor, Pencil, Plus, Power, RotateCw, Save, Snowflake, Sparkles, Square, Sun, Table2, Trash2, Type, Undo2, Wind, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { api, haQuanto, MODOS, VENTILACAO } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, useDados, useToast } from '../components/ui'
-import { completar } from '../mapaUtil'
+import { completar, postosDoMapa } from '../mapaUtil'
+import { CORES_ITEM, ITEM, larguraTV, MODELOS_AR, CORES_AR } from '../catalogoMapa'
+import { EditorPessoa, LojaMapa, novaPessoa, PainelEquipe } from '../components/EquipeMapa'
 
 // Mapa do escritório: planta em SVG onde cada sala é um projeto e cada sala pode ter vários ares.
 // Ver: estado ao vivo de cada ar (cor do modo, fluxo de ar animado quando ligado) e controle direto.
@@ -21,7 +23,8 @@ const ELEMENTOS = [
   ['parede', 'Parede', Square, 200, 10], ['coluna', 'Coluna', Grid3x3, 30, 30], ['planta', 'Planta', Leaf, 34, 34], ['monitor', 'Monitor', Monitor, 100, 10],
   ['texto', 'Texto', Type, 120, 30], ['ar_previsto', 'Ar previsto', AirVent, 86, 22],
 ]
-const NOME_EL = Object.fromEntries(ELEMENTOS.map((e) => [e[0], e[1]]))
+const NOME_EL = { ...Object.fromEntries(ELEMENTOS.map((e) => [e[0], e[1]])), ...Object.fromEntries(Object.values(ITEM).filter((c) => !ELEMENTOS.some((e) => e[0] === c.tipo)).map((c) => [c.tipo, c.nome])) }
+const COM_COR = ['porta', 'mesa', 'estacao', 'bancada', 'armario', 'gaveteiro', 'sofa', 'monitor', 'rack', 'roteador', 'impressora', 'nobreak', 'projetor', 'camera', 'alexa', 'ventilador', 'purificador', 'bebedouro', 'frigobar', 'cadeira', 'quadro']
 const snap = (v) => Math.round(v / GRADE) * GRADE
 const lim = (v, a, b) => Math.max(a, Math.min(b, v))
 const copia = (o) => JSON.parse(JSON.stringify(o))
@@ -129,6 +132,14 @@ function Elemento({ e, selecionado, editando, aoArrastar, aoClicar }) {
         })}
         {e.h > e.w * 1.2 ? <line x1={e.w - 2} x2={e.w - 2} y1="0" y2={e.h} stroke="#92400e" strokeWidth="2.5" /> : <line x1="0" x2={e.w} y1={e.h - 2} y2={e.h - 2} stroke="#92400e" strokeWidth="2.5" />}</>
       break
+    case 'rack': case 'roteador': case 'impressora': case 'nobreak': case 'projetor': case 'camera': case 'alexa':
+    case 'ventilador': case 'purificador': case 'bebedouro': case 'frigobar': case 'cadeira': case 'quadro': {
+      const I = ITEM[e.tipo]?.icone, lado = Math.min(e.w, e.h)
+      corpo = <><rect width={e.w} height={e.h} rx={e.tipo === 'cadeira' || e.tipo === 'ventilador' ? lado / 2 : 4} fill={e.cor || preench} fillOpacity={e.cor ? 0.35 : 1} stroke={tracos} strokeWidth="1.2" />
+        {I && lado >= 14 && <I x={e.w / 2 - Math.min(16, lado * 0.7) / 2} y={e.h / 2 - Math.min(16, lado * 0.7) / 2} width={Math.min(16, lado * 0.7)} height={Math.min(16, lado * 0.7)} stroke="hsl(var(--muted-foreground))" />}
+        {e.tipo === 'rack' && <line x1="0" y1={e.h - 2} x2={e.w} y2={e.h - 2} stroke={tracos} strokeWidth="2.5" />}</>
+      break
+    }
     default: // armario
       corpo = <><rect width={e.w} height={e.h} fill={preench} stroke={tracos} strokeWidth="1.2" />
         <line x1="0" y1="0" x2={e.w} y2={e.h} stroke={tracos} strokeWidth="0.8" /><line x1={e.w} y1="0" x2="0" y2={e.h} stroke={tracos} strokeWidth="0.8" /></>
@@ -235,6 +246,7 @@ export default function Mapa() {
   const svgRef = useRef(null)
   const caixaRef = useRef(null)
   const arrasto = useRef(null)
+  const cliqueDeItem = useRef(false)   // o clique que vem depois de apertar num item cai no SVG (captura): não limpa a seleção
   const podeControlar = !!sessao?.permissoes?.includes('aparelhos.controlar')
 
   // ao vivo: atualiza o estado dos ares a cada 10 s (fora da edição)
@@ -254,6 +266,27 @@ export default function Mapa() {
     setDados((d) => ({ ...d, ares: d.ares.map((a) => (a.id === novo.id ? { ...a, ...novo } : a)) }))
   }, [setDados])
 
+  // ---------- ações rápidas do 3D (sem entrar na edição) ----------
+  const [editandoPessoa, setEditandoPessoa] = useState(null)   // pessoa (nova ou existente) no editor
+  const [salvandoPessoa, setSalvandoPessoa] = useState(false)
+  const pessoasAtuais = dados?.mapa?.pessoas || []
+  const salvarEquipe = async (lista) => setDados(await api.put('/api/mapa/pessoas', lista))
+  const acoes3d = useMemo(() => ({
+    persiana: async (id, aberta) => { try { setDados(await api.post(`/api/mapa/elementos/${encodeURIComponent(id)}/estado`, { aberta })) } catch (e) { toast(e.message, 'erro') } },
+    ligarItem: async (id, ligado) => { try { setDados(await api.post(`/api/mapa/elementos/${encodeURIComponent(id)}/estado`, { ligado })) } catch (e) { toast(e.message, 'erro') } },
+    salvarEscritas: async (lista) => { try { setDados(await api.put('/api/mapa/escritas', lista)) } catch (e) { toast(e.message, 'erro'); throw e } },
+    editarPessoa: (id, preset) => setEditandoPessoa(id ? pessoasAtuais.find((p) => p.id === id) || null : novaPessoa(preset)),
+  }), [setDados, toast, pessoasAtuais])
+  const salvarPessoa = async (p) => {
+    setSalvandoPessoa(true)
+    try { await salvarEquipe([...pessoasAtuais.filter((x) => x.id !== p.id), p]); setEditandoPessoa(null); toast(`${p.nome} salvo na equipe.`) } catch (e) { toast(e.message, 'erro') } finally { setSalvandoPessoa(false) }
+  }
+  const apagarPessoa = async (p) => {
+    if (!window.confirm(`Tirar ${p.nome} da equipe? O avatar volta a ser uma pessoa sem nome.`)) return
+    setSalvandoPessoa(true)
+    try { await salvarEquipe(pessoasAtuais.filter((x) => x.id !== p.id)); setEditandoPessoa(null) } catch (e) { toast(e.message, 'erro') } finally { setSalvandoPessoa(false) }
+  }
+
   // ---------- edição ----------
   const mexer = (fn) => setRascunho((r) => { setHistorico((h) => [...h.slice(-49), r]); const n = copia(r); fn(n); return n })
   const desfazer = () => setHistorico((h) => { if (!h.length) return h; setRascunho(h[h.length - 1]); return h.slice(0, -1) })
@@ -265,7 +298,7 @@ export default function Mapa() {
   const salvar = async () => {
     setSalvando(true)
     try {
-      const corpo = { largura: rascunho.largura, altura: rascunho.altura, salas: rascunho.salas, ares: rascunho.ares, elementos: rascunho.elementos, auto: rascunho.auto || [], andar: Number.isFinite(+rascunho.andar) ? +rascunho.andar : 9 }
+      const corpo = { largura: rascunho.largura, altura: rascunho.altura, salas: rascunho.salas, ares: rascunho.ares, elementos: rascunho.elementos, auto: rascunho.auto || [], andar: Number.isFinite(+rascunho.andar) ? +rascunho.andar : 9, pessoas: rascunho.pessoas || [], escritas: rascunho.escritas || [] }
       setDados(await api.put('/api/mapa', corpo)); setEditando(false); setRascunho(null); setHistorico([])
       toast('Planta salva.')
     } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
@@ -279,6 +312,7 @@ export default function Mapa() {
     ev.stopPropagation(); ev.preventDefault()
     const p0 = ponto(ev)
     arrasto.current = { tipo, id, modo, p0, antes: copia(rascunho), mexeu: false }
+    cliqueDeItem.current = true
     setSel({ tipo, id })
     svgRef.current.setPointerCapture?.(ev.pointerId)
   }
@@ -326,6 +360,19 @@ export default function Mapa() {
     mexer((n) => n.elementos.push({ id, tipo, x: snap(lim(cx - def[3] / 2 + desvio, 0, n.largura - def[3])), y: snap(lim(cy - def[4] / 2 + desvio, 0, n.altura - def[4])), w: def[3], h: def[4], rot: 0, rotulo: tipo === 'texto' ? 'Recepção' : '' }))
     setSel({ tipo: 'elemento', id })
   }
+  const [lojaAberta, setLojaAberta] = useState(false)
+  const doCatalogo = (c, esc) => {
+    const id = `${c.tipo}-${Date.now().toString(36)}`
+    const caixa = caixaRef.current
+    const w = c.tipo === 'monitor' ? larguraTV(esc.modelo) : c.w, h = c.h
+    const cx = caixa ? (caixa.scrollLeft + caixa.clientWidth / 2) / (caixa.scrollWidth || 1) * rascunho.largura : rascunho.largura / 2
+    const cy = caixa ? (caixa.scrollTop + caixa.clientHeight / 2) / (caixa.scrollHeight || 1) * rascunho.altura : rascunho.altura / 2
+    mexer((n) => n.elementos.push({ id, tipo: c.tipo, x: snap(lim(cx - w / 2, 0, n.largura - w)), y: snap(lim(cy - h / 2, 0, n.altura - h)), w, h, rot: 0, rotulo: '', modelo: c.modelos.length > 1 || c.tipo === 'monitor' ? esc.modelo : '', cor: c.tipo === 'ar_previsto' || c.tipo === 'planta' || esc.cor === c.cor ? '' : esc.cor, ligado: true, aberta: 50 }))
+    setSel({ tipo: 'elemento', id }); setLojaAberta(false)
+    toast(`${c.nome} colocado no meio da planta. Arraste para o lugar.`)
+  }
+  const mexerEl = (k, v) => mexer((n) => { const o = n.elementos.find((x) => x.id === sel.id); if (o) o[k] = v })
+  const mexerAr = (k, v) => mexer((n) => { const o = n.ares[sel.id]; if (o) o[k] = v })
   const girar = () => {
     if (!sel || sel.tipo === 'sala') return
     mexer((n) => {
@@ -430,6 +477,7 @@ export default function Mapa() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
             {editando ? (
               <div className="flex flex-wrap items-center gap-1">
+                <button onClick={() => setLojaAberta(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"><Store className="h-3.5 w-3.5" />Loja</button>
                 {ELEMENTOS.map(([k, r, I]) => (
                   <button key={k} onClick={() => adicionar(k)} title={`Adicionar ${r.toLowerCase()}`}
                     className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><I className="h-3.5 w-3.5" />{r}</button>
@@ -453,12 +501,15 @@ export default function Mapa() {
           </div>
           {!editando && vista === '3d' ? (
             <Suspense fallback={<div className="flex h-[68vh] items-center justify-center text-sm text-muted-foreground">Montando o escritório em 3D…</div>}>
-              <Mapa3D mapa={mapa} ares={ares} projetos={projetos} filtro={filtro} selecionado={sel} aoSelecionar={setSel} />
+              <Mapa3D mapa={mapa} ares={ares} projetos={projetos} filtro={filtro} selecionado={sel} aoSelecionar={setSel}
+                acoes={acoes3d} perm={{ controlar: !!(dados.pode_controlar || dados.pode_editar), admin: !!dados.admin }}
+                extra={editandoPessoa && <EditorPessoa key={editandoPessoa.id} dentro inicial={editandoPessoa} postos={postosDoMapa(mapa, projetos)} projetos={projetos} ocupado={salvandoPessoa}
+                  onSalvar={salvarPessoa} onApagar={pessoasAtuais.some((x) => x.id === editandoPessoa.id) ? () => apagarPessoa(editandoPessoa) : null} onFechar={() => setEditandoPessoa(null)} />} />
             </Suspense>
           ) : (
           <div ref={caixaRef} className="max-h-[72vh] overflow-auto bg-card">
             <svg ref={svgRef} viewBox={vb.join(' ')} style={{ width: `${zoom * 100}%`, minWidth: zoom * 640 }} className="block select-none touch-none"
-              onPointerMove={editando ? mover : undefined} onPointerUp={soltar} onPointerLeave={soltar} onClick={() => setSel(null)}>
+              onPointerMove={editando ? mover : undefined} onPointerUp={soltar} onPointerLeave={soltar} onClick={() => { if (cliqueDeItem.current) { cliqueDeItem.current = false; return } setSel(null) }}>
               <defs>
                 <pattern id="grade-fina" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="hsl(var(--border))" strokeWidth="0.5" /></pattern>
                 <pattern id="grade" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#grade-fina)" /><path d="M 100 0 L 0 0 0 100" fill="none" stroke="hsl(var(--border))" strokeWidth="1" /></pattern>
@@ -539,7 +590,34 @@ export default function Mapa() {
                   <div className="space-y-3 border-t border-border pt-4 text-sm">
                     <p className="font-medium">{sel.tipo === 'sala' ? projetos.find((p) => String(p.id) === String(sel.id))?.nome
                       : sel.tipo === 'ar' ? ares.find((a) => String(a.id) === String(sel.id))?.nome : NOME_EL[elSel?.tipo]}</p>
-                    {elSel && elSel.tipo !== 'ar_previsto' && ['texto', 'mesa', 'estacao', 'bancada', 'armario', 'gaveteiro', 'sofa', 'monitor'].includes(elSel.tipo) && <input placeholder="Nome (opcional)" value={elSel.rotulo} maxLength={40} onChange={(e) => mexer((n) => { n.elementos.find((x) => x.id === sel.id).rotulo = e.target.value })} className="campo h-9" aria-label="Texto" />}
+                    {elSel && elSel.tipo !== 'ar_previsto' && (elSel.tipo === 'texto' || (COM_COR.includes(elSel.tipo) && elSel.tipo !== 'porta')) && <input placeholder="Nome (opcional)" value={elSel.rotulo} maxLength={40} onChange={(e) => mexer((n) => { n.elementos.find((x) => x.id === sel.id).rotulo = e.target.value })} className="campo h-9" aria-label="Texto" />}
+                    {elSel && dados.edita_elementos && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {[['x', 'X'], ['y', 'Y'], ['w', 'Larg.'], ['h', 'Prof.']].map(([k, n]) => (
+                          <label key={k} className="text-[11px] text-muted-foreground">{n}<input type="number" step="10" value={Math.round(elSel[k])} onChange={(e) => { const v = +e.target.value; if (Number.isFinite(v)) mexerEl(k, k === 'w' || k === 'h' ? Math.max(4, v) : Math.max(0, v)) }} className="campo mt-0.5 h-8 px-2 text-xs tabular" /></label>
+                        ))}
+                        <label className="col-span-2 text-[11px] text-muted-foreground">Giro<select value={elSel.rot || 0} onChange={(e) => mexerEl('rot', +e.target.value)} className="campo mt-0.5 h-8 text-xs">{[0, 90, 180, 270].map((g) => <option key={g} value={g}>{g}°</option>)}</select></label>
+                        {(ITEM[elSel.tipo]?.modelos?.length > 1) && (
+                          <label className="col-span-2 text-[11px] text-muted-foreground">Modelo<select value={elSel.modelo || ITEM[elSel.tipo].modelos[0]} onChange={(e) => { const m = e.target.value; mexer((n) => { const o = n.elementos.find((x) => x.id === sel.id); o.modelo = m; if (o.tipo === 'monitor') o.w = larguraTV(m) }) }} className="campo mt-0.5 h-8 text-xs">{ITEM[elSel.tipo].modelos.map((m) => <option key={m}>{m}</option>)}</select></label>
+                        )}
+                      </div>
+                    )}
+                    {elSel && dados.edita_elementos && COM_COR.includes(elSel.tipo) && (
+                      <div>
+                        <p className="mb-1 text-[11px] text-muted-foreground">Cor{elSel.tipo === 'porta' ? ' da porta' : ''}</p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button onClick={() => mexerEl('cor', '')} className={`h-6 rounded-full border px-2 text-[11px] ${!elSel.cor ? 'ring-2 ring-[hsl(var(--primary))]' : 'border-border'}`}>Padrão</button>
+                          {CORES_ITEM.map(([c, nome]) => <button key={c} onClick={() => mexerEl('cor', c)} title={nome} aria-label={nome} className={`h-6 w-6 rounded-full border ${elSel.cor === c ? 'ring-2 ring-[hsl(var(--primary))] ring-offset-1 ring-offset-[hsl(var(--card))]' : 'border-border'}`} style={{ background: c }} />)}
+                          <input type="color" value={elSel.cor || '#888888'} onChange={(e) => mexerEl('cor', e.target.value)} className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent" aria-label="Outra cor" />
+                        </div>
+                      </div>
+                    )}
+                    {sel.tipo === 'ar' && rascunho.ares[sel.id] && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="text-[11px] text-muted-foreground">Modelo no 3D<select value={rascunho.ares[sel.id].modelo || 'split'} onChange={(e) => mexerAr('modelo', e.target.value)} className="campo mt-0.5 h-8 text-xs">{MODELOS_AR.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select></label>
+                        <div><p className="mb-1 text-[11px] text-muted-foreground">Cor</p><div className="flex gap-1.5">{CORES_AR.map(([c, nome]) => <button key={c} onClick={() => mexerAr('cor', c === '#f8fafc' ? '' : c)} title={nome} aria-label={nome} className={`h-6 w-6 rounded-full border ${(rascunho.ares[sel.id].cor || '#f8fafc') === c ? 'ring-2 ring-[hsl(var(--primary))] ring-offset-1 ring-offset-[hsl(var(--card))]' : 'border-border'}`} style={{ background: c }} />)}</div></div>
+                      </div>
+                    )}
                     {sel.tipo === 'sala' && (
                       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                         <span>Posição {rascunho.salas[sel.id].x}, {rascunho.salas[sel.id].y}</span><span>Tamanho {rascunho.salas[sel.id].w} × {rascunho.salas[sel.id].h}</span>
@@ -649,7 +727,11 @@ export default function Mapa() {
               </motion.div>
             )}
           </AnimatePresence>
+          {!editando && <PainelEquipe pessoas={pessoasAtuais} projetos={projetos} admin={!!dados.admin} onNova={() => acoes3d.editarPessoa(null, {})} onEditar={(id) => acoes3d.editarPessoa(id)} />}
         </aside>
+        <LojaMapa aberto={lojaAberta} onFechar={() => setLojaAberta(false)} onAdicionar={doCatalogo} />
+        {editandoPessoa && !(vista === '3d' && !editando) && <EditorPessoa key={editandoPessoa.id} inicial={editandoPessoa} postos={postosDoMapa(mapa, projetos)} projetos={projetos} ocupado={salvandoPessoa}
+          onSalvar={salvarPessoa} onApagar={pessoasAtuais.some((x) => x.id === editandoPessoa.id) ? () => apagarPessoa(editandoPessoa) : null} onFechar={() => setEditandoPessoa(null)} />}
       </div>
     </div>
   )
