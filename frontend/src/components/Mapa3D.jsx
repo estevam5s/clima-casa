@@ -465,11 +465,30 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     }
     const externa = (sg) => sg.horiz ? Math.abs(sg.k - y0) < 8 || Math.abs(sg.k - y1) < 8 : Math.abs(sg.k - x0) < 8 || Math.abs(sg.k - x1) < 8
     const privativas = salasPrivativas(mapa, salas.map((s) => s.p))
-    const deVidro = (sg) => !externa(sg) && privativas.some(({ s, lado }) => {
+    // salas dos dois lados de um trecho de parede
+    const vizinhas = (sg) => {
       const meio = (sg.a + sg.b) / 2
-      if (lado === 'cima' || lado === 'baixo') return sg.horiz && Math.abs(sg.k - (lado === 'cima' ? s.y : s.y + s.h)) < 8 && meio > s.x && meio < s.x + s.w
-      return !sg.horiz && Math.abs(sg.k - (lado === 'esq' ? s.x : s.x + s.w)) < 8 && meio > s.y && meio < s.y + s.h
-    })
+      return salas.filter((s) => sg.horiz
+        ? (Math.abs(sg.k - s.y) < 8 || Math.abs(sg.k - (s.y + s.h)) < 8) && meio > s.x && meio < s.x + s.w
+        : (Math.abs(sg.k - s.x) < 8 || Math.abs(sg.k - (s.x + s.w)) < 8) && meio > s.y && meio < s.y + s.h)
+    }
+    const idsPriv = new Set(privativas.map((v) => v.p.id))
+    const maiorSala = [...salas].sort((a, b) => b.w * b.h - a.w * a.h)[0]
+    // vidro: (1) parede da porta das salas privativas; (2) divisórias entre duas salas privativas;
+    // (3) a parede da bancada que dá para o salão. Nunca nas externas.
+    const deVidro = (sg) => {
+      if (externa(sg)) return false
+      const meio = (sg.a + sg.b) / 2
+      const portaPriv = privativas.some(({ s, lado }) => {
+        if (lado === 'cima' || lado === 'baixo') return sg.horiz && Math.abs(sg.k - (lado === 'cima' ? s.y : s.y + s.h)) < 8 && meio > s.x && meio < s.x + s.w
+        return !sg.horiz && Math.abs(sg.k - (lado === 'esq' ? s.x : s.x + s.w)) < 8 && meio > s.y && meio < s.y + s.h
+      })
+      if (portaPriv) return true
+      const lados = vizinhas(sg)
+      if (lados.length === 2 && lados.every((s) => idsPriv.has(s.p.id))) return true
+      if (lados.length === 2 && lados.some((s) => s === maiorSala) && lados.some((s) => /bancada/i.test(s.p.nome))) return true
+      return false
+    }
     let entrada = null
     for (const sg of segs) {
       const vid = deVidro(sg)
@@ -485,8 +504,15 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     }
 
     // prédio em volta (fecha o andar; clicar abre)
-    const predio = comPredio ? montarPredio({ bx0: W(x0) - 0.35, bx1: W(x1) + 0.35, bz0: Z(y0) - 0.35, bz1: Z(y1) + 0.35, entrada, nome: marca?.nome || '', noite: ceu.noite, r }) : null
-    if (predio) { mundo.add(predio.grupo); predio.aplicar(E.aberto ? 1 : 0); predio.tick(0, 0) }
+    const andar = Number.isFinite(+mapa.andar) ? +mapa.andar : 9
+    const predio = comPredio ? montarPredio({ bx0: W(x0) - 0.35, bx1: W(x1) + 0.35, bz0: Z(y0) - 0.35, bz1: Z(y1) + 0.35, entrada, nome: marca?.nome || '', noite: ceu.noite, r, andar }) : null
+    if (predio) {
+      mundo.add(predio.grupo); predio.aplicar(E.aberto ? 1 : 0); predio.tick(0, 0)
+      chao.position.y = -predio.yA - 0.02; calcada.visible = false
+      // placa do andar do escritório, visível com o prédio fechado
+      const pl = etiqueta(`${marca?.nome || 'Escritório'} · ${andar}º andar`, '#ffffff', 'rgba(15,118,106,0.92)')
+      pl.position.set(W(x1) + 3, 2, Z(y1) + 3); pl.scale.multiplyScalar(7); mundo.add(pl); E.placaAndar = pl
+    }
     E.predio = predio
     // luz de teto: painéis acesos (fortes à noite) e uma luz por sala
     const paineis = []
@@ -510,6 +536,21 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const matPreto = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.4 })
     const matTela = new THREE.MeshStandardMaterial({ color: 0x0b1220, emissive: 0x2563eb, emissiveIntensity: 0.35, roughness: 0.2 })
     const matCadeira = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 })
+    // conteúdo da TV: painel com o nome da marca, um gráfico de linha e barras (desenho, não dado real)
+    const texTela = (() => {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 288
+      const g = c.getContext('2d')
+      g.fillStyle = '#0b1220'; g.fillRect(0, 0, 512, 288)
+      g.fillStyle = '#0f766a'; g.fillRect(0, 0, 512, 34)
+      g.fillStyle = '#ffffff'; g.font = '600 18px system-ui, sans-serif'; g.textBaseline = 'middle'; g.fillText(marca?.nome || 'Clima Escritório', 14, 18)
+      g.strokeStyle = '#38bdf8'; g.lineWidth = 3; g.beginPath()
+      for (let i = 0; i <= 20; i++) { const xx = 20 + i * 15, yy = 150 - Math.sin(i * 0.6) * 30 - i * 2; if (i) g.lineTo(xx, yy); else g.moveTo(xx, yy) }
+      g.stroke()
+      for (let i = 0; i < 7; i++) { g.fillStyle = i % 2 ? '#14b8a6' : '#3b82f6'; const hh = 30 + ((i * 37) % 70); g.fillRect(350 + i * 20, 250 - hh, 14, hh) }
+      g.fillStyle = '#1e293b'; for (let i = 0; i < 3; i++) g.fillRect(20 + i * 104, 200, 94, 60)
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace
+      return t
+    })()
     const caixa = (w, h, d, mat, x, y, z, ry = 0, pai = mundo) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; pai.add(m); return m
     }
@@ -606,11 +647,14 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const vaso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.35, 16), new THREE.MeshStandardMaterial({ color: 0x78716c })); vaso.position.set(x, 0.175, z); vaso.castShadow = true; mundo.add(vaso)
         for (let i = 0; i < 4; i++) { const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2 + r() * 0.08, 1), new THREE.MeshStandardMaterial({ color: 0x2f855a, roughness: 0.9, flatShading: true })); f.position.set(x + (r() - 0.5) * 0.2, 0.55 + r() * 0.35, z + (r() - 0.5) * 0.2); f.castShadow = true; mundo.add(f) }
       } else if (e.tipo === 'monitor') {
-        const vertical = d > w
-        const tv = caixa(vertical ? 0.06 : w, 0.6, vertical ? d : 0.06, matPreto, x, 1.55, z, ry)
-        const tela = new THREE.Mesh(new THREE.PlaneGeometry(vertical ? d * 0.94 : w * 0.94, 0.54), new THREE.MeshStandardMaterial({ color: 0x0b1220, emissive: 0x38bdf8, emissiveIntensity: 0.25 }))
-        tela.position.copy(tv.position); if (vertical) { tela.rotation.y = Math.PI / 2; tela.position.x += 0.035 } else tela.position.z += 0.035
-        mundo.add(tela)
+        // TV/monitor de parede (16:9) com suporte; a tela olha para +y da planta girado por rot (antigo vertical: +x)
+        const vertical = d > w, larg = Math.max(w, d), alt = larg * 0.5625
+        const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry + (vertical ? Math.PI / 2 : 0); mundo.add(g)
+        const corpo = new THREE.Mesh(new RoundedBoxGeometry(larg, alt, 0.045, 2, 0.01), matPreto); corpo.position.set(0, 1.55, -0.01); corpo.castShadow = true; g.add(corpo)
+        caixa(larg * 0.3, alt * 0.4, 0.03, matPreto, 0, 1.55, -0.045, 0, g)   // suporte de parede
+        const tela = new THREE.Mesh(new THREE.PlaneGeometry(larg * 0.965, alt * 0.94), new THREE.MeshStandardMaterial({ map: texTela, emissiveMap: texTela, emissive: 0xffffff, emissiveIntensity: ceu.noite ? 0.9 : 0.55, roughness: 0.25 }))
+        tela.position.set(0, 1.55, 0.0135); g.add(tela)
+        const led = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), new THREE.MeshBasicMaterial({ color: 0x22c55e })); led.position.set(larg * 0.45, 1.55 - alt * 0.49, 0.015); g.add(led)
       } else if (e.tipo === 'porta') {
         // folha aberta a ~70° a partir da dobradiça (canto local 0,h)
         const [hx, hy] = girar(e, 0, e.h), [fx, fy] = girar(e, e.w, e.h)
@@ -796,6 +840,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (predio) {
         const alvoK = E.aberto ? 1 : 0
         if (Math.abs(predio.k - alvoK) > 0.001) predio.aplicar(THREE.MathUtils.clamp(predio.k + Math.sign(alvoK - predio.k) * dt / 1.4, 0, 1))
+        if (E.placaAndar) E.placaAndar.visible = predio.k < 0.05
       }
       unidades.forEach((u) => {
         if (u.fluxo) {
@@ -825,10 +870,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // câmera enquadrando o prédio
     const enquadrar = (topo = false) => {
       const fechado = predio && !E.aberto
-      const alvo = new THREE.Vector3(0, fechado ? 11 : 0, 0)
+      const alvo = new THREE.Vector3(0, fechado ? -predio.yA + predio.altura * 0.4 : 0, 0)
       const dist = Math.max(x1 - x0, y1 - y0) * S * (topo ? 1.05 : 0.95) * (compacto ? 1.12 : 1)
-      const dimP = Math.max(tam, 16)
-      const destino = fechado ? (topo ? new THREE.Vector3(0, dimP * 4.2, 0.01) : new THREE.Vector3(-dimP * 1.9, dimP * 1.25, dimP * 2.7))
+      const dP = predio ? predio.altura * 1.75 : 0
+      const destino = fechado ? (topo ? new THREE.Vector3(0, alvo.y + dP * 1.2, 0.01) : new THREE.Vector3(-dP * 0.6, alvo.y + dP * 0.28, dP * 0.85))
         : topo ? new THREE.Vector3(0, dist * 1.25, 0.01) : new THREE.Vector3(-dist * 0.25, dist * 0.78, dist * 0.78)
       const de = camera.position.clone(), deAlvo = controles.target.clone()
       if (!E.enquadrado) { camera.position.copy(destino); controles.target.copy(alvo); E.enquadrado = true; return }

@@ -21,6 +21,7 @@
     "react-dom": "18.3.1",
     "react-router-dom": "6.30.6",
     "recharts": "2.13.3",
+    "satellite.js": "^5.0.0",
     "simple-icons": "^16.37.0",
     "three": "0.170.0",
     "topojson-client": "^3.1.0",

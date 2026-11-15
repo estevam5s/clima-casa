@@ -994,6 +994,7 @@ class MapaIn(BaseModel):
     elementos: list[ElementoMapa] = Field(default_factory=list, max_length=400)
     # ids de móveis/janelas criados sozinhos uma vez (mesa de cada sala, janela em frente à porta): apagar não os recria
     auto: list[Annotated[str, Field(max_length=40)]] = Field(default_factory=list, max_length=400)
+    andar: int = Field(9, ge=0, le=200)   # andar do prédio onde fica o escritório (3D)
 
 
 MAPA_PADRAO = {"largura": 1400, "altura": 900, "salas": {}, "ares": {}, "elementos": []}
@@ -1044,7 +1045,7 @@ def salvar_mapa(d: MapaIn, request: Request):
         salas.update({k: v.model_dump() for k, v in d.salas.items() if k.isdigit() and int(k) in permitidos})
         ares = {k: v for k, v in antigo["ares"].items() if k not in meus_ares}
         ares.update({k: v.model_dump() for k, v in d.ares.items() if k in meus_ares})
-        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"], "auto": antigo.get("auto", [])}
+        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"], "auto": antigo.get("auto", []), "andar": antigo.get("andar", 9)}
     novo["atualizado_em"] = db.agora()
     db.set_cfg("mapa", novo)
     db.registrar("painel", "Mapa do escritório atualizado", detalhe=f"{len(novo['salas'])} sala(s), {len(novo['ares'])} ar(es), {len(novo['elementos'])} elemento(s)")
@@ -1121,6 +1122,45 @@ def executar_cena(cid: int):
     return {"resultados": resultados, "ok": all(r["ok"] for r in resultados)}
 
 
+# ---------------- código-fonte e histórico (tela /apps) ----------------
+# backend/app/repositorio.json é gerado a cada publicação por scripts/gerar-repositorio.mjs (commits, arquivos,
+# releases, README) e os pacotes ficam no Storage privado (bucket codigo-fonte). Só dono e admin veem e baixam.
+def _so_dono_admin():
+    from .. import acesso
+    u = acesso.atual.get()
+    if not u or u.get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só o dono e os administradores veem o código-fonte.")
+    return u
+
+
+@api.get("/apps/repositorio")
+def apps_repositorio():
+    _so_dono_admin()
+    from pathlib import Path
+    arq = Path(__file__).resolve().parent.parent / "repositorio.json"
+    if not arq.exists():
+        raise HTTPException(404, "O histórico do código ainda não foi gerado. Publique de novo com ./publicar-vercel.sh.")
+    return json.loads(arq.read_text(encoding="utf-8"))
+
+
+@api.get("/apps/codigo/{arquivo}")
+def apps_codigo(arquivo: str):
+    u = _so_dono_admin()
+    if not re.fullmatch(r"clima-casa-[\w.\-]+\.(zip|tar\.gz)", arquivo):
+        raise HTTPException(422, "Pacote inválido.")
+    env = db.carregar_env()
+    url, chave = env.get("SUPABASE_URL"), env.get("SUPABASE_SECRET_KEY")
+    if not url or not chave:
+        raise HTTPException(503, "Download indisponível neste servidor.")
+    r = httpx.post(f"{url}/storage/v1/object/sign/codigo-fonte/{arquivo}", headers={"apikey": chave, "Authorization": f"Bearer {chave}"},
+                   json={"expiresIn": 120}, timeout=15)
+    if r.status_code != 200:
+        raise HTTPException(404, "Pacote não encontrado. Publique de novo para gerar os pacotes.")
+    assinado = r.json().get("signedURL") or r.json().get("signedUrl")
+    db.registrar("painel", "Código-fonte baixado", detalhe=f"{arquivo} por {u.get('email', '')}")
+    return {"url": f"{url}/storage/v1{assinado}&download={arquivo}", "expira_em": db.agora() + 120}
+
+
 @api.get("/apps/qr")
 def qr_app(alvo: str = "android", request: Request = None):
     """QR Code para abrir o download no celular. Só gera para os destinos conhecidos (nada de URL livre)."""
@@ -1134,6 +1174,54 @@ def qr_app(alvo: str = "android", request: Request = None):
     buf = io.BytesIO()
     qrcode.make(destinos[alvo], box_size=8, border=2).save(buf, format="PNG")
     return {"url": destinos[alvo], "qr": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()}
+
+
+# ---------------- satélites (globo da tela Segurança) ----------------
+# Elementos orbitais (TLE) públicos da CelesTrak, guardados 6 h em config.satelites_tle. O navegador calcula a
+# posição de cada satélite em tempo real (SGP4) a partir deles.
+_GRUPOS_SAT = [("estacoes", "stations", 40), ("visiveis", "visual", 90), ("gps", "gps-ops", 40),
+               ("clima", "weather", 40), ("starlink", "starlink", 160), ("ciencia", "science", 40)]
+
+
+def _ler_tle(texto: str, grupo: str, limite: int) -> list[dict]:
+    linhas = [l.rstrip() for l in texto.splitlines() if l.strip()]
+    out = []
+    for i in range(0, len(linhas) - 2, 3):
+        nome, l1, l2 = linhas[i].strip(), linhas[i + 1], linhas[i + 2]
+        if l1.startswith("1 ") and l2.startswith("2 ") and len(l1) >= 68 and len(l2) >= 68:
+            out.append({"nome": nome[:40], "grupo": grupo, "l1": l1[:69], "l2": l2[:69]})
+        if len(out) >= limite:
+            break
+    return out
+
+
+@api.get("/satelites")
+def satelites():
+    cache = db.cfg("satelites_tle") or {}
+    if cache.get("lista") and db.agora() - int(cache.get("em", 0)) < 6 * 3600:
+        return {"atualizado_em": cache["em"], "fonte": "CelesTrak", "satelites": cache["lista"]}
+    lista, vistos = [], set()
+    try:
+        with httpx.Client(timeout=12, headers={"User-Agent": "clima-escritorio/1.0"}) as cli:
+            for grupo, nome_ct, limite in _GRUPOS_SAT:
+                try:
+                    r = cli.get("https://celestrak.org/NORAD/elements/gp.php", params={"GROUP": nome_ct, "FORMAT": "tle"})
+                    if r.status_code != 200:
+                        continue
+                    for s in _ler_tle(r.text, grupo, limite):
+                        num = s["l1"][2:7]
+                        if num not in vistos:
+                            vistos.add(num); lista.append(s)
+                except httpx.HTTPError:
+                    continue
+    except Exception:  # noqa: BLE001
+        lista = []
+    if lista:
+        db.set_cfg("satelites_tle", {"em": db.agora(), "lista": lista})
+        return {"atualizado_em": db.agora(), "fonte": "CelesTrak", "satelites": lista}
+    if cache.get("lista"):
+        return {"atualizado_em": cache["em"], "fonte": "CelesTrak (cache)", "satelites": cache["lista"]}
+    raise HTTPException(503, "Não consegui buscar os satélites agora. Tente de novo em alguns minutos.")
 
 
 @api.get("/clima-externo")
@@ -1279,6 +1367,64 @@ def criar_no_sinric(aid: int):
     db.executar("UPDATE aparelhos SET sinric_device_id = ? WHERE id = ?", (dev, aid))
     db.registrar("painel", "Criado no Sinric Pro (Alexa/Google)", aparelho_id=aid, detalhe=dev)
     return {"sinric_device_id": dev}
+
+
+@api.get("/sinric/diagnostico")
+def sinric_diagnostico():
+    """Confere, ao vivo, se os aparelhos vão funcionar numa Alexa nova (ou trocada): credencial, agente conectado ao
+    Sinric, aparelhos existentes no Sinric, limite do plano, nomes que a Alexa entende e botões IR gravados."""
+    from .. import sinric
+    c = sinric.config()
+    st = db.cfg("sinric_status") or {}
+    ap = db.consultar("""SELECT a.id, a.nome, a.sinric_device_id, a.alexa,
+                         (SELECT COUNT(*) FROM codigos k WHERE k.aparelho_id = a.id) AS botoes FROM aparelhos a ORDER BY a.nome""")
+    itens = []
+
+    def item(chave, titulo, estado, detalhe, acao=None):
+        itens.append({"chave": chave, "titulo": titulo, "estado": estado, "detalhe": detalhe, "acao": acao})
+
+    tem_cred = bool(c.get("api_key") and c.get("app_key") and c.get("app_secret"))
+    item("credencial", "Credenciais do Sinric Pro", "ok" if tem_cred else "erro",
+         "API Key, App Key e App Secret salvas." if tem_cred else "Falta alguma credencial: preencha no cartão Sinric Pro.")
+    item("ativo", "Integração ligada", "ok" if c.get("ativo") else "erro",
+         "Ligada." if c.get("ativo") else "Desligada: a Alexa vai achar os aparelhos, mas os comandos não chegam.")
+    visto = int(db.cfg("agente_visto_em") or 0)
+    agente_on = db.agora() - visto < 90
+    item("agente", "Agente do Mac ligado", "ok" if agente_on else "erro",
+         "Respondendo." if agente_on else "Sem sinal do agente: os comandos da Alexa passam pelo Mac, ligue-o.")
+    item("websocket", "Agente conectado ao Sinric", "ok" if st.get("conectado") else "erro",
+         "Conectado desde " + time.strftime("%d/%m %H:%M", time.gmtime((st.get("desde") or 0) - 3 * 3600)) + "." if st.get("conectado")
+         else f"Não conectado{': ' + st['erro'] if st.get('erro') else ''}.")
+    remotos = []
+    if tem_cred:
+        try:
+            remotos = sinric.listar_dispositivos()
+        except Exception as e:  # noqa: BLE001
+            item("portal", "Acesso ao portal do Sinric", "erro", f"Não consegui listar os dispositivos: {e}")
+    ids_remotos = {d["id"] for d in remotos}
+    vinc = [a for a in ap if a["sinric_device_id"]]
+    sumidos = [a["nome"] for a in vinc if remotos and a["sinric_device_id"] not in ids_remotos]
+    item("vinculos", "Aparelhos no Sinric", "ok" if vinc and not sumidos else ("aviso" if vinc else "erro"),
+         (f"{len(vinc)} de {len(ap)} aparelho(s) vinculado(s)." + (f" Não existem mais no Sinric: {', '.join(sumidos)}." if sumidos else ""))
+         if vinc else "Nenhum aparelho vinculado: a Alexa não vai encontrar nada.")
+    if remotos:
+        item("plano", "Limite do plano gratuito (3)", "ok" if len(remotos) <= 3 else "aviso",
+             f"{len(remotos)} dispositivo(s) no Sinric." + (" Acima de 3 só no plano pago." if len(remotos) > 3 else ""))
+    nomes = [a["nome"].strip().lower() for a in vinc]
+    repetidos = sorted({n for n in nomes if nomes.count(n) > 1})
+    curtos = [a["nome"] for a in vinc if len(a["nome"].strip()) < 3]
+    item("nomes", "Nomes que a Alexa entende", "ok" if not repetidos and not curtos else "aviso",
+         "Nomes únicos." if not repetidos and not curtos else f"Ajuste: {', '.join(repetidos + curtos)} (nomes repetidos ou curtos confundem a Alexa).")
+    sem_ir = [a["nome"] for a in vinc if not a["botoes"]]
+    item("ir", "Botões do controle gravados", "ok" if vinc and not sem_ir else "aviso",
+         "Todos têm sinais IR gravados." if not sem_ir else f"Sem botões gravados: {', '.join(sem_ir)}. A Alexa responde \"ok\", mas o ar não recebe nada.")
+    ult = db.um("SELECT quando, origem, acao, ok FROM atividade WHERE origem IN ('alexa', 'sinric') ORDER BY quando DESC LIMIT 1")
+    item("ultimo", "Último comando de voz recebido", "ok" if ult else "aviso",
+         (time.strftime("%d/%m %H:%M", time.gmtime(ult["quando"] - 3 * 3600)) + f" · {ult['acao']} ({'ok' if ult['ok'] else 'falhou'})") if ult
+         else "Nenhum ainda. Depois de conectar a nova Alexa, fale um comando e clique em Verificar de novo.")
+    bloqueia = [i for i in itens if i["estado"] == "erro"]
+    veredito = "funciona" if not bloqueia and not [i for i in itens if i["estado"] == "aviso" and i["chave"] in ("ir", "vinculos")] else ("parcial" if not bloqueia else "nao_funciona")
+    return {"veredito": veredito, "itens": itens, "remotos": len(remotos), "verificado_em": db.agora()}
 
 
 @api.get("/sinric/conectar-alexa")

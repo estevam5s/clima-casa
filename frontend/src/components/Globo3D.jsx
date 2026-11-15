@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Compass, FastForward, Gamepad2, Globe2, Info, Maximize2, Minimize2, Minus, Orbit, Pause, Play, Plus, RotateCcw, Route, SkipForward, X } from 'lucide-react'
+import { Compass, FastForward, Gamepad2, Globe2, Info, Maximize2, Minimize2, Minus, Orbit, Pause, Play, Plus, RotateCcw, Route, Satellite, SkipForward, X } from 'lucide-react'
+import { api } from '../api'
+import { criarSatelites, GRUPOS_SAT } from './satelites3d'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { criarUniverso, luzesDasCidades } from './universo'
@@ -191,6 +193,9 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   const [telaCheia, setTelaCheia] = useState(false)
   const [viajando, setViajando] = useState(false)
   const [pronto, setPronto] = useState(false)
+  const satRotulosRef = useRef(null), satsRef = useRef(null), mostrarSatsRef = useRef(true)
+  const [mostrarSats, setMostrarSats] = useState(true)
+  const [resumoSats, setResumoSats] = useState(null)
 
   useEffect(() => {
     const el = ref.current
@@ -207,7 +212,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     const controles = new OrbitControls(camera, renderer.domElement)
     controles.enableDamping = true; controles.dampingFactor = 0.06
     controles.enablePan = false; controles.enableZoom = false // a roda rola a página; zoom pelos botões
-    controles.minDistance = 1.5; controles.maxDistance = 5.5
+    controles.minDistance = 1.5; controles.maxDistance = 9
     controles.autoRotate = !calmo; controles.autoRotateSpeed = 0.35
     controles.rotateSpeed = 0.55
 
@@ -219,6 +224,11 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     globo.updateMatrixWorld()
     // Sol, Lua, planetas e Via Láctea nas direções reais de agora
     const universo = criarUniverso(cena, globo)
+    // satélites reais (SGP4) em volta da Terra
+    const sats = criarSatelites(globo, vetor, satRotulosRef.current)
+    satsRef.current = { camada: sats, fonte: null }
+    sats.visivel = mostrarSatsRef.current
+    api.get('/api/satelites').then((d) => { sats.carregar(d.satelites || []); if (satsRef.current) satsRef.current.fonte = d }).catch(() => {})
 
     // Terra com dia e noite reais
     const sub = pontoSubsolar()
@@ -418,7 +428,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       girar: (v) => { controles.autoRotate = v && !calmo },
       explorar: (v) => {
         controles.enableZoom = v; controles.zoomToCursor = false
-        controles.maxDistance = v ? 600 : 5.5
+        controles.maxDistance = v ? 600 : 9
         if (!v) { universo.escala = 1; irPara('terra') }
         else voar(new THREE.Vector3(), new THREE.Vector3(5, 3.4, 9))
       },
@@ -525,6 +535,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       anelServ.scale.setScalar(1 + fs * (ataqueRef.current ? 4 : 2)); anelServ.material.opacity = 1 - fs
       anelServ.material.color.setHex(ataqueRef.current ? 0xef4444 : 0xffffff)
       universo.atualizar(dt, t, camera)
+      sats.atualizar(t, camera, el.clientWidth, el.clientHeight, uniforms.sol.value, camera.position.length() < 14)
       // acompanha o astro em foco se ele estiver em órbita
       if (!viagem.ativa && foco.atual !== 'terra' && controles.maxDistance > 50) {
         const c = universo.corpos[foco.atual]
@@ -590,7 +601,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       cancelAnimationFrame(quadro); ro.disconnect(); clearTimeout(retomar)
       el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair); el.removeEventListener('dblclick', duplo)
       window.removeEventListener('keydown', tecla); window.removeEventListener('keyup', tecla); window.removeEventListener('blur', soltar)
-      universo.descartar()
+      universo.descartar(); sats.descartar()
       controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
       tex.dispose(); texNuvens.dispose(); if (texturas) Object.values(texturas).forEach((x) => x.dispose())
@@ -601,6 +612,13 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
 
   // dados novos: recria só a camada dinâmica
   useEffect(() => { montarRef.current?.() }, [pontos])
+  useEffect(() => { mostrarSatsRef.current = mostrarSats; if (satsRef.current) satsRef.current.camada.visivel = mostrarSats }, [mostrarSats])
+  // painel ao vivo dos satélites (posição da ISS etc.), 1 vez por segundo
+  useEffect(() => {
+    if (!mostrarSats) return undefined
+    const t = setInterval(() => { const s = satsRef.current; if (s) setResumoSats({ ...s.camada.resumo(), fonte: s.fonte }) }, 1000)
+    return () => clearInterval(t)
+  }, [mostrarSats])
   useEffect(() => { acoesRef.current.girando = girando; acoesRef.current.girar?.(girando) }, [girando])
   useEffect(() => { acoesRef.current.explorar?.(explorar) }, [explorar])
   useEffect(() => { acoesRef.current.explorarExterno = (v) => setExplorar(v) }, [])
@@ -633,6 +651,25 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
         aria-label="Globo 3D com a origem dos acessos e ataques, dia e noite pela hora real; arraste para girar" />
       <div ref={rotulosRef} className="pointer-events-none absolute inset-0 transition-opacity duration-500 [&>div]:left-0 [&>div]:top-0" />
       <div ref={astrosRef} className="pointer-events-none absolute inset-0" />
+      <div ref={satRotulosRef} className="pointer-events-none absolute inset-0" />
+      {mostrarSats && !explorar && resumoSats?.total > 0 && (
+        <div className="absolute bottom-3 left-3 w-[17.5rem] max-w-[calc(100%-4rem)] rounded-lg border border-white/15 bg-black/60 p-2.5 text-[11px] text-white backdrop-blur"> {/* marca: painel flutua sobre o espaço */}
+          <p className="flex items-center gap-1.5 font-semibold"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />Satélites ao vivo · {resumoSats.total}</p>
+          <ul className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-0.5 text-white/75">
+            {Object.entries(GRUPOS_SAT).filter(([k]) => resumoSats.porGrupo[k]).map(([k, g]) => (
+              <li key={k} className="flex items-center gap-1 truncate"><span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: `#${g.cor.toString(16).padStart(6, '0')}` }} />{g.nome} <span className="tabular text-white/50">{resumoSats.porGrupo[k]}</span></li>
+            ))}
+          </ul>
+          {resumoSats.iss && (
+            <div className="mt-2 border-t border-white/10 pt-1.5">
+              <p className="font-medium text-yellow-100">Estação Espacial (ISS) agora</p>
+              <p className="tabular text-white/75">{Math.abs(resumoSats.iss.lat).toFixed(2)}°{resumoSats.iss.lat >= 0 ? 'N' : 'S'} · {Math.abs(resumoSats.iss.lon).toFixed(2)}°{resumoSats.iss.lon >= 0 ? 'L' : 'O'}</p>
+              <p className="tabular text-white/75">{Math.round(resumoSats.iss.alt)} km de altitude · {Math.round(resumoSats.iss.vel).toLocaleString('pt-BR')} km/h</p>
+            </div>
+          )}
+          <p className="mt-1.5 text-[10px] text-white/45">Órbitas da {resumoSats.fonte?.fonte || 'CelesTrak'}, posição calculada aqui (SGP4). Apagados = na sombra da Terra.</p>
+        </div>
+      )}
       {viajando && <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center"><span className="rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[11px] font-medium tracking-wide text-sky-200 backdrop-blur">Em dobra espacial…</span></div>} {/* marca: aviso durante a viagem */}
       {explorar && (
         <div className="absolute left-3 top-3 flex max-h-[calc(100%-3rem)] w-48 flex-col overflow-hidden rounded-lg border border-white/15 bg-black/60 text-white backdrop-blur"> {/* marca: painel flutua sobre o espaço */}
@@ -677,6 +714,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       {!pronto && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/60">Desenhando o mapa…</div>}
       <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border border-white/15 bg-black/50 text-white backdrop-blur">
         <button onClick={alternarTelaCheia} className={botao} aria-label={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'} title={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}>{telaCheia ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
+        <button onClick={() => setMostrarSats((v) => !v)} className={`${botao} border-b border-white/15 ${mostrarSats ? 'bg-white/15' : ''}`} aria-label={mostrarSats ? 'Esconder satélites' : 'Mostrar satélites'} title={mostrarSats ? 'Esconder satélites' : 'Mostrar satélites ao vivo'}><Satellite className="h-3.5 w-3.5" /></button>
         <button onClick={() => setExplorar((v) => !v)} className={`${botao} border-t border-white/15 ${explorar ? 'bg-white/15' : ''}`} aria-label={explorar ? 'Voltar ao globo' : 'Explorar o universo'} title={explorar ? 'Voltar ao globo' : 'Explorar o universo'}>{explorar ? <Globe2 className="h-3.5 w-3.5" /> : <Orbit className="h-3.5 w-3.5" />}</button>
         <button onClick={() => acoesRef.current.zoom?.(0.8)} className={`${botao} border-t border-white/15`} aria-label="Aproximar" title="Aproximar"><Plus className="h-3.5 w-3.5" /></button>
         <button onClick={() => acoesRef.current.zoom?.(1.25)} className={`${botao} border-t border-white/15`} aria-label="Afastar" title="Afastar"><Minus className="h-3.5 w-3.5" /></button>

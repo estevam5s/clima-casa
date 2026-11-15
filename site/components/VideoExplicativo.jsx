@@ -122,39 +122,58 @@ export function PlayerExplicativo({ autoplay = false, aoFechar }) {
   const [tocando, setTocando] = useState(autoplay)
   const [legenda, setLegenda] = useState(true)
   const [voz, setVoz] = useState(true)
-  const audio = useRef(null), audioCena = useRef(-1), semAudio = useRef(false)
+  const semAudio = useRef(false)
   const [cheia, setCheia] = useState(false)
   const caixa = useRef(null), ult = useRef(null), cenaFalada = useRef(-1)
   const cena = Math.max(0, INICIO.findLastIndex((s) => t >= s))
   const c = CENAS[cena]
+  // um <audio> por capítulo, pré-carregados; "fim" guarda os capítulos cuja narração já terminou (não toca de novo)
+  const audios = useRef({}), fim = useRef(new Set()), cenaRef = useRef(0), vozRef = useRef(true), tRef = useRef(0)
+  const [sincronia, setSincronia] = useState(0)
+  cenaRef.current = cena; vozRef.current = voz; tRef.current = t
+  const somDe = useCallback((id) => {
+    if (!audios.current[id]) {
+      const a = new Audio(`/audio/narracao-${id}.mp3`); a.preload = 'auto'
+      a.addEventListener('error', () => { semAudio.current = true })
+      a.addEventListener('ended', () => fim.current.add(id))
+      audios.current[id] = a
+    }
+    return audios.current[id]
+  }, [])
+  useEffect(() => { CENAS.forEach((x) => somDe(x.id)) }, [somDe])
 
+  // Relógio do vídeo: enquanto a narração do capítulo está tocando, o tempo segue o próprio áudio (assim a voz
+  // nunca é puxada para trás nem recomeça); sem narração (antes de carregar, depois que ela acaba, voz desligada),
+  // o tempo anda pelo relógio da tela.
   useEffect(() => {
     if (!tocando) { ult.current = null; return undefined }
     let q
     const passo = (ts) => {
-      if (ult.current != null) setT((x) => { const n = x + (ts - ult.current) / 1000; if (n >= TOTAL) { setTocando(false); return TOTAL } return n })
+      const a = audios.current[CENAS[cenaRef.current].id]
+      const pelaVoz = vozRef.current && !semAudio.current && a && !a.paused && !a.ended && a.currentTime > 0
+      if (pelaVoz) setT(Math.min(TOTAL, INICIO[cenaRef.current] + a.currentTime))
+      else if (ult.current != null) setT((x) => { const n = x + (ts - ult.current) / 1000; if (n >= TOTAL) { setTocando(false); return TOTAL } return n })
       ult.current = ts; q = requestAnimationFrame(passo)
     }
     q = requestAnimationFrame(passo)
     return () => cancelAnimationFrame(q)
   }, [tocando])
 
-  // narração gravada (Fish Audio, um MP3 por capítulo) sincronizada com o tempo do vídeo; se o áudio falhar, usa a voz do navegador
+  // narração gravada (Fish Audio, um MP3 por capítulo); se o áudio falhar, usa a voz do navegador
   useEffect(() => {
-    if (!audio.current) {
-      audio.current = new Audio(); audio.current.preload = 'auto'
-      audio.current.addEventListener('error', () => { semAudio.current = true })
-    }
-    const el = audio.current, sintese = window.speechSynthesis
-    if (!voz || !tocando) { el.pause(); sintese?.cancel(); cenaFalada.current = -1; return }
-    const dentro = t - INICIO[cena]
+    const sintese = window.speechSynthesis
+    const a = somDe(c.id)
+    Object.values(audios.current).forEach((x) => { if (x !== a && !x.paused) x.pause() })
+    if (!voz || !tocando) { a.pause(); sintese?.cancel(); cenaFalada.current = -1; return }
     if (!semAudio.current) {
-      if (audioCena.current !== cena) {
-        audioCena.current = cena
-        el.src = `/audio/narracao-${c.id}.mp3`
-        el.currentTime = Math.max(0, dentro)
-      } else if (Math.abs(el.currentTime - dentro) > 0.6 && dentro < (NARRACAO.duracoes?.[c.id] || 0)) el.currentTime = dentro
-      if (el.paused && dentro < (NARRACAO.duracoes?.[c.id] || 99)) el.play().catch(() => { semAudio.current = true })
+      if (fim.current.has(c.id)) return
+      const dentro = tRef.current - INICIO[cena]
+      if (dentro >= (NARRACAO.duracoes?.[c.id] || 99) - 0.05) { fim.current.add(c.id); return }
+      const comecar = () => {
+        if (Math.abs(a.currentTime - dentro) > 0.25) a.currentTime = Math.max(0, dentro)
+        a.play().catch(() => { semAudio.current = true })
+      }
+      if (a.readyState >= 1) comecar(); else a.addEventListener('loadedmetadata', comecar, { once: true })
       return
     }
     if (!sintese || cenaFalada.current === cena) return
@@ -163,10 +182,15 @@ export function PlayerExplicativo({ autoplay = false, aoFechar }) {
     const u = new SpeechSynthesisUtterance(c.fala); u.lang = 'pt-BR'; u.rate = 1.04
     const v = sintese.getVoices().find((x) => /pt-BR/i.test(x.lang)); if (v) u.voice = v
     sintese.speak(u)
-  }, [cena, voz, tocando, c.fala, c.id, t])
-  useEffect(() => () => { audio.current?.pause(); window.speechSynthesis?.cancel() }, [])
+  }, [cena, voz, tocando, c.fala, c.id, sincronia, somDe])
+  useEffect(() => () => { Object.values(audios.current).forEach((a) => a.pause()); window.speechSynthesis?.cancel() }, [])
 
-  const ir = useCallback((s) => { setT(Math.max(0, Math.min(TOTAL - 0.01, s))); cenaFalada.current = -1; audioCena.current = -1 }, [])
+  // pular para um ponto (barra, setas, recomeçar): libera a narração dos capítulos e ressincroniza
+  const ir = useCallback((s) => {
+    Object.values(audios.current).forEach((a) => a.pause())
+    fim.current.clear(); cenaFalada.current = -1
+    setT(Math.max(0, Math.min(TOTAL - 0.01, s))); setSincronia((n) => n + 1)
+  }, [])
   const alternar = useCallback(() => { if (t >= TOTAL) { ir(0); setTocando(true) } else setTocando((v) => !v) }, [t, ir])
   const telaCheia = async () => {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await caixa.current?.requestFullscreen() } catch { /* sem suporte */ }

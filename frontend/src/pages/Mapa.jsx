@@ -260,7 +260,7 @@ export default function Mapa() {
   const salvar = async () => {
     setSalvando(true)
     try {
-      const corpo = { largura: rascunho.largura, altura: rascunho.altura, salas: rascunho.salas, ares: rascunho.ares, elementos: rascunho.elementos, auto: rascunho.auto || [] }
+      const corpo = { largura: rascunho.largura, altura: rascunho.altura, salas: rascunho.salas, ares: rascunho.ares, elementos: rascunho.elementos, auto: rascunho.auto || [], andar: Number.isFinite(+rascunho.andar) ? +rascunho.andar : 9 }
       setDados(await api.put('/api/mapa', corpo)); setEditando(false); setRascunho(null); setHistorico([])
       toast('Planta salva.')
     } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
@@ -527,6 +527,8 @@ export default function Mapa() {
                     onChange={(e) => mexer((n) => { n.largura = lim(+e.target.value || 400, 400, 6000) })} className="campo mt-1 h-9" /></label>
                   <label className="text-xs text-muted-foreground">Altura<input type="number" min="300" max="6000" step="50" value={rascunho.altura}
                     onChange={(e) => mexer((n) => { n.altura = lim(+e.target.value || 300, 300, 6000) })} className="campo mt-1 h-9" /></label>
+                  <label className="col-span-2 text-xs text-muted-foreground">Andar do escritório no prédio<input type="number" min="0" max="200" step="1" value={rascunho.andar ?? 9}
+                    onChange={(e) => mexer((n) => { n.andar = lim(Math.round(+e.target.value || 0), 0, 200) })} className="campo mt-1 h-9" /></label>
                 </div>
                 {sel ? (
                   <div className="space-y-3 border-t border-border pt-4 text-sm">

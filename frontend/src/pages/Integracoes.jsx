@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ExternalLink, Link2, Plus, QrCode, RefreshCw, Smartphone } from 'lucide-react'
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, ExternalLink, Link2, Plus, QrCode, RefreshCw, Smartphone, XCircle } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Ponto, Selo, useDados, useToast } from '../components/ui'
 
@@ -8,6 +8,27 @@ const PASSOS_ALEXA = [
   ['Escaneie o QR Code com o celular', 'O celular com o app Alexa da outra conta. Ele abre direto a skill "Sinric Pro".'],
   ['Toque em "Ativar para uso"', 'Entre com a conta do Sinric Pro (a mesma do portal). Várias Alexas podem usar a mesma conta.'],
   ['Pronto', 'Os aparelhos aparecem sozinhos. Se não aparecerem em 1 minuto, diga "Alexa, descobrir dispositivos".'],
+]
+// O que acontece em cada situação de troca (comportamento do Sinric Pro e da Alexa)
+const CENARIOS = [
+  ['Adicionar outra conta Alexa (as duas usam)', [
+    'Na conta nova: app Alexa → Skills → "Sinric Pro" → Ativar → entrar com a MESMA conta do Sinric (QR Code ao lado).',
+    'A conta antiga continua funcionando: as duas mandam comandos para o mesmo ar, e o estado aparece igual nas duas.',
+    'Rotinas, grupos e cômodos são de cada conta Alexa: recrie na conta nova o que quiser usar lá.',
+  ]],
+  ['Trocar de conta (parar de usar a antiga)', [
+    'Ative a skill Sinric Pro na conta nova e confira o diagnóstico abaixo.',
+    'Na conta antiga: app Alexa → Mais → Skills → Sinric Pro → Desativar. Os aparelhos somem só dela.',
+    'Nada muda aqui no sistema: os aparelhos, os botões gravados e o Sinric continuam iguais.',
+  ]],
+  ['Trocar ou adicionar um Echo na mesma conta', [
+    'Não precisa fazer nada: todo Echo da mesma conta Amazon já enxerga os aparelhos.',
+    'Para o "Alexa, ligar o ar" sem dizer o nome, coloque o Echo e o ar no mesmo grupo (cômodo) no app Alexa.',
+  ]],
+  ['Usar a skill própria em vez do Sinric', [
+    'Cada conta Amazon que vincular a skill própria recebe um token separado; revogue os antigos em "Skill própria".',
+    'Não use as duas integrações para o mesmo ar na mesma conta: a Alexa mostra o aparelho duplicado.',
+  ]],
 ]
 const COMANDOS = ['Alexa, ligar o ar da recepção', 'Alexa, colocar o ar da recepção em 23 graus', 'Alexa, ar da recepção no modo frio', 'Alexa, desligar o ar da recepção']
 
@@ -163,6 +184,7 @@ export default function Integracoes() {
               <ul className="space-y-1 text-muted-foreground">{COMANDOS.map((c) => <li key={c}>"{c}"</li>)}</ul>
             </div>
           </motion.div>
+          <DiagnosticoAlexa />
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="cartao p-5">
             <h2 className="flex items-center gap-2 titulo-secao"><Smartphone className="h-4 w-4" /> Google Home</h2>
             <p className="mt-2 text-sm text-muted-foreground">App Google Home → Adicionar → Funciona com o Google → "Sinric Pro" → entrar com a mesma conta. Os mesmos aparelhos aparecem, e os novos entram sozinhos.</p>
@@ -170,5 +192,82 @@ export default function Integracoes() {
         </div>
       </div>
     </>
+  )
+}
+
+// Diagnóstico ao vivo + o que acontece ao trocar de Alexa. Verifica as condições reais (agente, Sinric, vínculos,
+// botões IR, último comando de voz) e acompanha o teste: fale um comando na Alexa nova e veja chegar aqui.
+const ICONE_ESTADO = { ok: [CheckCircle2, 'text-emerald-600'], aviso: [AlertTriangle, 'text-amber-600'], erro: [XCircle, 'text-red-600'] }
+const VEREDITO = {
+  funciona: ['Vai funcionar na outra Alexa', 'Tudo pronto: conecte a conta nova e fale um comando de teste.', 'border-emerald-500/40 bg-emerald-500/5'],
+  parcial: ['Conecta, mas com ressalvas', 'A Alexa vai achar os aparelhos; corrija os avisos para os comandos acionarem o ar.', 'border-amber-500/40 bg-amber-500/5'],
+  nao_funciona: ['Ainda não vai funcionar', 'Resolva os itens em vermelho antes de conectar outra Alexa.', 'border-red-500/40 bg-red-500/5'],
+}
+function DiagnosticoAlexa() {
+  const [d, setD] = useState(null)
+  const [carregando, setCarregando] = useState(false)
+  const [testando, setTestando] = useState(false)
+  const [aberto, setAberto] = useState(0)
+  const toast = useToast()
+  const verificar = async () => {
+    setCarregando(true)
+    try { setD(await api.get('/api/sinric/diagnostico')) } catch (e) { toast(e.message, 'erro') } finally { setCarregando(false) }
+  }
+  useEffect(() => { verificar() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // modo teste: confere a cada 5 s se chegou um comando de voz novo
+  useEffect(() => {
+    if (!testando) return undefined
+    const antes = d?.itens.find((i) => i.chave === 'ultimo')?.detalhe
+    const t = setInterval(async () => {
+      try {
+        const n = await api.get('/api/sinric/diagnostico')
+        setD(n)
+        const agora = n.itens.find((i) => i.chave === 'ultimo')?.detalhe
+        if (agora && agora !== antes) { setTestando(false); toast('Comando de voz recebido: a nova Alexa está funcionando.') }
+      } catch { /* tenta de novo */ }
+    }, 5000)
+    const fim = setTimeout(() => setTestando(false), 120000)
+    return () => { clearInterval(t); clearTimeout(fim) }
+  }, [testando]) // eslint-disable-line react-hooks/exhaustive-deps
+  const v = d ? VEREDITO[d.veredito] : null
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="cartao p-5">
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="flex items-center gap-2 titulo-secao"><ArrowLeftRight className="h-4 w-4" /> Trocar ou adicionar Alexa</h2>
+        <Botao tamanho="sm" variante="secundario" icone={RefreshCw} carregando={carregando} onClick={verificar}>Verificar</Botao>
+      </div>
+      {v && (
+        <div className={`mt-4 rounded-lg border p-3 ${v[2]}`}>
+          <p className="text-sm font-semibold">{v[0]}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{v[1]}</p>
+        </div>
+      )}
+      {d && (
+        <ul className="mt-3 space-y-2">
+          {d.itens.map((i) => {
+            const [I, cor] = ICONE_ESTADO[i.estado] || ICONE_ESTADO.aviso
+            return (
+              <li key={i.chave} className="flex gap-2 text-xs">
+                <I className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${cor}`} />
+                <div><p className="font-medium">{i.titulo}</p><p className="text-muted-foreground">{i.detalhe}</p></div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <div className="mt-4 rounded-lg bg-muted p-3 text-xs">
+        <p className="font-medium">Teste na Alexa nova</p>
+        <p className="mt-0.5 text-muted-foreground">Clique em começar e diga, no Echo da conta nova, "Alexa, ligar o ar do escritório". Quando o comando chegar, avisamos aqui (espera até 2 min).</p>
+        <Botao className="mt-2" tamanho="sm" variante={testando ? 'secundario' : 'primario'} onClick={() => setTestando((x) => !x)}>{testando ? 'Aguardando o comando… (parar)' : 'Começar teste'}</Botao>
+      </div>
+      <div className="mt-4 divide-y divide-border rounded-lg border border-border">
+        {CENARIOS.map(([titulo, passos], k) => (
+          <div key={titulo}>
+            <button onClick={() => setAberto(aberto === k ? -1 : k)} className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium hover:bg-muted" aria-expanded={aberto === k}>{titulo}<span className="text-muted-foreground">{aberto === k ? '−' : '+'}</span></button>
+            {aberto === k && <ol className="list-decimal space-y-1 px-3 pb-3 pl-7 text-xs text-muted-foreground">{passos.map((p) => <li key={p}>{p}</li>)}</ol>}
+          </div>
+        ))}
+      </div>
+    </motion.div>
   )
 }

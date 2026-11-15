@@ -5,6 +5,8 @@ import { DOWNLOADS, RELEASE, REPO, sistemaDetalhado } from '../apps'
 import { api } from '../api'
 import IconeMarca from '../components/IconeMarca'
 import { Botao, Cabecalho, Secao, useToast } from '../components/ui'
+import Repositorio from '../components/apps/Repositorio'
+import { useProjeto } from '../contexto'
 
 const mb = (b) => (b ? `${(b / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} MB` : '')
 const COR = { android: 'bg-[#3DDC84]/15 text-[#1f9d55] dark:text-[#3DDC84]', mac: 'bg-foreground/10 text-foreground', windows: 'bg-[#0078D4]/15 text-[#0078D4]',
@@ -127,6 +129,7 @@ function CartaoApp({ d, meu, i }) {
 }
 
 export default function Apps() {
+  const { sessao } = useProjeto()
   const toast = useToast()
   const [meu, setMeu] = useState(null)
   const [pwa, setPwa] = useState(null)
@@ -270,6 +273,12 @@ export default function Apps() {
           </div>
         </Secao>
       </div>
+
+      {['dono', 'admin'].includes(sessao?.papel) && (
+        <div className="mt-6">
+          <Repositorio />
+        </div>
+      )}
 
       <div className="mt-6">
         <Secao titulo="Problemas comuns" contexto="O que costuma travar a instalação e como resolver">

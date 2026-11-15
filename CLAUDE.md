@@ -624,3 +624,18 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
 - **Site**: vídeo explicativo em código (`components/VideoExplicativo.jsx`), páginas /como-funciona, /seguranca, /integracoes, /status
   (`GET /api/site/status`, cache 30 s) e /baixar; 404 animado (`components/Pagina404.jsx`, sugestão calculada só no navegador).
 - Avisos no console do site com `%c%d` e `fetch data:` vêm do script do Turnstile (Cloudflare), não do nosso código.
+
+## 17. Mapa no prédio, satélites, Alexa, código-fonte e releases (15/11/2026)
+- **Mapa 3D**: vidro só na parede da porta das salas privativas, nas divisórias entre elas e na parede da bancada que dá para o salão;
+  o resto é alvenaria. `mapaUtil.colocarMoveis` cria uma vez a mesa individual (tipo `estacao`) e a janela em frente à porta (ids em
+  `mapa.auto`). Pessoas andam por A* numa grade de colisão (`components/predio3d.js`). O escritório fica no `mapa.andar` (padrão 9º) de um
+  prédio (pódio + torre); clicar abre o andar. TV de 47" = elemento `monitor` `tv-reuniao`.
+- **Satélites** no globo: `GET /api/satelites` (TLE da CelesTrak, cache 6 h em `config.satelites_tle`), posição por SGP4 no navegador
+  (`components/satelites3d.js`, `satellite.js`).
+- **Alexa**: `GET /api/sinric/diagnostico` (vai funcionar em outra Alexa?) + cartão "Trocar ou adicionar Alexa" com teste ao vivo.
+- **Código-fonte** em /apps (só dono/admin): `scripts/gerar-repositorio.mjs` (rodado pelo `publicar-vercel.sh`) gera
+  `backend/app/repositorio.json` (gitignored) e sobe zip/tar.gz no bucket privado `codigo-fonte`; `GET /api/apps/repositorio`,
+  `GET /api/apps/codigo/{arquivo}` (link assinado de 2 min).
+- **Notas das releases**: escreva as novidades em `docs/releases/vX.Y.Z.md` e rode `node scripts/gerar-notas-release.mjs vX.Y.Z`
+  (downloads, SHA-256, instalação, commits e estatísticas são automáticos).
+- **Vídeo do site**: o áudio de cada capítulo é o relógio enquanto toca (não recomeça nem salta).
