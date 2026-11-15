@@ -1,11 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import {
-  AirVent, Armchair, ArrowRight, Box, ChevronRight, Columns2, DoorOpen, Expand, Grid3x3, LayoutGrid, Leaf, Minus, Pencil, Plus,
-  Monitor, Power, RotateCw, Save, Square, Table2, Trash2, Type, Undo2, X, ZoomIn, ZoomOut, AppWindow, Snowflake, Sun, Wind, Droplets, Sparkles,
-  Laptop,
-} from 'lucide-react'
+import { AirVent, AppWindow, Archive, Armchair, ArrowRight, Box, ChevronRight, Columns2, DoorOpen, Droplets, Expand, Grid3x3, Laptop, LayoutGrid, Leaf, Minus, Monitor, Pencil, Plus, Power, RotateCw, Save, Snowflake, Sparkles, Square, Sun, Table2, Trash2, Type, Undo2, Wind, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { api, haQuanto, MODOS, VENTILACAO } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, useDados, useToast } from '../components/ui'
@@ -21,7 +17,7 @@ const ICONE_MODO = { frio: Snowflake, quente: Sun, ventilar: Wind, seco: Droplet
 const AR_L = 86, AR_A = 22
 const ELEMENTOS = [
   ['porta', 'Porta', DoorOpen, 80, 80], ['janela', 'Janela', AppWindow, 120, 10], ['mesa', 'Mesa', Table2, 140, 70], ['estacao', 'Mesa individual', Laptop, 120, 70],
-  ['bancada', 'Bancada', Columns2, 240, 60], ['armario', 'Armário', Box, 90, 40], ['sofa', 'Sofá', Armchair, 160, 60],
+  ['bancada', 'Bancada', Columns2, 240, 60], ['armario', 'Armário', Box, 90, 40], ['gaveteiro', 'Gaveteiro', Archive, 180, 50], ['sofa', 'Sofá', Armchair, 160, 60],
   ['parede', 'Parede', Square, 200, 10], ['coluna', 'Coluna', Grid3x3, 30, 30], ['planta', 'Planta', Leaf, 34, 34], ['monitor', 'Monitor', Monitor, 100, 10],
   ['texto', 'Texto', Type, 120, 30], ['ar_previsto', 'Ar previsto', AirVent, 86, 22],
 ]
@@ -124,12 +120,21 @@ function Elemento({ e, selecionado, editando, aoArrastar, aoClicar }) {
       corpo = <><rect width={e.w} height={e.h} rx="12" fill={preench} stroke={tracos} strokeWidth="1.2" />
         <rect x="8" y="8" width={e.w - 16} height={e.h * 0.45} rx="6" fill="none" stroke={tracos} strokeWidth="1" /></>
       break
+    case 'gaveteiro':
+      // armário de gavetas: grade de gavetas; a frente fica do lado de baixo (rot 0) ou da direita quando está em pé
+      corpo = <><rect width={e.w} height={e.h} fill="#a16207" fillOpacity="0.18" stroke="#92400e" strokeWidth="1.2" />
+        {Array.from({ length: Math.max(1, Math.round(Math.max(e.w, e.h) / 30)) - 1 }, (_, i) => {
+          const f = (i + 1) / Math.round(Math.max(e.w, e.h) / 30)
+          return e.h > e.w * 1.2 ? <line key={i} x1="0" x2={e.w} y1={e.h * f} y2={e.h * f} stroke="#92400e" strokeWidth="0.7" /> : <line key={i} y1="0" y2={e.h} x1={e.w * f} x2={e.w * f} stroke="#92400e" strokeWidth="0.7" />
+        })}
+        {e.h > e.w * 1.2 ? <line x1={e.w - 2} x2={e.w - 2} y1="0" y2={e.h} stroke="#92400e" strokeWidth="2.5" /> : <line x1="0" x2={e.w} y1={e.h - 2} y2={e.h - 2} stroke="#92400e" strokeWidth="2.5" />}</>
+      break
     default: // armario
       corpo = <><rect width={e.w} height={e.h} fill={preench} stroke={tracos} strokeWidth="1.2" />
         <line x1="0" y1="0" x2={e.w} y2={e.h} stroke={tracos} strokeWidth="0.8" /><line x1={e.w} y1="0" x2="0" y2={e.h} stroke={tracos} strokeWidth="0.8" /></>
   }
   const vertical = e.h > e.w * 1.4
-  const rotulo = e.rotulo && ['mesa', 'bancada', 'armario', 'sofa', 'estacao'].includes(e.tipo)
+  const rotulo = e.rotulo && ['mesa', 'bancada', 'armario', 'gaveteiro', 'sofa', 'estacao'].includes(e.tipo)
   return (
     <g transform={`translate(${e.x} ${e.y}) rotate(${e.rot || 0} ${e.w / 2} ${e.h / 2})`} onPointerDown={editando ? aoArrastar : undefined}
       onClick={aoClicar} className={editando || e.tipo === 'ar_previsto' ? 'cursor-pointer' : ''} style={{ pointerEvents: editando || e.tipo === 'ar_previsto' ? 'all' : 'none' }}>
@@ -534,7 +539,7 @@ export default function Mapa() {
                   <div className="space-y-3 border-t border-border pt-4 text-sm">
                     <p className="font-medium">{sel.tipo === 'sala' ? projetos.find((p) => String(p.id) === String(sel.id))?.nome
                       : sel.tipo === 'ar' ? ares.find((a) => String(a.id) === String(sel.id))?.nome : NOME_EL[elSel?.tipo]}</p>
-                    {elSel && elSel.tipo !== 'ar_previsto' && ['texto', 'mesa', 'estacao', 'bancada', 'armario', 'sofa', 'monitor'].includes(elSel.tipo) && <input placeholder="Nome (opcional)" value={elSel.rotulo} maxLength={40} onChange={(e) => mexer((n) => { n.elementos.find((x) => x.id === sel.id).rotulo = e.target.value })} className="campo h-9" aria-label="Texto" />}
+                    {elSel && elSel.tipo !== 'ar_previsto' && ['texto', 'mesa', 'estacao', 'bancada', 'armario', 'gaveteiro', 'sofa', 'monitor'].includes(elSel.tipo) && <input placeholder="Nome (opcional)" value={elSel.rotulo} maxLength={40} onChange={(e) => mexer((n) => { n.elementos.find((x) => x.id === sel.id).rotulo = e.target.value })} className="campo h-9" aria-label="Texto" />}
                     {sel.tipo === 'sala' && (
                       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                         <span>Posição {rascunho.salas[sel.id].x}, {rascunho.salas[sel.id].y}</span><span>Tamanho {rascunho.salas[sel.id].w} × {rascunho.salas[sel.id].h}</span>

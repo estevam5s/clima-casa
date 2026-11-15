@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
-import { Box, Building2, Clock, DoorOpen, Eye, Moon, Pause, Play, RotateCcw, Sun } from 'lucide-react'
+import { Box, Building2, Clock, DoorOpen, Eye, Maximize2, Minimize2, Moon, Pause, Play, RotateCcw, Sun } from 'lucide-react'
 import { salasPrivativas } from '../mapaUtil'
 import { useMarca } from '../marca'
 import { caminho, criarGrade, celulaLivre, livreProxima, montarPredio, visaoLivre } from './predio3d'
@@ -268,6 +268,25 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   const [hora, setHora] = useState('agora')   // agora | dia | noite
   const [relogio, setRelogio] = useState(() => Math.floor(horaBrasilia() * 4))  // muda a cada 15 min
   const [aberto, setAberto] = useState(!comPredio)   // prédio fechado: clicar abre o andar do escritório
+  // tela cheia: Fullscreen API quando o navegador deixa (no iPhone não deixa num div, aí cobre a janela inteira)
+  const caixaRef = useRef(null)
+  const [cheia, setCheia] = useState(false)
+  useEffect(() => {
+    const aoMudar = () => { if (!document.fullscreenElement && !document.webkitFullscreenElement) setCheia((v) => (v === 'api' ? false : v)) }
+    const esc = (ev) => { if (ev.key === 'Escape') setCheia((v) => (v === 'janela' ? false : v)) }
+    document.addEventListener('fullscreenchange', aoMudar); document.addEventListener('webkitfullscreenchange', aoMudar); window.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('fullscreenchange', aoMudar); document.removeEventListener('webkitfullscreenchange', aoMudar); window.removeEventListener('keydown', esc) }
+  }, [])
+  const alternarCheia = async () => {
+    const el = caixaRef.current
+    if (cheia) {
+      if (cheia === 'api') { try { await (document.exitFullscreen || document.webkitExitFullscreen)?.call(document) } catch { /* já saiu */ } }
+      setCheia(false); return
+    }
+    const pedir = el?.requestFullscreen || el?.webkitRequestFullscreen
+    if (pedir) { try { await pedir.call(el); setCheia('api'); return } catch { /* cai no modo janela */ } }
+    setCheia('janela')
+  }
   // só remonta a cena quando algo visível muda (a lista chega nova a cada 10 s, mesmo igual)
   const chave = useMemo(() => JSON.stringify({ m: mapa, a: ares.map((a) => [a.id, a.ligado, a.modo, a.temperatura, a.projeto_id]), p: projetos.map((p) => [p.id, p.nome, p.cor]) }), [mapa, ares, projetos])
 
@@ -412,6 +431,18 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const matVidroParede = new THREE.MeshStandardMaterial({ color: escuro ? 0xb6d7ef : 0xe3f2fd, roughness: 0.08, metalness: 0, transparent: true, opacity: escuro ? 0.1 : 0.13, depthWrite: false, side: THREE.DoubleSide })
     const matPerfil = new THREE.MeshStandardMaterial({ color: escuro ? 0x94a3b8 : 0xcbd5e1, roughness: 0.45, metalness: 0.15 })
     const matPeitoril = new THREE.MeshStandardMaterial({ color: 0xd6d3d1, roughness: 0.6 })
+    // lâminas da persiana: listras claras com uma fresta quase transparente entre elas (uma textura para todas)
+    const texPersiana = (() => {
+      const c = document.createElement('canvas'); c.width = 8; c.height = 32
+      const g = c.getContext('2d'); g.clearRect(0, 0, 8, 32)
+      const gr = g.createLinearGradient(0, 0, 0, 26); gr.addColorStop(0, '#f5f5f4'); gr.addColorStop(1, '#c9c5c0')
+      g.fillStyle = gr; g.fillRect(0, 0, 8, 26)
+      g.fillStyle = 'rgba(120,113,108,0.25)'; g.fillRect(0, 26, 8, 6)
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 26); t.colorSpace = THREE.SRGBColorSpace
+      return t
+    })()
+    const matPersiana = new THREE.MeshStandardMaterial({ map: texPersiana, transparent: true, roughness: 0.7, side: THREE.DoubleSide, depthWrite: false })
+    const matPersianaCaixa = new THREE.MeshStandardMaterial({ color: 0xe7e5e4, roughness: 0.5 })
     const obstaculos = []   // retângulos que ninguém atravessa (metros): paredes, mesas, cadeiras, armários
     const bloquear = (x, z, w, d, ry = 0) => obstaculos.push({ x, z, w, d, ry })
     const vidro = (horiz, k, a, b, ya, yb) => {
@@ -444,6 +475,17 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       peca(comp, 0.03, 0.06, matPerfil, 0.96 + (topoV - 0.96) * 0.64)
       for (const f of [-0.5, 0, 0.5]) peca(0.04, topoV - 0.96, 0.07, matPerfil, (0.96 + topoV) / 2, f * (comp - 0.04))
       if (ALT > topoV) bloco(sg.horiz, sg.k, sg.a, sg.b, topoV, ALT, matParede, true)
+      // persiana horizontal do lado de dentro, meio abaixada: caixa no alto, lâminas, régua de baixo e cordão
+      const dentro = (sg.horiz ? (sg.k < cy ? 1 : -1) : (sg.k < cx ? 1 : -1)) * (ESP / 2 + 0.045)
+      const lam = (w, h, d, m, y, desl = 0) => {
+        const o = new THREE.Mesh(new THREE.BoxGeometry(sg.horiz ? w : d, h, sg.horiz ? d : w), m)
+        o.position.set(cx2 + (sg.horiz ? desl : dentro), y, cz2 + (sg.horiz ? dentro : desl)); mundo.add(o); return o
+      }
+      const baixa = topoV - (topoV - 0.96) * 0.58, hp = topoV - 0.05 - baixa
+      lam(comp + 0.06, 0.06, 0.07, matPersianaCaixa, topoV - 0.02)
+      const tela = lam(comp + 0.02, hp, 0.012, matPersiana, baixa + hp / 2); tela.renderOrder = 3
+      lam(comp + 0.03, 0.025, 0.035, matPersianaCaixa, baixa)
+      lam(0.008, hp + 0.2, 0.008, matPerfil, baixa - 0.1 + hp / 2 + 0.05, comp / 2 - 0.06)
     }
     const batente = (sg) => {
       const comp = (sg.b - sg.a) * S, alt = Math.min(2.1, ALT)
@@ -563,6 +605,39 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // estação: mesa + monitor + teclado + cadeira, opcionalmente com alguém sentado
     const matTampo = new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 0.55 })
     const matGaveteiro = new THREE.MeshStandardMaterial({ color: escuro ? 0x3f3f46 : 0x52525b, roughness: 0.7 })
+    const matArmario = new THREE.MeshStandardMaterial({ color: 0x7a4a2a, roughness: 0.65 })
+    const matArmarioTopo = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.55 })
+    // frente do armário de gavetas: grade de gavetas em madeira, cada uma com puxador e etiqueta do que guarda
+    const GAVETAS = ['Cabos de rede', 'HDMI', 'Fontes', 'Cabos de força', 'USB', 'DisplayPort', 'VGA / DVI', 'Adaptadores',
+      'Conectores RJ45', 'Patch cords', 'Teclados', 'Mouses', 'Carregadores', 'Extensões', 'Filtros de linha', 'Pilhas',
+      'Memória RAM', 'HDs e SSDs', 'Pen drives', 'Pasta térmica', 'Parafusos', 'Ferramentas', 'Abraçadeiras', 'Fitas',
+      'Áudio P2', 'Webcams', 'Headsets', 'Controles IR', 'Etiquetas', 'Diversos']
+    const texGavetas = (longo, alt) => {
+      const cols = Math.max(3, Math.round(longo / 0.3)), lin = Math.max(3, Math.round(alt / 0.26))
+      const c = document.createElement('canvas'); c.width = 1024; c.height = Math.round(1024 * alt / longo)
+      const g = c.getContext('2d'), gw = c.width / cols, gh = c.height / lin
+      g.fillStyle = '#4a2c17'; g.fillRect(0, 0, c.width, c.height)
+      let k = 0
+      for (let j = 0; j < lin; j++) for (let i = 0; i < cols; i++) {
+        const x0 = i * gw + 3, y0 = j * gh + 3, ww = gw - 6, hh = gh - 6
+        const gr = g.createLinearGradient(0, y0, 0, y0 + hh); gr.addColorStop(0, '#9a6538'); gr.addColorStop(1, '#7c4d29')
+        g.fillStyle = gr; g.fillRect(x0, y0, ww, hh)
+        g.strokeStyle = 'rgba(255,255,255,0.12)'; g.strokeRect(x0 + 1, y0 + 1, ww - 2, hh - 2)
+        // etiqueta
+        const ew = ww * 0.8, eh = Math.min(hh * 0.3, 30)
+        g.fillStyle = '#f8f5ee'; g.fillRect(x0 + (ww - ew) / 2, y0 + hh * 0.14, ew, eh)
+        g.fillStyle = '#1c1917'; g.textAlign = 'center'; g.textBaseline = 'middle'
+        let fs = Math.floor(eh * 0.62); g.font = `600 ${fs}px system-ui, sans-serif`
+        const txt = GAVETAS[k++ % GAVETAS.length]
+        while (g.measureText(txt).width > ew - 6 && fs > 8) { fs--; g.font = `600 ${fs}px system-ui, sans-serif` }
+        g.fillText(txt, x0 + ww / 2, y0 + hh * 0.14 + eh / 2 + 1)
+        // puxador
+        g.fillStyle = '#d6d3d1'; g.fillRect(x0 + ww * 0.3, y0 + hh * 0.66, ww * 0.4, Math.max(4, hh * 0.08))
+        g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x0 + ww * 0.3, y0 + hh * 0.66 + Math.max(4, hh * 0.08), ww * 0.4, 2)
+      }
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4
+      return t
+    }
     const estacao = (pai, x, z, ry, comPessoa, nome, semMesa = false) => {
       const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; pai.add(g)
       if (!semMesa) {
@@ -626,9 +701,37 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         estacao(mundo, x, z, ry, true, nome)
         bloquear(x + Math.sin(ry) * 0.2, z + Math.cos(ry) * 0.2, 1.36, 1.25, ry)
       } else if (e.tipo === 'bancada') {
+        // bancada técnica encostada na parede: um posto a cada ~1,2 m, cada um com monitor, teclado, mouse e cadeira.
+        // rot 0 = quem senta fica do lado de baixo da planta, olhando para a parede de cima (vertical: olha para a esquerda)
+        const vertical = d > w * 1.2, longo = vertical ? d : w, prof = Math.max(0.55, vertical ? w : d)
+        const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry + (vertical ? Math.PI / 2 : 0); mundo.add(g)
+        const tampo = new THREE.Mesh(new RoundedBoxGeometry(longo, 0.045, prof, 3, 0.012), matTampo); tampo.position.y = 0.745; tampo.castShadow = tampo.receiveShadow = true; g.add(tampo)
+        for (const px of [-longo / 2 + 0.03, longo / 2 - 0.03]) caixa(0.04, 0.72, prof - 0.04, matGaveteiro, px, 0.36, 0, 0, g)
+        caixa(longo - 0.08, 0.36, 0.025, matGaveteiro, 0, 0.53, -prof / 2 + 0.03, 0, g)
+        caixa(longo - 0.1, 0.04, 0.06, matPreto, 0, 0.68, -prof / 2 + 0.1, 0, g)   // calha de cabos
+        const n = Math.max(1, Math.round(longo / 1.2))
+        for (let i = 0; i < n; i++) {
+          const ax = -longo / 2 + longo * (i + 0.5) / n, fz = -prof / 2 + 0.16
+          caixa(0.6, 0.36, 0.03, matPreto, ax, 1.07, fz, 0, g)
+          const tela = caixa(0.56, 0.32, 0.005, matTela, ax, 1.07, fz + 0.017, 0, g); tela.castShadow = false
+          caixa(0.05, 0.16, 0.05, matPreto, ax, 0.84, fz - 0.02, 0, g); caixa(0.22, 0.012, 0.16, matPreto, ax, 0.774, fz - 0.01, 0, g)
+          caixa(0.42, 0.015, 0.14, matPreto, ax - 0.04, 0.775, fz + 0.3, 0, g)   // teclado
+          caixa(0.24, 0.004, 0.2, new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.9 }), ax + 0.33, 0.769, fz + 0.3, 0, g)   // mouse pad
+          caixa(0.06, 0.03, 0.1, matPreto, ax + 0.33, 0.786, fz + 0.3, 0, g)   // mouse
+          cadeira(g, ax, prof / 2 + 0.25, Math.PI)
+          if (i === 0 && r() > 0.3) { const p = pessoa(r, true); p.position.set(ax, 0, prof / 2 + 0.2); p.rotation.y = Math.PI; g.add(p); pessoas.push(p) }
+        }
+        const th = g.rotation.y; bloquear(x + Math.sin(th) * 0.3, z + Math.cos(th) * 0.3, longo + 0.06, prof + 0.6, th)
+      } else if (e.tipo === 'gaveteiro') {
+        // armário marrom de gavetas etiquetadas (material de TI); rot 0 = frente para baixo da planta (vertical: para a direita)
+        const vertical = d > w * 1.2, longo = vertical ? d : w, prof = Math.max(0.35, vertical ? w : d), alt = 1.3
+        const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry + (vertical ? Math.PI / 2 : 0); mundo.add(g)
+        caixa(longo, alt, prof, matArmario, 0, alt / 2 + 0.06, 0, 0, g)
+        caixa(longo - 0.04, 0.06, prof - 0.04, matPreto, 0, 0.03, 0, 0, g)   // rodapé
+        caixa(longo + 0.03, 0.03, prof + 0.03, matArmarioTopo, 0, alt + 0.075, 0, 0, g)
+        const frente = new THREE.Mesh(new THREE.PlaneGeometry(longo - 0.03, alt - 0.03), new THREE.MeshStandardMaterial({ map: texGavetas(longo, alt), roughness: 0.6 }))
+        frente.position.set(0, alt / 2 + 0.06, prof / 2 + 0.002); g.add(frente)
         bloquear(x, z, w, d, ry)
-        caixa(w, 0.05, d, matMesa, x, 0.9, z, ry)
-        caixa(w * 0.98, 0.88, 0.04, matPreto, x, 0.45, z, ry)
       } else if (e.tipo === 'armario') {
         bloquear(x, z, w, d, ry)
         caixa(w, 1.0, d, matMadeira, x, 0.5, z, ry)
@@ -669,7 +772,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
 
     // salas sem móvel ganham uma mesa de trabalho (com o dono da sala, quando o nome da sala é o de uma pessoa)
     for (const s of salas) {
-      const temMovel = mapa.elementos.some((e) => ['mesa', 'bancada', 'sofa', 'estacao'].includes(e.tipo) && (() => { const [a, b] = girar(e, e.w / 2, e.h / 2); return a > s.x && a < s.x + s.w && b > s.y && b < s.y + s.h })())
+      const temMovel = mapa.elementos.some((e) => ['mesa', 'bancada', 'sofa', 'estacao', 'gaveteiro'].includes(e.tipo) && (() => { const [a, b] = girar(e, e.w / 2, e.h / 2); return a > s.x && a < s.x + s.w && b > s.y && b < s.y + s.h })())
       if (temMovel) continue
       const nomeSala = s.p.nome.trim()
       if (/reuni/i.test(nomeSala)) {
@@ -939,9 +1042,13 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
 
   const botao = 'flex h-8 items-center gap-1.5 px-2.5 text-xs hover:bg-black/5 dark:hover:bg-white/10'
   return (
-    <div className={`relative w-full overflow-hidden ${compacto ? 'h-full' : 'h-[68vh] min-h-[440px]'}`}>
+    <div ref={caixaRef} className={`w-full overflow-hidden bg-background ${cheia === 'janela' ? 'fixed inset-0 z-[60] h-[100dvh]' : `relative ${cheia ? 'h-full' : compacto ? 'h-full' : 'h-[68vh] min-h-[440px]'}`}`}>
       <div ref={ref} className="h-full w-full touch-none [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label="Escritório em 3D com as salas, os ares e as pessoas; arraste para girar, role para aproximar" />
       <div ref={rotulosRef} className="pointer-events-none absolute inset-0" />
+      <button onClick={alternarCheia} className={`absolute left-3 top-3 flex overflow-hidden rounded-lg border border-border bg-card/90 font-medium backdrop-blur ${botao}`}
+        title={cheia ? 'Sair da tela cheia (Esc)' : 'Expandir o escritório para a tela inteira'} aria-pressed={!!cheia}>
+        {cheia ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{cheia ? 'Reduzir' : 'Expandir'}
+      </button>
       <div className="absolute right-3 top-3 flex overflow-hidden rounded-lg border border-border bg-card/90 backdrop-blur" role="group" aria-label="Iluminação">
         {[['agora', Clock, 'Agora'], ['dia', Sun, 'Dia'], ['noite', Moon, 'Noite']].map(([k, I, r], i) => (
           <button key={k} onClick={() => setHora(k)} className={`${botao} ${i ? 'border-l border-border' : ''} ${hora === k ? 'bg-black/5 font-medium dark:bg-white/10' : ''}`} title={k === 'agora' ? 'Luz da hora real (Brasília)' : `Simular ${r.toLowerCase()}`}><I className="h-3.5 w-3.5" />{r}</button>
