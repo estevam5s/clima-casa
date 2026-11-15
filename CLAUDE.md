@@ -401,6 +401,14 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
   modo `interaction-only`: invisível para a maioria. CSP libera `https://challenges.cloudflare.com` (script, frame, connect).
 - O app Android entra direto no Supabase e não passa pelo Turnstile (o Supabase-level captcha está desligado de propósito).
 
+### Login com Google (marca "zynio")
+- Projeto Google Cloud **zynio** (`zynio-514802`, conta authuser=2), app publicado, marca verificada: a tela do Google mostra o logo e "Prosseguir para zynio".
+- Cliente OAuth "zynio Web": origens app.zynio.com.br e zynio.com.br; redirect `https://elyqjdcsbfdvlsxomxen.supabase.co/auth/v1/callback`.
+  Client ID e secret estão no provedor Google do Supabase (o secret não fica no repositório).
+- Domínio verificado no Search Console por TXT na Cloudflare (não apagar o `google-site-verification`).
+- O portão do site libera as faixas oficiais de IP do Google (`site/lib/google-ips.mjs`) e UAs com "Google": sem isso a verificação da marca falha ("página protegida por login").
+- Login: botão "Entrar com Google" (`signInWithOAuth`, volta para /login). Cadastro público segue desligado: só entra quem já tem conta com o mesmo e-mail.
+
 ### Tela "Executando verificação de segurança" (portão anti-robô)
 - Quem abre o site ou o sistema sem o passe vê uma tela preta com o Turnstile visível ("Verificando…"); ao passar,
   o servidor grava o cookie `zv` = `<expira>.<HMAC-SHA256(VERIFICACAO_SEGREDO, expira)>` por 12 h, domínio `.zynio.com.br`
