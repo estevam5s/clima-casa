@@ -1,12 +1,17 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Minus, Pause, Play, Plus, RotateCcw } from 'lucide-react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
-// Globo de acessos em Three.js: continentes em pontos, marcadores por cidade (altura = volume),
-// arcos animados de cada origem até o servidor e pulsos para os eventos recentes.
-// pontos: [{lat, lon, cidade, pais, acesso, login, ataque, ips}], servidor: {lat, lon, nome}
+// Globo de acessos em Three.js, desenhado a partir de dados reais:
+// - Terra: países do world-atlas (Natural Earth 1:50m) pintados numa textura equirretangular, com fronteiras e litoral;
+// - dia e noite pela posição real do Sol agora (ponto subsolar calculado pela data/hora UTC), reflexo do Sol no oceano;
+// - atmosfera, estrelas, colunas por cidade (altura = volume), arcos com pulso de luz até o servidor e onda de impacto;
+// - nome das cidades com mais movimento acompanhando a rotação.
+// pontos: [{lat, lon, cidade, pais, acesso, login, robo, ataque, ips, ultimo}], servidor: {lat, lon, nome}
 const R = 1
-const CORES = { ataque: 0xef4444, login: 0x22c55e, acesso: 0x2dd4bf }
+const CORES = { ataque: 0xef4444, login: 0x22c55e, robo: 0xf59e0b, acesso: 0x2dd4bf }
+const ORDEM = ['ataque', 'login', 'robo', 'acesso']
 
 function vetor(lat, lon, r = R) {
   const phi = (90 - lat) * Math.PI / 180
@@ -14,164 +19,320 @@ function vetor(lat, lon, r = R) {
   return new THREE.Vector3(-r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta))
 }
 
-function categoria(p) {
-  return p.ataque > 0 ? 'ataque' : p.login > 0 ? 'login' : 'acesso'
+const categoria = (p) => ORDEM.find((k) => (p[k] || 0) > 0) || 'acesso'
+const total = (p) => (p.acesso || 0) + (p.login || 0) + (p.robo || 0) + (p.ataque || 0)
+
+// Ponto da Terra onde o Sol está a pino agora (aproximação astronômica, erro < 1°).
+function pontoSubsolar(data = new Date()) {
+  const inicio = Date.UTC(data.getUTCFullYear(), 0, 0)
+  const dia = (data - inicio) / 86400000
+  const g = (2 * Math.PI / 365) * (dia - 1 + (data.getUTCHours() - 12) / 24)
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g)
+  const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g))
+  const minutos = data.getUTCHours() * 60 + data.getUTCMinutes() + data.getUTCSeconds() / 60
+  return { lat: decl * 180 / Math.PI, lon: -((minutos + eqt) / 4 - 180) }
 }
 
-// Pontos dos continentes: desenha o mapa (world-atlas) num canvas equirretangular e amostra os pixels de terra.
-async function pontosTerra() {
-  const [{ feature }, terra] = await Promise.all([import('topojson-client'), import('world-atlas/land-110m.json')])
-  const geo = feature(terra.default || terra, (terra.default || terra).objects.land)
-  const L = 720, A = 360
-  const c = document.createElement('canvas'); c.width = L; c.height = A
-  const g = c.getContext('2d')
-  g.fillStyle = '#fff'
+// Texturas do dia (cores), da noite (litoral e fronteiras acesos) e máscara de água (para o brilho do Sol).
+async function texturasTerra() {
+  const [{ feature, mesh }, mundo] = await Promise.all([import('topojson-client'), import('world-atlas/countries-50m.json')])
+  const topo = mundo.default || mundo
+  const paises = feature(topo, topo.objects.countries)
+  const fronteiras = mesh(topo, topo.objects.countries, (a, b) => a !== b)
+  const litoral = mesh(topo, topo.objects.countries, (a, b) => a === b)
+  const L = 4096, A = 2048
   const px = ([lon, lat]) => [(lon + 180) / 360 * L, (90 - lat) / 180 * A]
-  for (const f of geo.features) {
-    const polis = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates
-    for (const poli of polis) {
-      g.beginPath()
-      for (const anel of poli) anel.forEach((p, i) => { const [x, y] = px(p); i ? g.lineTo(x, y) : g.moveTo(x, y) })
-      g.fill('evenodd')
+  const tracar = (g, geometria) => {
+    const linhas = geometria.type === 'MultiLineString' ? geometria.coordinates : [geometria.coordinates]
+    for (const linha of linhas) {
+      let ant = null
+      linha.forEach((p, i) => {
+        const [x, y] = px(p)
+        if (!i || (ant && Math.abs(x - ant) > L / 2)) g.moveTo(x, y); else g.lineTo(x, y) // não cruza o antimeridiano
+        ant = x
+      })
     }
   }
-  const dados = g.getImageData(0, 0, L, A).data
-  const saida = []
-  for (let lat = -84; lat <= 84; lat += 1.6) {
-    const passo = 1.6 / Math.max(0.2, Math.cos(lat * Math.PI / 180))
-    for (let lon = -180; lon < 180; lon += passo) {
-      const x = Math.floor((lon + 180) / 360 * L), y = Math.floor((90 - lat) / 180 * A)
-      if (dados[(y * L + x) * 4] > 128) saida.push(vetor(lat, lon, R * 1.002))
+  const preencher = (g) => {
+    for (const f of paises.features) {
+      if (!f.geometry) continue
+      const polis = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates
+      for (const poli of polis) {
+        g.beginPath()
+        for (const anel of poli) {
+          let ant = null
+          anel.forEach((p, i) => { const [x, y] = px(p); if (!i || Math.abs(x - ant) > L / 2) g.moveTo(x, y); else g.lineTo(x, y); ant = x })
+          g.closePath()
+        }
+        g.fill('evenodd')
+      }
     }
   }
-  return saida
+  const tela = () => { const c = document.createElement('canvas'); c.width = L; c.height = A; return [c, c.getContext('2d')] }
+
+  // dia: oceano com profundidade (mais escuro no meio dos oceanos, mais claro nos polos), terra com relevo leve por latitude
+  const [cDia, d] = tela()
+  const mar = d.createLinearGradient(0, 0, 0, A)
+  mar.addColorStop(0, '#16324a'); mar.addColorStop(0.18, '#0d2a45'); mar.addColorStop(0.5, '#0a2440'); mar.addColorStop(0.82, '#0d2a45'); mar.addColorStop(1, '#1d3a52')
+  d.fillStyle = mar; d.fillRect(0, 0, L, A)
+  const terra = d.createLinearGradient(0, 0, 0, A)
+  terra.addColorStop(0, '#d9e2e8'); terra.addColorStop(0.1, '#9fb0a3'); terra.addColorStop(0.22, '#4f6b4d'); terra.addColorStop(0.36, '#5d6e45')
+  terra.addColorStop(0.44, '#8a7a52'); terra.addColorStop(0.5, '#3f6236'); terra.addColorStop(0.58, '#476a3a'); terra.addColorStop(0.66, '#8b7c55')
+  terra.addColorStop(0.78, '#57704d'); terra.addColorStop(0.9, '#a9b6ad'); terra.addColorStop(1, '#eef3f6')
+  d.fillStyle = terra; preencher(d)
+  // textura de ruído fino na terra (sensação de relevo)
+  const ruido = d.getImageData(0, 0, L, A)
+  for (let i = 0; i < ruido.data.length; i += 4) {
+    const v = (Math.random() - 0.5) * 14
+    ruido.data[i] += v; ruido.data[i + 1] += v; ruido.data[i + 2] += v
+  }
+  d.putImageData(ruido, 0, 0)
+  d.strokeStyle = 'rgba(255,255,255,0.28)'; d.lineWidth = 1.1; d.beginPath(); tracar(d, fronteiras); d.stroke()
+  d.strokeStyle = 'rgba(190,230,255,0.35)'; d.lineWidth = 1.4; d.beginPath(); tracar(d, litoral); d.stroke()
+
+  // noite: quase preto, litoral e fronteiras em luz fria (lembra as luzes das cidades ao longo das costas)
+  const [cNoite, n] = tela()
+  n.fillStyle = '#040b14'; n.fillRect(0, 0, L, A)
+  n.fillStyle = '#122233'; preencher(n)
+  n.shadowColor = 'rgba(255,190,110,0.9)'; n.shadowBlur = 6
+  n.strokeStyle = 'rgba(255,196,120,0.55)'; n.lineWidth = 1.6; n.beginPath(); tracar(n, litoral); n.stroke()
+  n.shadowBlur = 0
+  n.strokeStyle = 'rgba(94,234,212,0.22)'; n.lineWidth = 1; n.beginPath(); tracar(n, fronteiras); n.stroke()
+
+  // máscara de água: branco = oceano
+  const [cAgua, a] = tela()
+  a.fillStyle = '#fff'; a.fillRect(0, 0, L, A); a.fillStyle = '#000'; preencher(a)
+
+  const tex = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t }
+  return { dia: tex(cDia), noite: tex(cNoite), agua: new THREE.CanvasTexture(cAgua) }
 }
 
 function texturaPonto() {
   const c = document.createElement('canvas'); c.width = c.height = 64
   const g = c.getContext('2d')
   const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32)
-  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)')
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.85)'); gr.addColorStop(1, 'rgba(255,255,255,0)')
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64)
   return new THREE.CanvasTexture(c)
 }
 
-export default function Globo3D({ pontos = [], servidor, recentes = [], aoSelecionar, className = '' }) {
+const SOMBREADOR_TERRA = {
+  vertex: `varying vec2 vUv; varying vec3 vNormal; varying vec3 vNormalVista; varying vec3 vVista;
+    void main(){ vUv = uv; vNormal = normalize(normal); vNormalVista = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.0); vVista = normalize(-mv.xyz);
+      gl_Position = projectionMatrix * mv; }`,
+  fragment: `uniform sampler2D dia; uniform sampler2D noite; uniform sampler2D agua; uniform vec3 sol; uniform vec3 solVista; uniform float carregado;
+    varying vec2 vUv; varying vec3 vNormal; varying vec3 vNormalVista; varying vec3 vVista;
+    void main(){
+      float luz = dot(normalize(vNormal), normalize(sol));
+      float diaF = smoothstep(-0.12, 0.22, luz);
+      vec3 cDia = texture2D(dia, vUv).rgb * (0.35 + 0.85 * max(luz, 0.0));
+      vec3 cNoite = texture2D(noite, vUv).rgb * 1.35;
+      vec3 cor = mix(cNoite, cDia, diaF);
+      // reflexo do Sol só no oceano
+      float m = texture2D(agua, vUv).r;
+      vec3 nV = normalize(vNormalVista);
+      vec3 h = normalize(normalize(solVista) + vVista);
+      cor += vec3(1.0, 0.92, 0.78) * pow(max(dot(nV, h), 0.0), 60.0) * 0.55 * m * diaF;
+      // faixa do crepúsculo levemente alaranjada
+      cor += vec3(0.55, 0.25, 0.08) * (1.0 - abs(smoothstep(-0.15, 0.15, luz) * 2.0 - 1.0)) * 0.18;
+      // borda azulada (espessura da atmosfera vista de lado)
+      float borda = pow(1.0 - max(dot(nV, vVista), 0.0), 3.0);
+      cor += vec3(0.25, 0.55, 0.85) * borda * (0.25 + 0.6 * diaF);
+      gl_FragColor = vec4(mix(vec3(0.03, 0.07, 0.12), cor, carregado), 1.0);
+    }`,
+}
+
+export default function Globo3D({ pontos = [], servidor, aoSelecionar, className = '' }) {
   const ref = useRef(null)
   const dicaRef = useRef(null)
-  const dadosRef = useRef({ pontos, recentes })
-  dadosRef.current = { pontos, recentes }
+  const rotulosRef = useRef(null)
+  const dadosRef = useRef({ pontos })
+  dadosRef.current = { pontos }
   const montarRef = useRef(null)
-  const zoomRef = useRef(null)
+  const acoesRef = useRef({})
+  const [girando, setGirando] = useState(true)
+  const [pronto, setPronto] = useState(false)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return undefined
-    const escuro = document.documentElement.classList.contains('dark')
     const calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.outputColorSpace = THREE.SRGBColorSpace
     el.appendChild(renderer.domElement)
     const cena = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
-    camera.position.set(0, 0.6, 3.1)
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200)
+    const inicioCam = new THREE.Vector3(0, 0.75, 3.15)
+    camera.position.copy(inicioCam)
     const controles = new OrbitControls(camera, renderer.domElement)
     controles.enableDamping = true; controles.dampingFactor = 0.06
     controles.enablePan = false; controles.enableZoom = false // a roda rola a página; zoom pelos botões
-    controles.minDistance = 1.7; controles.maxDistance = 5
-    controles.autoRotate = !calmo; controles.autoRotateSpeed = 0.45
-    controles.rotateSpeed = 0.6
+    controles.minDistance = 1.5; controles.maxDistance = 5.5
+    controles.autoRotate = !calmo; controles.autoRotateSpeed = 0.35
+    controles.rotateSpeed = 0.55
+
+    // estrelas
+    const estrelas = new Float32Array(2400 * 3)
+    for (let i = 0; i < 2400; i++) {
+      const v = new THREE.Vector3().randomDirection().multiplyScalar(40 + Math.random() * 30)
+      estrelas.set([v.x, v.y, v.z], i * 3)
+    }
+    const geoEstrelas = new THREE.BufferGeometry(); geoEstrelas.setAttribute('position', new THREE.BufferAttribute(estrelas, 3))
+    const tex = texturaPonto()
+    const ceu = new THREE.Points(geoEstrelas, new THREE.PointsMaterial({ size: 0.16, map: tex, color: 0xcfe7ff, transparent: true, opacity: 0.75, depthWrite: false }))
+    cena.add(ceu)
 
     const globo = new THREE.Group()
+    globo.rotation.y = -1.25 // começa nas Américas
     cena.add(globo)
-    // esfera base + atmosfera (fresnel)
-    globo.add(new THREE.Mesh(new THREE.SphereGeometry(R, 64, 64),
-      new THREE.MeshBasicMaterial({ color: escuro ? 0x0b1120 : 0xe8eef3, transparent: true, opacity: escuro ? 0.96 : 0.9 })))
-    const atmosfera = new THREE.Mesh(new THREE.SphereGeometry(R * 1.18, 64, 64), new THREE.ShaderMaterial({
-      uniforms: { cor: { value: new THREE.Color(escuro ? 0x2dd4bf : 0x0f766a) } },
-      vertexShader: 'varying vec3 n; void main(){ n = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: 'uniform vec3 cor; varying vec3 n; void main(){ float i = pow(0.62 - dot(n, vec3(0,0,1.0)), 3.0); gl_FragColor = vec4(cor, 1.0) * i; }',
+
+    // Terra com dia e noite reais
+    const sub = pontoSubsolar()
+    const solLocal = vetor(sub.lat, sub.lon, 1).normalize()
+    const uniforms = {
+      dia: { value: null }, noite: { value: null }, agua: { value: null },
+      sol: { value: solLocal.clone() }, solVista: { value: new THREE.Vector3() }, carregado: { value: 0 },
+    }
+    const matTerra = new THREE.ShaderMaterial({ uniforms, vertexShader: SOMBREADOR_TERRA.vertex, fragmentShader: SOMBREADOR_TERRA.fragment })
+    const terra = new THREE.Mesh(new THREE.SphereGeometry(R, 128, 128), matTerra)
+    globo.add(terra)
+    let texturas = null
+    texturasTerra().then((t) => {
+      texturas = t
+      uniforms.dia.value = t.dia; uniforms.noite.value = t.noite; uniforms.agua.value = t.agua
+      setPronto(true)
+    }).catch(() => setPronto(true))
+
+    // atmosfera: halo externo (lado de trás) e brilho fino na borda
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(R * 1.16, 96, 96), new THREE.ShaderMaterial({
+      uniforms: { sol: { value: new THREE.Vector3() } },
+      vertexShader: 'varying vec3 n; varying vec3 w; void main(){ n = normalize(normalMatrix * normal); w = normalize((modelMatrix * vec4(position,1.0)).xyz); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: `uniform vec3 sol; varying vec3 n; varying vec3 w;
+        void main(){ float i = pow(0.68 - dot(n, vec3(0,0,1.0)), 3.2); float d = 0.35 + 0.65 * smoothstep(-0.4, 0.6, dot(w, normalize(sol)));
+          gl_FragColor = vec4(vec3(0.30, 0.62, 1.0) * d, 1.0) * i * 1.3; }`,
       blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true, depthWrite: false,
     }))
-    cena.add(atmosfera)
-    // grade de latitude/longitude bem leve
-    const matGrade = new THREE.LineBasicMaterial({ color: escuro ? 0x1e293b : 0xcbd5e1, transparent: true, opacity: 0.5 })
+    cena.add(halo)
+
+    // grade bem leve
+    const matGrade = new THREE.LineBasicMaterial({ color: 0x5eead4, transparent: true, opacity: 0.07, depthWrite: false })
     for (let lat = -60; lat <= 60; lat += 30) {
-      const pts = []; for (let lon = -180; lon <= 180; lon += 5) pts.push(vetor(lat, lon, R * 1.001))
+      const pts = []; for (let lon = -180; lon <= 180; lon += 4) pts.push(vetor(lat, lon, R * 1.002))
       globo.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), matGrade))
     }
     for (let lon = -180; lon < 180; lon += 30) {
-      const pts = []; for (let lat = -90; lat <= 90; lat += 5) pts.push(vetor(lat, lon, R * 1.001))
+      const pts = []; for (let lat = -88; lat <= 88; lat += 4) pts.push(vetor(lat, lon, R * 1.002))
       globo.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), matGrade))
     }
-    const tex = texturaPonto()
-    pontosTerra().then((vs) => {
-      const geo = new THREE.BufferGeometry().setFromPoints(vs)
-      globo.add(new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.024, map: tex, transparent: true, depthWrite: false,
-        color: escuro ? 0x5eead4 : 0x0f766a, opacity: escuro ? 0.9 : 0.85 })))
-    }).catch(() => {})
 
-    // servidor
-    const posServ = vetor(servidor?.lat ?? 41.5, servidor?.lon ?? -81.7, R * 1.01)
-    const serv = new THREE.Mesh(new THREE.SphereGeometry(0.022, 16, 16), new THREE.MeshBasicMaterial({ color: escuro ? 0xffffff : 0x0f172a }))
+    // servidor: ponto branco, anel e onda de impacto
+    const posServ = vetor(servidor?.lat ?? -23.55, servidor?.lon ?? -46.63, R * 1.004)
+    const serv = new THREE.Mesh(new THREE.SphereGeometry(0.016, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }))
     serv.position.copy(posServ); globo.add(serv)
-    const anelServ = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.036, 48), new THREE.MeshBasicMaterial({ color: escuro ? 0xffffff : 0x0f172a, transparent: true, side: THREE.DoubleSide }))
-    anelServ.position.copy(posServ); anelServ.lookAt(posServ.clone().multiplyScalar(2)); globo.add(anelServ)
+    const fazerAnel = (r1, r2, cor) => {
+      const a = new THREE.Mesh(new THREE.RingGeometry(r1, r2, 64), new THREE.MeshBasicMaterial({ color: cor, transparent: true, side: THREE.DoubleSide, depthWrite: false }))
+      a.position.copy(posServ.clone().multiplyScalar(1.001)); a.lookAt(posServ.clone().multiplyScalar(2)); globo.add(a); return a
+    }
+    const anelServ = fazerAnel(0.024, 0.029, 0xffffff)
+    const impactos = [fazerAnel(0.02, 0.026, 0xef4444), fazerAnel(0.02, 0.026, 0x2dd4bf)].map((a) => { a.material.opacity = 0; a.userData.t = 1; return a })
 
-    // camada dinâmica (marcadores, arcos e cometas) recriada quando os dados mudam
+    // camada dinâmica (colunas, anéis, arcos e pulsos) recriada quando os dados mudam
     let dinamica = new THREE.Group(); globo.add(dinamica)
-    let marcadores = [], cometas = [], aneis = []
+    let marcadores = [], pulsos = [], aneis = [], rotulos = []
     const montar = () => {
       globo.remove(dinamica)
       dinamica.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
       dinamica = new THREE.Group(); globo.add(dinamica)
-      marcadores = []; cometas = []; aneis = []
+      marcadores = []; pulsos = []; aneis = []
       const { pontos: ps } = dadosRef.current
-      const max = Math.max(1, ...ps.map((p) => p.acesso + p.login + p.ataque))
+      const max = Math.max(1, ...ps.map(total))
       ps.forEach((p, idx) => {
         const cat = categoria(p)
-        const cor = CORES[cat]
-        const total = p.acesso + p.login + p.ataque
+        const cor = new THREE.Color(CORES[cat])
         const base = vetor(p.lat, p.lon, R)
-        const altura = 0.04 + 0.28 * Math.sqrt(total / max)
-        // coluna de luz
-        const coluna = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.009, altura, 8), new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.85 }))
-        coluna.position.copy(base.clone().multiplyScalar(1 + altura / 2))
-        coluna.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), base.clone().normalize())
-        coluna.userData = { ponto: p }
-        dinamica.add(coluna); marcadores.push(coluna)
+        const altura = 0.03 + 0.26 * Math.sqrt(total(p) / max)
+        const normal = base.clone().normalize()
+        // coluna de luz que some no topo
+        const geoCol = new THREE.CylinderGeometry(0.0035, 0.0075, altura, 10, 1, true)
+        const coluna = new THREE.Mesh(geoCol, new THREE.ShaderMaterial({
+          uniforms: { cor: { value: cor }, h: { value: altura } },
+          vertexShader: 'varying float y; uniform float h; void main(){ y = position.y / h + 0.5; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+          fragmentShader: 'uniform vec3 cor; varying float y; void main(){ gl_FragColor = vec4(cor * (1.2 - y * 0.4), (1.0 - y) * 0.95); }',
+          transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        }))
+        coluna.position.copy(normal.clone().multiplyScalar(R + altura / 2))
+        coluna.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal)
+        dinamica.add(coluna)
+        const ponta = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: cor, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))
+        ponta.position.copy(normal.clone().multiplyScalar(R + 0.004)); ponta.scale.setScalar(0.05 + 0.04 * Math.sqrt(total(p) / max))
+        dinamica.add(ponta)
         // alvo clicável maior (invisível)
-        const alvo = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ visible: false }))
+        const alvo = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), new THREE.MeshBasicMaterial({ visible: false }))
         alvo.position.copy(base); alvo.userData = { ponto: p }; dinamica.add(alvo); marcadores.push(alvo)
-        // anel pulsando na base
-        const anel = new THREE.Mesh(new THREE.RingGeometry(0.012, 0.018, 32), new THREE.MeshBasicMaterial({ color: cor, transparent: true, side: THREE.DoubleSide, depthWrite: false }))
-        anel.position.copy(base.clone().multiplyScalar(1.003)); anel.lookAt(base.clone().multiplyScalar(2))
-        anel.userData.fase = idx * 0.37
-        dinamica.add(anel); aneis.push(anel)
-        // arco até o servidor
+        // dois anéis defasados na base
+        for (let k = 0; k < 2; k++) {
+          const anel = new THREE.Mesh(new THREE.RingGeometry(0.012, 0.016, 40), new THREE.MeshBasicMaterial({ color: cor, transparent: true, side: THREE.DoubleSide, depthWrite: false }))
+          anel.position.copy(normal.clone().multiplyScalar(R * 1.002)); anel.lookAt(normal.clone().multiplyScalar(2))
+          anel.userData.fase = idx * 0.37 + k * 0.5; anel.userData.vel = cat === 'ataque' ? 1.1 : 0.6
+          dinamica.add(anel); aneis.push(anel)
+        }
+        // arco até o servidor: linha fraca + pulso de luz que corre por ela (shader com progresso)
         const fim = posServ.clone()
         const dist = base.distanceTo(fim)
-        if (dist < 0.02) return
-        const meio = base.clone().add(fim).multiplyScalar(0.5).normalize().multiplyScalar(R + dist * 0.45)
+        if (dist < 0.03) return
+        const meio = base.clone().add(fim).multiplyScalar(0.5).normalize().multiplyScalar(R + dist * 0.42)
         const curva = new THREE.QuadraticBezierCurve3(base.clone().multiplyScalar(1.002), meio, fim)
-        dinamica.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curva.getPoints(64)),
-          new THREE.LineBasicMaterial({ color: cor, transparent: true, opacity: cat === 'ataque' ? 0.55 : 0.3, depthWrite: false })))
-        // cometa com rastro percorrendo o arco
-        const rastro = 14
-        const geo = new THREE.BufferGeometry().setFromPoints(Array.from({ length: rastro }, () => new THREE.Vector3()))
-        const tam = new Float32Array(rastro).map((_, i) => 1 - i / rastro)
-        geo.setAttribute('alpha', new THREE.BufferAttribute(tam, 1))
-        const pontosCometa = new THREE.Points(geo, new THREE.PointsMaterial({ size: cat === 'ataque' ? 0.05 : 0.038, map: tex, color: cor, transparent: true,
-          depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.95 }))
-        dinamica.add(pontosCometa)
-        cometas.push({ curva, geo, t: Math.random(), vel: (cat === 'ataque' ? 0.35 : 0.22) * (0.8 + Math.random() * 0.4) })
+        const pts = curva.getPoints(120)
+        const geoArco = new THREE.BufferGeometry().setFromPoints(pts)
+        geoArco.setAttribute('t', new THREE.BufferAttribute(new Float32Array(pts.map((_, i) => i / (pts.length - 1))), 1))
+        const mat = new THREE.ShaderMaterial({
+          uniforms: { cor: { value: cor }, fase: { value: Math.random() }, forca: { value: cat === 'ataque' ? 1 : 0.7 } },
+          vertexShader: 'attribute float t; varying float vt; void main(){ vt = t; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+          fragmentShader: `uniform vec3 cor; uniform float fase; uniform float forca; varying float vt;
+            void main(){ float d = vt - fase; float cabeca = smoothstep(-0.22, 0.0, d) * (1.0 - smoothstep(0.0, 0.015, d));
+              float base = 0.16 * forca; gl_FragColor = vec4(cor * (1.0 + cabeca * 1.6), base + cabeca * forca); }`,
+          transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        })
+        dinamica.add(new THREE.Line(geoArco, mat))
+        pulsos.push({ mat, vel: (cat === 'ataque' ? 0.42 : 0.26) * (0.85 + Math.random() * 0.3), impacto: cat === 'ataque' ? 0 : 1 })
       })
+      // rótulos HTML das cidades com mais movimento
+      const caixa = rotulosRef.current
+      if (caixa) {
+        caixa.innerHTML = ''
+        rotulos = [...ps].sort((a, b) => total(b) - total(a)).filter((p) => p.cidade).slice(0, 6).map((p) => {
+          const div = document.createElement('div')
+          div.className = 'absolute whitespace-nowrap rounded border border-white/10 bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm transition-opacity'
+          div.textContent = `${p.cidade}${p.pais ? ` · ${p.pais}` : ''}`
+          caixa.appendChild(div)
+          return { div, pos: vetor(p.lat, p.lon, R * 1.02) }
+        })
+        const dServ = document.createElement('div')
+        dServ.className = 'absolute whitespace-nowrap rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-900'
+        dServ.textContent = 'Servidor'
+        caixa.appendChild(dServ)
+        rotulos.push({ div: dServ, pos: posServ.clone().multiplyScalar(1.02) })
+      }
     }
     montar()
     montarRef.current = montar
-    zoomRef.current = (fator) => {
-      const d = Math.min(controles.maxDistance, Math.max(controles.minDistance, camera.position.length() * fator))
-      camera.position.setLength(d); controles.update()
+
+    // ações dos botões
+    const animarCamera = (destino) => {
+      const de = camera.position.clone(); let t0 = null
+      const passo = (ts) => {
+        t0 ??= ts
+        const k = Math.min(1, (ts - t0) / 700), e = 1 - Math.pow(1 - k, 3)
+        camera.position.lerpVectors(de, destino, e); controles.update()
+        if (k < 1) requestAnimationFrame(passo)
+      }
+      requestAnimationFrame(passo)
+    }
+    acoesRef.current = {
+      zoom: (f) => animarCamera(camera.position.clone().setLength(Math.min(controles.maxDistance, Math.max(controles.minDistance, camera.position.length() * f)))),
+      inicio: () => animarCamera(inicioCam.clone()),
+      girar: (v) => { controles.autoRotate = v && !calmo },
     }
 
     // dica ao passar o mouse e clique para selecionar
@@ -183,25 +344,28 @@ export default function Globo3D({ pontos = [], servidor, recentes = [], aoSeleci
       mouse.x = ((e.clientX - b.left) / b.width) * 2 - 1
       mouse.y = -((e.clientY - b.top) / b.height) * 2 + 1
       ray.setFromCamera(mouse, camera)
-      const hit = ray.intersectObjects(marcadores)[0]
-      sobre = hit?.object.userData.ponto || null
+      const hit = ray.intersectObjects([terra, ...marcadores])[0]
+      sobre = hit && hit.object !== terra ? hit.object.userData.ponto : null
       el.style.cursor = sobre ? 'pointer' : 'grab'
       const d = dicaRef.current
       if (!d) return
       if (sobre) {
         d.style.display = 'block'
-        d.style.left = `${e.clientX - b.left + 14}px`; d.style.top = `${e.clientY - b.top + 14}px`
+        d.style.left = `${Math.min(e.clientX - b.left + 14, b.width - 220)}px`; d.style.top = `${e.clientY - b.top + 14}px`
         d.innerHTML = ''
         const linhas = [[`${sobre.cidade || 'Local desconhecido'}${sobre.pais ? `, ${sobre.pais}` : ''}`, 'font-weight:600'],
-          [`${sobre.ips} IP(s) · ${sobre.acesso} acesso(s) · ${sobre.login} login(s)`, ''], [`${sobre.ataque} ataque(s) barrado(s)`, sobre.ataque ? 'color:#ef4444' : '']]
-        linhas.forEach(([t, st]) => { const p = document.createElement('p'); p.textContent = t; p.style.cssText = st; d.appendChild(p) })
+          [`${sobre.ips} IP(s) · ${sobre.acesso} acesso(s) · ${sobre.login} login(s)`, ''],
+          [sobre.robo ? `${sobre.robo} evento(s) de robô inofensivo` : '', 'color:#f59e0b'],
+          [sobre.ataque ? `${sobre.ataque} ataque(s) real(is) barrado(s)` : 'Nenhum ataque real', sobre.ataque ? 'color:#ef4444' : 'color:#22c55e']]
+        linhas.filter(([t]) => t).forEach(([t, st]) => { const p = document.createElement('p'); p.textContent = t; p.style.cssText = st; d.appendChild(p) })
       } else d.style.display = 'none'
     }
     const clicar = () => { if (sobre) aoSelecionar?.(sobre) }
     const sair = () => { if (dicaRef.current) dicaRef.current.style.display = 'none' }
     el.addEventListener('pointermove', mover); el.addEventListener('click', clicar); el.addEventListener('pointerleave', sair)
-    controles.addEventListener('start', () => { controles.autoRotate = false })
-    controles.addEventListener('end', () => { setTimeout(() => { controles.autoRotate = !calmo }, 4000) })
+    let retomar
+    controles.addEventListener('start', () => { clearTimeout(retomar); controles.autoRotate = false })
+    controles.addEventListener('end', () => { retomar = setTimeout(() => { controles.autoRotate = acoesRef.current.girando !== false && !calmo }, 5000) })
 
     const ajustar = () => {
       const w = el.clientWidth, h = el.clientHeight
@@ -209,52 +373,86 @@ export default function Globo3D({ pontos = [], servidor, recentes = [], aoSeleci
     }
     ajustar()
     const ro = new ResizeObserver(ajustar); ro.observe(el)
-    // começa olhando para o Brasil / Américas
-    globo.rotation.y = -0.9
     const relogio = new THREE.Clock()
-    let quadro
+    const tmp = new THREE.Vector3(), solMundo = new THREE.Vector3()
+    let quadro, ultimoSol = 0
     const laco = () => {
       quadro = requestAnimationFrame(laco)
       if (document.hidden) return
       const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime
-      cometas.forEach((c) => {
-        c.t = (c.t + dt * c.vel) % 1
-        const pos = c.geo.attributes.position
-        for (let i = 0; i < pos.count; i++) {
-          const p = c.curva.getPoint(Math.max(0, c.t - i * 0.012))
-          pos.setXYZ(i, p.x, p.y, p.z)
-        }
-        pos.needsUpdate = true
+      if (t - ultimoSol > 60) { // o Sol anda 0,25° por minuto
+        ultimoSol = t
+        const s = pontoSubsolar(); uniforms.sol.value.copy(vetor(s.lat, s.lon, 1).normalize())
+      }
+      uniforms.carregado.value = Math.min(1, uniforms.carregado.value + (texturas ? dt * 1.5 : 0))
+      solMundo.copy(uniforms.sol.value).applyQuaternion(globo.quaternion)
+      uniforms.solVista.value.copy(solMundo).transformDirection(camera.matrixWorldInverse)
+      halo.material.uniforms.sol.value.copy(solMundo)
+      pulsos.forEach((p) => {
+        const antes = p.mat.uniforms.fase.value
+        const f = (antes + dt * p.vel) % 1.25
+        p.mat.uniforms.fase.value = f
+        if (f < antes) { const a = impactos[p.impacto]; a.userData.t = 0 } // chegou ao servidor
+      })
+      impactos.forEach((a) => {
+        a.userData.t = Math.min(1, a.userData.t + dt * 1.4)
+        a.scale.setScalar(1 + a.userData.t * 4); a.material.opacity = 0.9 * (1 - a.userData.t)
       })
       aneis.forEach((a) => {
-        const f = ((t * 0.8 + a.userData.fase) % 1)
-        a.scale.setScalar(1 + f * 3.5); a.material.opacity = 0.9 * (1 - f)
+        const f = ((t * a.userData.vel + a.userData.fase) % 1)
+        a.scale.setScalar(1 + f * 3.2); a.material.opacity = 0.85 * (1 - f)
       })
-      const fs = (t * 0.6) % 1
-      anelServ.scale.setScalar(1 + fs * 2.5); anelServ.material.opacity = 1 - fs
+      const fs = (t * 0.5) % 1
+      anelServ.scale.setScalar(1 + fs * 2); anelServ.material.opacity = 1 - fs
+      ceu.rotation.y += dt * 0.004
       controles.update()
       renderer.render(cena, camera)
+      // rótulos: posição na tela e escondidos quando estão atrás do globo
+      if (rotulos.length) {
+        const w = el.clientWidth, h = el.clientHeight
+        const cam = camera.position.clone().normalize()
+        const usados = []
+        // o servidor (último) tem prioridade; depois as cidades por volume. Rótulo que encostaria em outro fica escondido.
+        ;[rotulos[rotulos.length - 1], ...rotulos.slice(0, -1)].forEach(({ div, pos }) => {
+          tmp.copy(pos).applyMatrix4(globo.matrixWorld)
+          const frente = tmp.clone().normalize().dot(cam) > 0.18
+          tmp.project(camera)
+          const x = (tmp.x * 0.5 + 0.5) * w + 8, y = (-tmp.y * 0.5 + 0.5) * h - 10
+          const livre = usados.every(([ux, uy]) => Math.abs(ux - x) > 90 || Math.abs(uy - y) > 20)
+          div.style.transform = `translate(${x}px, ${y}px)`
+          div.style.opacity = frente && livre ? '1' : '0'
+          if (frente && livre) usados.push([x, y])
+        })
+      }
     }
     laco()
     return () => {
-      cancelAnimationFrame(quadro); ro.disconnect()
+      cancelAnimationFrame(quadro); ro.disconnect(); clearTimeout(retomar)
       el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair)
       controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
-      tex.dispose(); renderer.dispose()
+      tex.dispose(); if (texturas) Object.values(texturas).forEach((x) => x.dispose())
+      renderer.dispose()
       el.removeChild(renderer.domElement)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // dados novos: recria só a camada dinâmica
   useEffect(() => { montarRef.current?.() }, [pontos])
+  useEffect(() => { acoesRef.current.girando = girando; acoesRef.current.girar?.(girando) }, [girando])
 
+  const botao = 'flex h-8 w-8 items-center justify-center hover:bg-white/10'
   return (
-    <div className={`relative h-full w-full ${className}`}>
-      <div ref={ref} className="h-full w-full touch-none [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label="Globo 3D com a origem dos acessos e ataques; arraste para girar e role para aproximar" />
-      <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border border-border bg-card/90 backdrop-blur">
-        <button onClick={() => zoomRef.current?.(0.82)} className="px-2.5 py-1.5 text-sm hover:bg-muted" aria-label="Aproximar">+</button>
-        <button onClick={() => zoomRef.current?.(1.22)} className="border-t border-border px-2.5 py-1.5 text-sm hover:bg-muted" aria-label="Afastar">−</button>
+    <div className="relative h-full w-full overflow-hidden bg-[#03070d]"> {/* marca: fundo do espaço atrás do globo */}
+      <div ref={ref} className={`h-full w-full touch-none transition-opacity duration-700 [&>canvas]:h-full [&>canvas]:w-full ${className}`} role="img"
+        aria-label="Globo 3D com a origem dos acessos e ataques, dia e noite pela hora real; arraste para girar" />
+      <div ref={rotulosRef} className="pointer-events-none absolute inset-0 [&>div]:left-0 [&>div]:top-0" />
+      {!pronto && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/60">Desenhando o mapa…</div>}
+      <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border border-white/15 bg-black/50 text-white backdrop-blur">
+        <button onClick={() => acoesRef.current.zoom?.(0.8)} className={botao} aria-label="Aproximar" title="Aproximar"><Plus className="h-3.5 w-3.5" /></button>
+        <button onClick={() => acoesRef.current.zoom?.(1.25)} className={`${botao} border-t border-white/15`} aria-label="Afastar" title="Afastar"><Minus className="h-3.5 w-3.5" /></button>
+        <button onClick={() => acoesRef.current.inicio?.()} className={`${botao} border-t border-white/15`} aria-label="Voltar à vista inicial" title="Vista inicial"><RotateCcw className="h-3.5 w-3.5" /></button>
+        <button onClick={() => setGirando((g) => !g)} className={`${botao} border-t border-white/15`} aria-label={girando ? 'Parar rotação' : 'Girar'} title={girando ? 'Parar rotação' : 'Girar'}>{girando ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
       </div>
       <div ref={dicaRef} className="pointer-events-none absolute z-10 hidden rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl" /> {/* marca: dica flutua */}
     </div>

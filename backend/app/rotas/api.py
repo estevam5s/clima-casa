@@ -1428,6 +1428,32 @@ class EsqueciIn(BaseModel):
     voltar_para: str = Field("", max_length=300)
 
 
+class VerificacaoIn(BaseModel):
+    turnstile: str = Field(..., max_length=4000)
+
+
+@publico.post("/verificacao")
+def verificacao(d: VerificacaoIn, request: Request):
+    """Tela "Executando verificação de segurança": confere o Turnstile e grava um passe assinado (cookie) por 12 h.
+    O passe vale para o site e o sistema (domínio .zynio.com.br); o middleware da Vercel confere a assinatura."""
+    import hashlib
+    import hmac
+    from fastapi.responses import JSONResponse
+    from .. import firewall, turnstile
+    ip = firewall.ip_do_pedido(request)
+    turnstile.exigir(d.turnstile, ip, "/api/verificacao")
+    segredo = db.ENV.get("VERIFICACAO_SEGREDO", "")
+    if not segredo:
+        return {"ok": True}
+    exp = db.agora() + 12 * 3600
+    passe = f"{exp}.{hmac.new(segredo.encode(), str(exp).encode(), hashlib.sha256).hexdigest()}"
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(":")[0]
+    r = JSONResponse({"ok": True})
+    r.set_cookie("zv", passe, max_age=12 * 3600, httponly=True, secure=True, samesite="lax", path="/",
+                 domain=".zynio.com.br" if host.endswith("zynio.com.br") else None)
+    return r
+
+
 @publico.post("/auth/esqueci")
 def esqueci_senha(d: EsqueciIn, request: Request):
     """Envia o link de nova senha (com Turnstile e limite por IP). Responde igual exista ou não a conta."""

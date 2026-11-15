@@ -8,11 +8,47 @@ import PainelSeguranca from '../components/config/PainelSeguranca'
 
 const Globo3D = lazy(() => import('../components/Globo3D'))
 const PERIODOS = [[1, '24 h'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']]
-const CATS = [['acesso', 'Acessos', '#2dd4bf'], ['login', 'Logins', '#22c55e'], ['ataque', 'Ataques barrados', '#ef4444']]
+const CATS = [['acesso', 'Acessos', '#2dd4bf'], ['login', 'Logins', '#22c55e'], ['robo', 'Robôs inofensivos', '#f59e0b'], ['ataque', 'Ataques reais', '#ef4444']]
 const FORMATOS = [['pdf', 'PDF', FileText], ['docx', 'Word (DOCX)', FileType2], ['xlsx', 'Excel (XLSX)', FileSpreadsheet], ['csv', 'CSV (ZIP)', FileSpreadsheet],
   ['html', 'HTML', Globe2], ['xml', 'XML', FileCode2], ['json', 'JSON', FileJson], ['md', 'Markdown', FileText]]
 const eixo = { tickLine: false, axisLine: false, fontSize: 11, stroke: 'hsl(var(--muted-foreground))' }
-const COR_EVENTO = { ataque: 'bg-red-500', login: 'bg-emerald-500', acesso: 'bg-teal-400' }
+const COR_EVENTO = { ataque: 'bg-red-500', login: 'bg-emerald-500', acesso: 'bg-teal-400', robo: 'bg-amber-500' }
+const NIVEIS = [
+  ['ataque', 'Ataque real', 'bg-red-500', 'text-red-600 dark:text-red-400', 'Tentou senha, token falso, ferramenta de ataque ou varredura.'],
+  ['suspeito', 'Suspeito', 'bg-orange-500', 'text-orange-600 dark:text-orange-400', 'Errou a senha uma vez. Vale acompanhar.'],
+  ['robo', 'Robô inofensivo', 'bg-amber-500', 'text-amber-600 dark:text-amber-400', 'Servidor de nuvem, antivírus de link ou prévia do WhatsApp que só abriu a página.'],
+  ['visitante', 'Visitante', 'bg-teal-400', 'text-teal-600 dark:text-teal-400', 'Abriu a página sem estar logado e não tentou nada.'],
+  ['confiavel', 'Equipe', 'bg-emerald-500', 'text-emerald-600 dark:text-emerald-400', 'Já entrou com a senha certa ou é da rede do escritório.'],
+]
+const NIVEL = Object.fromEntries(NIVEIS.map((n) => [n[0], n]))
+
+// Cada IP do período foi conferido: o que ele realmente fez, não só "recebeu 401".
+function Analise({ analise, total }) {
+  const soma = Math.max(1, NIVEIS.reduce((s, [k]) => s + (analise[k] || 0), 0))
+  return (
+    <section className="cartao p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="titulo-secao">Verificação dos alertas</h2>
+        <p className="text-xs text-muted-foreground">{total} IP(s) analisados pelo que fizeram, pelo navegador e pelo dono do IP (nome reverso)</p>
+      </div>
+      <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-muted">
+        {NIVEIS.map(([k, , cor], i) => analise[k] ? (
+          <motion.div key={k} className={`h-full ${cor}`} initial={{ width: 0 }} animate={{ width: `${(analise[k] / soma) * 100}%` }} transition={{ delay: 0.1 + i * 0.08, duration: 0.6, ease: 'easeOut' }} />
+        ) : null)}
+      </div>
+      <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {NIVEIS.map(([k, r, cor, texto, d]) => (
+          <div key={k} className="min-w-0">
+            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className={`h-2 w-2 rounded-full ${cor}`} />{r}</dt>
+            <dd className={`mt-0.5 text-2xl font-semibold tabular ${analise[k] && k === 'ataque' ? texto : ''}`}>{analise[k] || 0}</dd>
+            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{d}</p>
+          </div>
+        ))}
+      </dl>
+      {!analise.ataque && <p className="mt-4 flex items-center gap-2 rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400"><ShieldCheck className="h-4 w-4 shrink-0" />Nenhum ataque real no período. Robôs e visitantes sem login só viram a tela de entrada, que pede senha e verificação anti-robô.</p>}
+    </section>
+  )
+}
 
 function Dica({ active, payload, label }) {
   if (!active || !payload?.length) return null
@@ -115,10 +151,12 @@ export default function Seguranca() {
         <div className="grid gap-6">
           <FaixaMetricas itens={[
             { rotulo: 'Postura de segurança', valor: t.postura, sufixo: '/100', tom: t.postura >= 80 ? 'bom' : 'ruim', dica: t.postura >= 80 ? 'Sem sinais de ataque persistente' : 'Veja as recomendações no relatório' },
-            { rotulo: 'Ataques barrados', valor: t.ataques, tom: t.ataques ? 'ruim' : 'bom', dica: varAtaques == null ? `${t.logins_falhos} login(s) recusado(s)` : `${varAtaques > 0 ? '+' : ''}${varAtaques}% vs período anterior` },
+            { rotulo: 'Ataques reais', valor: t.ataques, tom: t.ataques ? 'ruim' : 'bom', dica: varAtaques == null ? `${t.logins_falhos} login(s) recusado(s) · ${t.sem_login} visita(s) sem login` : `${varAtaques > 0 ? '+' : ''}${varAtaques}% vs período anterior` },
             { rotulo: 'Acessos e logins', valor: t.acessos + t.logins_ok, dica: `${t.logins_ok} login(s) aceito(s)` },
             { rotulo: 'Origens', valor: t.ips_unicos, sufixo: ' IPs', dica: `${t.paises} país(es) · ${t.bloqueados_agora} bloqueado(s) agora` },
           ]} />
+
+          <Analise analise={dados.analise} total={t.ips_unicos} />
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <section className="cartao relative overflow-hidden">
@@ -131,9 +169,9 @@ export default function Seguranca() {
                   {CATS.map(([k, r, c]) => <span key={k} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />{r}</span>)}
                 </div>
               </div>
-              <div className="relative h-[460px] bg-gradient-to-b from-transparent to-muted/40 sm:h-[540px]"> {/* marca: fundo do mapa */}
-                <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Carregando o globo…</div>}>
-                  <Globo3D pontos={dados.pontos} servidor={dados.servidor} recentes={dados.recentes} aoSelecionar={setLocal} />
+              <div className="relative h-[460px] sm:h-[560px]">
+                <Suspense fallback={<div className="flex h-full items-center justify-center bg-[#03070d] text-sm text-white/60">Carregando o globo…</div>}>
+                  <Globo3D pontos={dados.pontos} servidor={dados.servidor} aoSelecionar={setLocal} />
                 </Suspense>
                 <AnimatePresence>
                   {local && (
@@ -152,7 +190,7 @@ export default function Seguranca() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <p className="pointer-events-none absolute bottom-3 left-4 text-[11px] text-muted-foreground">Arraste para girar · + e − aproximam · clique num ponto</p>
+                <p className="pointer-events-none absolute bottom-3 left-4 text-[11px] text-white/55">Arraste para girar · clique num ponto · dia e noite pela hora real</p>
               </div>
             </section>
 
@@ -165,6 +203,7 @@ export default function Seguranca() {
                       <div className="min-w-0 flex-1">
                         <p className="flex justify-between gap-2 text-sm"><span className="font-medium">{e.rotulo}</span><span className="shrink-0 text-xs text-muted-foreground">{haQuanto(e.quando)}</span></p>
                         <p className="truncate font-mono text-xs text-muted-foreground">{e.ip}{e.cidade || e.pais ? ` · ${[e.cidade, e.pais].filter(Boolean).join(', ')}` : ''}</p>
+                        {e.veredito && <p className="text-[11px] text-muted-foreground">{e.veredito}</p>}
                         <p className="truncate text-xs text-muted-foreground">{e.rota}{e.detalhe && e.detalhe.length < 60 ? ` · ${e.detalhe}` : ''}</p>
                       </div>
                     </motion.li>
@@ -200,13 +239,17 @@ export default function Seguranca() {
           <Secao titulo="IPs" contexto="Ordenados por risco · bloqueie ou libere direto da lista"
             acao={<input value={buscaIp} onChange={(e) => setBuscaIp(e.target.value)} placeholder="Filtrar por IP, cidade ou país" className="campo h-8 w-56 text-sm" aria-label="Filtrar IPs" />}>
             <div className="-mx-5 -my-5 overflow-x-auto">
-              <table className="tabela w-full min-w-[860px]">
-                <thead><tr><th>IP</th><th>Local</th><th className="!text-right">Eventos</th><th className="!text-right">Ataques</th><th>Risco</th><th>O que fez</th><th>Último</th><th /></tr></thead>
+              <table className="tabela w-full min-w-[1040px]">
+                <thead><tr><th>IP</th><th>Local</th><th>Veredito</th><th className="!text-right">Eventos</th><th className="!text-right">Ataques</th><th>Risco</th><th>O que fez</th><th>Último</th><th /></tr></thead>
                 <tbody>
                   {ips.slice(0, 100).map((i) => (
                     <tr key={i.ip}>
                       <td className="font-mono text-xs">{i.ip}{i.bloqueado && <span className="ml-2 rounded bg-red-500/15 px-1.5 py-0.5 font-sans text-[11px] text-red-600 dark:text-red-400">bloqueado</span>}</td>
-                      <td className="text-muted-foreground">{[i.cidade, i.pais].filter(Boolean).join(', ') || (i.privado ? 'rede local' : '—')}</td>
+                      <td className="text-muted-foreground">{[i.cidade, i.pais].filter(Boolean).join(', ') || (i.privado ? 'rede local' : '—')}{i.provedor && <p className="text-[11px]">{i.provedor}</p>}</td>
+                      <td className="max-w-[240px]" title={i.veredito.motivo + (i.ptr ? ` · ${i.ptr}` : '')}>
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${NIVEL[i.veredito.nivel][3]}`}><span className={`h-1.5 w-1.5 rounded-full ${NIVEL[i.veredito.nivel][2]}`} />{i.veredito.rotulo}</span>
+                        <p className="truncate text-[11px] text-muted-foreground">{i.veredito.motivo}</p>
+                      </td>
                       <td className="text-right tabular">{i.eventos}</td>
                       <td className={`text-right tabular ${i.ataques ? 'text-red-600 dark:text-red-400' : ''}`}>{i.ataques}</td>
                       <td><div className="flex items-center gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted"><motion.div initial={{ width: 0 }} animate={{ width: `${i.risco}%` }} className={`h-full rounded-full ${i.risco >= 60 ? 'bg-red-500' : i.risco >= 25 ? 'bg-amber-500' : 'bg-emerald-500'}`} /></div><span className="text-xs tabular text-muted-foreground">{i.risco}</span></div></td>
@@ -215,7 +258,7 @@ export default function Seguranca() {
                       <td><AcoesIp ip={i.ip} bloqueado={i.bloqueado} aoMudar={recarregar} /></td>
                     </tr>
                   ))}
-                  {ips.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Nenhum IP no período{buscaIp ? ' com esse filtro' : ''}.</td></tr>}
+                  {ips.length === 0 && <tr><td colSpan={9} className="py-8 text-center text-muted-foreground">Nenhum IP no período{buscaIp ? ' com esse filtro' : ''}.</td></tr>}
                 </tbody>
               </table>
             </div>

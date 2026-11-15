@@ -342,3 +342,18 @@ alter table public.sessoes_fortes enable row level security;
 alter table public.usuarios add column if not exists telefone text not null default '';
 alter table public.usuarios add column if not exists bio text not null default '';
 alter table public.usuarios add column if not exists avatar text not null default '';
+
+-- Nome reverso (PTR) dos IPs vistos na tela Segurança: diz se o IP é servidor na nuvem (AWS, Google…) ou varredor.
+create table if not exists seguranca_ip_info (
+  ip text primary key,
+  ptr text not null default '',
+  provedor text not null default '',
+  consultado_em bigint not null
+);
+alter table seguranca_ip_info enable row level security;
+drop policy if exists admin_le on seguranca_ip_info;
+create policy admin_le on seguranca_ip_info for select using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+-- 401 sem token nas rotas que o navegador chama ao abrir o sistema era contado como ataque: é só visita sem login.
+update seguranca_eventos set tipo = 'sem_login', detalhe = 'abriu o sistema sem estar logado'
+ where tipo = 'auth_negado' and detalhe = '401' and rota in ('/api/sessao', '/api/notificacoes', '/api/marca', '/api/supabase-config');

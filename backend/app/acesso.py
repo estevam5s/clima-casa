@@ -80,7 +80,13 @@ atual = contextvars.ContextVar("clima_usuario", default=None)   # usuário da re
 def _json(v, padrao):
     if v is None:
         return padrao
-    return json.loads(v) if isinstance(v, str) else v
+    if not isinstance(v, str):
+        return v
+    # jsonb já vem decodificado pelo psycopg: '"*"' chega como o texto "*" (todos os projetos), que não é JSON.
+    try:
+        return json.loads(v)
+    except ValueError:
+        return v
 
 
 def carregar(auth_user: dict) -> dict:

@@ -400,6 +400,25 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
   modo `interaction-only`: invisível para a maioria. CSP libera `https://challenges.cloudflare.com` (script, frame, connect).
 - O app Android entra direto no Supabase e não passa pelo Turnstile (o Supabase-level captcha está desligado de propósito).
 
+### Tela "Executando verificação de segurança" (portão anti-robô)
+- Quem abre o site ou o sistema sem o passe vê uma tela preta com o Turnstile visível ("Verificando…"); ao passar,
+  o servidor grava o cookie `zv` = `<expira>.<HMAC-SHA256(VERIFICACAO_SEGREDO, expira)>` por 12 h, domínio `.zynio.com.br`
+  (um passe vale para site e sistema).
+- Sistema: `middleware.js` na raiz (Routing Middleware da Vercel, **código todo inline**: import de .mjs quebra com
+  ERR_REQUIRE_ESM/MIDDLEWARE_INVOCATION_FAILED) + `POST /api/verificacao` (FastAPI) + `frontend/public/verificacao.js`.
+  Site: `site/proxy.js` (Next 16) + `site/app/api/verificacao/route.js` + `site/lib/portao.mjs` + `site/public/verificacao.js`.
+- Passam direto: `/api`, `/alexa`, `/oauth`, estáticos, e robôs de busca/prévia (Googlebot, WhatsApp, facebookexternalhit…),
+  para não quebrar SEO, prévias, app do celular e Alexa. `VERIFICACAO_SEGREDO` está no `.env` e nos dois projetos da Vercel.
+- O login mostra o widget sempre (`aparencia="always"`); os formulários do site seguem invisíveis até precisar.
+
+### Tela Segurança: o que é ataque de verdade
+- 401 **sem token** (alguém abriu a página sem login) vira `sem_login`, não é ataque (antes contava como `auth_negado`).
+  401 com token falso = `token_invalido`; 403 logado = `auth_negado`; 12+ rotas da API sem login em 5 min = `scanner` + bloqueio.
+- `seguranca_relatorio.veredito()` classifica cada IP: ataque, suspeito, robô inofensivo (prévia de link, nuvem AWS/Google
+  pelo nome reverso em `seguranca_ip_info`, Chrome falso antigo), visitante ou equipe (já fez login / rede local).
+- Globo (`Globo3D.jsx`): países do world-atlas 1:50m em textura, dia e noite pela posição real do Sol, reflexo no
+  oceano, atmosfera, estrelas, arcos com pulso, onda no servidor (região de `VERCEL_REGION`) e nomes das cidades.
+
 ### Prévias de compartilhamento (redes sociais)
 - Site: `lib/seo.js` (`meta()`) em cada página: title, description, canonical, Open Graph completo (imagem 1200×630 JPEG com
   width/height/alt/secure_url), Twitter `summary_large_image`, JSON-LD (Organization, WebSite, SoftwareApplication), manifest e ícones.

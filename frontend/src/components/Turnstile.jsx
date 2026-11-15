@@ -19,7 +19,7 @@ function carregarScript() {
 let chave = null
 const chaveTurnstile = () => chave || (chave = fetch('/api/supabase-config').then((r) => r.json()).then((c) => c.turnstile || '').catch(() => ''))
 
-const Turnstile = forwardRef(function Turnstile({ aoMudar, tema = 'auto', acao = 'login', className = '' }, ref) {
+const Turnstile = forwardRef(function Turnstile({ aoMudar, tema = 'auto', acao = 'login', aparencia = 'interaction-only', className = '' }, ref) {
   const caixa = useRef(null)
   const widget = useRef(null)
   const [ativo, setAtivo] = useState(true)
@@ -31,7 +31,7 @@ const Turnstile = forwardRef(function Turnstile({ aoMudar, tema = 'auto', acao =
       return carregarScript().then((ts) => {
         if (!vivo || !caixa.current) return
         widget.current = ts.render(caixa.current, {
-          sitekey, theme: tema, action: acao, language: 'pt-br', appearance: 'interaction-only',
+          sitekey, theme: tema, action: acao, language: 'pt-br', appearance: aparencia, size: aparencia === 'always' ? 'flexible' : 'normal',
           callback: (t) => aoMudar(t), 'expired-callback': () => aoMudar(''), 'error-callback': () => aoMudar(''),
         })
       })

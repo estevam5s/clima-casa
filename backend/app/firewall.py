@@ -6,7 +6,8 @@ Ordem de cada requisição (middleware em main.py):
   3. país bloqueado (cabeçalho x-vercel-ip-country) → 403
   4. assinatura de ferramenta/ataque (agente, caminho, query) → evento "scanner" + 403; 3 no período → bloqueio
   5. limite de requisições por minuto por IP → 429; estourar várias vezes → bloqueio
-  6. depois da resposta: 401/403 na API contam como "auth_negado"; excesso → bloqueio progressivo
+  6. depois da resposta: 401 sem token = visita sem login (não é ataque); token falso = "token_invalido";
+     403 = "auth_negado"; excesso ou varredura da API → bloqueio progressivo
 
 Os contadores rápidos ficam em memória (por instância); os bloqueios e eventos ficam no Supabase,
 então valem para a Vercel e para o agente ao mesmo tempo.
@@ -62,6 +63,10 @@ def definir_contexto(request):
             return None
     _geo.set({"pais": h.get("x-vercel-ip-country", ""), "cidade": unquote(h.get("x-vercel-ip-city", "")),
               "regiao": h.get("x-vercel-ip-country-region", ""), "lat": num("x-vercel-ip-latitude"), "lon": num("x-vercel-ip-longitude")})
+
+
+_sem_login: dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
+_sem_login_visto: dict[str, float] = {}
 
 
 def registrar_acesso(request, status: int):
@@ -220,7 +225,14 @@ def verificar(request) -> tuple[int, str] | None:
 
 
 def depois(request, status: int):
-    """Depois de responder: conta respostas de autenticação negada na API."""
+    """Depois de responder: separa visita sem login (normal) de ataque de verdade.
+
+    - 401 SEM token: alguém abriu a página do sistema sem estar logado (o navegador pergunta "tenho sessão?").
+      Isso é visita, não ataque: vira "sem_login", amostrado 1 por IP a cada 10 min. Só uma varredura
+      (muitas rotas diferentes da API sem login em poucos minutos) leva a bloqueio.
+    - 401 COM token: token falso, adulterado ou de outro projeto → "token_invalido" (ataque) e conta para o bloqueio.
+    - 403 com sessão válida: pessoa logada tentando algo que o papel dela não permite → "auth_negado".
+    """
     if status not in (401, 403) or not request.url.path.startswith(("/api/", "/oauth/", "/alexa/")):
         return
     c = config()
@@ -229,7 +241,25 @@ def depois(request, status: int):
     ip = ip_do_pedido(request)
     if _casa(ip, "permitido") or falhas_recentes(ip, ("login_ok",), 1440):
         return  # sessão vencida do próprio administrador não conta como ataque
-    registrar(ip, "auth_negado", request.url.path, str(status), request.headers.get("x-vercel-ip-country", ""),
-              request.headers.get("user-agent", ""))
-    if falhas_recentes(ip, ("auth_negado",), c["janela_min"]) >= c["falhas_auth"]:
+    pais, agente = request.headers.get("x-vercel-ip-country", ""), request.headers.get("user-agent", "")
+    auth = request.headers.get("authorization", "")
+    tem_token = auth.lower().startswith("bearer ") and len(auth.strip()) > 20
+    if status == 401 and not tem_token:
+        agora = time.time()
+        rotas = _sem_login[ip]
+        rotas.append((agora, request.url.path))
+        while rotas and agora - rotas[0][0] > 300:
+            rotas.popleft()
+        if len({r for _, r in rotas}) >= 12:   # 12+ rotas diferentes da API sem login em 5 min = varredura
+            rotas.clear()
+            registrar(ip, "scanner", request.url.path, "varredura da API sem login", pais, agente)
+            bloqueio_automatico(ip, "varredura da API sem login")
+            return
+        if agora - _sem_login_visto.get(ip, 0) >= 600:
+            _sem_login_visto[ip] = agora
+            registrar(ip, "sem_login", request.url.path, "abriu o sistema sem estar logado", pais, agente)
+        return
+    tipo = "token_invalido" if status == 401 else "auth_negado"
+    registrar(ip, tipo, request.url.path, str(status), pais, agente)
+    if falhas_recentes(ip, ("token_invalido", "auth_negado"), c["janela_min"]) >= c["falhas_auth"]:
         bloqueio_automatico(ip, "excesso de acessos não autorizados")

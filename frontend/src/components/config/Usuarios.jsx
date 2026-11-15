@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Copy, Crown, Fingerprint, FolderPlus, KeyRound, MoreHorizontal, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react'
+import { Check, Copy, Crown, Fingerprint, FolderPlus, KeyRound, Pencil, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../ui'
 
@@ -166,24 +166,45 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
   )
 }
 
-function MenuAcoes({ u, aoAtualizar, aoEditar, aoSenha }) {
+// Ações à vista na própria linha (o menu suspenso ficava cortado pela rolagem da tabela).
+// Ação destrutiva pede confirmação numa janela do sistema, com o e-mail da pessoa e o que acontece.
+function AcoesUsuario({ u, aoAtualizar, aoEditar, aoSenha }) {
   const toast = useToast()
-  const [aberto, setAberto] = useState(false)
-  const acao = async (fn, msg) => { setAberto(false); try { await fn(); toast(msg); aoAtualizar() } catch (e) { toast(e.message, 'erro') } }
+  const [confirmar, setConfirmar] = useState(null)   // { titulo, texto, botao, perigo, fn, msg }
+  const [rodando, setRodando] = useState(false)
+  const executar = async () => {
+    setRodando(true)
+    try { await confirmar.fn(); toast(confirmar.msg); setConfirmar(null); aoAtualizar() } catch (e) { toast(e.message, 'erro') } finally { setRodando(false) }
+  }
+  const nome = u.nome || u.email
+  const botoes = [
+    { r: 'Editar acesso', I: Pencil, fn: aoEditar },
+    { r: 'Nova senha', I: KeyRound, fn: () => setConfirmar({ titulo: 'Gerar senha nova', texto: `A senha atual de ${u.email} deixa de funcionar. A nova aparece uma vez só, para você passar à pessoa, e ela troca no primeiro acesso.`, botao: 'Gerar senha', fn: aoSenha, msg: 'Senha nova gerada.' }) },
+    u.totp && { r: 'Remover 2FA', I: ShieldOff, fn: () => setConfirmar({ titulo: 'Remover o Google Authenticator', texto: `${nome} passa a entrar só com a senha até cadastrar o autenticador de novo. Use quando a pessoa perdeu o celular.`, botao: 'Remover 2FA', fn: () => api.del(`/api/usuarios/${u.id}/2fa`), msg: 'Verificação em duas etapas removida.' }) },
+    u.papel !== 'dono' && { r: 'Apagar', I: Trash2, perigo: true, fn: () => setConfirmar({ titulo: 'Apagar conta', texto: `A conta ${u.email} é apagada de vez: login, biometria e perfil. O histórico de atividade continua. Não dá para desfazer.`, botao: 'Apagar conta', perigo: true, fn: () => api.del(`/api/usuarios/${u.id}`), msg: 'Usuário apagado.' }) },
+  ].filter(Boolean)
   return (
-    <div className="relative" onMouseLeave={() => setAberto(false)}>
-      <button onClick={() => setAberto((a) => !a)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Ações"><MoreHorizontal className="h-4 w-4" /></button>
-      <AnimatePresence>
-        {aberto && (
-          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute right-0 z-20 w-56 rounded-lg border border-border bg-card p-1 shadow-xl"> {/* marca: menu flutua */}
-            <button onClick={() => { setAberto(false); aoEditar() }} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted">Editar acesso</button>
-            <button onClick={() => { setAberto(false); aoSenha() }} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted">Gerar nova senha</button>
-            {u.totp && <button onClick={() => window.confirm(`Remover o Google Authenticator de ${u.email}? A pessoa entra só com a senha até cadastrar de novo.`) && acao(() => api.del(`/api/usuarios/${u.id}/2fa`), 'Verificação em duas etapas removida.')} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted">Remover autenticador (perdeu o celular)</button>}
-            {u.papel !== 'dono' && <button onClick={() => window.confirm(`Apagar a conta ${u.email}? Não dá para desfazer.`) && acao(() => api.del(`/api/usuarios/${u.id}`), 'Usuário apagado.')} className="w-full rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-muted dark:text-red-400"><Trash2 className="mr-1.5 inline h-3.5 w-3.5" />Apagar conta</button>}
-          </motion.div>
+    <>
+      <div className="flex items-center justify-end gap-1">
+        {botoes.map(({ r, I, fn, perigo }) => (
+          <button key={r} onClick={fn} title={r} aria-label={`${r}: ${u.email}`}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-md border border-transparent px-2 text-xs font-medium transition-colors hover:border-border ${perigo ? 'text-red-600 hover:bg-red-500/10 dark:text-red-400' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+            <I className="h-3.5 w-3.5" /><span className="hidden 2xl:inline">{r}</span>
+          </button>
+        ))}
+      </div>
+      <Modal aberto={!!confirmar} titulo={confirmar?.titulo || ''} onFechar={() => !rodando && setConfirmar(null)}>
+        {confirmar && (
+          <div className="space-y-4 text-left">
+            <p className="text-sm text-muted-foreground">{confirmar.texto}</p>
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
+              <Botao variante="secundario" onClick={() => setConfirmar(null)} disabled={rodando}>Cancelar</Botao>
+              <Botao variante={confirmar.perigo ? 'perigo' : 'primario'} carregando={rodando} onClick={executar}>{confirmar.botao}</Botao>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
-    </div>
+      </Modal>
+    </>
   )
 }
 
@@ -198,8 +219,8 @@ export default function Usuarios() {
   const lista = dados.itens.filter((u) => !busca || `${u.nome} ${u.email} ${u.cargo}`.toLowerCase().includes(busca.toLowerCase()))
   const nomeProjetos = (u) => (u.projetos === '*' ? 'Todos os projetos' : u.projetos.map((id) => dados.projetos.find((p) => p.id === id)?.nome || `#${id}`).join(', ') || 'Nenhum')
   const novaSenha = async (u) => {
-    if (!window.confirm(`Gerar uma senha nova para ${u.email}? A atual deixa de funcionar.`)) return
-    try { const r = await api.post(`/api/usuarios/${u.id}/senha`, { gerar: true, exige_troca_senha: true }); setSenha({ senha: r.senha, email: u.email }) } catch (e) { toast(e.message, 'erro') }
+    const r = await api.post(`/api/usuarios/${u.id}/senha`, { gerar: true, exige_troca_senha: true })
+    setSenha({ senha: r.senha, email: u.email })
   }
   const ativos = dados.itens.filter((u) => u.ativo).length
   return (
@@ -243,7 +264,7 @@ export default function Usuarios() {
                       </div>
                     </td>
                     <td className="text-sm text-muted-foreground">{u.ultimo_acesso ? haQuanto(u.ultimo_acesso) : 'nunca entrou'}</td>
-                    <td className="text-right">{u.pode_editar && <MenuAcoes u={u} aoAtualizar={recarregar} aoEditar={() => setForm(u)} aoSenha={() => novaSenha(u)} />}</td>
+                    <td className="text-right">{u.pode_editar && <AcoesUsuario u={u} aoAtualizar={recarregar} aoEditar={() => setForm(u)} aoSenha={() => novaSenha(u)} />}</td>
                   </tr>
                 ))}
               </tbody>

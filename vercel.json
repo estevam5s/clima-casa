@@ -32,7 +32,7 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js|tema\\.js|og\\.jpg).*)",
+      "source": "/((?!assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js|tema\\.js|og\\.jpg|verificacao\\.js).*)",
       "destination": "/index.html"
     }
   ],

@@ -205,7 +205,7 @@ export default function Login() {
                     <input type="checkbox" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
                     Lembrar meu e-mail neste aparelho
                   </motion.label>
-                  <Turnstile key="ts-entrar" ref={roboRef} aoMudar={setRobo} tema={escuro ? 'dark' : 'light'} acao="login" />
+                  <Turnstile key="ts-entrar" ref={roboRef} aoMudar={setRobo} tema={escuro ? 'dark' : 'light'} acao="login" aparencia="always" className="min-h-[65px]" />
                   <AnimatePresence>
                     {erro && <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                       role="alert" className="rounded-[12px] border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-600 dark:text-red-400">{erro}</motion.p>}
@@ -255,7 +255,7 @@ export default function Login() {
                     <label htmlFor="email2" className="text-[13px] font-medium">E-mail</label>
                     <input id="email2" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} autoFocus />
                   </div>
-                  <Turnstile key="ts-esqueci" ref={roboRef} aoMudar={setRobo} tema={escuro ? 'dark' : 'light'} acao="esqueci" />
+                  <Turnstile key="ts-esqueci" ref={roboRef} aoMudar={setRobo} tema={escuro ? 'dark' : 'light'} acao="esqueci" aparencia="always" className="min-h-[65px]" />
                   {erro && <p role="alert" className="text-[13px] text-red-600 dark:text-red-400">{erro}</p>}
                   <button type="submit" disabled={ocupado} className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--btn)] text-[15px] font-medium text-[var(--btn-ink)] active:scale-[0.985] disabled:opacity-80">
                     {ocupado ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" /> : 'Enviar link'}
