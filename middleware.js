@@ -52,7 +52,7 @@ function paginaPortao({ host, chave, endpoint, volta }) {
 
 
 export const config = {
-  matcher: ['/((?!api/|alexa/|oauth/|saude|assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js|tema\\.js|og\\.jpg|verificacao\\.js|favicon).*)'],
+  matcher: ['/((?!api/|\.well-known/|alexa/|oauth/|saude|assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js|tema\\.js|og\\.jpg|verificacao\\.js|favicon).*)'],
 }
 
 export default async function middleware(request) {
