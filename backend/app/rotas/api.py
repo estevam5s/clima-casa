@@ -728,7 +728,7 @@ def apagar_projeto(pid: int):
 # ---------------- mapa do escritório ----------------
 # Planta guardada em config.mapa: tamanho, retângulo de cada sala (projeto), posição de cada ar e elementos
 # (porta, janela, mesa, bancada, parede, coluna, planta, texto). Quem só vê alguns projetos só mexe nas salas deles.
-MAPA_TIPOS = {"porta", "janela", "mesa", "bancada", "parede", "coluna", "planta", "texto", "armario", "sofa"}
+MAPA_TIPOS = {"porta", "janela", "mesa", "bancada", "parede", "coluna", "planta", "texto", "armario", "sofa", "monitor", "ar_previsto"}
 
 
 class SalaMapa(BaseModel):

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   AirVent, Armchair, ArrowRight, Box, ChevronRight, Columns2, DoorOpen, Expand, Grid3x3, LayoutGrid, Leaf, Minus, Pencil, Plus,
-  Power, RotateCw, Save, Square, Table2, Trash2, Type, Undo2, X, ZoomIn, ZoomOut, AppWindow, Snowflake, Sun, Wind, Droplets, Sparkles,
+  Monitor, Power, RotateCw, Save, Square, Table2, Trash2, Type, Undo2, X, ZoomIn, ZoomOut, AppWindow, Snowflake, Sun, Wind, Droplets, Sparkles,
 } from 'lucide-react'
 import { api, haQuanto, MODOS, VENTILACAO } from '../api'
 import { useProjeto } from '../contexto'
@@ -19,12 +19,15 @@ const AR_L = 86, AR_A = 22
 const ELEMENTOS = [
   ['porta', 'Porta', DoorOpen, 80, 80], ['janela', 'Janela', AppWindow, 120, 10], ['mesa', 'Mesa', Table2, 140, 70],
   ['bancada', 'Bancada', Columns2, 240, 60], ['armario', 'Armário', Box, 90, 40], ['sofa', 'Sofá', Armchair, 160, 60],
-  ['parede', 'Parede', Square, 200, 10], ['coluna', 'Coluna', Grid3x3, 30, 30], ['planta', 'Planta', Leaf, 34, 34], ['texto', 'Texto', Type, 120, 30],
+  ['parede', 'Parede', Square, 200, 10], ['coluna', 'Coluna', Grid3x3, 30, 30], ['planta', 'Planta', Leaf, 34, 34], ['monitor', 'Monitor', Monitor, 100, 10],
+  ['texto', 'Texto', Type, 120, 30], ['ar_previsto', 'Ar previsto', AirVent, 86, 22],
 ]
 const NOME_EL = Object.fromEntries(ELEMENTOS.map((e) => [e[0], e[1]]))
 const snap = (v) => Math.round(v / GRADE) * GRADE
 const lim = (v, a, b) => Math.max(a, Math.min(b, v))
 const copia = (o) => JSON.parse(JSON.stringify(o))
+
+const salaDoPonto = (s, e) => { const cx = e.x + e.w / 2, cy = e.y + e.h / 2; return cx >= s.x && cx <= s.x + s.w && cy >= s.y && cy <= s.y + s.h }
 
 // Salas sem posição ganham um lugar automático (linhas da esquerda para a direita, tamanho pelo número de ares).
 function completar(mapa, projetos, ares) {
@@ -42,9 +45,18 @@ function completar(mapa, projetos, ares) {
   }
   const fundo = Math.max(0, ...Object.values(m.salas).map((s) => s.y + s.h))
   if (fundo + 40 > m.altura) m.altura = snap(fundo + 60)
+  m.consumidos = []
   for (const p of projetos) {
     const s = m.salas[p.id]
-    const sem = ares.filter((a) => a.projeto_id === p.id && !m.ares[a.id])
+    let sem = ares.filter((a) => a.projeto_id === p.id && !m.ares[a.id])
+    // primeiro as vagas desenhadas na planta ("ar previsto" dentro da sala)
+    const vagas = m.elementos.filter((e) => e.tipo === 'ar_previsto' && salaDoPonto(s, e))
+    sem = sem.filter((a) => {
+      const v = vagas.shift()
+      if (!v) return true
+      m.ares[a.id] = { x: v.x, y: v.y, rot: v.rot || 0 }; m.consumidos.push(v.id)
+      return false
+    })
     sem.forEach((a, i) => {
       const passo = s.w / (sem.length + 1)
       m.ares[a.id] = { x: snap(s.x + passo * (i + 1) - AR_L / 2), y: s.y + 30, rot: 0 }
@@ -66,21 +78,27 @@ function Fluxo({ cor }) {
 
 function ArNoMapa({ a, pos, selecionado, ocupado, apagado, aoClicar, aoArrastar, editando }) {
   const cor = a.ligado ? COR_MODO[a.modo] || '#14b8a6' : null
+  const rot = pos.rot || 0
+  const deitado = rot === 90 || rot === 270
+  // nome sempre na horizontal, do lado de dentro: em cima (saída para baixo), embaixo (saída para cima) ou acima do aparelho em pé
+  const nome = rot === 180 ? [AR_L / 2, AR_A + 14] : deitado ? [AR_L / 2, AR_A / 2 - AR_L / 2 - 7] : [AR_L / 2, -6]
+  const texto = a.nome.length > 22 ? `${a.nome.slice(0, 21)}…` : a.nome
   return (
-    <g transform={`translate(${pos.x} ${pos.y}) rotate(${pos.rot || 0} ${AR_L / 2} ${AR_A / 2})`} opacity={apagado ? 0.35 : 1}
+    <g transform={`translate(${pos.x} ${pos.y})`} opacity={apagado ? 0.35 : 1}
       onPointerDown={editando ? aoArrastar : undefined} onClick={aoClicar} className={editando ? 'cursor-move' : 'cursor-pointer'}
       role="button" aria-label={`${a.nome}: ${a.ligado ? `ligado em ${a.temperatura} graus, ${MODOS[a.modo]}` : 'desligado'}`}>
       <title>{`${a.nome} · ${a.ligado ? `${a.temperatura}° ${MODOS[a.modo]}` : 'desligado'}`}</title>
-      {a.ligado && <Fluxo cor={cor} />}
-      {selecionado && <rect x="-6" y="-6" width={AR_L + 12} height={AR_A + 12} rx="9" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="4 3" />}
-      <rect width={AR_L} height={AR_A} rx="6" fill="hsl(var(--card))" stroke={cor || 'hsl(var(--muted-foreground))'} strokeWidth={a.ligado ? 2 : 1.4} />
-      <line x1="10" x2={AR_L - 10} y1={AR_A - 6} y2={AR_A - 6} stroke="hsl(var(--border))" strokeWidth="2" strokeLinecap="round" />
-      <circle cx={AR_L - 10} cy="7" r="2.6" fill={a.ligado ? cor : 'hsl(var(--muted-foreground))'} className={ocupado ? 'animate-pulse' : ''} />
-      <text x="9" y="11.5" fontSize="9" fontWeight="600" fill="hsl(var(--foreground))" style={{ fontVariantNumeric: 'tabular-nums' }}>
+      <g transform={`rotate(${rot} ${AR_L / 2} ${AR_A / 2})`}>
+        {a.ligado && <Fluxo cor={cor} />}
+        {selecionado && <rect x="-6" y="-6" width={AR_L + 12} height={AR_A + 12} rx="9" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="4 3" />}
+        <rect width={AR_L} height={AR_A} rx="6" fill="hsl(var(--card))" stroke={cor || 'hsl(var(--muted-foreground))'} strokeWidth={a.ligado ? 2 : 1.4} />
+        <line x1="10" x2={AR_L - 10} y1={AR_A - 6} y2={AR_A - 6} stroke="hsl(var(--border))" strokeWidth="2" strokeLinecap="round" />
+        <circle cx={AR_L - 10} cy="7" r="2.6" fill={a.ligado ? cor : 'hsl(var(--muted-foreground))'} className={ocupado ? 'animate-pulse' : ''} />
+      </g>
+      <text x={AR_L / 2} y={AR_A / 2 + 3.5} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="hsl(var(--foreground))" style={{ fontVariantNumeric: 'tabular-nums' }}>
         {a.ligado ? `${a.temperatura}°` : 'desl.'}
       </text>
-      <text x={AR_L / 2} y={-6} fontSize="10.5" textAnchor="middle" fill="hsl(var(--muted-foreground))"
-        transform={pos.rot ? `rotate(${-pos.rot} ${AR_L / 2} ${-6})` : undefined}>{a.nome.length > 22 ? `${a.nome.slice(0, 21)}…` : a.nome}</text>
+      <text x={nome[0]} y={nome[1]} fontSize="10.5" textAnchor="middle" fill="hsl(var(--muted-foreground))">{texto}</text>
     </g>
   )
 }
@@ -109,6 +127,15 @@ function Elemento({ e, selecionado, editando, aoArrastar, aoClicar }) {
       corpo = <><circle cx={e.w / 2} cy={e.h / 2} r={Math.min(e.w, e.h) / 2} fill="#22c55e" opacity="0.25" stroke="#16a34a" />
         <circle cx={e.w / 2} cy={e.h / 2} r={Math.min(e.w, e.h) / 5} fill="#16a34a" opacity="0.6" /></>
       break
+    case 'monitor':
+      corpo = <><rect width={e.w} height={e.h} rx="2" fill="hsl(var(--foreground))" opacity="0.8" />
+        <text x={e.w / 2} y={e.h + 14} textAnchor="middle" fontSize="11" fill="hsl(var(--muted-foreground))">{e.rotulo || 'Monitor'}</text></>
+      break
+    case 'ar_previsto':
+      corpo = <><rect width={e.w} height={e.h} rx="6" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="1.4" strokeDasharray="5 4" />
+        <text x={e.w / 2} y={e.h / 2 + 3.5} textAnchor="middle" fontSize="9.5" fill="hsl(var(--muted-foreground))"
+          transform={e.rot ? `rotate(${-e.rot} ${e.w / 2} ${e.h / 2})` : undefined}>{e.rot === 90 || e.rot === 270 ? 'ar' : 'ar previsto'}</text></>
+      break
     case 'texto':
       corpo = <text x={e.w / 2} y={e.h / 2 + 5} textAnchor="middle" fontSize="15" fontWeight="600" fill="hsl(var(--muted-foreground))">{e.rotulo || 'Texto'}</text>
       break
@@ -128,10 +155,14 @@ function Elemento({ e, selecionado, editando, aoArrastar, aoClicar }) {
       corpo = <><rect width={e.w} height={e.h} fill={preench} stroke={tracos} strokeWidth="1.2" />
         <line x1="0" y1="0" x2={e.w} y2={e.h} stroke={tracos} strokeWidth="0.8" /><line x1={e.w} y1="0" x2="0" y2={e.h} stroke={tracos} strokeWidth="0.8" /></>
   }
+  const vertical = e.h > e.w * 1.4
+  const rotulo = e.rotulo && ['mesa', 'bancada', 'armario', 'sofa'].includes(e.tipo)
   return (
     <g transform={`translate(${e.x} ${e.y}) rotate(${e.rot || 0} ${e.w / 2} ${e.h / 2})`} onPointerDown={editando ? aoArrastar : undefined}
-      onClick={aoClicar} className={editando ? 'cursor-move' : ''} style={{ pointerEvents: editando ? 'all' : 'none' }}>
+      onClick={aoClicar} className={editando || e.tipo === 'ar_previsto' ? 'cursor-pointer' : ''} style={{ pointerEvents: editando || e.tipo === 'ar_previsto' ? 'all' : 'none' }}>
       {corpo}
+      {rotulo && <text x={e.w / 2} y={e.h / 2 + 4} textAnchor="middle" fontSize="13" fill="hsl(var(--muted-foreground))"
+        transform={vertical ? `rotate(-90 ${e.w / 2} ${e.h / 2})` : undefined}>{e.rotulo}</text>}
       {selecionado && <rect x="-5" y="-5" width={e.w + 10} height={e.h + 10} fill="none" stroke="hsl(var(--primary))" strokeWidth="1.6" strokeDasharray="4 3" />}
     </g>
   )
@@ -246,7 +277,7 @@ export default function Mapa() {
   // ---------- edição ----------
   const mexer = (fn) => setRascunho((r) => { setHistorico((h) => [...h.slice(-49), r]); const n = copia(r); fn(n); return n })
   const desfazer = () => setHistorico((h) => { if (!h.length) return h; setRascunho(h[h.length - 1]); return h.slice(0, -1) })
-  const comecarEdicao = () => { setRascunho(copia(base)); setHistorico([]); setEditando(true); setSel(null) }
+  const comecarEdicao = () => { const r = copia(base); r.elementos = r.elementos.filter((e) => !(r.consumidos || []).includes(e.id)); r.consumidos = []; setRascunho(r); setHistorico([]); setEditando(true); setSel(null) }
   const sairEdicao = () => {
     if (historico.length && !window.confirm('Descartar as mudanças da planta?')) return
     setEditando(false); setRascunho(null); setSel(null)
@@ -471,10 +502,10 @@ export default function Mapa() {
               })}
 
               {/* elementos */}
-              {mapa.elementos.map((e) => (
+              {mapa.elementos.filter((e) => !(mapa.consumidos || []).includes(e.id)).map((e) => (
                 <g key={e.id}>
                   <Elemento e={e} editando={editando && dados.edita_elementos} selecionado={sel?.tipo === 'elemento' && sel.id === e.id}
-                    aoArrastar={iniciar('elemento', e.id)} aoClicar={(ev) => { ev.stopPropagation(); if (editando) setSel({ tipo: 'elemento', id: e.id }) }} />
+                    aoArrastar={iniciar('elemento', e.id)} aoClicar={(ev) => { ev.stopPropagation(); if (editando || e.tipo === 'ar_previsto') setSel({ tipo: 'elemento', id: e.id }) }} />
                   {editando && dados.edita_elementos && sel?.id === e.id && !e.rot && <rect x={e.x + e.w - 6} y={e.y + e.h - 6} width="12" height="12" rx="2" fill="hsl(var(--primary))"
                     className="cursor-nwse-resize" onPointerDown={iniciar('elemento', e.id, 'tamanho')} />}
                 </g>
@@ -510,7 +541,7 @@ export default function Mapa() {
                   <div className="space-y-3 border-t border-border pt-4 text-sm">
                     <p className="font-medium">{sel.tipo === 'sala' ? projetos.find((p) => String(p.id) === String(sel.id))?.nome
                       : sel.tipo === 'ar' ? ares.find((a) => String(a.id) === String(sel.id))?.nome : NOME_EL[elSel?.tipo]}</p>
-                    {elSel?.tipo === 'texto' && <input value={elSel.rotulo} maxLength={40} onChange={(e) => mexer((n) => { n.elementos.find((x) => x.id === sel.id).rotulo = e.target.value })} className="campo h-9" aria-label="Texto" />}
+                    {elSel && elSel.tipo !== 'ar_previsto' && ['texto', 'mesa', 'bancada', 'armario', 'sofa', 'monitor'].includes(elSel.tipo) && <input placeholder="Nome (opcional)" value={elSel.rotulo} maxLength={40} onChange={(e) => mexer((n) => { n.elementos.find((x) => x.id === sel.id).rotulo = e.target.value })} className="campo h-9" aria-label="Texto" />}
                     {sel.tipo === 'sala' && (
                       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                         <span>Posição {rascunho.salas[sel.id].x}, {rascunho.salas[sel.id].y}</span><span>Tamanho {rascunho.salas[sel.id].w} × {rascunho.salas[sel.id].h}</span>
@@ -523,6 +554,20 @@ export default function Mapa() {
                   </div>
                 ) : <p className="border-t border-border pt-4 text-sm text-muted-foreground">Clique numa sala, num ar ou num elemento para ajustar. Use a barra acima do mapa para adicionar portas, janelas e móveis.</p>}
                 {!dados.edita_elementos && <p className="text-xs text-muted-foreground">Você só pode mexer nas salas e nos ares dos seus projetos. Paredes, portas e móveis ficam com quem vê todos os projetos.</p>}
+              </motion.div>
+            ) : elSel?.tipo === 'ar_previsto' ? (
+              <motion.div key={`vaga-${elSel.id}`} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="cartao p-5">
+                {(() => {
+                  const sala = projetos.find((p) => mapa.salas[p.id] && salaDoPonto(mapa.salas[p.id], elSel))
+                  return (<>
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <div><p className="text-xs text-muted-foreground">{sala ? sala.nome : 'Fora das salas'}</p><h2 className="text-base font-semibold">Ar previsto, ainda não cadastrado</h2></div>
+                      <button onClick={() => setSel(null)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Fechar"><X className="h-4 w-4" /></button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Este lugar da planta tem um ar-condicionado que o sistema ainda não controla. Cadastre o aparelho {sala ? `no projeto ${sala.nome}` : ''}: ele aparece aqui sozinho, no lugar desta vaga.</p>
+                    {sala && sessao?.permissoes?.includes('aparelhos.gerenciar') && <Botao className="mt-4 w-full" icone={Plus} onClick={() => novoArNaSala(sala.id)}>Cadastrar este ar</Botao>}
+                  </>)
+                })()}
               </motion.div>
             ) : arSel ? (
               <motion.div key={`ar-${arSel.id}`} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="cartao p-5">
