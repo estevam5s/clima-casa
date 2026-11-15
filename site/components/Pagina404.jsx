@@ -1,5 +1,5 @@
 'use client'
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { ArrowLeft, BookOpen, HelpCircle, Home, PlayCircle, Snowflake } from 'lucide-react'
@@ -18,11 +18,13 @@ function dist(a, b) {
 export default function Pagina404() {
   const caminho = usePathname() || ''
   const rota = useRouter()
-  const sugestao = useMemo(() => {
-    const p = caminho.toLowerCase().split('/')[1] || ''
-    if (!p) return null
+  // calculada só no navegador: o 404 é pré-renderizado sem saber o endereço pedido (evita diferença na hidratação)
+  const [sugestao, setSugestao] = useState(null)
+  useEffect(() => {
+    const p = (window.location.pathname || caminho).toLowerCase().split('/')[1] || ''
+    if (!p) return
     const [m] = PAGINAS.filter(([, r]) => r !== '/').map(([n, r]) => [n, r, dist(p, r.slice(1))]).sort((a, b) => a[2] - b[2])
-    return m && m[2] <= Math.max(2, Math.floor(p.length / 3)) ? m : null
+    setSugestao(m && m[2] <= Math.max(2, Math.floor(p.length / 3)) ? m : null)
   }, [caminho])
   return (
     <section className="banner-pagina erro-404 p404">

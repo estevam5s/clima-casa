@@ -603,3 +603,24 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
   **Deison (admin) ainda não tem 2FA**: ligar isso o prende nessa tela até cadastrar.
 - Senha: mínimo 10 com classes de caracteres (Supabase Auth) e checagem no HIBP por k-anonimato no navegador (`validarSenhaNova` em `api.js`).
 - `GET /api/seguranca/checklist`: 18 controles conferidos ao vivo, mostrado em /seguranca.
+
+## 16. Apps 1.2.0, preferências e site ampliado (15/11/2026)
+- **Versão anunciada dos apps**: `backend/app/versao_apps.json` → `GET /api/apps/versao` (pública, CORS para o site). Os apps comparam com a
+  versão deles e avisam. **Só suba esse número depois do `gh release create`** (senão avisam de algo que não dá para baixar).
+- **Android 1.2.0**: `expo-updates` (EAS Update, `runtimeVersion` = versão do app, canais `preview`/`production` no eas.json): mudanças só de JS
+  vão por `npx eas-cli@latest update --channel preview --message "…" --environment preview`, sem APK novo. Biometria (`expo-local-authentication`,
+  `src/lib/biometria.ts`, bloqueio em `src/ui/Bloqueio.tsx`), Google (`src/lib/google.ts`, volta por `climacasa://auth`, liberado no
+  `uri_allow_list` do Supabase), aviso de versão em `src/lib/atualizacao.tsx`.
+- **Desktop 1.2.0** (`apps/desktop/src/main.js`): aviso de versão (notificação + janela), Touch ID (`systemPreferences.promptTouchID`, tela
+  `bloqueio.html`), atalhos (⌘1–9, ⌘K, ⌘/, ⌘⇧L, global ⌘⇧Espaço; lista em `atalhos.html`), user agent sem "Electron" para o Google aceitar o login.
+  O productName continua "Clima Casa" de propósito (mudar cria outro app e outra pasta de preferências).
+- **Preferências do navegador** (`src/preferencias.js`): efeito do cursor (`components/Cursor.jsx`) e atalhos ("?" e "g"+letra, `components/Atalhos.jsx`).
+- **White label** ganhou: fontes @fontsource (sem Google Fonts), tom do fundo, estilo de botão/cartão, largura, espessura de ícone, login
+  centralizado e aviso, página inicial, esconder "Voltar ao site", **modo manutenção** (403/503 no servidor para quem não é dono/admin, em
+  `seguranca.py`) e logo/rodapé nos relatórios exportados.
+- **Cookies**: posição centro, bloquear até escolher, "Só os essenciais" destacado, idiomas en/es, Google Consent Mode v2, retenção, histórico de
+  versões, varredura (`POST /api/site/cookies/escanear`), consulta/exportação por titular. O aviso do site abre com `?cookies=1`.
+- **Globo**: `components/universo.js` (Sol, Lua e planetas nas direções reais, Via Láctea, luzes das cidades) + modo "Explorar o universo".
+- **Site**: vídeo explicativo em código (`components/VideoExplicativo.jsx`), páginas /como-funciona, /seguranca, /integracoes, /status
+  (`GET /api/site/status`, cache 30 s) e /baixar; 404 animado (`components/Pagina404.jsx`, sugestão calculada só no navegador).
+- Avisos no console do site com `%c%d` e `fetch data:` vêm do script do Turnstile (Cloudflare), não do nosso código.
