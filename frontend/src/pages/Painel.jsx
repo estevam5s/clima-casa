@@ -36,7 +36,7 @@ function Medidor({ mes }) {
       <p className="-mt-12 text-3xl font-semibold tabular">{brl(mes.custo)}</p>
       <p className="mt-1 text-xs text-muted-foreground">gasto estimado em {mes.dias} dia(s) do mês</p>
       <dl className="mt-4 grid w-full grid-cols-3 divide-x divide-border rounded-lg border border-border text-center text-xs">
-        <div className="py-2"><dt className="text-muted-foreground">Projeção</dt><dd className="mt-0.5 font-semibold tabular" style={{ color: mes.meta && mes.projecao > mes.meta ? '#dc2626' : undefined }}>{brl(mes.projecao)}</dd></div>
+        <div className="py-2"><dt className="text-muted-foreground">Projeção</dt><dd className={`mt-0.5 font-semibold tabular ${mes.meta && mes.projecao > mes.meta ? 'text-red-600 dark:text-red-400' : ''}`}>{brl(mes.projecao)}</dd></div>
         <div className="py-2"><dt className="text-muted-foreground">Meta</dt><dd className="mt-0.5 font-semibold tabular">{mes.meta ? brl(mes.meta) : '—'}</dd></div>
         <div className="py-2"><dt className="text-muted-foreground">Consumo</dt><dd className="mt-0.5 font-semibold tabular">{mes.kwh.toLocaleString('pt-BR')} kWh</dd></div>
       </dl>

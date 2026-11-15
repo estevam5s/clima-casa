@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
-import { Box, Building2, Eye, Pause, Play, RotateCcw } from 'lucide-react'
+import { Box, Building2, Clock, Eye, Moon, Pause, Play, RotateCcw, Sun } from 'lucide-react'
 
 // Escritório em 3D montado a partir da mesma planta do mapa 2D (config.mapa):
 // paredes com vão de porta e janela, pisos por sala (cor do projeto), mesas com PCs e cadeiras, ares de parede
@@ -126,6 +126,57 @@ function animarPessoa(p, t) {
   }
 }
 
+// ---- luz do dia: hora de Brasília → posição do sol, cor do céu e se é noite ----
+function horaBrasilia() {
+  const d = new Date(Date.now() - 3 * 3600e3)
+  return d.getUTCHours() + d.getUTCMinutes() / 60
+}
+function ceuDaHora(h) {
+  // 0 = meia-noite … 12 = meio-dia; elevação do sol simples (nasce 6h, põe 18h)
+  const elev = Math.sin(((h - 6) / 12) * Math.PI)          // >0 de dia
+  const noite = elev < -0.05
+  const crepusculo = !noite && elev < 0.28
+  const az = ((h - 6) / 12) * Math.PI                       // leste → oeste
+  return { elev, noite, crepusculo, az, dia: !noite && !crepusculo }
+}
+function texturaCeu(c) {
+  const cv = document.createElement('canvas'); cv.width = 16; cv.height = 256
+  const g = cv.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256)
+  const [topo, meio, base] = c.noite ? ['#05070f', '#0b1530', '#1c2742'] : c.crepusculo ? ['#2a3a6b', '#e2875a', '#f6c48f'] : ['#5aa0e6', '#9fcaf2', '#e7f1fa']
+  gr.addColorStop(0, topo); gr.addColorStop(0.55, meio); gr.addColorStop(1, base)
+  g.fillStyle = gr; g.fillRect(0, 0, 16, 256)
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+// pisos procedurais: madeira (tábuas), carpete (placas) e porcelanato (grade)
+function texturaPiso(tipo, base) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256
+  const g = cv.getContext('2d'); const r = aleatorio(tipo.length * 97)
+  const cor = new THREE.Color(base)
+  const tom = (k) => `#${cor.clone().offsetHSL(0, 0, k).getHexString()}`
+  if (tipo === 'madeira') {
+    for (let i = 0; i < 8; i++) {
+      g.fillStyle = tom((r() - 0.5) * 0.06); g.fillRect(0, i * 32, 256, 32)
+      g.strokeStyle = tom(-0.12); g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, i * 32); g.lineTo(256, i * 32); g.stroke()
+      const corte = r() * 256; g.beginPath(); g.moveTo(corte, i * 32); g.lineTo(corte, i * 32 + 32); g.stroke()
+      g.strokeStyle = tom(-0.04); g.lineWidth = 0.6
+      for (let k = 0; k < 3; k++) { g.beginPath(); const y = i * 32 + 6 + r() * 20; g.moveTo(0, y); g.bezierCurveTo(80, y + (r() - 0.5) * 6, 170, y + (r() - 0.5) * 6, 256, y); g.stroke() }
+    }
+  } else if (tipo === 'carpete') {
+    for (let x = 0; x < 4; x++) for (let y = 0; y < 4; y++) {
+      g.fillStyle = tom((x + y) % 2 ? -0.025 : 0.02); g.fillRect(x * 64, y * 64, 64, 64)
+      for (let k = 0; k < 160; k++) { g.fillStyle = tom((r() - 0.5) * 0.1); g.fillRect(x * 64 + r() * 64, y * 64 + r() * 64, 1.4, 1.4) }
+    }
+  } else {
+    g.fillStyle = tom(0); g.fillRect(0, 0, 256, 256)
+    for (let k = 0; k < 600; k++) { g.fillStyle = tom((r() - 0.5) * 0.05); g.fillRect(r() * 256, r() * 256, 2, 2) }
+    g.strokeStyle = tom(-0.1); g.lineWidth = 2
+    for (let i = 0; i <= 2; i++) { g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128, 256); g.stroke(); g.beginPath(); g.moveTo(0, i * 128); g.lineTo(256, i * 128); g.stroke() }
+  }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4
+  return t
+}
+
 function etiqueta(texto, cor = '#ffffff', fundo = 'rgba(15,23,42,0.82)') {
   const c = document.createElement('canvas'); const g = c.getContext('2d')
   g.font = '600 44px system-ui, -apple-system, sans-serif'
@@ -147,6 +198,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   const [girando, setGirando] = useState(compacto && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const [paredesAltas, setParedesAltas] = useState(true)
   const [pronto, setPronto] = useState(false)
+  const [hora, setHora] = useState('agora')   // agora | dia | noite
+  const [relogio, setRelogio] = useState(() => Math.floor(horaBrasilia() * 4))  // muda a cada 15 min
   // só remonta a cena quando algo visível muda (a lista chega nova a cada 10 s, mesmo igual)
   const chave = useMemo(() => JSON.stringify({ m: mapa, a: ares.map((a) => [a.id, a.ligado, a.modo, a.temperatura, a.projeto_id]), p: projetos.map((p) => [p.id, p.nome, p.cor]) }), [mapa, ares, projetos])
 
@@ -210,11 +263,18 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const ALT = paredesAltas ? 2.6 : 1.1
     const r = aleatorio(7)
 
-    // luz
-    mundo.add(new THREE.HemisphereLight(0xffffff, escuro ? 0x1e293b : 0xb7c4cf, escuro ? 0.8 : 1.15))
-    const sol = new THREE.DirectionalLight(0xfff4e5, escuro ? 1.4 : 2.4)
+    // luz pela hora real (ou forçada em Dia/Noite): sol, céu e luz de teto à noite
+    const h = hora === 'dia' ? 13 : hora === 'noite' ? 21.5 : horaBrasilia()
+    const ceu = ceuDaHora(h)
+    E.ceu = ceu
+    const fundoCeu = texturaCeu(ceu); cena.background = fundoCeu
+    cena.fog = new THREE.Fog(new THREE.Color(ceu.noite ? 0x0b1530 : ceu.crepusculo ? 0xe2a07a : 0xdbe9f6), 45, 95)
+    renderer.toneMappingExposure = ceu.noite ? 0.95 : 1.05
+    mundo.add(new THREE.HemisphereLight(ceu.noite ? 0x3b4a7a : 0xffffff, escuro ? 0x1e293b : 0xb7c4cf, ceu.noite ? 0.35 : ceu.crepusculo ? 0.8 : 1.15))
+    const sol = new THREE.DirectionalLight(ceu.noite ? 0x9db4ff : ceu.crepusculo ? 0xffb37a : 0xfff4e5, ceu.noite ? 0.35 : ceu.crepusculo ? 1.5 : 2.4)
     const tam = Math.max(x1 - x0, y1 - y0) * S
-    sol.position.set(-tam * 0.4, tam * 0.9, tam * 0.55); sol.castShadow = true
+    const elev = Math.max(0.25, Math.abs(ceu.elev))
+    sol.position.set(Math.cos(ceu.az) * tam * 0.9, tam * (0.35 + elev * 0.8), Math.sin(ceu.az) * tam * 0.5 + tam * 0.3); sol.castShadow = true
     sol.shadow.mapSize.set(2048, 2048); Object.assign(sol.shadow.camera, { left: -tam, right: tam, top: tam, bottom: -tam, near: 1, far: tam * 3 })
     sol.shadow.bias = -0.0004; sol.shadow.normalBias = 0.02
     mundo.add(sol)
@@ -222,10 +282,32 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // terreno e pisos
     const chao = new THREE.Mesh(new THREE.PlaneGeometry(tam * 4, tam * 4), new THREE.MeshStandardMaterial({ color: escuro ? 0x111827 : 0xdfe4e8, roughness: 1 }))
     chao.rotation.x = -Math.PI / 2; chao.position.y = -0.02; chao.receiveShadow = true; mundo.add(chao)
+    chao.material.color.set(escuro || ceu.noite ? 0x1c2a1f : 0x9cb88e)
+    const calcada = new THREE.Mesh(new THREE.PlaneGeometry((x1 - x0) * S + 2.4, (y1 - y0) * S + 2.4), new THREE.MeshStandardMaterial({ color: escuro || ceu.noite ? 0x2a2f36 : 0xc9ccd1, roughness: 0.95 }))
+    calcada.rotation.x = -Math.PI / 2; calcada.position.y = -0.01; calcada.receiveShadow = true; mundo.add(calcada)
+    // árvores do lado de fora (balançam com o vento)
+    const arvores = []
+    const matTronco = new THREE.MeshStandardMaterial({ color: 0x6b4f3a, roughness: 0.9 })
+    const matCopa = new THREE.MeshStandardMaterial({ color: ceu.noite ? 0x1f3d2b : 0x3f7d4e, roughness: 0.85, flatShading: true })
+    const borda = [(x1 - x0) * S / 2 + 2.6, (y1 - y0) * S / 2 + 2.6]
+    for (let i = 0; i < 14; i++) {
+      const lado = i % 4, f = (Math.floor(i / 4) + 0.5 + r() * 0.3) / 4
+      const ax = lado < 2 ? (f - 0.5) * borda[0] * 2 : (lado === 2 ? -1 : 1) * borda[0]
+      const az = lado < 2 ? (lado === 0 ? -1 : 1) * borda[1] : (f - 0.5) * borda[1] * 2
+      const tr = new THREE.Group(); tr.position.set(ax, 0, az); mundo.add(tr)
+      const t1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 1.2, 8), matTronco); t1.position.y = 0.6; t1.castShadow = true; tr.add(t1)
+      const copa = new THREE.Group(); copa.position.y = 1.5; tr.add(copa)
+      for (let k = 0; k < 3; k++) { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55 + r() * 0.25, 1), matCopa); b.position.set((r() - 0.5) * 0.5, k * 0.32, (r() - 0.5) * 0.5); b.castShadow = true; copa.add(b) }
+      arvores.push({ copa, fase: r() * 6 })
+    }
     const pisos = []
     for (const s of salas) {
-      const cor = new THREE.Color(s.p.cor || '#0f766a').lerp(new THREE.Color(escuro ? 0x1f2937 : 0xf3f1ee), escuro ? 0.78 : 0.86)
-      const piso = new THREE.Mesh(new THREE.PlaneGeometry(s.w * S, s.h * S), new THREE.MeshStandardMaterial({ color: cor, roughness: 0.85 }))
+      const tipoPiso = /reuni|diret/i.test(s.p.nome) ? 'carpete' : s.w * s.h > 300000 ? 'porcelanato' : 'madeira'
+      const baseCor = tipoPiso === 'madeira' ? 0xb08a62 : tipoPiso === 'carpete' ? 0x6b7280 : 0xe7e5e4
+      const tex = texturaPiso(tipoPiso, baseCor); tex.repeat.set((s.w * S) / (tipoPiso === 'porcelanato' ? 1.6 : 2.2), (s.h * S) / (tipoPiso === 'porcelanato' ? 1.6 : 2.2))
+      const cor = new THREE.Color(0xffffff).lerp(new THREE.Color(s.p.cor || '#0f766a'), 0.12)
+      if (escuro) cor.multiplyScalar(0.8)
+      const piso = new THREE.Mesh(new THREE.PlaneGeometry(s.w * S, s.h * S), new THREE.MeshStandardMaterial({ color: cor, map: tex, roughness: tipoPiso === 'porcelanato' ? 0.35 : 0.8, metalness: tipoPiso === 'porcelanato' ? 0.05 : 0 }))
       piso.rotation.x = -Math.PI / 2; piso.position.set(W(s.x + s.w / 2), 0, Z(s.y + s.h / 2)); piso.receiveShadow = true
       piso.userData = { tipo: 'sala', id: s.p.id }
       mundo.add(piso); pisos.push(piso)
@@ -258,6 +340,22 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         }
       }
     }
+
+    // luz de teto: painéis acesos (fortes à noite) e uma luz por sala
+    const paineis = []
+    const matPainel = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4dc, emissiveIntensity: ceu.noite ? 1.6 : ceu.crepusculo ? 0.9 : 0.35 })   // só a face de baixo: de cima não aparece
+    if (ALT > 2) for (const s of salas) {
+      const nx = Math.max(1, Math.round((s.w * S) / 2.6)), nz = Math.max(1, Math.round((s.h * S) / 2.6))
+      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+        const pn = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), matPainel)
+        pn.rotation.x = Math.PI / 2; pn.position.set(W(s.x + (s.w * (i + 0.5)) / nx), ALT - 0.015, Z(s.y + (s.h * (j + 0.5)) / nz)); mundo.add(pn)
+      }
+      if (ceu.noite || ceu.crepusculo) {
+        const l = new THREE.PointLight(0xffe7c2, ceu.noite ? 1.6 : 0.8, Math.max(s.w, s.h) * S * 1.1, 1.6)
+        l.position.set(W(s.x + s.w / 2), ALT - 0.3, Z(s.y + s.h / 2)); mundo.add(l); paineis.push(l)
+      }
+    }
+    if (ceu.noite) matVidro.emissive = new THREE.Color(0xffd89a), matVidro.emissiveIntensity = 0.35
 
     // móveis e elementos
     const pessoas = [], caminhantes = []
@@ -356,13 +454,13 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // gente andando pelo salão (a maior sala), em volta das mesas
     const salao = [...salas].sort((a, b) => b.w * b.h - a.w * a.h)[0]
     if (salao && salao.w * salao.h > 300000) {
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 5; i++) {
         const p = pessoa(r, false); mundo.add(p)
         const m = 70
         const pts = [[salao.x + m, salao.y + m + 40 * i], [salao.x + salao.w - m, salao.y + m + 40 * i], [salao.x + salao.w - m, salao.y + salao.h - m - 30 * i], [salao.x + m, salao.y + salao.h - m - 30 * i]]
           .map(([a, b]) => new THREE.Vector3(W(a), 0, Z(b)))
         const curva = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.2)
-        caminhantes.push({ p, curva, t: i / 3, vel: 0.012 + r() * 0.006 })
+        caminhantes.push({ p, curva, t: i / 5, vel: 0.011 + r() * 0.007 })
         pessoas.push(p)
       }
     }
@@ -408,6 +506,22 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     for (const a of ares) if (a.projeto_id && mapa.ares[a.id]) montarAr(mapa.ares[a.id], a, false)
     for (const e of mapa.elementos) if (e.tipo === 'ar_previsto' && !consumidos.includes(e.id)) montarAr({ x: e.x, y: e.y, rot: e.rot }, e.id, true)
 
+    // "clima" da sala: névoa na cor do modo sobre o piso das salas com ar ligado (frio azul, quente laranja…)
+    const climas = []
+    for (const s of salas) {
+      const lig = ares.filter((a) => a.projeto_id === s.p.id && a.ligado)
+      if (!lig.length) continue
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128
+      const g2 = cv.getContext('2d'); const gr = g2.createRadialGradient(64, 64, 4, 64, 64, 64)
+      const c = new THREE.Color(COR_MODO[lig[0].modo] || 0x14b8a6)
+      gr.addColorStop(0, `rgba(${c.r * 255},${c.g * 255},${c.b * 255},0.55)`); gr.addColorStop(1, `rgba(${c.r * 255},${c.g * 255},${c.b * 255},0)`)
+      g2.fillStyle = gr; g2.fillRect(0, 0, 128, 128)
+      const tx = new THREE.CanvasTexture(cv)
+      const nv = new THREE.Mesh(new THREE.PlaneGeometry(s.w * S * 0.96, s.h * S * 0.96), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.6 }))
+      nv.rotation.x = -Math.PI / 2; nv.position.set(W(s.x + s.w / 2), 0.03, Z(s.y + s.h / 2)); mundo.add(nv)
+      climas.push({ m: nv, fase: r() * 6 })
+    }
+
     // rótulos HTML das salas
     const caixaRot = rotulosRef.current
     caixaRot.innerHTML = ''
@@ -437,6 +551,9 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // animação
     E.tick = (dt, t) => {
       pessoas.forEach((p) => animarPessoa(p, t))
+      arvores.forEach((a) => { a.copa.rotation.z = Math.sin(t * 0.9 + a.fase) * 0.035; a.copa.rotation.x = Math.cos(t * 0.7 + a.fase) * 0.025 })
+      climas.forEach((c) => { c.m.material.opacity = 0.42 + Math.sin(t * 1.3 + c.fase) * 0.18 })
+      matTela.emissiveIntensity = (ceu.noite ? 0.7 : 0.35) + Math.sin(t * 7) * 0.03 + (Math.sin(t * 0.37) > 0.97 ? 0.25 : 0)
       caminhantes.forEach((c) => {
         c.t = (c.t + dt * c.vel) % 1
         const a = c.curva.getPointAt(c.t), b = c.curva.getPointAt((c.t + 0.004) % 1)
@@ -492,15 +609,31 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     }
     let baixo = null
     const pd = (ev) => { baixo = [ev.clientX, ev.clientY] }
-    const pu = (ev) => { if (baixo && Math.hypot(ev.clientX - baixo[0], ev.clientY - baixo[1]) < 5) { const u = acerto(ev); E.aoSelecionar?.(u?.tipo ? u : null) } baixo = null }
+    // clique: seleciona e a câmera voa até a sala ou o ar
+    const voar = (alvo, dist) => {
+      const destino = alvo.clone().add(new THREE.Vector3(-dist * 0.35, dist * 0.85, dist * 0.75))
+      const de = camera.position.clone(), deAlvo = controles.target.clone()
+      let t0 = null
+      const passo = (ts) => { t0 ??= ts; const k = Math.min(1, (ts - t0) / 900), e = 1 - Math.pow(1 - k, 3); camera.position.lerpVectors(de, destino, e); controles.target.lerpVectors(deAlvo, alvo, e); if (k < 1) requestAnimationFrame(passo) }
+      requestAnimationFrame(passo)
+    }
+    const pu = (ev) => {
+      if (baixo && Math.hypot(ev.clientX - baixo[0], ev.clientY - baixo[1]) < 5) {
+        const u = acerto(ev); E.aoSelecionar?.(u?.tipo ? u : null)
+        if (u?.tipo === 'sala') { const pz = pisos.find((x) => x.userData.id === u.id); if (pz) voar(pz.position.clone(), Math.max(pz.geometry.parameters.width, pz.geometry.parameters.height) * 0.9 + 2) }
+        else if (u?.tipo === 'ar') { const un = unidades.find((x) => x.a?.id === u.id); if (un) voar(un.g.position.clone().setY(0.8), 4.5) }
+      }
+      baixo = null
+    }
     const mv = (ev) => { const u = acerto(ev); renderer.domElement.style.cursor = u?.tipo === 'ar' || u?.tipo === 'elemento' ? 'pointer' : 'grab' }
     renderer.domElement.addEventListener('pointerdown', pd); renderer.domElement.addEventListener('pointerup', pu); renderer.domElement.addEventListener('pointermove', mv)
     return () => {
       renderer.domElement.removeEventListener('pointerdown', pd); renderer.domElement.removeEventListener('pointerup', pu); renderer.domElement.removeEventListener('pointermove', mv)
-      texPonto.dispose()
+      texPonto.dispose(); fundoCeu.dispose()
     }
-  }, [pronto, chave, paredesAltas]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pronto, chave, paredesAltas, hora, hora === 'agora' ? relogio : 0]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { estado.current.filtro = filtro }, [filtro])
+  useEffect(() => { const t = setInterval(() => setRelogio(Math.floor(horaBrasilia() * 4)), 60000); return () => clearInterval(t) }, [])
 
   useEffect(() => { estado.current.sel = selecionado; estado.current.aoSelecionar = aoSelecionar }, [selecionado, aoSelecionar])
   useEffect(() => { const c = estado.current.controles; if (c) { c.autoRotate = girando; c.autoRotateSpeed = 0.6 } }, [girando, pronto])
@@ -510,13 +643,18 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     <div className={`relative w-full overflow-hidden ${compacto ? 'h-full' : 'h-[68vh] min-h-[440px]'}`}>
       <div ref={ref} className="h-full w-full touch-none [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label="Escritório em 3D com as salas, os ares e as pessoas; arraste para girar, role para aproximar" />
       <div ref={rotulosRef} className="pointer-events-none absolute inset-0" />
+      <div className="absolute right-3 top-3 flex overflow-hidden rounded-lg border border-border bg-card/90 backdrop-blur" role="group" aria-label="Iluminação">
+        {[['agora', Clock, 'Agora'], ['dia', Sun, 'Dia'], ['noite', Moon, 'Noite']].map(([k, I, r], i) => (
+          <button key={k} onClick={() => setHora(k)} className={`${botao} ${i ? 'border-l border-border' : ''} ${hora === k ? 'bg-black/5 font-medium dark:bg-white/10' : ''}`} title={k === 'agora' ? 'Luz da hora real (Brasília)' : `Simular ${r.toLowerCase()}`}><I className="h-3.5 w-3.5" />{r}</button>
+        ))}
+      </div>
       <div className="absolute bottom-3 right-3 flex overflow-hidden rounded-lg border border-border bg-card/90 backdrop-blur">
         <button onClick={() => estado.current.enquadrar?.(false)} className={botao} title="Vista inicial"><RotateCcw className="h-3.5 w-3.5" />Inicial</button>
         <button onClick={() => estado.current.enquadrar?.(true)} className={`${botao} border-l border-border`} title="Ver de cima"><Eye className="h-3.5 w-3.5" />De cima</button>
         <button onClick={() => setParedesAltas((v) => !v)} className={`${botao} border-l border-border`} title="Altura das paredes">{paredesAltas ? <Box className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}{paredesAltas ? 'Paredes baixas' : 'Paredes altas'}</button>
         <button onClick={() => setGirando((g) => !g)} className={`${botao} border-l border-border`} title={girando ? 'Parar' : 'Girar'}>{girando ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{girando ? 'Parar' : 'Girar'}</button>
       </div>
-      <p className={`pointer-events-none absolute bottom-3 left-4 text-[11px] text-muted-foreground ${compacto ? 'hidden' : ''}`}>Arraste para girar · role para aproximar · clique num ar</p>
+      <p className={`pointer-events-none absolute bottom-3 left-4 text-[11px] text-muted-foreground ${compacto ? 'hidden' : ''}`}>Arraste para girar · role para aproximar · clique numa sala ou num ar para ir até ele</p>
     </div>
   )
 }

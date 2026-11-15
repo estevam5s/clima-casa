@@ -360,10 +360,10 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 
 | Rota | Tela |
 |---|---|
-| `/` | Painel: faixa de métricas, 3D (Three.js) com controle rápido, integrações, gráfico 14 d, aparelhos, atividade |
-| `/projetos` | projetos (lugares) com resumo e troca rápida |
-| `/mapa` | **Mapa do escritório**: planta SVG, cada sala = um projeto, vários ares por sala, estado ao vivo (cor do modo, fluxo de ar animado), controle (liga, temperatura, modo, ventilação, ligar/desligar a sala toda) e modo de edição (mover/redimensionar salas, posicionar ares, portas, janelas, mesas, bancadas, paredes, texto; desfazer; teclado). Planta em `config.mapa` via `GET/PUT /api/mapa` (PUT exige `projetos.gerenciar`; quem vê só alguns projetos só mexe nas salas deles). Sem planta salva, as salas são arrumadas sozinhas |
-| `/relatorios` | período livre e por aparelho; horas/kWh/custo estimados, comparação com o período anterior, mapa dia×hora, origens, falhas; exportar em 8 formatos |
+| `/` | Painel: faixa de métricas com linhas de tendência, 3D do ar com controle rápido, integrações, conclusões da semana e medidor do gasto do mês (`GET /api/painel/analise`, exige `relatorios.ver`), escritório ao vivo em 3D (Mapa3D `compacto`), origens, uso por hora, mapa de uso em 3D (`Barras3D.jsx`), aparelhos, atividade |
+| `/projetos` | projetos com tipo, responsável e meta de gasto mensal (`projetos.tipo/responsavel/meta_custo_mes`); cards com aparelhos ao vivo, atividade 14 d, projeção do mês × meta, contagens (IR, cenas, automações, agenda, pessoas); desligar todos (`POST /api/projetos/{pid}/desligar`, `aparelhos.controlar`), exportar JSON, grade/lista. Dados em `GET /api/projetos/visao` |
+| `/mapa` | **Mapa do escritório** (3D com luz pela hora real de Brasília ou Dia/Noite, céu, luzes de teto, pisos com textura, névoa na cor do modo nas salas com ar ligado, árvores, câmera que voa até a sala/ar clicado; `completar()` fica em `src/mapaUtil.js`): planta SVG, cada sala = um projeto, vários ares por sala, estado ao vivo (cor do modo, fluxo de ar animado), controle (liga, temperatura, modo, ventilação, ligar/desligar a sala toda) e modo de edição (mover/redimensionar salas, posicionar ares, portas, janelas, mesas, bancadas, paredes, texto; desfazer; teclado). Planta em `config.mapa` via `GET/PUT /api/mapa` (PUT exige `projetos.gerenciar`; quem vê só alguns projetos só mexe nas salas deles). Sem planta salva, as salas são arrumadas sozinhas |
+| `/relatorios` | período livre e por aparelho; conclusões automáticas, comparativo completo com o período anterior, sessões (ligar→desligar), fora do expediente (seg–sex 7h–19h), projeção de 30 dias, por projeto/transmissor/dia da semana/modo, automações e cenas; pré-visualizar e exportar em 8 formatos (PDF com capa e gráficos e "Página X de Y", DOCX com gráficos via Pillow, XLSX com 14 abas e gráficos, HTML com SVG). Tudo em `relatorio.py` |
 | `/aparelhos`, `/aparelhos/:id` | lista (grade/lista, filtros, desligar todos) e detalhe (mostrador, modos, botões, gravação, temporizador, histórico, ajustes) |
 | `/cenas` | cenas |
 | `/automacoes` | automações com modelos prontos e temporizadores ativos |
@@ -372,11 +372,11 @@ Rotas (`frontend/src/main.jsx`), todas protegidas exceto `/login`:
 | `/integracoes` | Sinric Pro (credenciais, vínculo, criar no Sinric, conectar outra Alexa por QR) |
 | `/comandos-alexa` | comandos de voz gerados por aparelho + receitas de Rotinas |
 | `/alexa` | skill própria (URLs OAuth, chaves, passo a passo) |
-| `/supabase` | rotinas, uso do banco, alertas, gráfico, backups |
+| `/supabase` | no formato do dashboard do Supabase (`components/supabase/*`): visão geral, editor de tabelas (só leitura, colunas com segredo mascaradas), editor SQL (só o dono; transação READ ONLY, 8 s, um comando, schemas auth/vault/storage bloqueados), tabelas e tamanhos, desempenho (pg_stat_statements), Auth, rotinas, registros, backups, avisos (RLS, chave primária, FK sem índice, admin sem 2FA). Backend em `supabase_painel.py` |
 | `/atividade` | linha do tempo por dia, ao vivo, filtros, exportar CSV |
 | `/seguranca` | postura, globo 3D de acessos (Three.js + world-atlas), eventos ao vivo, IPs com risco e ações, países, rotas atacadas, bloqueios, regras e relatório de segurança em 8 formatos |
 | `/configuracoes?aba=` | `perfil` (foto por upload ou link, nome, cargo, telefone, sobre, troca de e-mail e de senha com a senha atual), `geral` (Smart Life, envio), `aparencia` (tema), `marca` (white label, 34 opções), `seguranca` (firewall), `contas` (senha), `sistema` (backup, agente) |
-| `/mensagens` | caixa de entrada do site: filtros (entrada, não lidas, contato, novidades, respondidas, arquivadas), busca, leitura com notas internas, responder por e-mail, marcar respondida/lida, arquivar, apagar, ações em lote, exportar CSV; contador de não lidas no menu |
+| `/mensagens` | no estilo WhatsApp Web (trilho de pastas, balões com cauda agrupados, divisor de não lidas, ir para o fim com contador, citar, menu por mensagem, emojis por categoria com recentes, rascunho por conversa, exportar .txt, fundo com desenhos próprios em `index.css`); antes: caixa de entrada do site: filtros (entrada, não lidas, contato, novidades, respondidas, arquivadas), busca, leitura com notas internas, responder por e-mail, marcar respondida/lida, arquivar, apagar, ações em lote, exportar CSV; contador de não lidas no menu |
 | `/apps` | downloads com logos reais (simple-icons), detecção do sistema e da arquitetura, tamanho e SHA-256 de cada arquivo, QR Code do APK, PWA, tabela de recursos. Dados do release em `frontend/src/release.json` (**rode `scripts/gerar-release-json.sh` depois de cada release**) |
 | `/oauth/autorizar` | consentimento da vinculação de conta da Alexa |
 
@@ -593,3 +593,13 @@ privado: os links só baixam para quem está logado no GitHub com acesso.
 - Skill própria da Alexa ainda não criada na Amazon/AWS (opcional; o Sinric já cobre Alexa e Google).
 - Envio pela nuvem Tuya com o Mac desligado não foi validado com este transmissor.
 - APK v1.0.0 compilado e publicado no release, ainda não testado num celular.
+
+
+## 15. Sessões, senha e checklist (endurecimento de 15/11/2026)
+- `backend/app/sessoes.py` + tabela `sessoes_uso`: cada requisição registra a sessão (no máximo a cada 2 min); encerra por inatividade
+  (`seguranca.sessao_inatividade_min`, padrão 240) e por duração máxima (`sessao_max_horas`, 168). Revogar apaga também em `auth.sessions`.
+  Telas: Configurações → Segurança → Sessões ativas (`GET /api/conta/sessoes`, `POST /api/conta/sessoes/encerrar`) e Usuários → Encerrar sessões.
+- `exigir_2fa_admin` (desligado): com ele ligado, admin sem autenticador/biometria recebe 403 `X-Clima-Exige-2FA` e só abre Configurações → Segurança.
+  **Deison (admin) ainda não tem 2FA**: ligar isso o prende nessa tela até cadastrar.
+- Senha: mínimo 10 com classes de caracteres (Supabase Auth) e checagem no HIBP por k-anonimato no navegador (`validarSenhaNova` em `api.js`).
+- `GET /api/seguranca/checklist`: 18 controles conferidos ao vivo, mostrado em /seguranca.
