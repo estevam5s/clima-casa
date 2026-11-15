@@ -1,0 +1,11 @@
+{
+  "notas": [
+    "Entrar com biometria (digital, rosto, Touch ID e Windows Hello)",
+    "Entrar com Google",
+    "Atualizações automáticas e aviso de versão nova",
+    "Atalhos de teclado no app de computador"
+  ],
+  "publicado_em": "2026-11-15",
+  "android": { "versao": "1.1.0", "pagina": "https://app.zynio.com.br/apps" },
+  "desktop": { "versao": "1.1.0", "pagina": "https://app.zynio.com.br/apps" }
+}

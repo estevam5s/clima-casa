@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
 import { useTema } from '@/lib/tema';
 import { useClima } from '@/lib/contexto';
+import { entrarComGoogle } from '@/lib/google';
 import { Botao, Texto } from '@/ui/base';
 
 export default function Login() {
@@ -37,6 +38,19 @@ export default function Login() {
     try { await api.get('/api/sessao'); api.post('/api/sessao/registrar-login').catch(() => {}); }
     catch (e: any) { await supabase.auth.signOut(); setErro(e.message); }
     setEnviando(false);
+  };
+
+  const google = async () => {
+    setErro(''); setEnviando(true);
+    try {
+      if ((await entrarComGoogle()) === 'ok') {
+        const { data: nivel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (!(nivel?.nextLevel === 'aal2' && nivel.currentLevel !== 'aal2')) {
+          try { await api.get('/api/sessao'); api.post('/api/sessao/registrar-login').catch(() => {}); }
+          catch (e: any) { await supabase.auth.signOut(); setErro(e.message); }
+        }
+      }
+    } catch (e: any) { setErro(e.message); } finally { setEnviando(false); }
   };
 
   const campo = campoBase(t);
@@ -72,6 +86,11 @@ export default function Login() {
           textContentType="password" value={senha} onChangeText={setSenha} onSubmitEditing={entrar} />
         {erro ? <Texto cor={t.perigo}>{erro}</Texto> : null}
         <Botao titulo="Entrar" onPress={entrar} carregando={enviando} desabilitado={!email || !senha} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: t.borda }} /><Texto suave tam={12}>ou</Texto><View style={{ flex: 1, height: 1, backgroundColor: t.borda }} />
+        </View>
+        <Botao titulo="Entrar com Google" variante="secundario" onPress={google} desabilitado={enviando} />
+        <Texto suave tam={12} style={{ textAlign: 'center' }}>Depois de entrar, ative a biometria em Mais → Segurança para abrir o app com a digital ou o rosto.</Texto>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckCircle2, Download, History, ImagePlus, Palette, Pipette, RotateCcw, Save, Trash2, Upload, XCircle } from 'lucide-react'
+import { CheckCircle2, Download, History, ImagePlus, Laptop, Palette, Pipette, RotateCcw, Save, Smartphone, Trash2, Upload, Wrench, XCircle } from 'lucide-react'
 import { api, dataHora } from '../../api'
-import { MARCA_PADRAO, aplicarMarca, contraste, useMarca } from '../../marca'
+import { MARCA_PADRAO, NOMES_FONTES, aplicarMarca, contraste, useMarca } from '../../marca'
 import { Aviso, Botao, Interruptor, Modal, useToast } from '../ui'
 
 const PALETAS = [
@@ -20,7 +20,11 @@ const RECURSOS = ['Nome do sistema', 'Nome curto (app instalado)', 'Slogan e des
   'Domínio próprio', 'Créditos', 'CSS personalizado', 'Exportar e importar', 'Histórico de versões', 'Pré-visualização ao vivo', 'Restaurar padrão',
   'Temas prontos', 'Cores tiradas do logo', 'Verificador de contraste (WCAG)', 'Logo do tema escuro', 'Estilo do menu lateral', 'Nível de animações',
   'Fundo do login (fumaça, cor ou imagem)', 'Links de privacidade e termos no login', 'Selo de ambiente no cabeçalho', 'Botão de ajuda com contatos',
-  'Banner com data de início e fim', 'Cor da barra do navegador no celular']
+  'Banner com data de início e fim', 'Cor da barra do navegador no celular', '6 fontes hospedadas no sistema (Inter, Manrope, DM Sans…)',
+  'Tom do fundo (zinco, pedra, ardósia, oliva)', 'Estilo dos botões (sólido, contorno, pílula)', 'Estilo dos cartões (borda, sombra, plano)',
+  'Largura do conteúdo', 'Espessura dos ícones', 'Login centralizado ou dividido', 'Aviso na tela de login', 'Página inicial depois do login',
+  'Mostrar ou esconder "Voltar ao site"', 'Modo manutenção (só administradores entram)', 'Previsão de volta na manutenção',
+  'Logo da empresa nos relatórios', 'Rodapé próprio nos relatórios (razão social, CNPJ)', 'Pré-visualização no celular']
 
 // temas completos: cores, fonte, cantos, densidade, menu e tema padrão de uma vez
 const TEMAS_PRONTOS = [
@@ -109,6 +113,7 @@ export default function WhiteLabel() {
   const [salvando, setSalvando] = useState(false)
   const [historico, setHistorico] = useState(null)
   const original = useRef(marca)
+  const [aparelho, setAparelho] = useState('computador')
   const importar = useRef(null)
   const toast = useToast()
   const mudou = JSON.stringify(f) !== JSON.stringify(original.current)
@@ -235,7 +240,7 @@ export default function WhiteLabel() {
           <Bloco titulo="Tipografia e layout">
             <div className="grid gap-4 md:grid-cols-2">
               <Campo rotulo="Fonte"><select className="campo" value={f.fonte} onChange={set('fonte')}>
-                {[['sistema', 'Sistema (padrão)'], ['arredondada', 'Arredondada'], ['serifada', 'Serifada'], ['condensada', 'Condensada'], ['mono', 'Monoespaçada']].map(([k, r]) => <option key={k} value={k}>{r}</option>)}
+                {NOMES_FONTES.map(([k, r]) => <option key={k} value={k}>{r}</option>)}
               </select></Campo>
               <Campo rotulo="Densidade"><select className="campo" value={f.densidade} onChange={set('densidade')}>
                 <option value="compacta">Compacta</option><option value="confortavel">Confortável</option><option value="espacosa">Espaçosa</option></select></Campo>
@@ -247,6 +252,29 @@ export default function WhiteLabel() {
                 <option value="padrao">Acompanha o tema</option><option value="escuro">Sempre escuro</option><option value="marca">Na cor da marca</option></select></Campo>
               <Campo rotulo="Animações" ajuda="Quem pede menos movimento no aparelho já recebe animações reduzidas."><select className="campo" value={f.animacoes} onChange={set('animacoes')}>
                 <option value="completas">Completas</option><option value="reduzidas">Reduzidas</option><option value="desligadas">Desligadas</option></select></Campo>
+            </div>
+          </Bloco>
+
+          <Bloco titulo="Acabamento" descricao="Detalhes que mudam a cara do sistema inteiro sem trocar as cores.">
+            <div className="space-y-5">
+              <Campo rotulo="Tom do fundo e das bordas">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[['zinco', 'Zinco', '#f4f4f5', '#e4e4e7'], ['pedra', 'Pedra', '#f5f3f0', '#e2ddd6'], ['ardosia', 'Ardósia', '#f1f4f8', '#d9e0ea'], ['oliva', 'Oliva', '#f3f5f0', '#dde3d6']].map(([k, r, a, b]) => (
+                    <button key={k} type="button" onClick={() => set('tom_neutro')(k)} className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-sm ${f.tom_neutro === k ? 'border-primary ring-1 ring-primary' : 'border-border hover:bg-muted'}`}>
+                      <span className="flex overflow-hidden rounded"><span className="h-5 w-3" style={{ background: a }} /><span className="h-5 w-3" style={{ background: b }} /></span>{r}
+                    </button>
+                  ))} {/* marca: amostras dos tons neutros */}
+                </div>
+              </Campo>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Campo rotulo="Botões"><div className="flex gap-2">{[['solido', 'Sólido'], ['contorno', 'Contorno'], ['pilula', 'Pílula']].map(([k, r]) => (
+                  <button key={k} type="button" onClick={() => set('estilo_botao')(k)} className={`flex-1 border px-2 py-2 text-xs font-medium ${k === 'pilula' ? 'rounded-full' : 'rounded-lg'} ${f.estilo_botao === k ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'}`}>{r}</button>))}</div></Campo>
+                <Campo rotulo="Cartões"><div className="flex gap-2">{[['borda', 'Com borda'], ['sombra', 'Com sombra'], ['plano', 'Plano']].map(([k, r]) => (
+                  <button key={k} type="button" onClick={() => set('estilo_cartao')(k)} className={`flex-1 rounded-lg border px-2 py-2 text-xs font-medium ${f.estilo_cartao === k ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'}`}>{r}</button>))}</div></Campo>
+                <Campo rotulo="Largura do conteúdo" ajuda="Em telas grandes."><select className="campo" value={f.largura} onChange={set('largura')}>
+                  <option value="padrao">Padrão (leitura confortável)</option><option value="larga">Larga</option><option value="total">Toda a tela</option></select></Campo>
+                <Campo rotulo={`Espessura dos ícones · ${(f.icone_espessura / 10).toFixed(1)}`}><input type="range" min={12} max={28} step={1} value={f.icone_espessura} onChange={set('icone_espessura')} className="w-full accent-[hsl(var(--primary))]" /></Campo>
+              </div>
             </div>
           </Bloco>
 
@@ -270,6 +298,12 @@ export default function WhiteLabel() {
               <Campo rotulo="Link da política de privacidade"><input className="campo" value={f.link_privacidade} onChange={set('link_privacidade')} placeholder="https://" /></Campo>
               <Campo rotulo="Link dos termos de uso"><input className="campo" value={f.link_termos} onChange={set('link_termos')} placeholder="https://" /></Campo>
               <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm">Botões de download<Interruptor ligado={f.login_downloads} onChange={set('login_downloads')} rotulo="Downloads" /></label>
+              <Campo rotulo="Layout do login"><select className="campo" value={f.login_layout} onChange={set('login_layout')}>
+                <option value="dividido">Dividido (imagem ao lado)</option><option value="centralizado">Centralizado (só o formulário)</option></select></Campo>
+              <Campo rotulo="Página inicial depois de entrar"><select className="campo" value={f.pagina_inicial} onChange={set('pagina_inicial')}>
+                {ROTAS.map(([r, n]) => <option key={r} value={r}>{n}</option>)}<option value="/mapa">Mapa do escritório</option><option value="/seguranca">Segurança</option></select></Campo>
+              <div className="md:col-span-2"><Campo rotulo="Aviso na tela de login" ajuda="Ex.: Sistema em atualização às 18h. Vazio = sem aviso."><input className="campo" value={f.login_aviso} onChange={set('login_aviso')} maxLength={200} /></Campo></div>
+              <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm md:col-span-2">Mostrar o botão “Voltar ao site”<Interruptor ligado={f.mostrar_link_site} onChange={set('mostrar_link_site')} rotulo="Voltar ao site" /></label>
             </div>
           </Bloco>
 
@@ -290,6 +324,23 @@ export default function WhiteLabel() {
               <Campo rotulo="Telefone"><input className="campo" value={f.suporte_telefone} onChange={set('suporte_telefone')} /></Campo>
               <Campo rotulo="WhatsApp"><input className="campo" value={f.suporte_whatsapp} onChange={set('suporte_whatsapp')} /></Campo>
               <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm">Mostrar créditos<Interruptor ligado={f.mostrar_creditos} onChange={set('mostrar_creditos')} rotulo="Créditos" /></label>
+            </div>
+          </Bloco>
+
+          <Bloco titulo="Modo manutenção" descricao="Enquanto estiver ligado, só dono e administradores usam o sistema; os demais veem uma tela de aviso. Vale também para a API.">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm md:col-span-2 ${f.manutencao ? 'border-amber-500/50 bg-amber-500/10' : 'border-border'}`}>
+                <span className="flex items-center gap-2"><Wrench className="h-4 w-4" />Sistema em manutenção</span><Interruptor ligado={f.manutencao} onChange={set('manutencao')} rotulo="Manutenção" /></label>
+              <div className="md:col-span-2"><Campo rotulo="Mensagem para quem tentar entrar"><input className="campo" value={f.manutencao_mensagem} onChange={set('manutencao_mensagem')} maxLength={200} placeholder="Estamos trocando os transmissores das salas. Voltamos logo." /></Campo></div>
+              <Campo rotulo="Previsão de volta" ajuda="Opcional. Aparece na tela de aviso."><input type="datetime-local" className="campo" value={f.manutencao_previsao} onChange={set('manutencao_previsao')} /></Campo>
+            </div>
+          </Bloco>
+
+          <Bloco titulo="Relatórios exportados" descricao="Como a marca aparece no PDF, Word e HTML gerados em Relatórios.">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm">Logo na capa<Interruptor ligado={f.relatorio_logo} onChange={set('relatorio_logo')} rotulo="Logo nos relatórios" /></label>
+              <p className="self-center text-xs text-muted-foreground">{f.logo ? (/svg/.test(f.logo.slice(0, 30)) ? 'Logo em SVG não entra no PDF: envie PNG ou JPG.' : 'Usa o logo enviado em Identidade.') : 'Envie um logo em Identidade.'}</p>
+              <div className="md:col-span-2"><Campo rotulo="Rodapé dos relatórios" ajuda="Ex.: razão social e CNPJ. Vazio = data de geração."><input className="campo" value={f.relatorio_rodape} onChange={set('relatorio_rodape')} maxLength={200} /></Campo></div>
             </div>
           </Bloco>
 
@@ -320,8 +371,10 @@ export default function WhiteLabel() {
 
         <aside className="space-y-4 xl:sticky xl:top-24 xl:h-fit">
           <div className="cartao overflow-hidden">
-            <p className="border-b border-border px-4 py-2.5 text-xs font-medium text-muted-foreground">Pré-visualização</p>
-            <div className="space-y-4 p-4">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2"><p className="text-xs font-medium text-muted-foreground">Pré-visualização</p>
+              <div className="flex rounded-md border border-border p-0.5">{[['computador', Laptop], ['celular', Smartphone]].map(([k, I]) => <button key={k} onClick={() => setAparelho(k)} aria-label={k} className={`rounded p-1 ${aparelho === k ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}><I className="h-3.5 w-3.5" /></button>)}</div></div>
+            <motion.div layout className={`mx-auto space-y-4 p-4 ${aparelho === 'celular' ? 'my-3 max-w-[230px] rounded-[26px] border-[6px] border-foreground/80 bg-background' : ''}`}>
+              {f.manutencao && <p className="flex items-center gap-1.5 rounded-md bg-amber-500/15 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-300"><Wrench className="h-3 w-3" />Manutenção ligada</p>}
               <div className="flex items-center gap-2.5">
                 {f.logo ? <img src={f.logo} alt="" className="h-8 w-8 rounded-lg object-contain" /> : <span className="h-8 w-8 rounded-lg bg-primary" />}
                 <div className="min-w-0"><p className="truncate text-sm font-semibold">{f.nome}</p><p className="truncate text-[11px] text-muted-foreground">{f.slogan}</p></div>
@@ -336,7 +389,7 @@ export default function WhiteLabel() {
               </div>
               <div className="flex gap-2 text-xs"><span className="rounded px-1.5 py-0.5 text-white" style={{ background: f.cor_destaque }}>Destaque</span><span className="rounded px-1.5 py-0.5 text-white" style={{ background: f.cor_alerta }}>Alerta</span></div>
               <AnimatePresence>{f.banner_ativo && f.banner_texto && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="rounded-md bg-sky-600 px-2 py-1.5 text-center text-xs text-white">{f.banner_texto}</motion.p>}</AnimatePresence>
-            </div>
+            </motion.div>
           </div>
           <div className="cartao p-4">
             <p className="mb-2 text-xs font-medium text-muted-foreground">Recursos de white label</p>

@@ -13,7 +13,7 @@ const VARIANTES = {
 export function Botao({ variante = 'primario', carregando, icone: Icone, children, className = '', tamanho = 'md', ...props }) {
   const tam = tamanho === 'sm' ? 'h-8 px-3 text-sm gap-1.5' : 'h-10 px-4 text-sm gap-2'
   return (
-    <button
+    <button data-botao={variante}
       className={`inline-flex items-center justify-center rounded-lg font-medium transition-all active:scale-[0.98] disabled:cursor-not-allowed ${tam} ${VARIANTES[variante]} ${className}`}
       disabled={carregando || props.disabled}
       {...props}

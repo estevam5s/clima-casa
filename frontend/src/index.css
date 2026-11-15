@@ -103,3 +103,27 @@
 /* White label: nível de animações */
 [data-animacoes="reduzidas"] *, [data-animacoes="reduzidas"] *::before, [data-animacoes="reduzidas"] *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } /* marca: preferência de animação/alerta */
 [data-animacoes="desligadas"] *, [data-animacoes="desligadas"] *::before, [data-animacoes="desligadas"] *::after { animation: none !important; transition: none !important; } /* marca: preferência de animação/alerta */
+
+/* Efeito do cursor (Configurações → Aparência → Mouse) */
+.cursor-anel, .cursor-ponto { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 2147483646; opacity: 0; transition: opacity .2s, width .2s, height .2s, border-radius .2s, background-color .2s; will-change: transform; }
+.cursor-anel { border: 1.5px solid; border-radius: 9999px; }
+.cursor-anel[data-forma="clicavel"] { background-color: hsl(var(--primary) / 0.08); }
+.cursor-anel[data-forma="texto"] { width: 3px !important; height: 26px !important; border-radius: 2px; background-color: currentColor; } /* marca: o cursor vira barra de texto */
+.cursor-ponto { width: 6px; height: 6px; border-radius: 9999px; }
+html.cursor-escondido, html.cursor-escondido * { cursor: none !important; } /* marca: opção do usuário de esconder a seta */
+
+/* White label: tom do fundo (neutros), botões, cartões, largura e ícones */
+[data-tom="pedra"] { --background: 30 12% 96%; --card: 40 20% 99%; --muted: 30 10% 93%; --border: 30 9% 87%; --accent: 30 10% 92%; --sidebar: 40 20% 99%; }
+[data-tom="pedra"].dark { --background: 24 8% 6%; --card: 24 7% 9%; --muted: 24 6% 13%; --border: 24 5% 17%; --accent: 24 6% 15%; --sidebar: 24 8% 8%; }
+[data-tom="ardosia"] { --background: 214 25% 96%; --card: 0 0% 100%; --muted: 214 22% 94%; --border: 214 18% 87%; --accent: 214 20% 92%; --sidebar: 0 0% 100%; }
+[data-tom="ardosia"].dark { --background: 222 30% 6%; --card: 222 25% 9%; --muted: 220 20% 13%; --border: 218 16% 18%; --accent: 220 18% 15%; --sidebar: 222 28% 8%; }
+[data-tom="oliva"] { --background: 90 10% 96%; --card: 80 20% 99%; --muted: 90 9% 93%; --border: 90 8% 86%; --accent: 90 9% 92%; --sidebar: 80 20% 99%; }
+[data-tom="oliva"].dark { --background: 100 8% 6%; --card: 100 7% 9%; --muted: 100 6% 13%; --border: 100 5% 17%; --accent: 100 6% 15%; --sidebar: 100 8% 8%; }
+[data-estilo-botao="pilula"] button[data-botao] { border-radius: 9999px; }
+[data-estilo-botao="contorno"] button[data-botao="primario"] { background: transparent; color: hsl(var(--primary)); box-shadow: inset 0 0 0 1.5px hsl(var(--primary)); }
+[data-estilo-botao="contorno"] button[data-botao="primario"]:hover { background: hsl(var(--primary) / 0.08); }
+[data-cartao="sombra"] .cartao { box-shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 8px 24px -12px rgb(0 0 0 / 0.12); } /* marca: estilo de cartão escolhido no white label */
+[data-cartao="plano"] .cartao { border-color: transparent; box-shadow: none; }
+[data-largura="larga"] main .max-w-5xl { max-width: 80rem; }
+[data-largura="total"] main .max-w-5xl { max-width: none; }
+svg.lucide { stroke-width: var(--icone, 2); }

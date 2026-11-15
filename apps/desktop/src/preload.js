@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld('climaDesktop', {
   versao: ipcRenderer.sendSync('versao-app'),
   arquitetura: process.arch,
   tentarDeNovo: () => ipcRenderer.send('tentar-de-novo'),
+  desbloquear: () => ipcRenderer.invoke('desbloquear'),
 })

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Cookie, ExternalLink, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { CheckCircle2, Cookie, Download, ExternalLink, History, Languages, Plus, Radar, RefreshCw, Save, Search, ShieldAlert, Trash2 } from 'lucide-react'
 import { api, dataHora } from '../../api'
 import { Aviso, Botao, Carregando, FaixaMetricas, Interruptor, Secao, useDados, useToast } from '../ui'
 
@@ -16,15 +16,24 @@ export default function CookiesSite() {
   const { dados: rel, recarregar: recarregarRel } = useDados(() => api.get(`/api/site/cookies/relatorio?dias=${dias}`), [dias])
   const [cfg, setCfg] = useState(null)
   const [salvando, setSalvando] = useState(false)
+  const [varredura, setVarredura] = useState(null)
+  const [varrendo, setVarrendo] = useState(false)
+  const [titular, setTitular] = useState('')
+  const [registrosTitular, setRegistrosTitular] = useState(null)
   useEffect(() => { if (cfgInicial) setCfg(cfgInicial) }, [cfgInicial])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!cfg) return <Carregando />
 
   const muda = (k) => (v) => setCfg({ ...cfg, [k]: v?.target ? v.target.value : v })
   const salvar = async (novaVersao = false) => {
-    if (novaVersao && !window.confirm('Pedir o consentimento de novo a todos os visitantes? O aviso volta a aparecer para quem já escolheu.')) return
+    let resumo = ''
+    if (novaVersao) {
+      const r = window.prompt('O que mudou nesta versão? (fica no histórico e serve de prova para a LGPD)', 'Novo cookie de ')
+      if (r === null) return
+      resumo = r
+    }
     setSalvando(true)
-    try { const r = await api.put('/api/site/cookies/config', { ...cfg, nova_versao: novaVersao }); setCfg(r); toast(novaVersao ? `Versão ${r.versao} publicada: o aviso aparece de novo para todos.` : 'Cookies do site salvos. O site usa a nova configuração na próxima visita.') } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
+    try { const r = await api.put('/api/site/cookies/config', { ...cfg, nova_versao: novaVersao, resumo_mudanca: resumo }); setCfg(r); toast(novaVersao ? `Versão ${r.versao} publicada: o aviso aparece de novo para todos.` : 'Cookies do site salvos. O site usa a nova configuração na próxima visita.') } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
   }
   const muCat = (i, campo, v) => setCfg({ ...cfg, categorias: cfg.categorias.map((c, j) => (j === i ? { ...c, [campo]: v } : c)) })
   const muCookie = (i, campo, v) => setCfg({ ...cfg, cookies: cfg.cookies.map((c, j) => (j === i ? { ...c, [campo]: v } : c)) })
@@ -32,6 +41,10 @@ export default function CookiesSite() {
     if (!window.confirm('Apagar os registros de consentimento deste visitante (pedido do titular)?')) return
     try { await api.del(`/api/site/cookies/consentimento/${id}`); toast('Registros apagados.'); recarregarRel() } catch (e) { toast(e.message, 'erro') }
   }
+  const escanear = async () => { setVarrendo(true); try { setVarredura(await api.post('/api/site/cookies/escanear')) } catch (e) { toast(e.message, 'erro') } finally { setVarrendo(false) } }
+  const consultarTitular = async (e) => { e.preventDefault(); if (titular.trim().length < 8) return; try { setRegistrosTitular(await api.get(`/api/site/cookies/consentimento/${encodeURIComponent(titular.trim())}`)) } catch (err) { toast(err.message, 'erro') } }
+  const exportar = async () => { try { toast(`Arquivo salvo: ${await api.baixar('/api/site/cookies/exportar?dias=3650')}`) } catch (e) { toast(e.message, 'erro') } }
+  const idioma = (lng, campo, v) => setCfg({ ...cfg, idiomas: { ...cfg.idiomas, [lng]: { ...(cfg.idiomas?.[lng] || {}), [campo]: v } } })
   const serie = (rel?.por_dia || []).map((d) => ({ ...d, rotulo: `${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)}` }))
   const taxa = (k) => (rel?.total ? Math.round((rel.acoes[k] / rel.total) * 100) : 0)
 
@@ -54,7 +67,7 @@ export default function CookiesSite() {
               <p className="ajuda">{cfg.texto.length}/600 · o link para a Política de privacidade entra sozinho no fim.</p></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="rotulo" htmlFor="ck-pos">Posição</label>
-                <select id="ck-pos" className="campo" value={cfg.posicao} onChange={muda('posicao')}><option value="rodape">Faixa no rodapé</option><option value="canto">Cartão no canto</option></select></div>
+                <select id="ck-pos" className="campo" value={cfg.posicao} onChange={muda('posicao')}><option value="rodape">Faixa no rodapé</option><option value="canto">Cartão no canto</option><option value="centro">Janela no centro</option></select></div>
               <div><label className="rotulo" htmlFor="ck-dias">Validade da escolha</label>
                 <select id="ck-dias" className="campo" value={cfg.dias_validade} onChange={(e) => setCfg({ ...cfg, dias_validade: +e.target.value })}>
                   {[[30, '30 dias'], [90, '3 meses'], [180, '6 meses'], [365, '1 ano']].map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select></div>
@@ -87,6 +100,35 @@ export default function CookiesSite() {
                 <textarea className="campo mt-2 text-sm" rows={2} maxLength={400} value={c.descricao} onChange={(e) => muCat(i, 'descricao', e.target.value)} aria-label="Descrição" />
               </div>
             ))}
+          </div>
+        </Secao>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Secao titulo="Comportamento" contexto="Como o aviso age no site">
+          <div className="space-y-3 text-sm">
+            {[['bloquear_ate_escolher', 'Bloquear o site até a pessoa escolher', 'Escurece a página e só libera depois da escolha. Use com cuidado: atrapalha quem só quer ler.'],
+              ['rejeitar_destacado', '“Só os essenciais” com o mesmo destaque de “Aceitar”', 'Recomendado pela ANPD: recusar tem de ser tão fácil quanto aceitar.'],
+              ['botao_flutuante', 'Botão flutuante para mudar a escolha', 'Fica no canto do site depois que a pessoa escolhe.'],
+              ['google_consent_mode', 'Enviar sinais do Google Consent Mode v2', 'Se um dia o site usar Google Analytics ou Ads, eles respeitam a escolha (analytics_storage, ad_storage…).']].map(([k, r, d]) => (
+              <label key={k} className="flex items-start justify-between gap-4"><span><span className="font-medium">{r}</span><span className="block text-xs text-muted-foreground">{d}</span></span><Interruptor ligado={!!cfg[k]} onChange={muda(k)} rotulo={r} /></label>
+            ))}
+            <div><label className="rotulo" htmlFor="ck-ret">Guardar os registros de consentimento por</label>
+              <select id="ck-ret" className="campo" value={cfg.retencao_dias} onChange={(e) => setCfg({ ...cfg, retencao_dias: +e.target.value })}>
+                {[[365, '1 ano'], [730, '2 anos'], [1825, '5 anos (recomendado)'], [3650, '10 anos']].map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select>
+              <p className="ajuda">Registros mais antigos são apagados sozinhos. Guardar é a prova de que a pessoa consentiu.</p></div>
+          </div>
+        </Secao>
+        <Secao titulo="Outros idiomas" contexto="O site mostra o texto no idioma do navegador do visitante">
+          <div className="space-y-4">
+            {[['en', 'Inglês'], ['es', 'Espanhol']].map(([lng, nome]) => (
+              <div key={lng} className="rounded-lg border border-border p-3">
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Languages className="h-3.5 w-3.5" />{nome}</p>
+                <input className="campo h-9" maxLength={60} placeholder="Título" value={cfg.idiomas?.[lng]?.titulo || ''} onChange={(e) => idioma(lng, 'titulo', e.target.value)} aria-label={`Título em ${nome}`} />
+                <textarea className="campo mt-2 text-sm" rows={2} maxLength={600} placeholder="Texto" value={cfg.idiomas?.[lng]?.texto || ''} onChange={(e) => idioma(lng, 'texto', e.target.value)} aria-label={`Texto em ${nome}`} />
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground">Vazio = mostra o texto em português.</p>
           </div>
         </Secao>
       </div>
@@ -140,6 +182,59 @@ export default function CookiesSite() {
           )}
         </Secao>
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        {[['por_dispositivo', 'Por dispositivo'], ['por_pais', 'Por país'], ['por_versao', 'Por versão do aviso']].map(([k, t]) => (
+          <Secao key={k} titulo={t} contexto="Quantos aceitaram todos">
+            {!(rel?.[k] || []).length ? <p className="text-sm text-muted-foreground">Sem dados ainda.</p> : (
+              <ul className="space-y-2.5">{rel[k].map((x) => (
+                <li key={x.nome}><div className="flex justify-between text-sm"><span>{x.nome}</span><span className="tabular text-muted-foreground">{x.total} · {Math.round((x.aceitar_todos / x.total) * 100)}% aceitaram</span></div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${(x.aceitar_todos / x.total) * 100}%` }} /></div></li>))}</ul>
+            )}
+          </Secao>
+        ))}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Secao titulo="Varredura do site" contexto="Confere se o servidor grava algum cookie que não está na lista declarada"
+          acao={<Botao tamanho="sm" variante="secundario" icone={Radar} carregando={varrendo} onClick={escanear}>Varrer agora</Botao>}>
+          {!varredura ? <p className="text-sm text-muted-foreground">Abre a página inicial, a política de privacidade, o contato e o login, e lista os cookies que chegam do servidor.</p> : (
+            <div className="space-y-2">
+              {varredura.cookies.length === 0 && <p className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-4 w-4" />Nenhum cookie gravado pelo servidor nessas páginas.</p>}
+              {varredura.cookies.map((c) => c.erro ? <p key={c.nome} className="text-xs text-red-600">{c.nome}: {c.erro}</p> : (
+                <div key={c.nome} className={`rounded-lg border p-2.5 text-sm ${c.declarado ? 'border-border' : 'border-amber-500/50 bg-amber-500/10'}`}>
+                  <p className="flex items-center gap-2 font-medium">{c.declarado ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <ShieldAlert className="h-4 w-4 text-amber-500" />}<code>{c.nome}</code>{!c.declarado && <span className="text-xs font-normal text-amber-700 dark:text-amber-300">não declarado</span>}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{[c.seguro && 'Secure', c.httponly && 'HttpOnly', c.samesite && `SameSite=${c.samesite}`, c.validade && `${Math.round(c.validade / 3600)} h`].filter(Boolean).join(' · ')} · {c.paginas.length} página(s)</p>
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground">{varredura.observacao}</p>
+            </div>
+          )}
+        </Secao>
+        <Secao titulo="Histórico de versões" contexto="Cada vez que o consentimento foi pedido de novo">
+          {!(cfg.historico_versoes || []).length ? <p className="text-sm text-muted-foreground">Ainda não houve nova versão. Use “Salvar e pedir de novo” quando mudar o que o site usa.</p> : (
+            <ol className="relative space-y-4 border-l border-border pl-5">{cfg.historico_versoes.map((h) => (
+              <li key={h.versao} className="relative"><span className="absolute -left-[26px] top-1 grid h-3 w-3 place-items-center rounded-full bg-primary" />
+                <p className="text-sm font-medium">v{h.versao} · {dataHora(h.quando)}</p><p className="text-sm text-muted-foreground">{h.resumo}</p>
+                {h.mudancas?.length > 0 && <p className="mt-1 font-mono text-[11px] text-muted-foreground">{h.mudancas.join('  ')}</p>}</li>))}</ol>
+          )}
+        </Secao>
+      </div>
+
+      <Secao titulo="Pedido do titular (LGPD)" contexto="A pessoa vê o identificador dela nas preferências de cookies do site"
+        acao={<Botao tamanho="sm" variante="secundario" icone={Download} onClick={exportar}>Exportar todos (CSV)</Botao>}>
+        <form onSubmit={consultarTitular} className="flex flex-wrap gap-2">
+          <label className="relative min-w-[260px] flex-1"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input className="campo pl-9 font-mono text-sm" value={titular} onChange={(e) => setTitular(e.target.value)} placeholder="Identificador do visitante" aria-label="Identificador do visitante" /></label>
+          <Botao type="submit" variante="secundario" icone={History}>Consultar</Botao>
+          {registrosTitular?.length > 0 && <Botao type="button" variante="perigo" icone={Trash2} onClick={async () => { await apagarRegistro(titular.trim()); setRegistrosTitular(null) }}>Apagar (direito de eliminação)</Botao>}
+        </form>
+        {registrosTitular && (registrosTitular.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhum registro para esse identificador.</p> : (
+          <ul className="mt-3 divide-y divide-border text-sm">{registrosTitular.map((r, i) => (
+            <li key={i} className="flex flex-wrap justify-between gap-2 py-2"><span>{dataHora(r.quando)} · {ACOES.find((a) => a[0] === r.acao)?.[1] || r.acao} · v{r.versao}</span>
+              <span className="text-xs text-muted-foreground">{Object.entries(r.escolhas).filter(([, v]) => v).map(([k]) => k).join(', ')}</span></li>))}</ul>
+        ))}
+      </Secao>
 
       <Secao titulo="Registros de consentimento" contexto="Prova da escolha de cada visitante (identificador anônimo, sem IP em claro)">
         <div className="-mx-5 -my-5 overflow-x-auto">

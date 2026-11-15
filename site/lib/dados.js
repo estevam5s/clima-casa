@@ -8,13 +8,18 @@ export const MARCA = 'Clima Escritório'
 
 export const MENU = [
   { rotulo: 'Início', href: '/' },
-  { rotulo: 'Páginas', itens: [
+  { rotulo: 'Produto', itens: [
+    { rotulo: 'Como funciona', href: '/como-funciona' },
     { rotulo: 'Sobre o sistema', href: '/sobre' },
     { rotulo: 'Funcionalidades', href: '/funcionalidades' },
-    { rotulo: 'Detalhe da funcionalidade', href: '/funcionalidades/infravermelho' },
+    { rotulo: 'Integrações', href: '/integracoes' },
+    { rotulo: 'Segurança', href: '/seguranca' },
+    { rotulo: 'Baixar os apps', href: '/baixar' },
+  ] },
+  { rotulo: 'Ajuda', itens: [
     { rotulo: 'Perguntas frequentes', href: '/faq' },
+    { rotulo: 'Status do sistema', href: '/status' },
     { rotulo: 'Contato', href: '/contato' },
-    { rotulo: 'Página 404', href: '/pagina-que-nao-existe' },
   ] },
   { rotulo: 'Telas', itens: [
     { rotulo: 'Todas as telas', href: '/telas' },

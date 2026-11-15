@@ -11,7 +11,8 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://elyqjdcsbfdvlsxomxen.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_0-0KZAelOY07Fs3no4CA3A_jhGbnJkt",
         "EXPO_PUBLIC_API_URL": "https://app.zynio.com.br"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -22,7 +23,8 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://elyqjdcsbfdvlsxomxen.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_0-0KZAelOY07Fs3no4CA3A_jhGbnJkt",
         "EXPO_PUBLIC_API_URL": "https://app.zynio.com.br"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "android": {
@@ -33,7 +35,8 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://elyqjdcsbfdvlsxomxen.supabase.co",
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_0-0KZAelOY07Fs3no4CA3A_jhGbnJkt",
         "EXPO_PUBLIC_API_URL": "https://app.zynio.com.br"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {

@@ -36,7 +36,8 @@ export default function Login() {
   const [ocupado, setOcupado] = useState(false)
   const navegar = useNavigate()
   const estadoNav = useLocation().state
-  const destino = rotaSegura(estadoNav?.de || '/')
+  const inicial = (() => { try { return JSON.parse(localStorage.getItem('clima-marca') || '{}').pagina_inicial || '/' } catch { return '/' } })()
+  const destino = rotaSegura(estadoNav?.de || inicial)
   const veio2fa = estadoNav?.etapa === '2fa'
   const [codigo, setCodigoEstado] = useState('')
   const codigoAtual = useRef('')
@@ -175,11 +176,11 @@ export default function Login() {
   const meu = sistemaAtual()
   if (sessaoGuardada && !veio2fa && modo === 'entrar') return null
   return (
-    <div style={TEMAS[tema]} className="relative grid min-h-dvh w-full grid-cols-1 gap-3 overflow-x-clip bg-[var(--bg)] p-3 text-[var(--ink)] transition-colors duration-700 lg:grid-cols-[1.08fr_1fr]">
+    <div style={TEMAS[tema]} className={`relative grid min-h-dvh w-full grid-cols-1 gap-3 overflow-x-clip bg-[var(--bg)] p-3 text-[var(--ink)] transition-colors duration-700 ${marca.login_layout === 'centralizado' ? '' : 'lg:grid-cols-[1.08fr_1fr]'}`}>
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 opacity-40" style={{ backgroundImage: GRAO, mixBlendMode: 'var(--grain-blend)' }} />
 
       {/* esquerda: a fumaça numa pequena pilha de papel */}
-      <section className="relative z-[1] min-h-[38vh] lg:min-h-0">
+      <section className={`relative z-[1] min-h-[38vh] lg:min-h-0 ${marca.login_layout === 'centralizado' ? 'hidden' : ''}`}>
         <div aria-hidden className="absolute inset-0 rotate-[-1.4deg] rounded-[28px] bg-[var(--sheet)] transition-colors duration-700" />
         <div aria-hidden className="absolute inset-0 rotate-[0.9deg] rounded-[28px] bg-[var(--paper)] transition-colors duration-700" />
         <div className="relative h-full overflow-hidden rounded-[28px] bg-[var(--paper)] transition-colors duration-700"> {/* marca: folha principal */}
@@ -200,9 +201,9 @@ export default function Login() {
 
       {/* direita: o formulário */}
       <section className="relative z-[1] flex items-center justify-center px-5 py-16 sm:px-10">
-        <a href={siteComSessao(false)} className="absolute left-3 top-3 flex h-9 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--field)] px-3.5 text-[13px] font-medium transition-transform duration-300 active:scale-95 sm:left-6 sm:top-6">
+        {marca.mostrar_link_site !== false && <a href={siteComSessao(false)} className="absolute left-3 top-3 flex h-9 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--field)] px-3.5 text-[13px] font-medium transition-transform duration-300 active:scale-95 sm:left-6 sm:top-6">
           <ArrowLeft className="h-4 w-4" /> Voltar ao site
-        </a>
+        </a>}
         <button type="button" onClick={() => setTema(escuro ? 'claro' : 'escuro')} aria-label={escuro ? 'Usar tema claro' : 'Usar tema escuro'}
           className="absolute right-3 top-3 flex h-9 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--field)] pl-2.5 pr-3.5 text-[13px] font-medium transition-transform duration-300 active:scale-95 sm:right-6 sm:top-6">
           <span className="relative grid h-4 w-4 place-items-center">
@@ -222,6 +223,8 @@ export default function Login() {
               <motion.div key="entrar" exit={{ opacity: 0, y: -6 }}>
                 <motion.h1 {...sobe(2)} className="text-[34px] font-semibold leading-none tracking-[-0.045em]">{marca.login_titulo}</motion.h1>
                 <motion.p {...sobe(3)} className="mt-3 text-[15px] text-[var(--muted)]">{marca.login_subtitulo}</motion.p>
+                {marca.login_aviso && <motion.p {...sobe(3)} role="status" className="mt-5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5 text-[13px] leading-snug">{marca.login_aviso}</motion.p>}
+                {marca.manutencao && <motion.p {...sobe(3)} role="status" className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--field)] px-3.5 py-2.5 text-[13px] leading-snug">Sistema em manutenção: só administradores conseguem entrar agora.</motion.p>}
                 <form onSubmit={entrar} className="mt-9 space-y-4">
                   <motion.div {...sobe(4)}>
                     <label htmlFor="email" className="text-[13px] font-medium">E-mail</label>

@@ -3,12 +3,13 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity, AirVent, BarChart3, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe, Inbox, Map as MapIcon, LifeBuoy,
+  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe, Inbox, Map as MapIcon, LifeBuoy, Wrench,
 } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
 import Notificacoes, { useCentral } from './Notificacoes'
+import Atalhos from './Atalhos'
 import { siteComSessao } from '../site'
 import { Avatar } from './config/Perfil'
 import { useTema } from '../tema'
@@ -148,6 +149,7 @@ function usePerfil() {
 function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores }) {
   const perfil = usePerfil()
   const { sessao } = useProjeto()
+  const { marca } = useMarca()
   const navegar = useNavigate()
   const sair = async () => { await (await supabase()).auth.signOut().catch(() => {}); navegar('/login') }
   const email = sessao?.email || ''
@@ -174,10 +176,10 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores 
           </div>
         ))}
       </nav>
-      <a href={siteComSessao(true)} className="mb-2 flex h-9 items-center gap-3 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" title="Voltar ao site">
+      {marca.mostrar_link_site !== false && <a href={siteComSessao(true)} className="mb-2 flex h-9 items-center gap-3 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" title="Voltar ao site">
         <Globe className="h-[18px] w-[18px] shrink-0" />
         <motion.span animate={{ opacity: aberta ? 1 : 0 }} className="whitespace-pre">Voltar ao site</motion.span>
-      </a>
+      </a>}
       <div className="flex items-center gap-2.5 border-t border-border pt-3">
         <Link to="/configuracoes?aba=perfil" onClick={aoNavegar} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg hover:opacity-90" title="Editar perfil">
           <Avatar perfil={perfil} email={email} />
@@ -371,8 +373,26 @@ function useDesktop() {
   return d
 }
 
+// Tela para quem não é administrador enquanto o white label está em modo manutenção
+function Manutencao({ marca }) {
+  const prev = marca.manutencao_previsao ? new Date(marca.manutencao_previsao) : null
+  return (
+    <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center text-center">
+      <motion.div animate={{ rotate: [0, -12, 12, -6, 0] }} transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 1.2 }} className="grid h-16 w-16 place-items-center rounded-2xl bg-amber-500/15 text-amber-600">
+        <Wrench className="h-8 w-8" />
+      </motion.div>
+      <h1 className="mt-5 text-2xl font-semibold tracking-tight">Estamos em manutenção</h1>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{marca.manutencao_mensagem || 'O sistema está passando por ajustes. Os ares continuam funcionando normalmente pela Alexa e pelas automações.'}</p>
+      {prev && !Number.isNaN(prev.getTime()) && <p className="mt-4 rounded-lg border border-border bg-card px-3 py-2 text-sm">Previsão de volta: <span className="font-medium">{prev.toLocaleString('pt-BR', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}</span></p>}
+      <button onClick={() => window.location.reload()} className="mt-6 text-sm text-primary hover:underline">Tentar de novo</button>
+    </div>
+  )
+}
+
 export default function Layout() {
   const { marca } = useMarca()
+  const { sessao: sessaoLayout } = useProjeto()
+  const emManutencao = marca.manutencao && sessaoLayout && !['dono', 'admin'].includes(sessaoLayout.papel)
   const [fixada, setFixada] = useState(() => { try { return localStorage.getItem('clima-sidebar') === 'fixa' } catch { return false } })
   const [hover, setHover] = useState(false)
   const [movel, setMovel] = useState(false)
@@ -431,9 +451,9 @@ export default function Layout() {
               <kbd className="rounded border border-border px-1.5 text-[10px]">⌘K</kbd>
             </button>
             <button onClick={() => setPaleta(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted sm:hidden" aria-label="Buscar"><Search className="h-[18px] w-[18px]" /></button>
-            <a href={siteComSessao(true)} className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:flex" title="Voltar ao site">
+            {marca.mostrar_link_site !== false && <a href={siteComSessao(true)} className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:flex" title="Voltar ao site">
               <Globe className="h-4 w-4" /> Site
-            </a>
+            </a>}
             <Link to="/apps" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground lg:flex" title="Baixar os apps">
               <Download className="h-4 w-4" /> Apps
             </Link>
@@ -445,7 +465,8 @@ export default function Layout() {
         <Banner />
         <main className="w-full px-4 pb-16 pt-6 sm:px-6 lg:px-8 2xl:px-10">
           <motion.div key={local.pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            <Outlet />
+      <Atalhos />
+            {emManutencao ? <Manutencao marca={marca} /> : <Outlet />}
           </motion.div>
           <Rodape />
         </main>

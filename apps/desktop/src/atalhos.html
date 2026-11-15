@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Atalhos de teclado</title>
+<style>
+  :root { color-scheme: light dark; --f:#f6f6f7; --t:#0e0e11; --s:#6b6b74; --p:#0f766a; }
+  @media (prefers-color-scheme: dark) { :root { --f:#0e0e10; --t:#f2f2f3; --s:#9b9ba3; --p:#26a69a; } }
+  body { margin:0; height:100vh; display:grid; place-items:center; background:var(--f); color:var(--t); font:15px -apple-system, "Segoe UI", sans-serif;  }
+  main { text-align:center; max-width:340px; padding:24px; }
+  h1 { font-size:20px; margin:16px 0 6px; } p { color:var(--s); margin:0 0 20px; line-height:1.5; }
+  button { -webkit-app-region: no-drag; background:var(--p); color:#fff; border:0; border-radius:10px; padding:11px 20px; font:600 14px inherit; cursor:pointer; }
+</style>
+</head>
+<body>
+<main style="max-width:520px;text-align:left">
+  <h1 style="margin-top:0">Atalhos de teclado</h1>
+  <p>No Windows e no Linux, use Ctrl no lugar de ⌘.</p>
+  <table id="t" style="width:100%;border-collapse:collapse;font-size:14px"></table>
+</main>
+<script>const A = [['⌘ 1 … 9', 'Painel, Aparelhos, Mapa, Cenas, Automações, Agenda, Relatórios, Atividade, Segurança'],
+['⌘ ,', 'Configurações'], ['⌘ K', 'Buscar em todo o sistema'], ['⌘ R', 'Recarregar'], ['⌘ ⇧ L', 'Bloquear com Touch ID (Mac)'],
+['⌘ ⇧ Espaço', 'Mostrar ou esconder o app de qualquer lugar'], ['⌘ /', 'Esta lista'], ['?', 'Atalhos dentro do sistema (g p, g a, g m…)'],
+['⌘ +  /  ⌘ −  /  ⌘ 0', 'Aumentar, diminuir e voltar o zoom'], ['⌘ ⌃ F', 'Tela cheia'], ['⌘ W', 'Fechar a janela (o app continua na barra)']]
+document.getElementById('t').innerHTML = A.map(([k, d]) => `<tr><td style="padding:8px 12px 8px 0;white-space:nowrap"><kbd style="font:600 12px ui-monospace,monospace;border:1px solid #8884;border-bottom-width:2px;border-radius:6px;padding:3px 7px">${k}</kbd></td><td style="padding:8px 0;color:var(--s)">${d}</td></tr>`).join('')</script>
+</body>
+</html>

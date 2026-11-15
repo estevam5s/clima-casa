@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Minus, Pause, Play, Plus, RotateCcw } from 'lucide-react'
+import { Globe2, Minus, Orbit, Pause, Play, Plus, RotateCcw, X } from 'lucide-react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { criarUniverso, luzesDasCidades } from './universo'
 
 // Globo de acessos em Three.js, desenhado a partir de dados reais:
 // - Terra: países do world-atlas (Natural Earth 1:50m) pintados numa textura equirretangular, com fronteiras e litoral;
@@ -102,6 +103,7 @@ async function texturasTerra() {
   // máscara de água: branco = oceano
   const [cAgua, a] = tela()
   a.fillStyle = '#fff'; a.fillRect(0, 0, L, A); a.fillStyle = '#000'; preencher(a)
+  luzesDasCidades(n, cAgua, L, A)
 
   const tex = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t }
   return { dia: tex(cDia), noite: tex(cNoite), agua: new THREE.CanvasTexture(cAgua) }
@@ -177,6 +179,8 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   const montarRef = useRef(null)
   const acoesRef = useRef({})
   const [girando, setGirando] = useState(true)
+  const [explorar, setExplorar] = useState(false)
+  const astrosRef = useRef(null)
   const [pronto, setPronto] = useState(false)
 
   useEffect(() => {
@@ -188,7 +192,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     renderer.outputColorSpace = THREE.SRGBColorSpace
     el.appendChild(renderer.domElement)
     const cena = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200)
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 2500)
     const inicioCam = new THREE.Vector3(0, 0.75, 3.15)
     camera.position.copy(inicioCam)
     const controles = new OrbitControls(camera, renderer.domElement)
@@ -198,20 +202,14 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     controles.autoRotate = !calmo; controles.autoRotateSpeed = 0.35
     controles.rotateSpeed = 0.55
 
-    // estrelas
-    const estrelas = new Float32Array(2400 * 3)
-    for (let i = 0; i < 2400; i++) {
-      const v = new THREE.Vector3().randomDirection().multiplyScalar(40 + Math.random() * 30)
-      estrelas.set([v.x, v.y, v.z], i * 3)
-    }
-    const geoEstrelas = new THREE.BufferGeometry(); geoEstrelas.setAttribute('position', new THREE.BufferAttribute(estrelas, 3))
     const tex = texturaPonto()
-    const ceu = new THREE.Points(geoEstrelas, new THREE.PointsMaterial({ size: 0.16, map: tex, color: 0xcfe7ff, transparent: true, opacity: 0.75, depthWrite: false }))
-    cena.add(ceu)
 
     const globo = new THREE.Group()
     globo.rotation.y = -1.25 // começa nas Américas
     cena.add(globo)
+    globo.updateMatrixWorld()
+    // Sol, Lua, planetas e Via Láctea nas direções reais de agora
+    const universo = criarUniverso(cena, globo)
 
     // Terra com dia e noite reais
     const sub = pontoSubsolar()
@@ -372,10 +370,40 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       }
       requestAnimationFrame(passo)
     }
+    const voar = (alvo, destino, ms = 1600) => {
+      const de = camera.position.clone(), deAlvo = controles.target.clone(); let t0 = null
+      const passo = (ts) => {
+        t0 ??= ts
+        const k = Math.min(1, (ts - t0) / ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2
+        controles.target.lerpVectors(deAlvo, alvo, e); camera.position.lerpVectors(de, destino, e); controles.update()
+        if (k < 1) requestAnimationFrame(passo)
+      }
+      requestAnimationFrame(passo)
+    }
+    const foco = { atual: 'terra' }
+    const irPara = (chave) => {
+      const c = universo.corpos[chave]; if (!c) return
+      foco.atual = chave
+      if (chave === 'terra') { controles.minDistance = 1.5; voar(new THREE.Vector3(), inicioCam.clone()); return }
+      const alvo = c.obj.getWorldPosition(new THREE.Vector3())
+      // chega pelo lado iluminado (entre o astro e o Sol), um pouco acima
+      const lado = universo.solPos.clone().sub(alvo).normalize().multiplyScalar(0.55).add(camera.position.clone().sub(alvo).normalize().multiplyScalar(0.45)).normalize()
+      const dist = chave === 'sol' ? 40 : c.raio * 4.2 + 0.6
+      controles.minDistance = Math.max(0.4, c.raio * 1.4)
+      voar(alvo, alvo.clone().add(lado.multiplyScalar(dist)).add(new THREE.Vector3(0, c.raio * 0.8, 0)), chave === 'sol' ? 2400 : 1800)
+    }
     acoesRef.current = {
-      zoom: (f) => animarCamera(camera.position.clone().setLength(Math.min(controles.maxDistance, Math.max(controles.minDistance, camera.position.length() * f)))),
-      inicio: () => animarCamera(inicioCam.clone()),
+      zoom: (f) => { const alvo = controles.target.clone(); const v = camera.position.clone().sub(alvo); animarCamera(alvo.add(v.setLength(Math.min(controles.maxDistance, Math.max(controles.minDistance, v.length() * f))))) },
+      inicio: () => irPara('terra'),
       girar: (v) => { controles.autoRotate = v && !calmo },
+      explorar: (v) => {
+        controles.enableZoom = v; controles.zoomToCursor = false
+        controles.maxDistance = v ? 420 : 5.5
+        if (!v) irPara('terra')
+        else voar(new THREE.Vector3(), new THREE.Vector3(5, 3.4, 9))
+      },
+      irPara,
+      corpos: () => Object.entries(universo.corpos).map(([k, c]) => ({ chave: k, nome: c.nome, distancia: c.distancia })),
     }
 
     // dica ao passar o mouse e clique para selecionar
@@ -405,6 +433,17 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     }
     const clicar = () => { if (sobre) aoSelecionar?.(sobre) }
     const sair = () => { if (dicaRef.current) dicaRef.current.style.display = 'none' }
+    const duplo = (e) => {
+      const b = el.getBoundingClientRect()
+      mouse.x = ((e.clientX - b.left) / b.width) * 2 - 1; mouse.y = -((e.clientY - b.top) / b.height) * 2 + 1
+      ray.setFromCamera(mouse, camera)
+      const lista = Object.entries(universo.corpos).filter(([k]) => k !== 'terra').map(([k, c]) => [k, c.obj.type === 'Group' ? c.obj.children[0] : c.obj])
+      const hit = ray.intersectObjects([terra, ...lista.map(([, o]) => o)])[0]
+      if (!hit) return
+      const achado = hit.object === terra ? 'terra' : lista.find(([, o]) => o === hit.object)?.[0]
+      if (achado) { if (achado !== 'terra' && controles.maxDistance < 50) acoesRef.current.explorarExterno?.(true); irPara(achado) }
+    }
+    el.addEventListener('dblclick', duplo)
     el.addEventListener('pointermove', mover); el.addEventListener('click', clicar); el.addEventListener('pointerleave', sair)
     let retomar
     controles.addEventListener('start', () => { clearTimeout(retomar); controles.autoRotate = false })
@@ -453,10 +492,27 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       const fs = (t * 0.5) % 1
       anelServ.scale.setScalar(1 + fs * (ataqueRef.current ? 4 : 2)); anelServ.material.opacity = 1 - fs
       anelServ.material.color.setHex(ataqueRef.current ? 0xef4444 : 0xffffff)
-      ceu.rotation.y += dt * 0.004
+      universo.atualizar(dt, t)
       controles.update()
       renderer.render(cena, camera)
+      // rótulos dos astros (no modo explorar)
+      const caixaAstros = astrosRef.current
+      if (caixaAstros && controles.maxDistance > 50) {
+        const w = el.clientWidth, h = el.clientHeight
+        for (const [k, c] of Object.entries(universo.corpos)) {
+          if (k === 'terra') continue
+          let div = caixaAstros.querySelector(`[data-astro="${k}"]`)
+          if (!div) { div = document.createElement('div'); div.dataset.astro = k; div.className = 'absolute left-0 top-0 whitespace-nowrap rounded-md border border-white/15 bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur-sm transition-opacity'; const b = document.createElement('b'); b.textContent = c.nome; const sm = document.createElement('span'); sm.className = 'ml-1.5 text-white/60'; sm.textContent = c.distancia; div.append(b, sm); caixaAstros.appendChild(div) }
+          c.obj.getWorldPosition(tmp)
+          const dist = tmp.distanceTo(camera.position)
+          tmp.project(camera)
+          const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && dist > c.raio * 2.2
+          div.style.transform = `translate(${(tmp.x * 0.5 + 0.5) * w + 10}px, ${(-tmp.y * 0.5 + 0.5) * h - 12}px)`
+          div.style.opacity = vis ? '1' : '0'
+        }
+      } else if (caixaAstros && caixaAstros.childElementCount) caixaAstros.innerHTML = ''
       // rótulos: posição na tela e escondidos quando estão atrás do globo
+      if (rotulosRef.current) rotulosRef.current.style.opacity = controles.target.length() < 0.5 && camera.position.length() < 8 ? '1' : '0'
       if (rotulos.length) {
         const w = el.clientWidth, h = el.clientHeight
         const cam = camera.position.clone().normalize()
@@ -477,7 +533,8 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     laco()
     return () => {
       cancelAnimationFrame(quadro); ro.disconnect(); clearTimeout(retomar)
-      el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair)
+      el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair); el.removeEventListener('dblclick', duplo)
+      universo.descartar()
       controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
       tex.dispose(); texNuvens.dispose(); if (texturas) Object.values(texturas).forEach((x) => x.dispose())
@@ -489,16 +546,28 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   // dados novos: recria só a camada dinâmica
   useEffect(() => { montarRef.current?.() }, [pontos])
   useEffect(() => { acoesRef.current.girando = girando; acoesRef.current.girar?.(girando) }, [girando])
+  useEffect(() => { acoesRef.current.explorar?.(explorar) }, [explorar])
+  useEffect(() => { acoesRef.current.explorarExterno = (v) => setExplorar(v) }, [])
+  const ASTROS = [['terra', 'Terra'], ['lua', 'Lua'], ['sol', 'Sol'], ['mercurio', 'Mercúrio'], ['venus', 'Vênus'], ['marte', 'Marte'], ['jupiter', 'Júpiter'], ['saturno', 'Saturno']]
 
   const botao = 'flex h-8 w-8 items-center justify-center hover:bg-white/10'
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#03070d]"> {/* marca: fundo do espaço atrás do globo */}
       <div ref={ref} className={`h-full w-full touch-none transition-opacity duration-700 [&>canvas]:h-full [&>canvas]:w-full ${className}`} role="img"
         aria-label="Globo 3D com a origem dos acessos e ataques, dia e noite pela hora real; arraste para girar" />
-      <div ref={rotulosRef} className="pointer-events-none absolute inset-0 [&>div]:left-0 [&>div]:top-0" />
+      <div ref={rotulosRef} className="pointer-events-none absolute inset-0 transition-opacity duration-500 [&>div]:left-0 [&>div]:top-0" />
+      <div ref={astrosRef} className="pointer-events-none absolute inset-0" />
+      {explorar && (
+        <div className="absolute left-3 top-3 w-44 overflow-hidden rounded-lg border border-white/15 bg-black/55 text-white backdrop-blur"> {/* marca: painel flutua sobre o espaço */}
+          <div className="flex items-center justify-between border-b border-white/15 px-3 py-2"><span className="text-xs font-semibold">Ir para</span><button onClick={() => setExplorar(false)} aria-label="Sair do modo universo" className="rounded p-0.5 hover:bg-white/10"><X className="h-3.5 w-3.5" /></button></div>
+          {ASTROS.map(([k, n]) => <button key={k} onClick={() => acoesRef.current.irPara?.(k)} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/10"><span className="h-2 w-2 rounded-full" style={{ background: { terra: '#3b82f6', lua: '#cbd5e1', sol: '#fbbf24', mercurio: '#a8a29e', venus: '#fde68a', marte: '#f97316', jupiter: '#d6b38a', saturno: '#e9d7a5' }[k] }} />{n}</button>)}
+          <p className="border-t border-white/15 px-3 py-2 text-[10px] leading-snug text-white/60">Role para aproximar. Dois cliques num astro para ir até ele. Posições e fase da Lua reais de agora.</p>
+        </div>
+      )}
       {!pronto && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/60">Desenhando o mapa…</div>}
       <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border border-white/15 bg-black/50 text-white backdrop-blur">
-        <button onClick={() => acoesRef.current.zoom?.(0.8)} className={botao} aria-label="Aproximar" title="Aproximar"><Plus className="h-3.5 w-3.5" /></button>
+        <button onClick={() => setExplorar((v) => !v)} className={`${botao} ${explorar ? 'bg-white/15' : ''}`} aria-label={explorar ? 'Voltar ao globo' : 'Explorar o universo'} title={explorar ? 'Voltar ao globo' : 'Explorar o universo'}>{explorar ? <Globe2 className="h-3.5 w-3.5" /> : <Orbit className="h-3.5 w-3.5" />}</button>
+        <button onClick={() => acoesRef.current.zoom?.(0.8)} className={`${botao} border-t border-white/15`} aria-label="Aproximar" title="Aproximar"><Plus className="h-3.5 w-3.5" /></button>
         <button onClick={() => acoesRef.current.zoom?.(1.25)} className={`${botao} border-t border-white/15`} aria-label="Afastar" title="Afastar"><Minus className="h-3.5 w-3.5" /></button>
         <button onClick={() => acoesRef.current.inicio?.()} className={`${botao} border-t border-white/15`} aria-label="Voltar à vista inicial" title="Vista inicial"><RotateCcw className="h-3.5 w-3.5" /></button>
         <button onClick={() => setGirando((g) => !g)} className={`${botao} border-t border-white/15`} aria-label={girando ? 'Parar rotação' : 'Girar'} title={girando ? 'Parar rotação' : 'Girar'}>{girando ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>

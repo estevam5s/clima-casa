@@ -110,6 +110,11 @@ def _validar(request: Request) -> dict:
             and not sessao_forte(claims.get("session_id", "")) and not _tem_passkey(u["id"]) \
             and not rota.startswith(("/api/sessao", "/api/conta", "/api/perfil", "/api/notificacoes", "/api/marca", "/api/supabase-config")):
         raise HTTPException(403, "Ative a verificação em duas etapas (Configurações → Segurança) para continuar.", headers={"X-Clima-Exige-2FA": "1"})
+    # modo manutenção (white label): só dono e admin usam; os outros veem a tela de manutenção
+    if u["papel"] not in ("dono", "admin") and not rota.startswith(("/api/sessao", "/api/perfil", "/api/marca", "/api/supabase-config", "/api/conta")):
+        marca = db.cfg("white_label") or {}
+        if marca.get("manutencao"):
+            raise HTTPException(503, marca.get("manutencao_mensagem") or "O sistema está em manutenção. Volte em alguns minutos.", headers={"X-Clima-Manutencao": "1"})
     acesso.checar_rota(request.method, rota, u)
     acesso.checar_escopo(rota, request.path_params, dict(request.query_params))
     if time.time() - _ultimo_acesso.get(u["id"], 0) > 120:

@@ -36,7 +36,11 @@ export default function Rodape() {
             <div className="widget mb-40 pf_fadeup">
               <h4 className="titulo-widget" style={{ marginBottom: 20 }}>Links</h4>
               <ul>
+                <li><Link href="/como-funciona">Como funciona</Link></li>
                 <li><Link href="/sobre">Sobre o sistema</Link></li>
+                <li><Link href="/integracoes">Integrações</Link></li>
+                <li><Link href="/seguranca">Segurança</Link></li>
+                <li><Link href="/status">Status</Link></li>
                 <li><Link href="/funcionalidades">Funcionalidades</Link></li>
                 <li><Link href="/telas">Telas</Link></li>
                 <li><Link href="/faq">Perguntas frequentes</Link></li>

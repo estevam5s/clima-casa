@@ -30,6 +30,43 @@ def supabase_config():
     return {"url": db.ENV["SUPABASE_URL"], "chave": db.ENV["SUPABASE_PUBLISHABLE_KEY"], "turnstile": db.ENV.get("TURNSTILE_SITE_KEY", "")}
 
 
+_STATUS = {"em": 0, "dados": None}
+
+
+@publico.get("/site/status")
+def status_publico():
+    """Página de status do site: só o que é seguro mostrar (nada de IP, nome de aparelho ou usuário). Cache de 30 s."""
+    if time.time() - _STATUS["em"] < 30 and _STATUS["dados"]:
+        return _STATUS["dados"]
+    inicio = time.perf_counter()
+    try:
+        db.um("SELECT 1 AS ok")
+        banco = {"ok": True, "ms": round((time.perf_counter() - inicio) * 1000)}
+    except Exception:  # noqa: BLE001
+        banco = {"ok": False, "ms": None}
+    try:
+        hubs = db.um("SELECT count(*) AS total, count(*) FILTER (WHERE online = 1) AS online FROM hubs")
+        rot = db.um("SELECT count(*) FILTER (WHERE d.status = 'failed') AS falhas, count(*) AS total FROM cron.job_run_details d "
+                    "JOIN cron.job j ON j.jobid = d.jobid WHERE j.jobname LIKE 'clima_%' AND d.start_time > now() - interval '24 hours'")
+        visto = db.cfg("agente_visto_em")
+    except Exception:  # noqa: BLE001
+        hubs, rot, visto = {"total": 0, "online": 0}, {"falhas": 0, "total": 0}, None
+    dados = {"verificado_em": db.agora(), "api": {"ok": True}, "banco": banco,
+             "agente": {"ok": transmissor.agente_online(), "visto_ha_s": (db.agora() - int(visto)) if visto else None},
+             "transmissores": {"online": hubs["online"], "total": hubs["total"]},
+             "rotinas": {"execucoes_24h": rot["total"], "falhas_24h": rot["falhas"]},
+             "apps": versao_apps()}
+    _STATUS.update(em=time.time(), dados=dados)
+    return dados
+
+
+@publico.get("/apps/versao")
+def versao_apps():
+    """Versão mais recente dos apps (Android e computador): os apps comparam com a deles e avisam quando há novidade."""
+    import pathlib
+    return json.loads((pathlib.Path(__file__).resolve().parent.parent / "versao_apps.json").read_text(encoding="utf-8"))
+
+
 @api.get("/sessao")
 def sessao(request: Request):
     from .. import acesso
@@ -1823,6 +1860,10 @@ def salvar_respostas_prontas(d: list[RespostaProntaIn]):
 # ---------------- cookies do site (aviso de consentimento LGPD + gestão no admin) ----------------
 COOKIES_PADRAO = {
     "ativo": True, "versao": 1, "dias_validade": 180, "posicao": "rodape",
+    "bloquear_ate_escolher": False, "botao_flutuante": True, "rejeitar_destacado": True, "google_consent_mode": False,
+    "retencao_dias": 1825, "idiomas": {"en": {"titulo": "Your privacy", "texto": "We use essential cookies to keep the site working and secure. With your permission, we also use preference cookies. You choose, and you can change it anytime."},
+                                       "es": {"titulo": "Tu privacidad", "texto": "Usamos cookies esenciales para que el sitio funcione y sea seguro. Con tu permiso, también usamos cookies de preferencias. Tú eliges y puedes cambiarlo cuando quieras."}},
+    "historico_versoes": [],
     "titulo": "Sua privacidade",
     "texto": "Usamos cookies essenciais para o site funcionar e ficar seguro. Com a sua permissão, usamos também cookies de preferências. Você escolhe e pode mudar quando quiser.",
     "categorias": [
@@ -1851,7 +1892,8 @@ def _cookies_cfg() -> dict:
 @publico.get("/site/cookies")
 def cookies_publico():
     c = _cookies_cfg()
-    return {k: c[k] for k in ("ativo", "versao", "dias_validade", "posicao", "titulo", "texto", "categorias", "cookies")}
+    return {k: c[k] for k in ("ativo", "versao", "dias_validade", "posicao", "titulo", "texto", "categorias", "cookies",
+                              "bloquear_ate_escolher", "botao_flutuante", "rejeitar_destacado", "google_consent_mode", "idiomas")}
 
 
 class ConsentimentoIn(BaseModel):
@@ -1899,10 +1941,22 @@ class CookieItem(BaseModel):
     duracao: str = Field("", max_length=40)
 
 
+class TextoIdioma(BaseModel):
+    titulo: str = Field("", max_length=60)
+    texto: str = Field("", max_length=600)
+
+
 class CookiesConfigIn(BaseModel):
     ativo: bool = True
     dias_validade: int = Field(180, ge=1, le=730)
-    posicao: str = Field("rodape", pattern="^(rodape|canto)$")
+    posicao: str = Field("rodape", pattern="^(rodape|canto|centro)$")
+    bloquear_ate_escolher: bool = False
+    botao_flutuante: bool = True
+    rejeitar_destacado: bool = True
+    google_consent_mode: bool = False
+    retencao_dias: int = Field(1825, ge=180, le=3650)
+    idiomas: dict[str, TextoIdioma] = Field(default_factory=dict)
+    resumo_mudanca: str = Field("", max_length=200)
     titulo: str = Field(min_length=1, max_length=60)
     texto: str = Field(min_length=10, max_length=600)
     categorias: list[CategoriaCookie] = Field(min_length=1, max_length=8)
@@ -1913,7 +1967,8 @@ class CookiesConfigIn(BaseModel):
 @api.put("/site/cookies/config")
 def salvar_cookies_config(d: CookiesConfigIn):
     atual = _cookies_cfg()
-    dados = d.model_dump(exclude={"nova_versao"})
+    dados = d.model_dump(exclude={"nova_versao", "resumo_mudanca"})
+    dados["idiomas"] = {k: v for k, v in dados["idiomas"].items() if k in ("en", "es")}
     if not any(c["id"] == "essenciais" for c in dados["categorias"]):
         raise HTTPException(400, "A categoria Essenciais precisa existir.")
     for c in dados["categorias"]:
@@ -1924,6 +1979,14 @@ def salvar_cookies_config(d: CookiesConfigIn):
         if k["categoria"] not in ids:
             raise HTTPException(400, f"O cookie {k['nome']} está numa categoria que não existe.")
     dados["versao"] = atual["versao"] + (1 if d.nova_versao else 0)
+    hist = list(atual.get("historico_versoes") or [])
+    if d.nova_versao:
+        antes = {k["nome"] for k in atual["cookies"]}; depois = {k["nome"] for k in dados["cookies"]}
+        mud = [f"+ {n}" for n in sorted(depois - antes)] + [f"- {n}" for n in sorted(antes - depois)]
+        cats_a = {c["id"] for c in atual["categorias"]}; cats_d = {c["id"] for c in dados["categorias"]}
+        mud += [f"+ categoria {c}" for c in sorted(cats_d - cats_a)] + [f"- categoria {c}" for c in sorted(cats_a - cats_d)]
+        hist.insert(0, {"versao": dados["versao"], "quando": db.agora(), "resumo": d.resumo_mudanca.strip() or "Nova versão publicada", "mudancas": mud[:30]})
+    dados["historico_versoes"] = hist[:30]
     db.set_cfg("cookies_site", dados)
     db.registrar("painel", "Cookies do site atualizados", detalhe=f"versão {dados['versao']}" + (" (novo consentimento pedido)" if d.nova_versao else ""))
     return dados
@@ -1931,8 +1994,10 @@ def salvar_cookies_config(d: CookiesConfigIn):
 
 @api.get("/site/cookies/relatorio")
 def relatorio_cookies(dias: int = 30):
+    # retenção: registros mais velhos que o prazo configurado saem sozinhos
+    db.executar("DELETE FROM site_consentimentos WHERE quando < ?", (db.agora() - int(_cookies_cfg().get("retencao_dias", 1825)) * 86400,))
     desde = db.agora() - min(dias, 365) * 86400
-    linhas = db.consultar("SELECT quando, id_anonimo, versao, acao, escolhas, pais FROM site_consentimentos WHERE quando > ? ORDER BY quando DESC LIMIT 20000", (desde,))
+    linhas = db.consultar("SELECT quando, id_anonimo, versao, acao, escolhas, pais, agente FROM site_consentimentos WHERE quando > ? ORDER BY quando DESC LIMIT 20000", (desde,))
     total = len(linhas)
     acoes = {a: sum(1 for l in linhas if l["acao"] == a) for a in ("aceitar_todos", "personalizar", "rejeitar")}
     cats = {}
@@ -1949,10 +2014,74 @@ def relatorio_cookies(dias: int = 30):
     for n in range(min(dias, 90) - 1, -1, -1):
         k = _dt.datetime.fromtimestamp(db.agora() - n * 86400, _dt.timezone(_dt.timedelta(hours=-3))).strftime("%Y-%m-%d")
         serie.append(por_dia.get(k, {"dia": k, "aceitar_todos": 0, "personalizar": 0, "rejeitar": 0}))
-    return {"total": total, "visitantes": len({l["id_anonimo"] for l in linhas}), "acoes": acoes,
+    def _agrupar(chave):
+        g = {}
+        for l in linhas:
+            k = chave(l); x = g.setdefault(k, {"nome": k, "total": 0, "aceitar_todos": 0})
+            x["total"] += 1; x["aceitar_todos"] += l["acao"] == "aceitar_todos"
+        return sorted(g.values(), key=lambda x: -x["total"])[:12]
+    disp = lambda l: "Celular" if re.search(r"Mobile|Android|iPhone", l.get("agente") or "") else "Computador"  # noqa: E731
+    extra = {"por_pais": _agrupar(lambda l: l["pais"] or "?"), "por_dispositivo": _agrupar(disp), "por_versao": _agrupar(lambda l: f"v{l['versao']}")}
+    for l in linhas:
+        l.pop("agente", None)
+    return {**extra, "total": total, "visitantes": len({l["id_anonimo"] for l in linhas}), "acoes": acoes,
             "categorias": {k: {"aceitos": a, "total": t, "taxa": round(a / t * 100) if t else 0} for k, (a, t) in cats.items()},
             "por_dia": serie, "recentes": [{**l, "escolhas": l["escolhas"] if isinstance(l["escolhas"], dict) else json.loads(l["escolhas"] or "{}")} for l in linhas[:60]],
             "versao": _cookies_cfg()["versao"]}
+
+
+@api.get("/site/cookies/consentimento/{id_anonimo}")
+def consultar_consentimento(id_anonimo: str):
+    """Direito de acesso do titular: tudo o que foi registrado para um identificador (ele vê o ID nas preferências do site)."""
+    linhas = db.consultar("SELECT quando, versao, acao, escolhas, pais FROM site_consentimentos WHERE id_anonimo = ? ORDER BY quando DESC LIMIT 500", (id_anonimo[:64],))
+    return [{**l, "escolhas": l["escolhas"] if isinstance(l["escolhas"], dict) else json.loads(l["escolhas"] or "{}")} for l in linhas]
+
+
+@api.get("/site/cookies/exportar")
+def exportar_consentimentos(dias: int = 365):
+    import csv as _csv
+    import datetime
+    import io
+    from fastapi.responses import Response
+    linhas = db.consultar("SELECT quando, id_anonimo, versao, acao, escolhas, pais FROM site_consentimentos WHERE quando > ? ORDER BY quando DESC",
+                          (db.agora() - min(dias, 3650) * 86400,))
+    buf = io.StringIO(); w = _csv.writer(buf, delimiter=";")
+    w.writerow(["quando", "visitante", "versao", "escolha", "categorias_liberadas", "pais"])
+    for l in linhas:
+        e = l["escolhas"] if isinstance(l["escolhas"], dict) else json.loads(l["escolhas"] or "{}")
+        w.writerow([datetime.datetime.fromtimestamp(l["quando"]).isoformat(), l["id_anonimo"], l["versao"], l["acao"], ",".join(k for k, v in e.items() if v), l["pais"]])
+    db.registrar("painel", "Registros de consentimento exportados", detalhe=f"{len(linhas)} registro(s)")
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="consentimentos-cookies.csv"'})
+
+
+@api.post("/site/cookies/escanear")
+def escanear_cookies():
+    """Abre as páginas públicas do site e do sistema e lista os cookies que o servidor grava, comparando com a lista declarada."""
+    import httpx
+    declarados = {k["nome"].lower() for k in _cookies_cfg()["cookies"]}
+    achados = {}
+    for url in ("https://zynio.com.br/", "https://zynio.com.br/privacidade", "https://zynio.com.br/contato", "https://app.zynio.com.br/login"):
+        try:
+            r = httpx.get(url, follow_redirects=True, timeout=8, headers={"User-Agent": "Mozilla/5.0 (verificador de cookies do Clima Escritorio)"})
+            for h in r.history + [r]:
+                for c in h.headers.get_list("set-cookie"):
+                    nome = c.split("=", 1)[0].strip()
+                    a = achados.setdefault(nome, {"nome": nome, "paginas": [], "seguro": "secure" in c.lower(), "httponly": "httponly" in c.lower(),
+                                                  "samesite": (re.search(r"samesite=(\w+)", c, re.I) or [None, ""])[1], "validade": (re.search(r"max-age=(\d+)", c, re.I) or [None, ""])[1]})
+                    if url not in a["paginas"]:
+                        a["paginas"].append(url)
+        except Exception as e:  # noqa: BLE001
+            achados.setdefault(f"erro:{url}", {"nome": url, "erro": str(e)[:120]})
+    lista = []
+    for a in achados.values():
+        if "erro" in a:
+            lista.append(a); continue
+        a["declarado"] = a["nome"].lower() in declarados or any(a["nome"].lower().startswith(d.split()[0]) for d in declarados)
+        lista.append(a)
+    db.registrar("painel", "Varredura de cookies do site", detalhe=f"{sum(1 for a in lista if a.get('declarado') is False)} não declarado(s)")
+    return {"quando": db.agora(), "cookies": lista,
+            "observacao": "O navegador também guarda dados locais (localStorage), que não aparecem nesta varredura: confira a lista declarada."}
 
 
 @api.delete("/site/cookies/consentimento/{id_anonimo}")
@@ -2350,6 +2479,13 @@ MARCA_PADRAO = {
     "logo_escuro": "", "menu_estilo": "padrao", "login_fundo": "fumaca", "login_imagem": "", "login_cor": "#0f172a",
     "animacoes": "completas", "selo_ambiente": "", "mostrar_ajuda": True, "link_privacidade": "https://zynio.com.br/privacidade",
     "link_termos": "https://zynio.com.br/termos", "banner_inicio": "", "banner_fim": "",
+    # aparência avançada
+    "tom_neutro": "zinco", "estilo_botao": "solido", "estilo_cartao": "borda", "largura": "padrao", "icone_espessura": 20,
+    # login, navegação e operação
+    "login_layout": "dividido", "login_aviso": "", "pagina_inicial": "/", "mostrar_link_site": True,
+    "manutencao": False, "manutencao_mensagem": "", "manutencao_previsao": "",
+    # relatórios exportados
+    "relatorio_logo": True, "relatorio_rodape": "",
 }
 _CSS_PROIBIDO = re.compile(r"(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|</style)", re.I)
 _COR = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -2394,7 +2530,15 @@ def _validar_marca(m: dict) -> dict:
     limpo["escala"] = max(85, min(120, limpo["escala"]))
     limpo["raio"] = max(0, min(24, limpo["raio"]))
     if limpo["tema_padrao"] not in ("claro", "escuro", "sistema"): limpo["tema_padrao"] = "sistema"
-    if limpo["fonte"] not in ("sistema", "arredondada", "serifada", "mono", "condensada"): limpo["fonte"] = "sistema"
+    if limpo["fonte"] not in ("sistema", "arredondada", "serifada", "mono", "condensada", "inter", "manrope", "dm_sans", "nunito", "outfit", "plex"): limpo["fonte"] = "sistema"
+    for k, ok in (("tom_neutro", ("zinco", "pedra", "ardosia", "oliva")), ("estilo_botao", ("solido", "contorno", "pilula")),
+                  ("estilo_cartao", ("borda", "sombra", "plano")), ("largura", ("padrao", "larga", "total")), ("login_layout", ("dividido", "centralizado"))):
+        if limpo[k] not in ok: limpo[k] = ok[0]
+    limpo["icone_espessura"] = max(12, min(28, limpo["icone_espessura"]))
+    if limpo["pagina_inicial"] not in ROTAS_MENU: limpo["pagina_inicial"] = "/"
+    if limpo["manutencao_previsao"] and not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$", limpo["manutencao_previsao"]): limpo["manutencao_previsao"] = ""
+    for k in ("login_aviso", "manutencao_mensagem", "relatorio_rodape"):
+        limpo[k] = limpo[k].strip()[:300]
     if limpo["densidade"] not in ("compacta", "confortavel", "espacosa"): limpo["densidade"] = "confortavel"
     if limpo["banner_cor"] not in ("info", "alerta", "sucesso", "marca"): limpo["banner_cor"] = "info"
     if limpo["unidade_temperatura"] not in ("C", "F"): limpo["unidade_temperatura"] = "C"

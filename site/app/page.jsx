@@ -1,7 +1,7 @@
 import { meta } from '@/lib/seo'
 import Botao from '@/components/Botao'
 import Espiral from '@/components/Espiral'
-import { Tour } from '@/components/Interativos'
+import { VideoExplicativo } from '@/components/VideoExplicativo'
 import { SecaoComandos, SecaoFuncionalidades, SecaoIntegracoes, SecaoNovidades, SecaoNumeros, SecaoProcesso, SecaoTecnologias, SecaoTelas } from '@/components/Secoes'
 
 export const metadata = meta({ caminho: '/', og: 'inicio' })
@@ -30,7 +30,7 @@ export default function Inicio() {
 
       <section className="video">
         <div className="container">
-          <div className="pf_zoomIn"><Tour imagem="/telas/painel.jpg" alt="Painel do Clima Escritório com o ar-condicionado em 3D" /></div>
+          <div className="pf_zoomIn"><VideoExplicativo capa="/telas/painel.jpg" /></div>
         </div>
       </section>
 

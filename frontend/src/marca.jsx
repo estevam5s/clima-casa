@@ -15,6 +15,9 @@ export const MARCA_PADRAO = {
   logo_escuro: '', menu_estilo: 'padrao', login_fundo: 'fumaca', login_imagem: '', login_cor: '#0f172a', animacoes: 'completas',
   selo_ambiente: '', mostrar_ajuda: true, link_privacidade: 'https://zynio.com.br/privacidade', link_termos: 'https://zynio.com.br/termos',
   banner_inicio: '', banner_fim: '',
+  tom_neutro: 'zinco', estilo_botao: 'solido', estilo_cartao: 'borda', largura: 'padrao', icone_espessura: 20,
+  login_layout: 'dividido', login_aviso: '', pagina_inicial: '/', mostrar_link_site: true,
+  manutencao: false, manutencao_mensagem: '', manutencao_previsao: '', relatorio_logo: true, relatorio_rodape: '',
 }
 
 // logo certo para o tema (o escuro cai no normal quando não foi enviado)
@@ -44,7 +47,18 @@ const FONTES = {
   serifada: 'ui-serif, "New York", Georgia, "Times New Roman", serif',
   mono: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
   condensada: '"Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", sans-serif',
+  inter: '"Inter Variable", -apple-system, sans-serif', manrope: '"Manrope Variable", -apple-system, sans-serif',
+  dm_sans: '"DM Sans Variable", -apple-system, sans-serif', nunito: '"Nunito Variable", -apple-system, sans-serif',
+  outfit: '"Outfit Variable", -apple-system, sans-serif', plex: '"IBM Plex Sans Variable", -apple-system, sans-serif',
 }
+// fontes hospedadas no próprio sistema (sem Google Fonts: nada de IP do usuário indo para terceiros); baixa só a escolhida
+const CARREGAR_FONTE = {
+  inter: () => import('@fontsource-variable/inter'), manrope: () => import('@fontsource-variable/manrope'),
+  dm_sans: () => import('@fontsource-variable/dm-sans'), nunito: () => import('@fontsource-variable/nunito'),
+  outfit: () => import('@fontsource-variable/outfit'), plex: () => import('@fontsource-variable/ibm-plex-sans'),
+}
+export const NOMES_FONTES = [['sistema', 'Sistema (padrão)'], ['inter', 'Inter'], ['manrope', 'Manrope'], ['dm_sans', 'DM Sans'], ['outfit', 'Outfit'],
+  ['plex', 'IBM Plex Sans'], ['nunito', 'Nunito'], ['arredondada', 'Arredondada do sistema'], ['serifada', 'Serifada'], ['condensada', 'Condensada'], ['mono', 'Monoespaçada']]
 const DENSIDADE = { compacta: 0.94, confortavel: 1, espacosa: 1.05 }
 
 export function hexParaHsl(hex) {
@@ -75,6 +89,12 @@ export function aplicarMarca(m) {
   raiz.dataset.densidade = m.densidade
   raiz.dataset.menu = m.menu_estilo || 'padrao'
   raiz.dataset.animacoes = m.animacoes || 'completas'
+  raiz.dataset.tom = m.tom_neutro || 'zinco'
+  raiz.dataset.estiloBotao = m.estilo_botao || 'solido'
+  raiz.dataset.cartao = m.estilo_cartao || 'borda'
+  raiz.dataset.largura = m.largura || 'padrao'
+  raiz.style.setProperty('--icone', String((m.icone_espessura || 20) / 10))
+  CARREGAR_FONTE[m.fonte]?.().catch(() => {})
   // barra do navegador no celular na cor da marca
   let tc = document.querySelector('meta[name="theme-color"]')
   if (!tc) { tc = document.createElement('meta'); tc.name = 'theme-color'; document.head.appendChild(tc) }

@@ -63,7 +63,7 @@ SITE_ORIGENS = {o.strip() for o in os.environ.get("CLIMA_SITE_ORIGENS", "https:/
 @app.middleware("http")
 async def cabecalhos(request: Request, chamar):
     origem_site = request.headers.get("origin", "")
-    if request.url.path in ("/api/site/contato", "/api/site/cookies", "/api/site/cookies/consentimento") and origem_site in SITE_ORIGENS:
+    if request.url.path in ("/api/site/contato", "/api/site/cookies", "/api/site/cookies/consentimento", "/api/site/status", "/api/apps/versao") and origem_site in SITE_ORIGENS:
         cors = {"Access-Control-Allow-Origin": origem_site, "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600", "Vary": "Origin"}
         if request.method == "OPTIONS":

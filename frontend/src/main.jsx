@@ -57,20 +57,15 @@ function Protegido({ children }) {
   return children
 }
 
-function NaoEncontrado() {
-  return (
-    <div className="py-20 text-center">
-      <p className="text-lg font-semibold">Página não encontrada</p>
-      <a href="/" className="mt-2 inline-block text-sm text-marca-600 underline">Voltar ao painel</a>
-    </div>
-  )
-}
+import NaoEncontrado from './pages/NaoEncontrado'
+import Cursor from './components/Cursor'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <TemaProvider>
     <MarcaProvider>
     <ToastProvider>
+      <Cursor />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />

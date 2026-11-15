@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
+import { usePreferencias } from '../preferencias'
 import { motion } from 'framer-motion'
 import { Cookie, Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users } from 'lucide-react'
 import { useTema } from '../tema'
@@ -12,7 +13,7 @@ import PainelSeguranca from '../components/config/PainelSeguranca'
 import CookiesSite from '../components/config/CookiesSite'
 import { api } from '../api'
 import { supabase } from '../supabase'
-import { Aviso, Botao, Cabecalho, Carregando, Ponto, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Ponto, Secao, useDados, useToast } from '../components/ui'
 
 const MODOS_ENVIO = [
   ['auto', 'Automático', 'Rede local primeiro; se o transmissor não responder, usa a nuvem Tuya.'],
@@ -206,6 +207,36 @@ export default function Configuracoes() {
   )
 }
 
+function MouseETeclado() {
+  const [p, setP] = usePreferencias()
+  const toque = typeof window !== 'undefined' && !window.matchMedia('(pointer: fine)').matches
+  const calmo = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const Opcao = ({ ativo, onClick, children }) => <button type="button" onClick={onClick} className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${ativo ? 'border-primary bg-primary/10 font-medium text-primary' : 'border-border hover:bg-muted'}`}>{children}</button>
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Secao titulo="Mouse" contexto="Efeito de cursor redondo que segue o mouse (vale só neste navegador)">
+        <div className="space-y-4">
+          <label className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">Efeito do cursor</span><span className="block text-xs text-muted-foreground">Anel que acompanha o mouse, cresce sobre botões e links e encolhe no clique.</span></span>
+            <Interruptor ligado={p.cursor} onChange={(v) => setP({ cursor: v })} rotulo="Efeito do cursor" /></label>
+          {(toque || calmo) && <p className="text-xs text-amber-600">{toque ? 'Este aparelho usa toque: o efeito só aparece com mouse ou trackpad.' : 'O sistema está com “reduzir movimento” ligado: o efeito fica desligado para respeitar essa escolha.'}</p>}
+          <div className={p.cursor ? 'space-y-4' : 'pointer-events-none space-y-4 opacity-50'}>
+            <div><p className="rotulo">Estilo</p><div className="flex flex-wrap gap-2">{[['anel_ponto', 'Anel com ponto'], ['anel', 'Só o anel'], ['ponto', 'Só o ponto']].map(([k, r]) => <Opcao key={k} ativo={p.cursor_estilo === k} onClick={() => setP({ cursor_estilo: k })}>{r}</Opcao>)}</div></div>
+            <div><p className="rotulo">Cor</p><div className="flex flex-wrap gap-2">{[['marca', 'Cor da marca'], ['contraste', 'Texto do tema'], ['branco', 'Inverte o fundo']].map(([k, r]) => <Opcao key={k} ativo={p.cursor_cor === k} onClick={() => setP({ cursor_cor: k })}>{r}</Opcao>)}</div></div>
+            <label className="block"><span className="rotulo">Tamanho do anel: {p.cursor_tamanho}px</span><input type="range" min={20} max={64} step={2} value={p.cursor_tamanho} onChange={(e) => setP({ cursor_tamanho: Number(e.target.value) })} className="w-full accent-[hsl(var(--primary))]" /></label>
+            <label className="flex items-center justify-between gap-4 text-sm"><span>Esconder a seta do mouse<span className="block text-xs text-muted-foreground">Mostra só o efeito. A seta volta sozinha em campos de texto.</span></span>
+              <Interruptor ligado={p.cursor_esconder_seta} onChange={(v) => setP({ cursor_esconder_seta: v })} rotulo="Esconder a seta" /></label>
+          </div>
+        </div>
+      </Secao>
+      <Secao titulo="Teclado" contexto="Atalhos para usar o sistema sem o mouse">
+        <label className="flex items-center justify-between gap-4 text-sm"><span><span className="font-medium">Atalhos de teclado</span><span className="block text-xs text-muted-foreground">"?" mostra a lista; "g" e uma letra abre uma tela (g p painel, g m mapa, g r relatórios…). O ⌘K continua sempre ligado.</span></span>
+          <Interruptor ligado={p.atalhos} onChange={(v) => setP({ atalhos: v })} rotulo="Atalhos de teclado" /></label>
+        <Botao variante="secundario" className="mt-4" onClick={() => window.dispatchEvent(new Event('clima:atalhos'))}>Ver todos os atalhos</Botao>
+      </Secao>
+    </div>
+  )
+}
+
 function Aparencia() {
   const { escolha, setEscolha, escuro } = useTema()
   const opcoes = [['claro', 'Claro', Sun, 'Fundo claro, ideal para ambientes iluminados.'], ['escuro', 'Escuro', Moon, 'Menos brilho, confortável à noite.'],
@@ -226,6 +257,7 @@ function Aparencia() {
           </button>
         ))}
       </div>
+      <MouseETeclado />
       <p className="text-sm text-muted-foreground">Agora: tema {escuro ? 'escuro' : 'claro'}. A escolha fica salva neste navegador; também dá para trocar pelo botão no topo da tela. A cor da marca, a fonte e o tamanho do texto ficam na aba White label.</p>
     </div>
   )

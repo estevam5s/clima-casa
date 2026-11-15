@@ -4,6 +4,7 @@ import datetime
 import html
 import io
 import json
+import re
 import zipfile
 from xml.etree import ElementTree as ET
 
@@ -294,6 +295,20 @@ def _cor():
     return (db.cfg("white_label") or {}).get("cor_primaria", "#0f766a")
 
 
+def _marca_rel():
+    """Logo (PNG/JPG/WEBP em bytes) e rodapé que o white label manda colocar nos relatórios."""
+    import base64
+    m = db.cfg("white_label") or {}
+    logo = None
+    url = m.get("logo") or ""
+    if m.get("relatorio_logo", True) and re.match(r"^data:image/(png|jpeg|webp);base64,", url):
+        try:
+            logo = base64.b64decode(url.split(",", 1)[1])
+        except Exception:  # noqa: BLE001
+            logo = None
+    return logo, (m.get("relatorio_rodape") or "").strip()
+
+
 def _tabela_aparelhos(d):
     cab = ["Aparelho", "Projeto", "Comandos", "Falhas", "Sessões", "Horas", "Fora exped. (h)", "kWh", "Custo", "Custo ant."]
     linhas = [[a["nome"], a["projeto"], a["comandos"], a["falhas"], a["sessoes"], _n(a["horas_ligado"]), _n(a["fora_expediente_h"]),
@@ -500,7 +515,7 @@ footer{{max-width:1040px;margin:24px auto;padding:0 28px;color:#a1a1aa;font-size
 <header><div><p>{e(d['marca'] or '')} · Relatório de uso dos ares-condicionados</p><h1>{e(_periodo(d))}</h1><p>{e(filtros)} · gerado em {_data(d['gerado_em']):%d/%m/%Y às %H:%M}</p></div></header>
 <main><div class="kpi">{''.join(f'<div><span>{e(a)}</span><b>{e(b)}</b><small>{e(c)}</small></div>' for a, b, c in kpis)}</div>
 {''.join(f'<section><h2>{e(t)}</h2>{c}</section>' for t, c in secoes)}</main>
-<footer>Estimativas calculadas a partir dos comandos registrados pelo sistema. Tarifa usada: {_brl(d['tarifa_kwh'])}/kWh.</footer></body></html>"""
+<footer>{e(_marca_rel()[1]) + ' · ' if _marca_rel()[1] else ''}Estimativas calculadas a partir dos comandos registrados pelo sistema. Tarifa usada: {_brl(d['tarifa_kwh'])}/kWh.</footer></body></html>"""
     return pagina.encode(), "text/html; charset=utf-8", "html"
 
 
@@ -685,6 +700,12 @@ def exportar_docx(d):
         return tb
 
     # capa
+    logo, _ = _marca_rel()
+    if logo:
+        try:
+            doc.add_picture(io.BytesIO(logo), width=Cm(2.2))
+        except Exception:  # noqa: BLE001
+            pass
     p = doc.add_paragraph(); run = p.add_run((d["marca"] or "").upper()); run.font.color.rgb = rgb; run.bold = True; run.font.size = Pt(11)
     t = doc.add_paragraph(); run = t.add_run("Relatório de uso dos ares-condicionados"); run.font.size = Pt(26); run.bold = True
     s_ = doc.add_paragraph(); run = s_.add_run(_periodo(d)); run.font.size = Pt(16); run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
@@ -753,7 +774,7 @@ def exportar_docx(d):
     for a, b in METODOLOGIA:
         par = doc.add_paragraph(); par.add_run(f"{a}. ").bold = True; par.add_run(b)
     for sec in doc.sections:
-        pe = sec.footer.paragraphs[0]; pe.text = f"{d['titulo']} · {_periodo(d)}"; pe.runs[0].font.size = Pt(8); pe.runs[0].font.color.rgb = RGBColor(0x71, 0x71, 0x7A)
+        pe = sec.footer.paragraphs[0]; pe.text = _marca_rel()[1] or f"{d['titulo']} · {_periodo(d)}"; pe.runs[0].font.size = Pt(8); pe.runs[0].font.color.rgb = RGBColor(0x71, 0x71, 0x7A)
     doc.core_properties.title = d["titulo"]; doc.core_properties.author = d["marca"] or ""
     buf = io.BytesIO(); doc.save(buf)
     return buf.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
@@ -806,7 +827,18 @@ def exportar_pdf(d):
         c.saveState()
         c.setFillColor(cor); c.rect(0, A - 120 * mm, L, 120 * mm, stroke=0, fill=1)
         c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 10); c.drawString(20 * mm, A - 28 * mm, (d["marca"] or "").upper())
+        logo, _ = _marca_rel()
+        x_nome = 20 * mm
+        if logo:
+            try:
+                from reportlab.lib.utils import ImageReader
+                c.setFillColor(colors.white); c.roundRect(20 * mm, A - 34 * mm, 14 * mm, 14 * mm, 2.5 * mm, stroke=0, fill=1)
+                c.drawImage(ImageReader(io.BytesIO(logo)), 21 * mm, A - 33 * mm, 12 * mm, 12 * mm, preserveAspectRatio=True, mask="auto")
+                x_nome = 38 * mm
+            except Exception:  # noqa: BLE001 - logo inválido não derruba o relatório
+                pass
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 10); c.drawString(x_nome, A - 28 * mm, (d["marca"] or "").upper())
         c.setFont("Helvetica-Bold", 28); c.drawString(20 * mm, A - 62 * mm, "Relatório de uso")
         c.drawString(20 * mm, A - 74 * mm, "dos ares-condicionados")
         c.setFont("Helvetica", 14); c.drawString(20 * mm, A - 90 * mm, _periodo(d))
@@ -837,7 +869,7 @@ def exportar_pdf(d):
         c.setFont("Helvetica", 7.5); c.setFillColor(cinza)
         c.drawString(18 * mm, A - 13 * mm, f"{d['marca'] or ''} · Relatório de uso · {_periodo(d)}")
         c.setStrokeColor(cinza_claro); c.line(18 * mm, 14 * mm, L - 18 * mm, 14 * mm)
-        c.drawString(18 * mm, 10 * mm, f"Gerado em {_data(d['gerado_em']):%d/%m/%Y %H:%M}")
+        c.drawString(18 * mm, 10 * mm, _marca_rel()[1][:110] or f"Gerado em {_data(d['gerado_em']):%d/%m/%Y %H:%M}")
         c.restoreState()
 
     doc = BaseDocTemplate(buf, pagesize=A4, title=d["titulo"], author=d["marca"] or "", leftMargin=18 * mm, rightMargin=18 * mm, topMargin=20 * mm, bottomMargin=20 * mm)
