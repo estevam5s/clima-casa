@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity, AirVent, BarChart3, CalendarClock, Check, ChevronsUpDown, Database, FolderKanban, Gauge,
-  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe, Inbox, Map as MapIcon,
+  Download, Laptop, LogOut, Moon, Sun, Menu, MessageSquareQuote, Mic, Pin, PinOff, Plug, Radio, Search, Settings, ShieldCheck, Sparkles, Workflow, X, Globe, Inbox, Map as MapIcon, LifeBuoy,
 } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
@@ -12,7 +12,7 @@ import Notificacoes, { useCentral } from './Notificacoes'
 import { siteComSessao } from '../site'
 import { Avatar } from './config/Perfil'
 import { useTema } from '../tema'
-import { useMarca } from '../marca'
+import { useMarca, bannerNoAr, logoDaMarca } from '../marca'
 
 export const GRUPOS = [
   { titulo: 'Visão geral', itens: [
@@ -51,7 +51,7 @@ function Marca({ aberta }) {
   const { marca } = useMarca()
   return (
     <Link to="/" className="flex h-9 min-w-0 items-center gap-2.5 px-1.5">
-      {marca.logo ? <img src={marca.logo} alt="" className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : (
+      {logoDaMarca(marca, document.documentElement.classList.contains('dark')) ? <img src={logoDaMarca(marca, document.documentElement.classList.contains('dark'))} alt="" className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : (
         <svg viewBox="0 0 32 32" className="h-7 w-7 shrink-0" aria-hidden="true">
           <rect width="32" height="32" rx="8" fill="hsl(var(--primary))" />
           <path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
@@ -299,10 +299,46 @@ function BotaoTema() {
   )
 }
 
+// Botão "Ajuda" do cabeçalho com os contatos de suporte definidos no white label
+function Ajuda({ marca }) {
+  const [aberto, setAberto] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!aberto) return undefined
+    const fora = (e) => { if (!ref.current?.contains(e.target)) setAberto(false) }
+    document.addEventListener('mousedown', fora); return () => document.removeEventListener('mousedown', fora)
+  }, [aberto])
+  const zap = (marca.suporte_whatsapp || '').replace(/\D/g, '')
+  const itens = [
+    marca.suporte_email && [`mailto:${marca.suporte_email}`, 'E-mail', marca.suporte_email],
+    marca.suporte_telefone && [`tel:${marca.suporte_telefone.replace(/[^\d+]/g, '')}`, 'Telefone', marca.suporte_telefone],
+    zap && [`https://wa.me/${zap}`, 'WhatsApp', marca.suporte_whatsapp],
+    marca.site && [marca.site, 'Site', marca.site.replace(/^https?:\/\//, '')],
+  ].filter(Boolean)
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setAberto((a) => !a)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Ajuda" title="Ajuda"><LifeBuoy className="h-[18px] w-[18px]" /></button>
+      <AnimatePresence>
+        {aberto && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="absolute right-0 z-50 mt-2 w-72 rounded-xl border border-border bg-card p-2 shadow-xl"> {/* marca: menu flutua */}
+            <p className="px-3 pb-1 pt-2 text-sm font-semibold">Precisa de ajuda?</p>
+            <p className="px-3 pb-2 text-xs text-muted-foreground">Fale com o suporte de {marca.nome}.</p>
+            {itens.map(([href, r, v]) => (
+              <a key={r} href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-muted">
+                <span className="text-muted-foreground">{r}</span><span className="truncate font-medium">{v}</span>
+              </a>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 function Banner() {
   const { marca } = useMarca()
   const [fechado, setFechado] = useState(() => { try { return sessionStorage.getItem('clima-banner') === marca.banner_texto } catch { return false } })
-  if (!marca.banner_ativo || !marca.banner_texto || fechado) return null
+  if (!bannerNoAr(marca) || fechado) return null
   const cores = { info: 'bg-sky-600', alerta: 'bg-amber-600', sucesso: 'bg-emerald-600', marca: 'bg-primary' }
   return (
     <div className={`flex items-center justify-center gap-3 px-4 py-2 text-center text-sm text-white ${cores[marca.banner_cor] || cores.info}`} role="status">
@@ -336,6 +372,7 @@ function useDesktop() {
 }
 
 export default function Layout() {
+  const { marca } = useMarca()
   const [fixada, setFixada] = useState(() => { try { return localStorage.getItem('clima-sidebar') === 'fixa' } catch { return false } })
   const [hover, setHover] = useState(false)
   const [movel, setMovel] = useState(false)
@@ -387,6 +424,7 @@ export default function Layout() {
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
           <button onClick={() => setMovel(true)} className="-ml-1 rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
           <BarraStatus status={central.dados?.status} />
+          {marca.selo_ambiente && <span className="hidden shrink-0 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 sm:inline">{marca.selo_ambiente}</span>}
           <div className="ml-auto flex items-center gap-1">
             <button onClick={() => setPaleta(true)} className="hidden h-9 w-64 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground hover:bg-muted sm:flex">
               <Search className="h-4 w-4" /> <span className="flex-1 text-left">Buscar…</span>
@@ -399,6 +437,7 @@ export default function Layout() {
             <Link to="/apps" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground lg:flex" title="Baixar os apps">
               <Download className="h-4 w-4" /> Apps
             </Link>
+            {marca.mostrar_ajuda && (marca.suporte_email || marca.suporte_telefone || marca.suporte_whatsapp || marca.site) && <Ajuda marca={marca} />}
             <BotaoTema />
             <Notificacoes central={central} />
           </div>

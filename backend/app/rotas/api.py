@@ -2117,6 +2117,10 @@ MARCA_PADRAO = {
     "banner_ativo": False, "banner_texto": "", "banner_cor": "info", "boas_vindas": "",
     "menu_rotulos": {}, "menu_ocultos": [], "css": "", "meta_descricao": "", "dominio": "", "mostrar_creditos": True,
     "unidade_temperatura": "C", "formato_hora": "24h",
+    # extras do white label
+    "logo_escuro": "", "menu_estilo": "padrao", "login_fundo": "fumaca", "login_imagem": "", "login_cor": "#0f172a",
+    "animacoes": "completas", "selo_ambiente": "", "mostrar_ajuda": True, "link_privacidade": "https://zynio.com.br/privacidade",
+    "link_termos": "https://zynio.com.br/termos", "banner_inicio": "", "banner_fim": "",
 }
 _CSS_PROIBIDO = re.compile(r"(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|</style)", re.I)
 _COR = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -2146,10 +2150,10 @@ def _validar_marca(m: dict) -> dict:
     for k in ("cor_primaria", "cor_destaque", "cor_alerta"):
         if not _COR.match(limpo[k]):
             raise HTTPException(400, f"Cor inválida em {k}: use o formato #RRGGBB.")
-    for k in ("logo", "favicon"):
+    for k in ("logo", "favicon", "logo_escuro", "login_imagem"):
         if limpo[k] and not re.match(r"^data:image/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$", limpo[k]):
             raise HTTPException(400, "Imagem inválida: envie PNG, JPG, WEBP ou SVG.")
-        if len(limpo[k]) > 400_000:
+        if len(limpo[k]) > (1_400_000 if k == "login_imagem" else 400_000):
             raise HTTPException(400, "Imagem grande demais (máximo de ~300 KB).")
         if "svg" in limpo[k][:30]:
             import base64 as b64
@@ -2166,6 +2170,17 @@ def _validar_marca(m: dict) -> dict:
     if limpo["banner_cor"] not in ("info", "alerta", "sucesso", "marca"): limpo["banner_cor"] = "info"
     if limpo["unidade_temperatura"] not in ("C", "F"): limpo["unidade_temperatura"] = "C"
     if limpo["formato_hora"] not in ("24h", "12h"): limpo["formato_hora"] = "24h"
+    if limpo["menu_estilo"] not in ("padrao", "escuro", "marca"): limpo["menu_estilo"] = "padrao"
+    if limpo["login_fundo"] not in ("fumaca", "cor", "imagem"): limpo["login_fundo"] = "fumaca"
+    if limpo["animacoes"] not in ("completas", "reduzidas", "desligadas"): limpo["animacoes"] = "completas"
+    if not _COR.match(limpo["login_cor"]): limpo["login_cor"] = "#0f172a"
+    for k in ("link_privacidade", "link_termos"):
+        if limpo[k] and not re.match(r"^https://[\w.-]+(/[\w./#?=&%-]*)?$", limpo[k]):
+            raise HTTPException(400, "Os links de privacidade e termos precisam começar com https://.")
+    for k in ("banner_inicio", "banner_fim"):
+        if limpo[k] and not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$", limpo[k]):
+            limpo[k] = ""
+    limpo["selo_ambiente"] = limpo["selo_ambiente"].strip()[:24]
     for k in ("nome", "nome_curto", "login_titulo"):
         if not limpo[k].strip():
             raise HTTPException(400, "Nome e título do login não podem ficar vazios.")

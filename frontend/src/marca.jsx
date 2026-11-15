@@ -12,6 +12,31 @@ export const MARCA_PADRAO = {
   suporte_email: '', suporte_telefone: '', suporte_whatsapp: '', site: '', banner_ativo: false, banner_texto: '', banner_cor: 'info',
   boas_vindas: '', menu_rotulos: {}, menu_ocultos: [], css: '', meta_descricao: '', dominio: '', mostrar_creditos: true,
   unidade_temperatura: 'C', formato_hora: '24h',
+  logo_escuro: '', menu_estilo: 'padrao', login_fundo: 'fumaca', login_imagem: '', login_cor: '#0f172a', animacoes: 'completas',
+  selo_ambiente: '', mostrar_ajuda: true, link_privacidade: 'https://zynio.com.br/privacidade', link_termos: 'https://zynio.com.br/termos',
+  banner_inicio: '', banner_fim: '',
+}
+
+// logo certo para o tema (o escuro cai no normal quando não foi enviado)
+export const logoDaMarca = (m, escuro) => (escuro && m.logo_escuro) || m.logo
+
+// banner com período: vale só entre início e fim, quando definidos
+export function bannerNoAr(m, agora = new Date()) {
+  if (!m.banner_ativo || !m.banner_texto) return false
+  if (m.banner_inicio && agora < new Date(m.banner_inicio)) return false
+  if (m.banner_fim && agora > new Date(m.banner_fim)) return false
+  return true
+}
+
+// contraste WCAG entre duas cores #RRGGBB
+export function contraste(a, b) {
+  const lum = (hex) => {
+    const n = parseInt(hex.slice(1), 16)
+    const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 })
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+  }
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p)
+  return (x + 0.05) / (y + 0.05)
 }
 const FONTES = {
   sistema: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -48,6 +73,12 @@ export function aplicarMarca(m) {
 :root.dark{--primary:${h} ${Math.min(s, 80)}% ${escuro}%}`
   raiz.style.fontSize = `${(m.escala / 100) * (DENSIDADE[m.densidade] || 1) * 100}%`
   raiz.dataset.densidade = m.densidade
+  raiz.dataset.menu = m.menu_estilo || 'padrao'
+  raiz.dataset.animacoes = m.animacoes || 'completas'
+  // barra do navegador no celular na cor da marca
+  let tc = document.querySelector('meta[name="theme-color"]')
+  if (!tc) { tc = document.createElement('meta'); tc.name = 'theme-color'; document.head.appendChild(tc) }
+  tc.setAttribute('content', m.cor_primaria || '#0f766a')
   let css = document.getElementById('marca-css')
   if (!css) { css = document.createElement('style'); css.id = 'marca-css'; document.head.appendChild(css) }
   css.textContent = m.css || ''

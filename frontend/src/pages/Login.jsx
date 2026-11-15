@@ -11,7 +11,7 @@ import { biometriaDisponivel, entrarComBiometria } from '../webauthn'
 import Turnstile from '../components/Turnstile'
 import Fumaca from '../components/Fumaca'
 import { useTema } from '../tema'
-import { useMarca } from '../marca'
+import { useMarca, logoDaMarca } from '../marca'
 
 const TEMAS = {
   claro: { '--bg': '#efede7', '--paper': '#f7f6f2', '--sheet': '#e6e3db', '--ink': '#141513', '--muted': '#6f716b', '--line': '#dcd9d0',
@@ -183,10 +183,12 @@ export default function Login() {
         <div aria-hidden className="absolute inset-0 rotate-[-1.4deg] rounded-[28px] bg-[var(--sheet)] transition-colors duration-700" />
         <div aria-hidden className="absolute inset-0 rotate-[0.9deg] rounded-[28px] bg-[var(--paper)] transition-colors duration-700" />
         <div className="relative h-full overflow-hidden rounded-[28px] bg-[var(--paper)] transition-colors duration-700"> {/* marca: folha principal */}
-          {pronto && marca.login_fumaca && <Fumaca escuro={escuro} />}
+          {marca.login_fundo === 'imagem' && marca.login_imagem && <img src={marca.login_imagem} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+          {marca.login_fundo === 'cor' && <div className="absolute inset-0" style={{ background: marca.login_cor }} />}
+          {pronto && (marca.login_fundo || 'fumaca') === 'fumaca' && marca.login_fumaca && <Fumaca escuro={escuro} />}
           <div aria-hidden className="pointer-events-none absolute inset-0 opacity-60" style={{ backgroundImage: GRAO, mixBlendMode: 'var(--grain-blend)' }} />
           <motion.div {...sobe(0)} className="absolute left-6 top-6 flex items-center gap-2.5">
-            {marca.logo ? <img src={marca.logo} alt="" className="h-7 w-7 rounded-lg object-contain" /> : <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true"><rect width="32" height="32" rx="8" fill="hsl(var(--primary))" /><path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" /></svg>}
+            {logoDaMarca(marca, escuro) ? <img src={logoDaMarca(marca, escuro)} alt="" className="h-7 w-7 rounded-lg object-contain" /> : <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true"><rect width="32" height="32" rx="8" fill="hsl(var(--primary))" /><path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" /></svg>}
             <span className="text-[15px] font-semibold tracking-[-0.02em]">{marca.nome}</span>
           </motion.div>
           <motion.div {...sobe(1)} className="absolute inset-x-6 bottom-6 hidden max-w-[26rem] sm:block">
@@ -337,6 +339,7 @@ export default function Login() {
           </motion.div>
           </>}
           <motion.p {...sobe(11)} className="mt-8 text-center text-[12px] text-[var(--muted)]">{marca.login_rodape}
+            {(marca.link_privacidade || marca.link_termos) && <span className="mt-1.5 flex justify-center gap-3">{marca.link_privacidade && <a href={marca.link_privacidade} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">Privacidade</a>}{marca.link_termos && <a href={marca.link_termos} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">Termos</a>}</span>}
             {marca.suporte_email && <> · <a href={`mailto:${marca.suporte_email}`} className="underline-offset-4 hover:underline">{marca.suporte_email}</a></>}</motion.p>
         </div>
       </section>

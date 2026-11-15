@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Download, History, ImagePlus, RotateCcw, Save, Trash2, Upload } from 'lucide-react'
+import { CheckCircle2, Download, History, ImagePlus, Palette, Pipette, RotateCcw, Save, Trash2, Upload, XCircle } from 'lucide-react'
 import { api, dataHora } from '../../api'
-import { MARCA_PADRAO, aplicarMarca, useMarca } from '../../marca'
+import { MARCA_PADRAO, aplicarMarca, contraste, useMarca } from '../../marca'
 import { Aviso, Botao, Interruptor, Modal, useToast } from '../ui'
 
 const PALETAS = [
@@ -17,7 +17,69 @@ const RECURSOS = ['Nome do sistema', 'Nome curto (app instalado)', 'Slogan e des
   'Cor de alerta', 'Paletas prontas', 'Tema padrão', 'Fonte', 'Tamanho do texto', 'Cantos arredondados', 'Densidade', 'Título e subtítulo do login',
   'Fumaça do login', 'Downloads no login', 'Rodapé do login', 'Banner de aviso global', 'Boas-vindas no painel', 'Rodapé do sistema',
   'Contatos de suporte', 'Renomear itens do menu', 'Ocultar itens do menu', 'Unidade de temperatura', 'Formato de hora', 'Descrição para buscadores',
-  'Domínio próprio', 'Créditos', 'CSS personalizado', 'Exportar e importar', 'Histórico de versões', 'Pré-visualização ao vivo', 'Restaurar padrão']
+  'Domínio próprio', 'Créditos', 'CSS personalizado', 'Exportar e importar', 'Histórico de versões', 'Pré-visualização ao vivo', 'Restaurar padrão',
+  'Temas prontos', 'Cores tiradas do logo', 'Verificador de contraste (WCAG)', 'Logo do tema escuro', 'Estilo do menu lateral', 'Nível de animações',
+  'Fundo do login (fumaça, cor ou imagem)', 'Links de privacidade e termos no login', 'Selo de ambiente no cabeçalho', 'Botão de ajuda com contatos',
+  'Banner com data de início e fim', 'Cor da barra do navegador no celular']
+
+// temas completos: cores, fonte, cantos, densidade, menu e tema padrão de uma vez
+const TEMAS_PRONTOS = [
+  { nome: 'Escritório (padrão)', cor_primaria: '#0f766a', cor_destaque: '#2563a8', cor_alerta: '#dc2626', fonte: 'sistema', raio: 12, densidade: 'confortavel', menu_estilo: 'padrao', tema_padrao: 'sistema' },
+  { nome: 'Corporativo', cor_primaria: '#1d4ed8', cor_destaque: '#0891b2', cor_alerta: '#dc2626', fonte: 'sistema', raio: 6, densidade: 'compacta', menu_estilo: 'escuro', tema_padrao: 'claro' },
+  { nome: 'Clínica', cor_primaria: '#0e7490', cor_destaque: '#16a34a', cor_alerta: '#e11d48', fonte: 'arredondada', raio: 16, densidade: 'espacosa', menu_estilo: 'padrao', tema_padrao: 'claro' },
+  { nome: 'Grafite', cor_primaria: '#27272a', cor_destaque: '#71717a', cor_alerta: '#dc2626', fonte: 'sistema', raio: 8, densidade: 'confortavel', menu_estilo: 'escuro', tema_padrao: 'escuro' },
+  { nome: 'Indústria', cor_primaria: '#c2410c', cor_destaque: '#b45309', cor_alerta: '#b91c1c', fonte: 'condensada', raio: 4, densidade: 'compacta', menu_estilo: 'marca', tema_padrao: 'escuro' },
+  { nome: 'Advocacia', cor_primaria: '#7f1d1d', cor_destaque: '#a16207', cor_alerta: '#b91c1c', fonte: 'serifada', raio: 6, densidade: 'confortavel', menu_estilo: 'marca', tema_padrao: 'claro' },
+  { nome: 'Tecnologia', cor_primaria: '#4338ca', cor_destaque: '#0369a1', cor_alerta: '#dc2626', fonte: 'mono', raio: 10, densidade: 'compacta', menu_estilo: 'escuro', tema_padrao: 'escuro' },
+  { nome: 'Natureza', cor_primaria: '#15803d', cor_destaque: '#0d9488', cor_alerta: '#c2410c', fonte: 'arredondada', raio: 18, densidade: 'espacosa', menu_estilo: 'marca', tema_padrao: 'claro' },
+]
+
+// cor mais marcante de uma imagem (média dos pixels mais saturados), para sugerir a paleta a partir do logo
+function corDoLogo(url) {
+  return new Promise((ok) => {
+    const img = new Image()
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = c.height = 48
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0, 48, 48)
+      const d = g.getImageData(0, 0, 48, 48).data
+      const px = []
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 200) continue
+        const [r, gg, b] = [d[i], d[i + 1], d[i + 2]], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b)
+        const sat = mx ? (mx - mn) / mx : 0, luz = (mx + mn) / 510
+        if (luz > 0.12 && luz < 0.88) px.push([sat, r, gg, b])
+      }
+      if (!px.length) return ok(null)
+      px.sort((a, b) => b[0] - a[0])
+      const top = px.slice(0, Math.max(8, Math.floor(px.length * 0.15)))
+      const m = [1, 2, 3].map((k) => Math.round(top.reduce((s2, p) => s2 + p[k], 0) / top.length))
+      ok(`#${m.map((v) => v.toString(16).padStart(2, '0')).join('')}`)
+    }
+    img.onerror = () => ok(null)
+    img.src = url
+  })
+}
+
+function Contraste({ cor }) {
+  const linhas = [['Texto branco sobre a cor (botões)', cor, '#ffffff'], ['Cor sobre fundo claro (links)', cor, '#ffffff'], ['Cor sobre fundo escuro', cor, '#0b0b0f']]
+  return (
+    <div className="mt-4 rounded-lg border border-border p-3">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">Contraste (WCAG 2.1)</p>
+      {linhas.map(([r, a, b], i) => {
+        const v = contraste(a, b), ok = v >= 4.5, medio = v >= 3
+        return (
+          <div key={i} className="flex items-center justify-between gap-3 py-1 text-sm">
+            <span className="flex items-center gap-2"><span className="grid h-6 w-10 place-items-center rounded text-[10px] font-bold" style={{ background: i === 0 ? a : b, color: i === 0 ? b : a }}>Aa</span>{r}</span>
+            <span className={`flex items-center gap-1 text-xs font-medium tabular ${ok ? 'text-emerald-600 dark:text-emerald-400' : medio ? 'text-amber-600' : 'text-red-600'}`}>
+              {ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}{v.toFixed(1)}:1 {ok ? (v >= 7 ? 'AAA' : 'AA') : medio ? 'só texto grande' : 'baixo'}
+            </span>
+          </div>
+        )
+      })}
+      <p className="mt-1 text-[11px] text-muted-foreground">O sistema ainda ajusta a luminosidade sozinho no claro e no escuro; isto mostra a cor exata escolhida.</p>
+    </div>
+  )
+}
 
 function Campo({ rotulo, ajuda, children }) {
   return <div><span className="rotulo">{rotulo}</span>{children}{ajuda && <p className="ajuda">{ajuda}</p>}</div>
@@ -36,7 +98,7 @@ function Bloco({ titulo, descricao, children }) {
 function lerImagem(arquivo, max = 300_000) {
   return new Promise((ok, erro) => {
     if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(arquivo.type)) return erro(new Error('Use PNG, JPG, WEBP ou SVG.'))
-    if (arquivo.size > max) return erro(new Error('Imagem grande demais (máximo de 300 KB).'))
+    if (arquivo.size > max) return erro(new Error(`Imagem grande demais (máximo de ${Math.round(max / 1000)} KB).`))
     const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => erro(new Error('Não foi possível ler a imagem.')); r.readAsDataURL(arquivo)
   })
 }
@@ -107,13 +169,33 @@ export default function WhiteLabel() {
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
+          <Bloco titulo="Temas prontos" descricao="Aplica cores, fonte, cantos, densidade, menu e tema de uma vez. Ajuste o que quiser depois.">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {TEMAS_PRONTOS.map((t) => {
+                const ativo = f.cor_primaria === t.cor_primaria && f.fonte === t.fonte && f.menu_estilo === t.menu_estilo
+                return (
+                  <button key={t.nome} onClick={() => { const { nome, ...resto } = t; setF((x) => ({ ...x, ...resto })) }}
+                    className={`overflow-hidden rounded-lg border text-left transition-colors ${ativo ? 'border-primary ring-1 ring-primary' : 'border-border hover:bg-muted'}`}>
+                    <div className="flex h-12" style={{ borderRadius: 0 }}>
+                      <span className="w-1/4" style={{ background: t.menu_estilo === 'escuro' ? '#18181b' : t.menu_estilo === 'marca' ? t.cor_primaria : '#f4f4f5' }} />
+                      <span className="flex flex-1 items-end gap-1 p-1.5" style={{ background: t.tema_padrao === 'escuro' ? '#0b0b0f' : '#ffffff' }}>
+                        <span className="h-3 w-8" style={{ background: t.cor_primaria, borderRadius: t.raio / 3 }} /><span className="h-2 w-5" style={{ background: t.cor_destaque, borderRadius: t.raio / 3 }} />
+                      </span>
+                    </div>
+                    <p className="px-2.5 py-1.5 text-xs font-medium">{t.nome}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </Bloco>
+
           <Bloco titulo="Identidade" descricao="Nome, textos e imagens que identificam o sistema.">
             <div className="grid gap-4 md:grid-cols-2">
               <Campo rotulo="Nome do sistema"><input className="campo" value={f.nome} onChange={set('nome')} maxLength={60} /></Campo>
               <Campo rotulo="Nome curto" ajuda="Aparece no app instalado e em espaços pequenos."><input className="campo" value={f.nome_curto} onChange={set('nome_curto')} maxLength={20} /></Campo>
               <div className="md:col-span-2"><Campo rotulo="Slogan"><input className="campo" value={f.slogan} onChange={set('slogan')} maxLength={160} /></Campo></div>
               <div className="md:col-span-2"><Campo rotulo="Descrição"><input className="campo" value={f.descricao} onChange={set('descricao')} maxLength={200} /></Campo></div>
-              {[['logo', 'Logo'], ['favicon', 'Ícone da aba (favicon)']].map(([k, r]) => (
+              {[['logo', 'Logo'], ['logo_escuro', 'Logo no tema escuro'], ['favicon', 'Ícone da aba (favicon)']].map(([k, r]) => (
                 <Campo key={k} rotulo={r} ajuda="PNG, JPG, WEBP ou SVG até 300 KB. Quadrado fica melhor.">
                   <div className="flex items-center gap-3">
                     <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-muted">
@@ -138,6 +220,7 @@ export default function WhiteLabel() {
                 </button>
               ))}
             </div>
+            {f.logo && <Botao variante="secundario" tamanho="sm" icone={Pipette} className="mb-4" onClick={async () => { const c = await corDoLogo(f.logo); if (c) { setF((x) => ({ ...x, cor_primaria: c })); toast(`Cor principal tirada do logo: ${c}`) } else toast('Não achei uma cor marcante no logo.', 'erro') }}>Usar a cor do logo</Botao>}
             <div className="grid gap-4 sm:grid-cols-3">
               {[['cor_primaria', 'Principal'], ['cor_destaque', 'Destaque (gráficos)'], ['cor_alerta', 'Alerta']].map(([k, r]) => (
                 <Campo key={k} rotulo={r}>
@@ -146,6 +229,7 @@ export default function WhiteLabel() {
                 </Campo>
               ))}
             </div>
+            {/^#[0-9a-fA-F]{6}$/.test(f.cor_primaria) && <Contraste cor={f.cor_primaria} />}
           </Bloco>
 
           <Bloco titulo="Tipografia e layout">
@@ -159,6 +243,10 @@ export default function WhiteLabel() {
               <Campo rotulo={`Cantos arredondados · ${f.raio}px`}><input type="range" min={0} max={24} value={f.raio} onChange={set('raio')} className="w-full accent-[hsl(var(--primary))]" /></Campo>
               <Campo rotulo="Tema padrão" ajuda="Vale para quem ainda não escolheu um tema."><select className="campo" value={f.tema_padrao} onChange={set('tema_padrao')}>
                 <option value="sistema">Seguir o sistema</option><option value="claro">Claro</option><option value="escuro">Escuro</option></select></Campo>
+              <Campo rotulo="Menu lateral"><select className="campo" value={f.menu_estilo} onChange={set('menu_estilo')}>
+                <option value="padrao">Acompanha o tema</option><option value="escuro">Sempre escuro</option><option value="marca">Na cor da marca</option></select></Campo>
+              <Campo rotulo="Animações" ajuda="Quem pede menos movimento no aparelho já recebe animações reduzidas."><select className="campo" value={f.animacoes} onChange={set('animacoes')}>
+                <option value="completas">Completas</option><option value="reduzidas">Reduzidas</option><option value="desligadas">Desligadas</option></select></Campo>
             </div>
           </Bloco>
 
@@ -167,7 +255,20 @@ export default function WhiteLabel() {
               <Campo rotulo="Título"><input className="campo" value={f.login_titulo} onChange={set('login_titulo')} maxLength={60} /></Campo>
               <Campo rotulo="Subtítulo"><input className="campo" value={f.login_subtitulo} onChange={set('login_subtitulo')} maxLength={160} /></Campo>
               <div className="md:col-span-2"><Campo rotulo="Texto do rodapé"><input className="campo" value={f.login_rodape} onChange={set('login_rodape')} maxLength={160} /></Campo></div>
-              <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm">Fumaça animada<Interruptor ligado={f.login_fumaca} onChange={set('login_fumaca')} rotulo="Fumaça animada" /></label>
+              <Campo rotulo="Fundo do painel do login"><select className="campo" value={f.login_fundo} onChange={set('login_fundo')}>
+                <option value="fumaca">Fumaça animada</option><option value="cor">Cor sólida</option><option value="imagem">Imagem</option></select></Campo>
+              {f.login_fundo === 'cor' && <Campo rotulo="Cor do fundo"><div className="flex gap-2"><input type="color" value={f.login_cor} onChange={set('login_cor')} className="h-10 w-12 cursor-pointer rounded-lg border border-border bg-card p-1" aria-label="Cor do fundo" /><input className="campo font-mono" value={f.login_cor} onChange={set('login_cor')} maxLength={7} /></div></Campo>}
+              {f.login_fundo === 'imagem' && (
+                <Campo rotulo="Imagem do fundo" ajuda="JPG, PNG ou WEBP até 1 MB. Foto do escritório funciona bem.">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-muted">{f.login_imagem ? <img src={f.login_imagem} alt="" className="h-full w-full object-cover" /> : <ImagePlus className="h-5 w-5 text-muted-foreground" />}</span>
+                    <label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted">Escolher<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const a = e.target.files?.[0]; e.target.value = ''; if (!a) return; try { const url = await lerImagem(a, 1_000_000); setF((x) => ({ ...x, login_imagem: url })) } catch (err) { toast(err.message, 'erro') } }} /></label>
+                    {f.login_imagem && <button onClick={() => setF((x) => ({ ...x, login_imagem: '' }))} className="rounded-md p-1.5 text-muted-foreground hover:text-red-600" aria-label="Remover"><Trash2 className="h-4 w-4" /></button>}
+                  </div>
+                </Campo>
+              )}
+              <Campo rotulo="Link da política de privacidade"><input className="campo" value={f.link_privacidade} onChange={set('link_privacidade')} placeholder="https://" /></Campo>
+              <Campo rotulo="Link dos termos de uso"><input className="campo" value={f.link_termos} onChange={set('link_termos')} placeholder="https://" /></Campo>
               <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm">Botões de download<Interruptor ligado={f.login_downloads} onChange={set('login_downloads')} rotulo="Downloads" /></label>
             </div>
           </Bloco>
@@ -179,6 +280,10 @@ export default function WhiteLabel() {
                 <Campo rotulo="Texto do banner"><input className="campo" value={f.banner_texto} onChange={set('banner_texto')} maxLength={200} placeholder="Manutenção do ar da sala na sexta às 14h" /></Campo>
                 <Campo rotulo="Cor"><select className="campo" value={f.banner_cor} onChange={set('banner_cor')}><option value="info">Informação</option><option value="alerta">Alerta</option><option value="sucesso">Sucesso</option><option value="marca">Marca</option></select></Campo>
               </div>
+              <Campo rotulo="Mostrar a partir de" ajuda="Vazio = já."><input type="datetime-local" className="campo" value={f.banner_inicio} onChange={set('banner_inicio')} /></Campo>
+              <Campo rotulo="Esconder depois de" ajuda="Vazio = até desligar."><input type="datetime-local" className="campo" value={f.banner_fim} onChange={set('banner_fim')} /></Campo>
+              <Campo rotulo="Selo de ambiente no cabeçalho" ajuda="Ex.: Homologação, Treinamento. Vazio = sem selo."><input className="campo" value={f.selo_ambiente} onChange={set('selo_ambiente')} maxLength={24} /></Campo>
+              <label className="flex items-center justify-between self-end rounded-lg border border-border px-3 py-2.5 text-sm">Botão de ajuda no cabeçalho<Interruptor ligado={f.mostrar_ajuda} onChange={set('mostrar_ajuda')} rotulo="Ajuda" /></label>
               <div className="md:col-span-2"><Campo rotulo="Boas-vindas no painel"><input className="campo" value={f.boas_vindas} onChange={set('boas_vindas')} maxLength={200} /></Campo></div>
               <div className="md:col-span-2"><Campo rotulo="Rodapé do sistema"><input className="campo" value={f.rodape} onChange={set('rodape')} maxLength={200} placeholder={`© ${new Date().getFullYear()} ${f.nome}`} /></Campo></div>
               <Campo rotulo="E-mail de suporte"><input type="email" className="campo" value={f.suporte_email} onChange={set('suporte_email')} /></Campo>
