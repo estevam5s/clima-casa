@@ -32,4 +32,5 @@ docs/credentials/
 *.credentials.*
 .sec-scan/
 SECURITY-REPORT.*
-.mdbackend/app/repositorio.json
+.md
+backend/app/repositorio.json
