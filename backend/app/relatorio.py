@@ -152,7 +152,7 @@ def montar(inicio: int, fim: int, projeto_id: int | None = None, aparelho_id: in
                       for aid, c in atual.items() for x in c["sessoes"]), key=lambda x: -x["horas"])
     por_projeto = {}
     for a in por_aparelho:
-        pj = por_projeto.setdefault(a["projeto"] or "Sem projeto", {"projeto": a["projeto"] or "Sem projeto", "aparelhos": 0, "comandos": 0, "falhas": 0, "horas_ligado": 0, "kwh": 0, "custo": 0})
+        pj = por_projeto.setdefault(a["projeto"] or "Sem projeto", {"projeto": a["projeto"] or "Sem projeto", "projeto_id": next((x["projeto_id"] for x in aparelhos if x["id"] == a["id"]), None), "aparelhos": 0, "comandos": 0, "falhas": 0, "horas_ligado": 0, "kwh": 0, "custo": 0})
         pj["aparelhos"] += 1
         for k in ("comandos", "falhas", "horas_ligado", "kwh", "custo"):
             pj[k] = round(pj[k] + a[k], 2)

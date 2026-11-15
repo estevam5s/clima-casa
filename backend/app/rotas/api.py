@@ -757,11 +757,17 @@ def resolver_alerta(aid: int):
 
 
 # ---------------- projetos ----------------
+TIPOS_PROJETO = {"escritorio", "casa", "loja", "consultorio", "sala", "outro"}
+
+
 class ProjetoIn(BaseModel):
     nome: str = Field(min_length=1, max_length=60)
     descricao: str = Field("", max_length=200)
     endereco: str = Field("", max_length=120)
     cor: str = Field("#0f766a", pattern=r"^#[0-9a-fA-F]{6}$")
+    tipo: str = Field("escritorio", pattern=r"^(escritorio|casa|loja|consultorio|sala|outro)$")
+    responsavel: str = Field("", max_length=80)
+    meta_custo_mes: float = Field(0, ge=0, le=1000000)
 
 
 @api.get("/projetos")
@@ -780,8 +786,8 @@ def listar_projetos():
 
 @api.post("/projetos")
 def criar_projeto(d: ProjetoIn):
-    novo = db.executar("INSERT INTO projetos (nome, descricao, endereco, cor, criado_em) VALUES (?,?,?,?,?)",
-                       (d.nome.strip(), d.descricao.strip(), d.endereco.strip(), d.cor, db.agora()))
+    novo = db.executar("INSERT INTO projetos (nome, descricao, endereco, cor, tipo, responsavel, meta_custo_mes, criado_em) VALUES (?,?,?,?,?,?,?,?)",
+                       (d.nome.strip(), d.descricao.strip(), d.endereco.strip(), d.cor, d.tipo, d.responsavel.strip(), d.meta_custo_mes, db.agora()))
     _dar_acesso_projeto(novo)
     db.registrar("painel", f"Projeto criado: {d.nome}")
     return {"id": novo}
@@ -789,9 +795,101 @@ def criar_projeto(d: ProjetoIn):
 
 @api.put("/projetos/{pid}")
 def editar_projeto(pid: int, d: ProjetoIn):
-    db.executar("UPDATE projetos SET nome=?, descricao=?, endereco=?, cor=? WHERE id=?",
-                (d.nome.strip(), d.descricao.strip(), d.endereco.strip(), d.cor, pid))
+    db.executar("UPDATE projetos SET nome=?, descricao=?, endereco=?, cor=?, tipo=?, responsavel=?, meta_custo_mes=? WHERE id=?",
+                (d.nome.strip(), d.descricao.strip(), d.endereco.strip(), d.cor, d.tipo, d.responsavel.strip(), d.meta_custo_mes, pid))
+    db.registrar("painel", f"Projeto editado: {d.nome}")
     return {"ok": True}
+
+
+@api.get("/projetos/visao")
+def visao_projetos():
+    """Tudo o que a tela de Projetos mostra de cada lugar: aparelhos ao vivo, transmissores, rotinas, pessoas,
+    salas no mapa, atividade de 14 dias e custo do mês com projeção contra a meta."""
+    import datetime as _dt
+    from .. import acesso, relatorio
+    f, pp = acesso.filtro_sql("p.id")
+    projetos = db.consultar(f"SELECT * FROM projetos p WHERE true{f} ORDER BY p.nome", pp)
+    if not projetos:
+        return []
+    ids = [p["id"] for p in projetos]
+    marcas = ",".join("?" * len(ids))
+    aparelhos = db.consultar(f"SELECT a.id, a.nome, a.comodo, a.ligado, a.modo, a.temperatura, a.projeto_id, a.ligado_desde, a.hub_id, "
+                             f"coalesce(h.online, 0) AS hub_online FROM aparelhos a LEFT JOIN hubs h ON h.id = a.hub_id "
+                             f"WHERE a.projeto_id IN ({marcas}) ORDER BY a.nome", ids)
+    hubs = db.consultar(f"SELECT id, nome, online, projeto_id, problema FROM hubs WHERE projeto_id IN ({marcas})", ids)
+    cenas = db.consultar(f"SELECT projeto_id, count(*) n FROM cenas WHERE projeto_id IN ({marcas}) GROUP BY 1", ids)
+    agenda = db.consultar(f"SELECT a.projeto_id, count(*) n, sum(g.ativo) ativos FROM agendamentos g JOIN aparelhos a ON a.id = g.aparelho_id "
+                          f"WHERE a.projeto_id IN ({marcas}) GROUP BY 1", ids)
+    automacoes = db.consultar("SELECT id, ativo, gatilho::text AS g, acoes::text AS ac FROM automacoes")
+    usuarios = db.consultar("SELECT papel, projetos FROM usuarios WHERE ativo IS NULL OR ativo::text NOT IN ('false', '0')")
+    agora = db.agora()
+    inicio_dia = int(_dt.datetime.now(relatorio.FUSO).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+    atividade = db.consultar(f"""SELECT a.projeto_id, floor((t.quando - ?) / 86400)::int AS d, count(*) n, count(*) FILTER (WHERE t.ok = 0) falhas,
+        max(t.quando) ultimo FROM atividade t JOIN aparelhos a ON a.id = t.aparelho_id
+        WHERE a.projeto_id IN ({marcas}) AND t.quando > ? GROUP BY 1, 2""", (inicio_dia - 13 * 86400, *ids, inicio_dia - 13 * 86400))
+    mapa = db.cfg("mapa") or {}
+    salas = {str(k) for k in (mapa.get("salas") or {})} if isinstance(mapa.get("salas"), dict) else set()
+    inicio_mes = int(_dt.datetime.now(relatorio.FUSO).replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp())
+    dias_mes = max(1, (agora - inicio_mes) / 86400)
+    try:
+        custos = {x["projeto_id"]: x for x in relatorio.montar(inicio_mes, agora)["por_projeto"]}
+    except Exception:  # noqa: BLE001 - sem dados não derruba a tela
+        custos = {}
+    saida = []
+    for p in projetos:
+        pid = p["id"]
+        aps = [a for a in aparelhos if a["projeto_id"] == pid]
+        hs = [h for h in hubs if h["projeto_id"] == pid]
+        aids = {a["id"] for a in aps}
+        n_auto = sum(1 for x in automacoes if any(f'"aparelho_id": {i}' in (x["g"] + x["ac"]) or f'"aparelho_id":{i}' in (x["g"] + x["ac"]) for i in aids))
+        serie = [{"d": i, "comandos": 0, "falhas": 0} for i in range(14)]
+        ultimo = None
+        for t in atividade:
+            if t["projeto_id"] == pid and 0 <= t["d"] < 14:
+                serie[t["d"]]["comandos"] += t["n"]; serie[t["d"]]["falhas"] += t["falhas"]
+                ultimo = max(ultimo or 0, t["ultimo"])
+        custo_mes, horas_mes = custos.get(pid, {}).get("custo", 0), custos.get(pid, {}).get("horas_ligado", 0)
+        projecao = round(custo_mes / dias_mes * 30, 2)
+        pessoas = sum(1 for u in usuarios if u["papel"] in ("dono", "admin") or acesso._json(u["projetos"], "*") == "*" or pid in [int(x) for x in (acesso._json(u["projetos"], []) or []) if str(x).isdigit()])
+        saida.append({**{k: (float(v) if k == "meta_custo_mes" else v) for k, v in p.items()},
+                      "aparelhos": [{"id": a["id"], "nome": a["nome"], "comodo": a["comodo"], "ligado": bool(a["ligado"]), "modo": a["modo"],
+                                     "temperatura": a["temperatura"], "ligado_desde": a["ligado_desde"], "hub_online": bool(a["hub_online"])} for a in aps],
+                      "transmissores": [{"id": h["id"], "nome": h["nome"], "online": bool(h["online"]), "problema": h["problema"]} for h in hs],
+                      "cenas": next((c["n"] for c in cenas if c["projeto_id"] == pid), 0),
+                      "agendamentos": next((g["n"] for g in agenda if g["projeto_id"] == pid), 0),
+                      "automacoes": n_auto, "pessoas": pessoas,
+                      "no_mapa": str(pid) in salas,
+                      "serie": serie, "comandos_14d": sum(x["comandos"] for x in serie), "falhas_14d": sum(x["falhas"] for x in serie),
+                      "ultima_atividade": ultimo, "custo_mes": custo_mes, "horas_mes": horas_mes, "projecao_mes": projecao})
+    return saida
+
+
+@api.post("/projetos/{pid}/desligar")
+def desligar_projeto(pid: int):
+    """Desliga todos os ares ligados do projeto (cada envio é independente: um que falhar não para os outros)."""
+    ok, falhas = 0, []
+    for a in db.consultar("SELECT id, nome FROM aparelhos WHERE projeto_id = ? AND ligado = 1", (pid,)):
+        try:
+            clima.aplicar(a["id"], "painel", ligado=False); ok += 1
+        except Exception as e:  # noqa: BLE001
+            falhas.append(f"{a['nome']}: {e}")
+    return {"desligados": ok, "falhas": falhas}
+
+
+@api.get("/projetos/{pid}/exportar")
+def exportar_projeto(pid: int):
+    """Cópia do projeto em JSON (sem os sinais IR nem chaves): para documentar ou recriar o lugar."""
+    p = db.um("SELECT * FROM projetos WHERE id = ?", (pid,))
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado.")
+    aps = db.consultar("SELECT id, nome, comodo, marca, potencia_w, temp_min, temp_max, modos, hub_id, alexa FROM aparelhos WHERE projeto_id = ?", (pid,))
+    ids = [a["id"] for a in aps] or [-1]
+    marcas = ",".join("?" * len(ids))
+    return {"versao": 1, "exportado_em": db.agora(), "projeto": {k: (float(v) if k == "meta_custo_mes" else v) for k, v in p.items()},
+            "aparelhos": aps, "transmissores": db.consultar("SELECT id, nome, versao, projeto_id FROM hubs WHERE projeto_id = ?", (pid,)),
+            "cenas": db.consultar("SELECT nome, acoes FROM cenas WHERE projeto_id = ?", (pid,)),
+            "agendamentos": db.consultar(f"SELECT aparelho_id, nome, dias, hora, acao, ativo FROM agendamentos WHERE aparelho_id IN ({marcas})", ids),
+            "botoes_gravados": db.consultar(f"SELECT aparelho_id, count(*) n FROM codigos WHERE aparelho_id IN ({marcas}) GROUP BY 1", ids)}
 
 
 @api.delete("/projetos/{pid}")

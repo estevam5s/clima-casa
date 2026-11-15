@@ -426,3 +426,8 @@ create index if not exists ix_alertas_aparelho on public.alertas (aparelho_id);
 create index if not exists ix_hubs_projeto on public.hubs (projeto_id);
 create index if not exists ix_cenas_projeto on public.cenas (projeto_id);
 create index if not exists ix_temporizadores_aparelho on public.temporizadores (aparelho_id);
+
+-- Projetos: tipo do lugar, responsável e meta de gasto mensal com os ares
+alter table public.projetos add column if not exists tipo text not null default 'escritorio';
+alter table public.projetos add column if not exists responsavel text not null default '';
+alter table public.projetos add column if not exists meta_custo_mes numeric not null default 0;

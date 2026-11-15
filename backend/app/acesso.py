@@ -60,6 +60,8 @@ REGRAS = [
     ("POST|PUT|DELETE", r"^/api/automacoes", "automacoes.gerenciar"),
     ("*", r"^/api/hubs/descobrir", "transmissores.gerenciar"),
     ("POST|PUT|DELETE", r"^/api/hubs", "transmissores.gerenciar"),
+    ("POST", r"^/api/projetos/\{pid\}/desligar$", "aparelhos.controlar"),
+    ("GET", r"^/api/projetos/\{pid\}/exportar$", "projetos.gerenciar"),
     ("POST|PUT|DELETE", r"^/api/projetos", "projetos.gerenciar"),
     ("PUT", r"^/api/mapa$", "projetos.gerenciar"),
     ("*", r"^/api/(relatorios|metricas)", "relatorios.ver"),

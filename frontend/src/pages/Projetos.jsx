@@ -1,94 +1,294 @@
-import { useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { AirVent, FolderKanban, MapPin, Pencil, Plus, Radio, Sparkles, Trash2 } from 'lucide-react'
-import { api } from '../api'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Area, AreaChart, ResponsiveContainer } from 'recharts'
+import {
+  AirVent, BarChart3, Building2, CalendarClock, Check, Download, FolderKanban, Home, LayoutGrid, List, Map as MapaIcone, MapPin, MoreHorizontal,
+  Pencil, Plus, Power, Radio, Search, Sparkles, Stethoscope, Store, Trash2, User, Users, Workflow, WifiOff,
+} from 'lucide-react'
+import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
 
 const CORES = ['#0f766a', '#2563a8', '#c2410c', '#7c3aed', '#be123c', '#4d7c0f', '#0e7490', '#52525b']
+const TIPOS = { escritorio: ['Escritório', Building2], sala: ['Sala', LayoutGrid], casa: ['Casa', Home], loja: ['Loja', Store], consultorio: ['Consultório', Stethoscope], outro: ['Outro', FolderKanban] }
+const ORDENS = [['nome', 'Nome'], ['ligados', 'Mais ligados'], ['custo', 'Maior custo no mês'], ['uso', 'Mais usados (14 dias)']]
+const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const ler = (k, p) => { try { return localStorage.getItem(k) || p } catch { return p } }
 
 function Form({ inicial, aoSalvar, onFechar }) {
-  const [f, setF] = useState({ nome: inicial?.nome || '', descricao: inicial?.descricao || '', endereco: inicial?.endereco || '', cor: inicial?.cor || CORES[0] })
+  const [f, setF] = useState({
+    nome: inicial?.nome || '', descricao: inicial?.descricao || '', endereco: inicial?.endereco || '', cor: inicial?.cor || CORES[0],
+    tipo: inicial?.tipo || 'escritorio', responsavel: inicial?.responsavel || '', meta_custo_mes: inicial?.meta_custo_mes ? String(inicial.meta_custo_mes).replace('.', ',') : '',
+  })
   const [erro, setErro] = useState('')
+  const [salvando, setSalvando] = useState(false)
   const enviar = async (e) => {
-    e.preventDefault()
-    try { await aoSalvar(f); onFechar() } catch (err) { setErro(err.message) }
+    e.preventDefault(); setSalvando(true)
+    try { await aoSalvar({ ...f, meta_custo_mes: Number(String(f.meta_custo_mes || '0').replace(',', '.')) || 0 }); onFechar() } catch (err) { setErro(err.message) } finally { setSalvando(false) }
   }
   return (
     <form onSubmit={enviar} className="space-y-4">
-      <div><label className="rotulo" htmlFor="pn">Nome</label><input id="pn" className="campo" value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Casa da praia, Escritório…" required maxLength={60} /></div>
-      <div><label className="rotulo" htmlFor="pe">Endereço</label><input id="pe" className="campo" value={f.endereco} onChange={(e) => setF({ ...f, endereco: e.target.value })} placeholder="Opcional" maxLength={120} /></div>
-      <div><label className="rotulo" htmlFor="pd">Descrição</label><input id="pd" className="campo" value={f.descricao} onChange={(e) => setF({ ...f, descricao: e.target.value })} placeholder="Opcional" maxLength={200} /></div>
       <div>
-        <span className="rotulo">Cor</span>
-        <div className="flex gap-2">
-          {CORES.map((c) => (
-            <button type="button" key={c} onClick={() => setF({ ...f, cor: c })} aria-label={`Cor ${c}`}
-              className={`h-8 w-8 rounded-lg transition-transform ${f.cor === c ? 'scale-110 ring-2 ring-foreground ring-offset-2 ring-offset-card' : ''}`} style={{ background: c }} />
+        <span className="rotulo">Tipo de lugar</span>
+        <div className="grid grid-cols-3 gap-2">
+          {Object.entries(TIPOS).map(([k, [r, I]]) => (
+            <button type="button" key={k} onClick={() => setF({ ...f, tipo: k })} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${f.tipo === k ? 'border-primary bg-primary/10 font-medium text-primary' : 'border-border hover:bg-muted'}`}><I className="h-4 w-4" />{r}</button>
           ))}
         </div>
       </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div><label className="rotulo" htmlFor="pn">Nome</label><input id="pn" className="campo" value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Sala Bancada, Recepção…" required maxLength={60} /></div>
+        <div><label className="rotulo" htmlFor="pr">Responsável</label><input id="pr" className="campo" value={f.responsavel} onChange={(e) => setF({ ...f, responsavel: e.target.value })} placeholder="Quem cuida deste lugar" maxLength={80} /></div>
+      </div>
+      <div><label className="rotulo" htmlFor="pe">Endereço</label><input id="pe" className="campo" value={f.endereco} onChange={(e) => setF({ ...f, endereco: e.target.value })} placeholder="Usado também para a temperatura de fora" maxLength={120} /></div>
+      <div><label className="rotulo" htmlFor="pd">Descrição</label><input id="pd" className="campo" value={f.descricao} onChange={(e) => setF({ ...f, descricao: e.target.value })} placeholder="Opcional" maxLength={200} /></div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="rotulo" htmlFor="pm">Meta de gasto por mês</label>
+          <div className="flex items-center rounded-lg border border-border bg-card pl-3 focus-within:ring-2 focus-within:ring-primary/40"><span className="text-sm text-muted-foreground">R$</span>
+            <input id="pm" inputMode="decimal" className="w-full bg-transparent px-2 py-2 text-sm outline-none focus-visible:ring-0 focus-visible:ring-offset-0" value={f.meta_custo_mes} onChange={(e) => setF({ ...f, meta_custo_mes: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="0 = sem meta" /></div>
+          <p className="ajuda">O card avisa quando a projeção do mês passa da meta.</p>
+        </div>
+        <div>
+          <span className="rotulo">Cor</span>
+          <div className="flex flex-wrap gap-2">
+            {CORES.map((c) => (
+              <button type="button" key={c} onClick={() => setF({ ...f, cor: c })} aria-label={`Cor ${c}`}
+                className={`grid h-8 w-8 place-items-center rounded-lg transition-transform ${f.cor === c ? 'scale-110 ring-2 ring-foreground ring-offset-2 ring-offset-card' : ''}`} style={{ background: c }}>{f.cor === c && <Check className="h-4 w-4 text-white" />}</button>
+            ))}
+          </div>
+        </div>
+      </div>
       {erro && <Aviso>{erro}</Aviso>}
-      <div className="flex justify-end gap-2"><Botao variante="secundario" type="button" onClick={onFechar}>Cancelar</Botao><Botao type="submit">Salvar</Botao></div>
+      <div className="flex justify-end gap-2"><Botao variante="secundario" type="button" onClick={onFechar}>Cancelar</Botao><Botao type="submit" carregando={salvando}>Salvar projeto</Botao></div>
     </form>
   )
 }
 
+function Menu({ itens, aoFechar }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const fora = (e) => { if (!ref.current?.contains(e.target)) aoFechar() }
+    setTimeout(() => document.addEventListener('mousedown', fora)); return () => document.removeEventListener('mousedown', fora)
+  }, [aoFechar])
+  return (
+    <motion.div ref={ref} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.12 }}
+      className="absolute right-0 top-9 z-30 w-52 origin-top-right rounded-lg border border-border bg-card py-1.5 shadow-xl"> {/* marca: menu flutua */}
+      {itens.filter(Boolean).map(({ r, I, fn, perigo }) => (
+        <button key={r} onClick={() => { aoFechar(); fn() }} className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm hover:bg-muted ${perigo ? 'text-red-600 dark:text-red-400' : ''}`}><I className="h-4 w-4 opacity-70" />{r}</button>
+      ))}
+    </motion.div>
+  )
+}
+
+function Meta({ p }) {
+  if (!p.meta_custo_mes) return <p className="text-xs text-muted-foreground">Gasto estimado no mês: <span className="font-medium text-foreground">{brl(p.custo_mes)}</span> · projeção {brl(p.projecao_mes)}</p>
+  const pct = (p.projecao_mes / p.meta_custo_mes) * 100
+  const cor = pct > 100 ? 'bg-red-500' : pct > 85 ? 'bg-amber-500' : 'bg-emerald-500'
+  return (
+    <div>
+      <div className="flex justify-between text-xs"><span className="text-muted-foreground">Projeção do mês <span className="font-medium text-foreground">{brl(p.projecao_mes)}</span></span><span className={pct > 100 ? 'font-medium text-red-600' : 'text-muted-foreground'}>meta {brl(p.meta_custo_mes)}</span></div>
+      <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><motion.div className={`h-full rounded-full ${cor}`} initial={{ width: 0 }} animate={{ width: `${Math.min(100, pct)}%` }} transition={{ duration: 0.7 }} /></div>
+    </div>
+  )
+}
+
+function Cartao({ p, i, atual, acoes }) {
+  const [menu, setMenu] = useState(false)
+  const ligados = p.aparelhos.filter((a) => a.ligado).length
+  const offline = p.transmissores.filter((h) => !h.online)
+  const [tipoRot, TipoI] = TIPOS[p.tipo] || TIPOS.outro
+  const temSerie = p.serie.some((s) => s.comandos)
+  return (
+    <motion.article layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ delay: i * 0.03 }}
+      className={`cartao group relative flex flex-col overflow-hidden ${atual ? 'ring-2 ring-primary/50' : ''}`}>
+      <div className="relative px-5 pb-4 pt-5">
+        <span className="absolute inset-x-0 top-0 h-1" style={{ background: p.cor }} />
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white" style={{ background: p.cor }}><TipoI className="h-5 w-5" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2 truncate text-base font-semibold">{p.nome}{atual && <span className="rounded bg-primary/15 px-1.5 py-px text-[10px] font-semibold text-primary">ATUAL</span>}</p>
+            <p className="truncate text-xs text-muted-foreground">{tipoRot}{p.responsavel ? ` · ${p.responsavel}` : ''}{p.endereco ? ` · ${p.endereco}` : ''}</p>
+          </div>
+          <div className="relative">
+            <button onClick={() => setMenu((v) => !v)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Mais ações"><MoreHorizontal className="h-4 w-4" /></button>
+            {menu && <Menu aoFechar={() => setMenu(false)} itens={[
+              { r: 'Editar', I: Pencil, fn: () => acoes.editar(p) },
+              ligados > 0 && { r: `Desligar ${ligados} ar(es)`, I: Power, fn: () => acoes.desligar(p) },
+              { r: 'Ver no mapa', I: MapaIcone, fn: () => acoes.mapa(p) },
+              { r: 'Relatório do projeto', I: BarChart3, fn: () => acoes.relatorio(p) },
+              { r: 'Exportar (JSON)', I: Download, fn: () => acoes.exportar(p) },
+              { r: 'Remover', I: Trash2, perigo: true, fn: () => acoes.remover(p) },
+            ]} />}
+          </div>
+        </div>
+        {p.descricao && <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>}
+      </div>
+
+      <div className="border-t border-border px-5 py-3">
+        {p.aparelhos.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum aparelho neste projeto.</p> : (
+          <ul className="space-y-1.5">
+            {p.aparelhos.slice(0, 4).map((a) => (
+              <li key={a.id} className="flex items-center gap-2 text-sm">
+                <span className="relative flex h-2 w-2">{a.ligado && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-60" />}<span className={`relative inline-flex h-2 w-2 rounded-full ${a.ligado ? 'bg-sky-500' : 'bg-muted-foreground/30'}`} /></span> {/* marca: ar ligado pulsa */}
+                <button onClick={() => acoes.aparelho(a)} className="min-w-0 flex-1 truncate text-left hover:underline">{a.nome}</button>
+                <span className="shrink-0 text-xs tabular text-muted-foreground">{a.ligado ? `${a.temperatura}° · ${a.ligado_desde ? haQuanto(a.ligado_desde).replace('há ', '') : 'ligado'}` : 'desligado'}</span>
+                {!a.hub_online && <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Transmissor offline" />}
+              </li>
+            ))}
+            {p.aparelhos.length > 4 && <li className="text-xs text-muted-foreground">e mais {p.aparelhos.length - 4}</li>}
+          </ul>
+        )}
+      </div>
+
+      <div className="border-t border-border px-5 py-3">
+        <div className="flex items-end justify-between gap-3">
+          <div><p className="text-[11px] text-muted-foreground">Comandos em 14 dias</p><p className="text-lg font-semibold tabular leading-tight">{p.comandos_14d}{p.falhas_14d > 0 && <span className="ml-1.5 text-xs font-normal text-red-600">{p.falhas_14d} falha(s)</span>}</p></div>
+          <div className="h-10 w-32">
+            {temSerie ? (
+              <ResponsiveContainer><AreaChart data={p.serie} margin={{ top: 2, bottom: 0, left: 0, right: 0 }}>
+                <Area type="monotone" dataKey="comandos" stroke={p.cor} strokeWidth={1.8} fill={p.cor} fillOpacity={0.12} isAnimationActive />
+              </AreaChart></ResponsiveContainer>
+            ) : <div className="flex h-full items-end"><div className="h-px w-full bg-border" /></div>}
+          </div>
+        </div>
+        <div className="mt-3"><Meta p={p} /></div>
+      </div>
+
+      <dl className="grid grid-cols-3 border-t border-border text-center text-[11px] sm:grid-cols-6">
+        {[[AirVent, 'Ares', `${ligados}/${p.aparelhos.length}`], [Radio, 'IR', `${p.transmissores.length - offline.length}/${p.transmissores.length}`], [Sparkles, 'Cenas', p.cenas],
+          [Workflow, 'Autom.', p.automacoes], [CalendarClock, 'Agenda', p.agendamentos], [Users, 'Pessoas', p.pessoas]].map(([I, r, v]) => (
+          <div key={r} className="border-border px-1 py-2.5 [&:not(:last-child)]:border-r max-sm:[&:nth-child(3)]:border-r-0 max-sm:[&:nth-child(n+4)]:border-t">
+            <dt className="flex items-center justify-center gap-1 text-muted-foreground"><I className="h-3 w-3" />{r}</dt><dd className="mt-0.5 text-sm font-semibold tabular">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {offline.length > 0 && <p className="flex items-center gap-1.5 border-t border-amber-500/30 bg-amber-500/10 px-5 py-2 text-xs text-amber-700 dark:text-amber-300"><WifiOff className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{offline[0].nome}: {offline[0].problema || 'transmissor offline'}</span></p>}
+
+      <div className="mt-auto flex gap-2 border-t border-border p-3">
+        <Botao className="flex-1" variante={atual ? 'secundario' : 'primario'} onClick={() => acoes.abrir(p)}>{atual ? 'Abrir painel' : 'Usar este projeto'}</Botao>
+        {p.no_mapa && <Botao variante="secundario" icone={MapaIcone} onClick={() => acoes.mapa(p)} aria-label="Ver no mapa" />}
+        {ligados > 0 && <Botao variante="secundario" icone={Power} onClick={() => acoes.desligar(p)} aria-label="Desligar todos" title="Desligar todos os ares" />}
+      </div>
+      <p className="px-5 pb-3 text-[11px] text-muted-foreground">{p.ultima_atividade ? `Último comando ${haQuanto(p.ultima_atividade)}` : 'Sem comandos nos últimos 14 dias'}</p>
+    </motion.article>
+  )
+}
+
 export default function Projetos() {
-  const { dados, erro, recarregar } = useDados(() => api.get('/api/projetos'))
-  const { setAtual, recarregar: recarregarCtx } = useProjeto()
+  const { dados, erro, recarregar } = useDados(() => api.get('/api/projetos/visao'))
+  const { atual: projetoAtual, setAtual, recarregar: recarregarCtx } = useProjeto()
   const [modal, setModal] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [tipo, setTipo] = useState('')
+  const [ordem, setOrdem] = useState('nome')
+  const [vista, setVista] = useState(() => ler('clima-projetos-vista', 'grade'))
   const toast = useToast()
   const navegar = useNavigate()
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) recarregar() }, 30000); return () => clearInterval(t) }, [recarregar])
+  useEffect(() => { try { localStorage.setItem('clima-projetos-vista', vista) } catch { /* */ } }, [vista])
+
+  const lista = useMemo(() => {
+    const l = (dados || []).filter((p) => (!tipo || p.tipo === tipo) && (!busca || `${p.nome} ${p.endereco} ${p.responsavel} ${p.descricao} ${p.aparelhos.map((a) => a.nome).join(' ')}`.toLowerCase().includes(busca.toLowerCase())))
+    const chave = { nome: (p) => p.nome.toLowerCase(), ligados: (p) => -p.aparelhos.filter((a) => a.ligado).length, custo: (p) => -p.custo_mes, uso: (p) => -p.comandos_14d }[ordem]
+    return [...l].sort((a, b) => (chave(a) > chave(b) ? 1 : chave(a) < chave(b) ? -1 : 0))
+  }, [dados, busca, tipo, ordem])
+
   if (erro) return <Aviso>{erro}</Aviso>
-  if (!dados) return <Carregando />
   const atualizar = () => { recarregar(); recarregarCtx() }
+  const acoes = {
+    editar: (p) => setModal(p), remover: (p) => setModal({ ...p, apagar: true }),
+    abrir: (p) => { setAtual(p.id); navegar('/') },
+    mapa: () => navegar('/mapa'),
+    relatorio: (p) => { setAtual(p.id); navegar('/relatorios') },
+    aparelho: (a) => navegar(`/aparelhos/${a.id}`),
+    exportar: async (p) => { try { toast(`Arquivo salvo: ${await api.baixar(`/api/projetos/${p.id}/exportar`)}`) } catch (e) { toast(e.message, 'erro') } },
+    desligar: async (p) => {
+      if (!window.confirm(`Desligar todos os ares ligados de ${p.nome}?`)) return
+      try { const r = await api.post(`/api/projetos/${p.id}/desligar`); toast(r.falhas.length ? `${r.desligados} desligado(s); ${r.falhas.length} falharam.` : `${r.desligados} ar(es) desligado(s).`, r.falhas.length ? 'erro' : undefined); recarregar() } catch (e) { toast(e.message, 'erro') }
+    },
+  }
+  const tot = (f) => (dados || []).reduce((s, p) => s + f(p), 0)
+  const ligadosTotal = tot((p) => p.aparelhos.filter((a) => a.ligado).length)
+  const metasEstouradas = (dados || []).filter((p) => p.meta_custo_mes && p.projecao_mes > p.meta_custo_mes)
 
   return (
     <div className="w-full">
-      <Cabecalho titulo="Projetos" descricao="Cada projeto é um lugar (casa, escritório, loja) com os próprios transmissores, aparelhos e cenas."
+      <Cabecalho titulo="Projetos" descricao="Cada projeto é um lugar (sala, escritório, casa, loja) com os próprios transmissores, aparelhos, cenas e metas de gasto."
         acoes={<Botao icone={Plus} onClick={() => setModal({})}>Novo projeto</Botao>} />
-      {dados.length > 0 && (
-        <div className="mb-6">
-          <FaixaMetricas itens={[
-            { rotulo: 'Projetos', valor: dados.length, dica: dados.map((p) => p.nome).slice(0, 3).join(', ') },
-            { rotulo: 'Aparelhos ligados', valor: dados.reduce((t, p) => t + p.ligados, 0), sufixo: ` / ${dados.reduce((t, p) => t + p.aparelhos, 0)}` },
-            { rotulo: 'Transmissores online', valor: dados.reduce((t, p) => t + p.transmissores_online, 0), sufixo: ` / ${dados.reduce((t, p) => t + p.transmissores, 0)}` },
-            { rotulo: 'Cenas', valor: dados.reduce((t, p) => t + p.cenas, 0) },
-          ]} />
-        </div>
-      )}
-      {dados.length === 0 ? <Vazio icone={FolderKanban} titulo="Nenhum projeto" /> : (
-        <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
-          {dados.map((p, i) => (
-            <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-              className="cartao group flex flex-col overflow-hidden">
-              <div className="h-1.5" style={{ background: p.cor }} />
-              <div className="flex flex-1 flex-col p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-semibold">{p.nome}</p>
-                    {p.endereco && <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="h-3 w-3" />{p.endereco}</p>}
-                  </div>
-                  <div className="flex shrink-0 gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
-                    <button className="rounded-md p-1.5 hover:bg-muted" onClick={() => setModal(p)} aria-label="Editar"><Pencil className="h-4 w-4" /></button>
-                    <button className="rounded-md p-1.5 hover:bg-muted hover:text-red-600" onClick={() => setModal({ ...p, apagar: true })} aria-label="Remover"><Trash2 className="h-4 w-4" /></button>
-                  </div>
-                </div>
-                {p.descricao && <p className="mt-2 text-sm text-muted-foreground">{p.descricao}</p>}
-                <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-border pt-4 text-center">
-                  <div><dt className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground"><AirVent className="h-3 w-3" />Aparelhos</dt><dd className="mt-1 font-semibold tabular">{p.ligados}/{p.aparelhos}</dd></div>
-                  <div><dt className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground"><Radio className="h-3 w-3" />IR online</dt><dd className="mt-1 font-semibold tabular">{p.transmissores_online}/{p.transmissores}</dd></div>
-                  <div><dt className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground"><Sparkles className="h-3 w-3" />Cenas</dt><dd className="mt-1 font-semibold tabular">{p.cenas}</dd></div>
-                </dl>
-                <Botao variante="secundario" className="mt-4 w-full" onClick={() => { setAtual(p.id); navegar('/') }}>Abrir painel do projeto</Botao>
+      {!dados ? <div className="grid gap-4"><Esqueleto className="h-24" /><div className="grid gap-4 md:grid-cols-3"><Esqueleto className="h-80" /><Esqueleto className="h-80" /><Esqueleto className="h-80" /></div></div> : (
+        <>
+          {dados.length > 0 && (
+            <div className="mb-5">
+              <FaixaMetricas itens={[
+                { rotulo: 'Gasto estimado no mês', valor: brl(tot((p) => p.custo_mes)), dica: `projeção ${brl(tot((p) => p.projecao_mes))} · ${metasEstouradas.length ? `${metasEstouradas.length} acima da meta` : 'metas em dia'}`, tom: metasEstouradas.length ? 'ruim' : undefined },
+                { rotulo: 'Ares ligados agora', valor: ligadosTotal, sufixo: ` / ${tot((p) => p.aparelhos.length)}`, dica: `${dados.filter((p) => p.aparelhos.some((a) => a.ligado)).length} projeto(s) com ar ligado` },
+                { rotulo: 'Transmissores online', valor: tot((p) => p.transmissores.filter((h) => h.online).length), sufixo: ` / ${tot((p) => p.transmissores.length)}`, tom: tot((p) => p.transmissores.filter((h) => !h.online).length) ? 'ruim' : 'bom', dica: tot((p) => p.transmissores.filter((h) => !h.online).length) ? 'há transmissor fora da rede' : 'todos respondendo' },
+                { rotulo: 'Projetos', valor: dados.length, dica: `${tot((p) => p.comandos_14d)} comandos em 14 dias` },
+              ]} />
+            </div>
+          )}
+
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <label className="relative min-w-[220px] flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar projeto, endereço ou aparelho" className="campo h-9 pl-9" />
+            </label>
+            <div className="flex gap-1 overflow-x-auto sem-barra">
+              <button onClick={() => setTipo('')} className={`rounded-full px-3 py-1.5 text-[13px] ${!tipo ? 'bg-primary/15 font-medium text-primary' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>Todos</button>
+              {Object.entries(TIPOS).filter(([k]) => dados.some((p) => p.tipo === k)).map(([k, [r]]) => (
+                <button key={k} onClick={() => setTipo(k)} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] ${tipo === k ? 'bg-primary/15 font-medium text-primary' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>{r} <span className="opacity-70">{dados.filter((p) => p.tipo === k).length}</span></button>
+              ))}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <select value={ordem} onChange={(e) => setOrdem(e.target.value)} className="campo h-9 w-auto text-sm" aria-label="Ordenar">{ORDENS.map(([k, r]) => <option key={k} value={k}>{r}</option>)}</select>
+              <div className="flex rounded-lg border border-border bg-card p-0.5">
+                {[['grade', LayoutGrid], ['lista', List]].map(([k, I]) => (
+                  <button key={k} onClick={() => setVista(k)} aria-label={k === 'grade' ? 'Ver em grade' : 'Ver em lista'} className={`relative rounded-md p-1.5 ${vista === k ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    {vista === k && <motion.span layoutId="vista-proj" className="absolute inset-0 rounded-md bg-muted" />}<I className="relative h-4 w-4" />
+                  </button>
+                ))}
               </div>
-            </motion.div>
-          ))}
-        </div>
+            </div>
+          </div>
+
+          {dados.length === 0 ? <Vazio icone={FolderKanban} titulo="Nenhum projeto" texto="Crie o primeiro lugar para cadastrar transmissores e aparelhos nele." acao={<Botao icone={Plus} onClick={() => setModal({})}>Novo projeto</Botao>} />
+            : lista.length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Nenhum projeto com esse filtro.</p>
+              : vista === 'grade' ? (
+                <motion.div layout className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr))]">
+                  <AnimatePresence>{lista.map((p, i) => <Cartao key={p.id} p={p} i={i} atual={projetoAtual === p.id} acoes={acoes} />)}</AnimatePresence>
+                </motion.div>
+              ) : (
+                <div className="cartao overflow-x-auto">
+                  <table className="tabela w-full min-w-[900px]">
+                    <thead><tr><th>Projeto</th><th>Responsável</th><th className="!text-right">Ares</th><th className="!text-right">IR online</th><th className="!text-right">Comandos 14 d</th><th className="!text-right">Gasto no mês</th><th>Meta</th><th /></tr></thead>
+                    <tbody>{lista.map((p) => {
+                      const lig = p.aparelhos.filter((a) => a.ligado).length
+                      const pct = p.meta_custo_mes ? (p.projecao_mes / p.meta_custo_mes) * 100 : null
+                      return (
+                        <tr key={p.id} className={projetoAtual === p.id ? 'bg-primary/5' : ''}>
+                          <td><span className="flex items-center gap-2.5"><span className="h-6 w-1.5 rounded-full" style={{ background: p.cor }} /><span><span className="block font-medium">{p.nome}</span><span className="text-xs text-muted-foreground">{(TIPOS[p.tipo] || TIPOS.outro)[0]}{p.endereco ? ` · ${p.endereco}` : ''}</span></span></span></td>
+                          <td className="text-sm">{p.responsavel || <span className="text-muted-foreground">—</span>}</td>
+                          <td className="text-right tabular">{lig > 0 ? <span className="font-medium text-sky-600">{lig}</span> : 0}/{p.aparelhos.length}</td>
+                          <td className="text-right tabular">{p.transmissores.filter((h) => h.online).length}/{p.transmissores.length}</td>
+                          <td className="text-right tabular">{p.comandos_14d}</td>
+                          <td className="text-right tabular">{brl(p.custo_mes)}</td>
+                          <td className="w-40">{pct == null ? <span className="text-xs text-muted-foreground">sem meta</span> : <div className="flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${pct > 100 ? 'bg-red-500' : pct > 85 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, pct)}%` }} /></div><span className="w-9 text-right text-xs tabular text-muted-foreground">{Math.round(pct)}%</span></div>}</td>
+                          <td className="whitespace-nowrap text-right">
+                            <Botao variante="fantasma" tamanho="sm" onClick={() => acoes.abrir(p)}>Abrir</Botao>
+                            <Botao variante="fantasma" tamanho="sm" icone={Pencil} onClick={() => acoes.editar(p)} aria-label="Editar" />
+                          </td>
+                        </tr>
+                      )
+                    })}</tbody>
+                  </table>
+                </div>
+              )}
+        </>
       )}
-      <Modal aberto={!!modal && !modal.apagar} titulo={modal?.id ? 'Editar projeto' : 'Novo projeto'} onFechar={() => setModal(null)}>
+
+      <Modal aberto={!!modal && !modal.apagar} titulo={modal?.id ? `Editar ${modal.nome}` : 'Novo projeto'} onFechar={() => setModal(null)} largura="max-w-xl">
         {modal && !modal.apagar && (
           <Form inicial={modal.id ? modal : null} onFechar={() => setModal(null)} aoSalvar={async (f) => {
             if (modal.id) await api.put(`/api/projetos/${modal.id}`, f); else await api.post('/api/projetos', f)
@@ -97,7 +297,7 @@ export default function Projetos() {
         )}
       </Modal>
       <Modal aberto={!!modal?.apagar} titulo={`Remover ${modal?.nome}?`} onFechar={() => setModal(null)}>
-        <p className="text-sm text-muted-foreground">Os {modal?.aparelhos} aparelho(s) e {modal?.transmissores} transmissor(es) continuam cadastrados, só ficam sem projeto. As cenas do projeto são apagadas.</p>
+        <p className="text-sm text-muted-foreground">Os {modal?.aparelhos?.length} aparelho(s) e {modal?.transmissores?.length} transmissor(es) continuam cadastrados, só ficam sem projeto. As cenas do projeto são apagadas e a sala sai do mapa.</p>
         <div className="mt-5 flex justify-end gap-2">
           <Botao variante="secundario" onClick={() => setModal(null)}>Cancelar</Botao>
           <Botao variante="perigo" onClick={async () => {
