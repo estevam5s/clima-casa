@@ -17,8 +17,12 @@ def normalizar(codigo: str) -> str:
 
 
 def main():
+    try:
+        sys.stdout.reconfigure(encoding="utf-8"); sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
     pacote, codigo, destino = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
-    d = json.loads(pacote.read_text(encoding="utf-8"))
+    d = json.loads(pacote.read_text(encoding="utf-8-sig"))   # utf-8-sig: o PowerShell 5.1 grava com BOM
     chave = hashlib.scrypt(normalizar(codigo).encode(), salt=base64.b64decode(d["sal"]), n=2 ** 15, r=8, p=1,
                            maxmem=64 * 1024 * 1024, dklen=32)
     try:

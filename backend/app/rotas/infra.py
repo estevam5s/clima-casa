@@ -277,13 +277,13 @@ def agentes():
     u = _papel("dono", "admin")
     from .. import convite
     return {"maquinas": coordenador.maquinas(), "principal": coordenador.lider(), "preferido": coordenador.preferido(), "aluguel_s": coordenador.ALUGUEL,
-            "convites": convite.pendentes() if u.get("papel") == "dono" else []}
+            "convites": convite.pendentes() if u.get("papel") in ("dono", "admin") else []}
 
 
 @rotas_infra.post("/agentes/convite")
 def agentes_convite():
-    """Gera o código de instalação de outro computador. Só o dono: o código abre todas as chaves do sistema."""
-    u = _papel("dono")
+    """Gera o código de instalação de outro computador (dono e admin). O código abre todas as chaves do sistema: uso único, 30 min."""
+    u = _papel("dono", "admin")
     return _via_agente("agente_convite", {"criado_por": u.get("email", "")})
 
 

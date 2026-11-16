@@ -12,6 +12,8 @@ param(
   [string]$Servidor = "https://app.zynio.com.br"
 )
 $ErrorActionPreference = "Stop"
+$env:PYTHONUTF8 = "1"; $env:PYTHONIOENCODING = "utf-8"
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = "SilentlyContinue"
 
@@ -45,7 +47,9 @@ Ok "código aceito (ele não vale mais: é de uso único)"
 $tmp = Join-Path $env:TEMP ("clima-convite-" + $id)
 if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-@{ sal = $r.sal; nonce = $r.nonce; cifrado = $r.cifrado; id = $r.id } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $tmp "pacote.json")
+# sem BOM (o Set-Content -Encoding UTF8 do PowerShell 5.1 põe BOM e o Python recusava o JSON)
+$json = @{ sal = $r.sal; nonce = $r.nonce; cifrado = $r.cifrado; id = $r.id } | ConvertTo-Json
+[IO.File]::WriteAllText((Join-Path $tmp "pacote.json"), $json, (New-Object System.Text.UTF8Encoding($false)))
 
 Titulo "2/5 Baixando o sistema"
 if (-not $r.pacote) { Falha "O painel não tem o pacote do código agora. Baixe em Apps → Código-fonte, extraia em $Pasta e rode o instalar-windows.ps1." }
