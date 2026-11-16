@@ -580,9 +580,8 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 - **Nenhum botão IR gravado** no "Ar do escritório": nenhum comando aciona o ar de verdade (as falhas da Atividade são isso).
 - Agente: só o Mac (principal). **PC Windows do escritório** ainda não instalado (`instalar-windows.ps1` não foi executado em Windows).
 - **Resend**: domínio `zynio.com.br` **verificado** (16/11, São Paulo); remetente `nao-responda@zynio.com.br`; "Esqueci a senha" passa a
-  usar o modelo próprio. Webhook cadastrado; **falta o dono colar o `whsec_…`** em /emails → Chaves (sem ele o webhook responde 401 e
-  o histórico não sai de "enviado"). Falta testar envio para um e-mail fora da conta do Resend e o "Esqueci a senha" de ponta a ponta.
-  Opcional: SMTP do Supabase Auth pelo Resend.
+  usar o modelo próprio. Webhook cadastrado e segredo salvo (cifrado); e-mail de teste pelo domínio chegou como "entregue" (16/11).
+  Falta testar o "Esqueci a senha" de ponta a ponta. Opcional: SMTP do Supabase Auth pelo Resend.
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
 - **Vercel**: ~2,1 GB "Functions Storage"; limpeza de 55 publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
   `python-docx` saiu (Word gerado por `docx_simples.py`).
