@@ -64,7 +64,7 @@ Usuários: **dono**, **admin** (Deison) e papéis abaixo (seção 7.7). Sem cada
 | Banco, Auth, cron, Storage | Supabase, projeto **Arcondicionado**, ref `elyqjdcsbfdvlsxomxen` (us-east-2) |
 | App celular | Expo, conta `estevam5s`, projeto `clima-casa` (SDK 58) |
 | Alexa/Google | Sinric Pro (dispositivo "Ar do escritório" `6af888eb7d04ce9fd64d6777`, plano grátis: 3 dispositivos) |
-| E-mail | Resend (conta do dono); domínio `zynio.com.br` ainda a verificar (seção 7.10) |
+| E-mail | Resend (conta do dono); domínio `zynio.com.br` **verificado** em 16/11 (São Paulo, `sa-east-1`), remetente `nao-responda@zynio.com.br` (seção 7.10) |
 | Música | Spotify Web API, app do dono no Spotify for Developers (conta Premium conectada em 15/11) |
 | Domínio | `zynio.com.br` no Registro.br, **DNS na Cloudflare**. Registros "DNS only" (proxy laranja quebra o certificado da Vercel): A @ → 216.198.79.1 e 64.29.17.1; CNAME www e app → vercel-dns; TXT `google-site-verification`, SPF `v=spf1 -all`, DMARC `p=reject` |
 | Bloqueio de bots | Cloudflare Turnstile, widget "Zynio - Clima Escritorio" |
@@ -348,12 +348,16 @@ sentidos em < 60 s.
   título a cada 6 h; **desligado por padrão**), `teste`. HTML em tabelas, botão com VML para Outlook, modo escuro, texto puro,
   prévia, logo `https://app.zynio.com.br/icone-192.png`, cor da marca (white label).
 - Envio: `correio.enviar` (grava em `email_envios`), `enviar_quieto` (automáticos: nunca derruba quem chamou, 5/h por destino e tipo).
-- Domínio: `dns_publico()` confere no DNS público (DoH da Cloudflare, sem chave) DKIM `resend._domainkey`, MX/SPF de `send.` e
-  DMARC. `provisionar()` (com a chave total e o token da Cloudflare) cadastra o domínio no Resend (região `sa-east-1`), cria os
+- Domínio: `dns_publico()` confere no DNS público (DoH da Cloudflare, sem chave) DKIM `resend._domainkey`, os subdomínios de envio e
+  DMARC. Desde nov/2026 o Resend ("Forge") pede **CNAME** `send` → `send.forge.rmta.net` e **CNAME** `rsend` → `rsend-sae1.forge.rmta.net`
+  (não mais MX + TXT em `send`); a checagem aceita os dois formatos. Registros na Cloudflare (DNS only): TXT `resend._domainkey`,
+  CNAME `send`, CNAME `rsend`. Domínio no Resend: id `3a1c15b9-8b9d-415b-9dc4-fefc4987a4ae`. Sem `api_key_total`, o botão não atualiza
+  `config.email.dominio.status`; o estado `verified` foi gravado à mão (`correio.cfg()` → `c["dominio"]` → `salvar_cfg`). `provisionar()` (com a chave total e o token da Cloudflare) cadastra o domínio no Resend (região `sa-east-1`), cria os
   registros (proxy desligado) e pede a verificação. O SPF `-all` e o DMARC `p=reject` da raiz **continuam**: o Resend passa no
   DMARC pela assinatura DKIM.
 - Webhook público `POST /api/email/webhook` com assinatura **Svix** verificada (5 min de tolerância); atualiza o estado sem rebaixar
-  (aberto/clicado > entregue).
+  (aberto/clicado > entregue). Cadastrado no Resend em 16/11 com 7 eventos (`sent`, `delivered`, `delivery_delayed`, `bounced`,
+  `complained`, `opened`, `clicked`); o `whsec_…` é o dono quem cola em /emails → Chaves.
 - **Sem domínio verificado o Resend só entrega para o e-mail da própria conta do Resend** (remetente `onboarding@resend.dev`).
 
 ### 7.11 Música (Spotify) — `musica.py`
@@ -575,9 +579,10 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   Conferir tomada e Wi-Fi 2,4 GHz no escritório (e se o Mac está na mesma rede).
 - **Nenhum botão IR gravado** no "Ar do escritório": nenhum comando aciona o ar de verdade (as falhas da Atividade são isso).
 - Agente: só o Mac (principal). **PC Windows do escritório** ainda não instalado (`instalar-windows.ps1` não foi executado em Windows).
-- **Resend**: chave de envio salva (cifrada) e envio testado; **domínio ainda não cadastrado/verificado** — falta a chave de acesso total
-  e o token da Cloudflare (ou o cadastro manual), e o webhook (whsec). Enquanto isso, "Esqueci a senha" usa o e-mail do Supabase.
-  Depois de verificar, opcional: SMTP do Supabase Auth pelo Resend.
+- **Resend**: domínio `zynio.com.br` **verificado** (16/11, São Paulo); remetente `nao-responda@zynio.com.br`; "Esqueci a senha" passa a
+  usar o modelo próprio. Webhook cadastrado; **falta o dono colar o `whsec_…`** em /emails → Chaves (sem ele o webhook responde 401 e
+  o histórico não sai de "enviado"). Falta testar envio para um e-mail fora da conta do Resend e o "Esqueci a senha" de ponta a ponta.
+  Opcional: SMTP do Supabase Auth pelo Resend.
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
 - **Vercel**: ~2,1 GB "Functions Storage"; limpeza de 55 publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
   `python-docx` saiu (Word gerado por `docx_simples.py`).

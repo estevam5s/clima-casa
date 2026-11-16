@@ -311,21 +311,26 @@ def recuperar_senha(email: str, voltar_para: str, contexto: dict) -> bool:
 
 # ---------------- domínio (Resend + Cloudflare) ----------------
 def dns_publico() -> list[dict]:
-    """Registros que o Resend pede, conferidos no DNS público (sem chave): DKIM, MX e SPF do subdomínio de envio, DMARC."""
+    """Registros que o Resend pede, conferidos no DNS público (sem chave): DKIM, subdomínios de envio e DMARC.
+
+    Desde nov/2026 o Resend ("Forge") pede CNAME `send` → send.forge.rmta.net e CNAME `rsend` → rsend-<região>.forge.rmta.net
+    no lugar do MX + TXT (SPF) em `send`. Os dois formatos contam como encontrado."""
     def q(nome, tipo):
         try:
             r = httpx.get("https://cloudflare-dns.com/dns-query", params={"name": nome, "type": tipo}, headers={"accept": "application/dns-json"}, timeout=8)
             return [a.get("data", "").strip('"') for a in r.json().get("Answer", []) if a.get("type") in (16, 15, 5)]
         except Exception:  # noqa: BLE001
             return []
+    def envio(nome):
+        r = q(nome, "CNAME") or q(nome, "MX")
+        return {"ok": any("rmta.net" in x or "amazonses.com" in x for x in r), "valor": (r or [""])[0]}
     dkim = q(f"resend._domainkey.{DOMINIO}", "TXT")
-    mx = q(f"send.{DOMINIO}", "MX")
-    spf = q(f"send.{DOMINIO}", "TXT")
     dmarc = q(f"_dmarc.{DOMINIO}", "TXT")
+    send, rsend = envio(f"send.{DOMINIO}"), envio(f"rsend.{DOMINIO}")
     return [
         {"nome": f"resend._domainkey.{DOMINIO}", "tipo": "TXT", "para": "DKIM (assinatura)", "ok": any("p=" in x for x in dkim), "valor": (dkim or [""])[0][:60]},
-        {"nome": f"send.{DOMINIO}", "tipo": "MX", "para": "Retorno de devoluções", "ok": any("amazonses.com" in x for x in mx), "valor": (mx or [""])[0]},
-        {"nome": f"send.{DOMINIO}", "tipo": "TXT", "para": "SPF do envio", "ok": any("amazonses.com" in x for x in spf), "valor": (spf or [""])[0]},
+        {"nome": f"send.{DOMINIO}", "tipo": "CNAME", "para": "Envio e retorno de devoluções (SPF)", **send},
+        {"nome": f"rsend.{DOMINIO}", "tipo": "CNAME", "para": "Envio pela região São Paulo (SPF)", **rsend},
         {"nome": f"_dmarc.{DOMINIO}", "tipo": "TXT", "para": "DMARC (política)", "ok": any("v=DMARC1" in x for x in dmarc), "valor": (dmarc or [""])[0]},
     ]
 
