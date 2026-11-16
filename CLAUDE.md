@@ -608,7 +608,9 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 - **Cloudflare**: Email Routing ativo (contato@, suporte@, financeiro@, seguranca@ e pega-tudo → Gmail do dono). Token
   `CLOUDFLARE_API_TOKEN` criado em 16/11 ("Clima Escritorio - agente", sem validade, zona zynio.com.br + conta, 9 permissões) e só no
   `.env` do Mac (o PC Windows, quando instalado, precisa do `.env` novo). Leituras e escritas testadas (TXT de teste criado/editado/apagado,
-  travas recusando). Saúde do domínio: 16 ok, 2 alertas (DNSSEC desligado; sem CAA). DNSSEC: ligar + DS no Registro.br (decisão do dono).
+  travas recusando). **DNSSEC ativo** desde 16/11 (Cloudflare `active`; DS no Registro.br: keytag 2371, alg 13, digest SHA-256 conferido contra a DNSKEY
+  publicada; publicado no .br em ~5 min; 8.8.8.8 valida com `ad`). Para desligar: tirar o DS no Registro.br, esperar 1 dia, depois desligar na
+  Cloudflare. Saúde do domínio: só o alerta de CAA (opcional).
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
 - **Vercel**: ~2,1 GB "Functions Storage"; limpeza de 55 publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
   `python-docx` saiu (Word gerado por `docx_simples.py`).
