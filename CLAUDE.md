@@ -125,7 +125,8 @@ ar-controle/
 ├── instalar-windows.ps1       agente como tarefa agendada no Windows (PowerShell admin)
 ├── instalar-linux.sh          agente como serviço systemd (Raspberry Pi, mini PC)
 ├── publicar-vercel.sh         publica a partir de cópia sem .git; roda scripts/gerar-repositorio.mjs antes
-├── scripts/                   gerar-repositorio.mjs (código-fonte em /apps), gerar-notas-release.mjs, gerar-release-json.sh
+├── scripts/                   gerar-repositorio.mjs (código-fonte em /apps), gerar-notas-release.mjs, gerar-release-json.sh,
+│                              gree_gerar.py (gera os 300 botões de um ar Gree a partir do Desligar gravado)
 ├── backend/
 │   ├── requirements.txt       deps do agente (inclui sinricpro)
 │   ├── supabase-ca.crt        CA raiz do pooler (TLS verificado)
@@ -543,6 +544,8 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 - **Nova tela**: `pages/`, rota em `main.jsx`, item em `GRUPOS` (`Layout.jsx`), estados carregando/vazio/erro, capítulo no `Guia.jsx`.
   Telas que dependem do papel: só decidir depois que `sessao` carregar (senão pisca "sem permissão").
 - **Mudou o que o usuário vê**: `Guia.jsx` + `docs/MANUAL.md` (`docs/gerar-pdf.sh`).
+- **Novo ar numa sala** (sala = projeto, um transmissor por sala): roteiro e prompt prontos em `docs/continuar/2026-11-16-ares-por-sala.md`;
+  controle Gree → `scripts/gree_gerar.py <id>` (`--testar`, `--gravar`).
 - **Commits**: pt-BR, terminar com `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ### Checklist antes de entregar
