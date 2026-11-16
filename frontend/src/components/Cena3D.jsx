@@ -163,6 +163,15 @@ export default function Cena3D({ estado, className = '' }) {
     const parede = new THREE.Mesh(new THREE.PlaneGeometry(30, 20), new THREE.MeshStandardMaterial({ color: t.parede, roughness: 1 }))
     parede.position.z = -0.5
     cena.add(parede)
+    // ar de cor escura (preto, grafite): luz suave na parede atrás, luz de recorte e contorno fino para ler a silhueta
+    const texHalo = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c) })()
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(9, 4.2), new THREE.MeshBasicMaterial({ map: texHalo, color: t.escuro ? 0x9fb4c8 : 0xffffff, transparent: true, opacity: 0, depthWrite: false }))
+    halo.position.set(0, 1.0, -0.45); cena.add(halo)
+    const recorte = new THREE.DirectionalLight(0xdfe9ff, 0); recorte.position.set(-2, 3, -3); cena.add(recorte)
+    const recorte2 = new THREE.DirectionalLight(0xdfe9ff, 0); recorte2.position.set(3, 1.5, -2.5); cena.add(recorte2)
+    const frontal = new THREE.DirectionalLight(0xffffff, 0); frontal.position.set(-1.5, 3, 6); cena.add(frontal)
+    const contorno = new THREE.Mesh(new RoundedBoxGeometry(4.2, 1.15, 0.9, 6, 0.22), new THREE.MeshBasicMaterial({ color: 0xc9d4e0, side: THREE.BackSide, transparent: true, opacity: 0 }))
+    contorno.scale.setScalar(1.012); unidade.add(contorno)
 
     // ---- fluxo de ar ----
     const pos = new Float32Array(N * 3)
@@ -220,6 +229,7 @@ export default function Cena3D({ estado, className = '' }) {
     let abertura = 0, intensidade = 0, pulso = 0, ultimoLigado = null, quadro
     let ultimoPainel = ''
     let corAtual = ''
+    let brilhoEscuro = false
     let mostrada = estadoRef.current?.externa ?? estadoRef.current?.temperatura ?? 23
     const cor = new THREE.Color()
     const laco = () => {
@@ -235,7 +245,12 @@ export default function Cena3D({ estado, className = '' }) {
         matCorpo.color.copy(c); frente.material.color.copy(c); aba.material.color.copy(c).offsetHSL(0, 0, corAtual ? -0.04 : 0)
         if (!corAtual) aba.material.color.setHex(t.aba)
         const escura = c.getHSL({}).l < 0.4
-        matCorpo.metalness = corAtual === '#9ca3af' ? 0.55 : 0.06; matCorpo.roughness = escura ? 0.3 : 0.38
+        matCorpo.metalness = corAtual === '#9ca3af' ? 0.55 : escura ? 0.25 : 0.06; matCorpo.roughness = escura ? 0.22 : 0.38   // escura: preto piano, brilho mostra o volume
+        frente.material.roughness = escura ? 0.16 : 0.28
+        halo.material.opacity = escura ? (t.escuro ? 0.42 : 0.12) : 0
+        recorte.intensity = escura ? 2.2 : 0; recorte2.intensity = escura ? 1.4 : 0; frontal.intensity = escura ? 1.6 : 0
+        contorno.material.opacity = escura ? (t.escuro ? 0.22 : 0.12) : 0
+        brilhoEscuro = escura
       }
       const ligado = !!e.ligado
 
@@ -299,7 +314,7 @@ export default function Cena3D({ estado, className = '' }) {
       unidade.scale.setScalar(escala)
       pontos.rotation.y = unidade.rotation.y
       brilho.position.set(Math.sin(tempo * 0.6) * 3, 1.6, 1.6)
-      brilho.intensity = (ligado ? 0.6 : 1.4) * (0.6 + 0.4 * Math.sin(tempo * 0.6 + 1.2))
+      brilho.intensity = (ligado ? 0.6 : 1.4) * (brilhoEscuro ? 2.4 : 1) * (0.6 + 0.4 * Math.sin(tempo * 0.6 + 1.2))   // reflexo que corre pela carcaça (mais forte no preto)
       camera.position.x = Math.sin(tempo * 0.25) * 0.5 * amp
       camera.lookAt(0, 0.45, 0)
       renderer.render(cena, camera)
