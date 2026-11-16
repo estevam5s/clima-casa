@@ -391,6 +391,9 @@ destinos, atividade GraphQL `emailRoutingAdaptive`; a lista de mensagens só par
 proxy laranja recusado nos endereços da Vercel; segundo SPF na raiz recusado; CNAME na raiz recusado; registros `meta.read_only`
 (Email Routing) não editam. GraphQL que o plano grátis negar volta `indisponivel` com o motivo (a tela mostra, não inventa número).
 Tudo é "DNS only": WAF, cache e métricas HTTP da Cloudflare não se aplicam (o tráfego é da Vercel).
+Turnstile e auditoria filtram pelo domínio (a conta tem widgets de outros projetos do dono). Chamadas independentes rodam em paralelo
+(`_paralelo`): resumo ~1,5 s, saúde ~2,7 s. **Fila**: itens `infra` rodam num pool de 4 threads no agente (`transmissor._infra_pool`), sem
+segurar os comandos de infravermelho; os demais tipos seguem um por vez.
 
 ---
 
@@ -586,6 +589,8 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | Manifesto/ícones da PWA vindo como HTML | cache da CDN; testar com `?v=…` |
 | Avisos `%c%d`/`fetch data:` no console do site | script do Turnstile, não nosso |
 | Porta 8080 ocupada | outro app; o sistema usa 8090 |
+| Portão "Executando verificação" parado em "Verificando…" | desafio do Turnstile emperrado do lado da Cloudflare (16/11). `verificacao.js` tem vigia de 20 s: reinicia o widget uma vez e depois mostra "Tentar de novo". Passar pelo site zynio.com.br também libera (cookie `zv` vale para o domínio todo) |
+| Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
 
@@ -600,9 +605,10 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   **SMTP do Supabase Auth pelo Resend** ligado em 16/11 (`smtp.resend.com:465`, usuário `resend`, senha = chave de envio, remetente
   `Clima Escritório <nao-responda@zynio.com.br>`; limite do Auth subiu para 30 e-mails/h). Trocar a chave do Resend = trocar também lá.
   Falta testar o "Esqueci a senha" de ponta a ponta.
-- **Cloudflare**: Email Routing ligado (contato@, suporte@, financeiro@, seguranca@ e pega-tudo → Gmail do dono). Infra → Cloudflare
-  pronta no código, mas **falta o dono criar o `CLOUDFLARE_API_TOKEN`** e pôr no `.env` do agente; até lá as abas mostram o passo a passo.
-  Leituras e escritas reais (`cf_*`) ainda não testadas com token. DNSSEC desligado (recomendado ligar + DS no Registro.br).
+- **Cloudflare**: Email Routing ativo (contato@, suporte@, financeiro@, seguranca@ e pega-tudo → Gmail do dono). Token
+  `CLOUDFLARE_API_TOKEN` criado em 16/11 ("Clima Escritorio - agente", sem validade, zona zynio.com.br + conta, 9 permissões) e só no
+  `.env` do Mac (o PC Windows, quando instalado, precisa do `.env` novo). Leituras e escritas testadas (TXT de teste criado/editado/apagado,
+  travas recusando). Saúde do domínio: 16 ok, 2 alertas (DNSSEC desligado; sem CAA). DNSSEC: ligar + DS no Registro.br (decisão do dono).
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
 - **Vercel**: ~2,1 GB "Functions Storage"; limpeza de 55 publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
   `python-docx` saiu (Word gerado por `docx_simples.py`).

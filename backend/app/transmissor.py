@@ -148,6 +148,27 @@ def processar_fila_uma_vez() -> bool:
                     RETURNING *""", (db.agora(), db.agora() - 120))
     if not item:
         return False
+    if item["tipo"] == "infra":
+        # Vercel/Cloudflare podem levar segundos: rodam em paralelo (até 4) para não segurar os comandos de infravermelho
+        # nem uns aos outros. Os demais tipos continuam um por vez, na ordem.
+        _infra_pool().submit(_executar_item, item)
+        return True
+    _executar_item(item)
+    return True
+
+
+_infra_exec = None
+
+
+def _infra_pool():
+    global _infra_exec
+    if _infra_exec is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _infra_exec = ThreadPoolExecutor(max_workers=4, thread_name_prefix="infra")
+    return _infra_exec
+
+
+def _executar_item(item):
     dados = item["dados"] if isinstance(item["dados"], dict) else json.loads(item["dados"] or "{}")
     resultado, erro = None, None
     try:
@@ -177,7 +198,6 @@ def processar_fila_uma_vez() -> bool:
         erro = str(e)
     db.executar("UPDATE fila_comandos SET estado = ?, resultado = CAST(? AS jsonb), erro = ?, fim_em = ? WHERE id = ?",
                 ("erro" if erro else "ok", json.dumps(resultado), erro, db.agora(), item["id"]))
-    return True
 
 
 def _salvar_codigo(aparelho_id, chave, rotulo, codigo):

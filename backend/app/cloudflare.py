@@ -63,6 +63,26 @@ def _gql(query: str, variaveis: dict) -> dict:
     return j.get("data") or {}
 
 
+def _paralelo(tarefas: dict) -> dict:
+    """Roda chamadas independentes ao mesmo tempo (a fila do agente é uma só: cada segundo conta). Erro vira ErroCF no lugar."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(8, len(tarefas))) as ex:
+        fut = {k: ex.submit(f) for k, f in tarefas.items()}
+    out = {}
+    for k, f in fut.items():
+        try:
+            out[k] = f.result()
+        except Exception as e:  # noqa: BLE001
+            out[k] = e if isinstance(e, ErroCF) else ErroCF(str(e)[:200])
+    return out
+
+
+def _ou_erro(v):
+    if isinstance(v, Exception):
+        raise v
+    return v
+
+
 def zona() -> dict:
     """Zona zynio.com.br (cache de 10 min)."""
     if _cache.get("em", 0) > time.time() - 600:
@@ -274,18 +294,28 @@ def _regra(r: dict) -> dict:
             "endereco": para, "acao": acao.get("type"), "destinos": acao.get("value") or []}
 
 
+def _email_eventos(z: str) -> list:
+    d0 = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    q = ("query($z: String!, $d0: Time!) { viewer { zones(filter: {zoneTag: $z}) { emailRoutingAdaptive(limit: 200, filter: {datetime_geq: $d0}, "
+         "orderBy: [datetime_DESC]) { datetime action status from to spf dkim dmarc } } } }")
+    return ((_gql(q, {"z": z, "d0": d0}).get("viewer", {}).get("zones") or [{}])[0].get("emailRoutingAdaptive")) or []
+
+
 def op_cf_email(a):
     z = _zid()
-    st = _req("GET", f"/zones/{z}/email/routing")["result"]
-    regras = _req("GET", f"/zones/{z}/email/routing/rules", {"per_page": 50}).get("result") or []
-    pega = _req("GET", f"/zones/{z}/email/routing/rules/catch_all")["result"]
-    out = {"ativo": st.get("enabled"), "estado": st.get("status"), "regras": [_regra(r) for r in regras], "pega_tudo": _regra(pega),
-           "destinos": _destinos()}
-    d0 = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    r = _paralelo({"st": lambda: _req("GET", f"/zones/{z}/email/routing")["result"],
+                   "regras": lambda: _req("GET", f"/zones/{z}/email/routing/rules", {"per_page": 50}).get("result") or [],
+                   "pega": lambda: _req("GET", f"/zones/{z}/email/routing/rules/catch_all")["result"],
+                   "destinos": _destinos,
+                   **({"ev": lambda: _email_eventos(z)} if a.get("atividade", True) else {})})
+    st, regras, pega = _ou_erro(r["st"]), _ou_erro(r["regras"]), _ou_erro(r["pega"])
+    regras = [x for x in regras if not any(m.get("type") == "all" for m in x.get("matchers", []))]   # o pega-tudo vem à parte
+    out = {"ativo": st.get("enabled"), "estado": st.get("status"), "regras": [_regra(x) for x in regras], "pega_tudo": _regra(pega),
+           "destinos": _ou_erro(r["destinos"])}
+    if "ev" not in r:
+        return out
     try:
-        q = ("query($z: String!, $d0: Time!) { viewer { zones(filter: {zoneTag: $z}) { emailRoutingAdaptive(limit: 200, filter: {datetime_geq: $d0}, "
-             "orderBy: [datetime_DESC]) { datetime action status from to spf dkim dmarc } } } }")
-        ev = ((_gql(q, {"z": z, "d0": d0}).get("viewer", {}).get("zones") or [{}])[0].get("emailRoutingAdaptive")) or []
+        ev = _ou_erro(r["ev"])
         porDia: dict = {}
         for e in ev:
             dia = e["datetime"][:10]
@@ -356,7 +386,8 @@ def op_cf_email_destino(a):
 
 # ---------------- Turnstile e auditoria ----------------
 def op_cf_turnstile(a):
-    ws = _req("GET", f"/accounts/{_conta()}/challenges/widgets", {"per_page": 50}).get("result") or []
+    ws = _widgets_da_zona()   # a conta tem widgets de outros projetos do dono: aqui só os deste domínio
+    chaves = {w["sitekey"] for w in ws}
     out = {"widgets": [{"sitekey": w["sitekey"], "nome": w.get("name"), "dominios": w.get("domains") or [], "modo": w.get("mode"),
                         "criado": w.get("created_on"), "alterado": w.get("modified_on")} for w in ws]}
     dias = max(1, min(int(a.get("dias", 7)), 30))
@@ -368,6 +399,8 @@ def op_cf_turnstile(a):
         porDia: dict = {}
         for g in gs:
             dm = g["dimensions"]
+            if dm.get("siteKey") and dm["siteKey"] not in chaves:
+                continue
             s = porDia.setdefault(dm["date"], {"dia": dm["date"]})
             s[dm.get("eventType") or "outros"] = s.get(dm.get("eventType") or "outros", 0) + g["count"]
         out["desafios"] = {"dias": dias, "serie": sorted(porDia.values(), key=lambda s: s["dia"]),
@@ -407,28 +440,44 @@ def op_cf_token(_a):
     return {"estado": t.get("status"), "expira": t.get("expires_on"), "nao_antes": t.get("not_before"), "permissoes": testes}
 
 
+def _resumo_email(e: dict) -> dict:
+    return {"ativo": e["ativo"], "estado": e["estado"], "regras": len(e["regras"]), "ativas": sum(1 for r in e["regras"] if r["ativa"]),
+            "pega_tudo": e["pega_tudo"]["ativa"]}
+
+
+def _widgets_da_zona() -> list:
+    ws = _req("GET", f"/accounts/{_conta()}/challenges/widgets", {"per_page": 50}).get("result") or []
+    return [w for w in ws if any(d == ZONA or d.endswith("." + ZONA) for d in (w.get("domains") or []))]
+
+
 def op_cf_resumo(_a):
     z = zona()
-    regs = _registros()
+    r = _paralelo({"regs": _registros, "dnssec": lambda: op_cf_dnssec({})["estado"],
+                   "email": lambda: _resumo_email(op_cf_email({"atividade": False})), "turnstile": lambda: len(_widgets_da_zona())})
+    regs = _ou_erro(r["regs"])
     out = {"zona": {"nome": z["name"], "estado": z.get("status"), "plano": (z.get("plan") or {}).get("name"), "pausada": z.get("paused"),
                     "nameservers": z.get("name_servers"), "registrador": z.get("original_registrar"), "ativa_desde": z.get("activated_on"),
                     "conta": (z.get("account") or {}).get("name")},
-           "registros": len(regs), "com_proxy": sum(1 for r in regs if r.get("proxied"))}
-    for chave, f in (("dnssec", lambda: op_cf_dnssec({})["estado"]),
-                     ("email", lambda: (lambda e: {"ativo": e["ativo"], "estado": e["estado"], "regras": len(e["regras"]),
-                                                   "ativas": sum(1 for r in e["regras"] if r["ativa"]), "pega_tudo": e["pega_tudo"]["ativa"]})(op_cf_email({}))),
-                     ("turnstile", lambda: len(op_cf_turnstile({})["widgets"]))):
-        try:
-            out[chave] = f()
-        except ErroCF as e:
-            out[chave] = {"erro": str(e)}
+           "registros": len(regs), "com_proxy": sum(1 for x in regs if x.get("proxied"))}
+    for chave in ("dnssec", "email", "turnstile"):
+        out[chave] = {"erro": str(r[chave])} if isinstance(r[chave], Exception) else r[chave]
     return out
+
+
+def _dominios_vercel() -> list:
+    """Só os domínios dos projetos (bem mais leve que infra.op_resumo)."""
+    from . import infra
+    proj = infra.projetos()
+    res = _paralelo({n: (lambda pid=p["id"]: infra._req("GET", f"/v9/projects/{pid}/domains").get("domains", [])) for n, p in proj.items()})
+    return [{"nome": d["name"], "verificado": d.get("verified")} for v in res.values() for d in _ou_erro(v)]
 
 
 def op_cf_saude(_a):
     """Checklist do domínio: une Cloudflare (DNS autoritativo), Vercel e Resend."""
-    from . import correio, infra
-    regs = _registros()
+    from . import correio
+    pre = _paralelo({"regs": _registros, "vercel": _dominios_vercel, "resend": correio.dns_publico,
+                     "email": lambda: op_cf_email({"atividade": False}), "dnssec": lambda: op_cf_dnssec({})["estado"]})
+    regs = _ou_erro(pre["regs"])
     def acha(tipo, nome):
         return [r for r in regs if r["type"] == tipo and r["name"] == _nome(nome)]
     itens = []
@@ -444,22 +493,20 @@ def op_cf_saude(_a):
     prox = [r["name"] for r in regs if r.get("proxied") and r["type"] in ("A", "CNAME") and _finalidade(r)[0].startswith("Vercel")]
     item("Site e app", "Proxy desligado nos endereços da Vercel", not prox, ", ".join(prox) or "todos em DNS only",
          "Desligue o proxy (nuvem cinza): o laranja quebra o certificado.")
-    try:
-        r = infra.op_resumo({})
-        for p in r["projetos"]:
-            for d in p["dominios"]:
-                if d["nome"].endswith(ZONA):
-                    item("Site e app", f"Vercel reconhece {d['nome']}", d.get("verificado") is not False, "verificado" if d.get("verificado") is not False else "não verificado",
-                         "Abra o domínio no painel da Vercel e siga a verificação.")
-    except Exception as e:  # noqa: BLE001 — sem token da Vercel o resto continua
-        item("Site e app", "Domínios na Vercel", False, f"não deu para ler: {str(e)[:120]}", "Confira o VERCEL_TOKEN do agente.", alerta=True)
+    if isinstance(pre["vercel"], Exception):   # sem token da Vercel o resto continua
+        item("Site e app", "Domínios na Vercel", False, f"não deu para ler: {str(pre['vercel'])[:120]}", "Confira o VERCEL_TOKEN do agente.", alerta=True)
+    else:
+        for d in pre["vercel"]:
+            if d["nome"].endswith(ZONA):
+                item("Site e app", f"Vercel reconhece {d['nome']}", d.get("verificado") is not False, "verificado" if d.get("verificado") is not False else "não verificado",
+                     "Abra o domínio no painel da Vercel e siga a verificação.")
     spf = [r for r in acha("TXT", "@") if r["content"].strip('"').startswith("v=spf1")]
     item("E-mail", "Um único SPF na raiz", len(spf) == 1, spf[0]["content"].strip('"') if len(spf) == 1 else f"{len(spf)} registros SPF",
          "Deixe só um SPF na raiz (edite em vez de criar outro).")
     dm = acha("TXT", "_dmarc")
     item("E-mail", "DMARC publicado", bool(dm) and "v=DMARC1" in dm[0]["content"], dm[0]["content"].strip('"') if dm else "sem DMARC",
          "Crie TXT _dmarc com v=DMARC1; p=reject.")
-    for r in correio.dns_publico():
+    for r in ([] if isinstance(pre["resend"], Exception) else pre["resend"]):
         if "DMARC" in r["para"]:
             continue
         item("E-mail", f"Resend: {r['para']}", r["ok"], r["nome"], "Confira os registros do Resend em /emails.")
@@ -469,7 +516,7 @@ def op_cf_saude(_a):
     item("E-mail", "MX da Cloudflare (receber e-mails)", any("mx.cloudflare.net" in r["content"] for r in mx), f"{len(mx)} MX",
          "Ative o redirecionamento em Infra → Cloudflare → E-mail.")
     try:
-        e = op_cf_email({})
+        e = _ou_erro(pre["email"])
         item("E-mail", "Redirecionamento de e-mail ativo", bool(e["ativo"]) and e["estado"] in ("ready", "enabled"), e["estado"] or "—",
              "Na Cloudflare, Email Routing → Settings → corrija os registros pendentes.", alerta=e["estado"] == "syncing")
         pend = [d["email"] for d in e["destinos"] if not d["verificado"]]
@@ -478,7 +525,7 @@ def op_cf_saude(_a):
     except ErroCF as ex:
         item("E-mail", "Redirecionamento de e-mail", False, str(ex)[:160], "Dê ao token a permissão Email Routing.", alerta=True)
     try:
-        ds = op_cf_dnssec({})["estado"]
+        ds = _ou_erro(pre["dnssec"])
         item("Segurança", "DNSSEC", ds == "active", ds or "—", "Ligue em Infra → Cloudflare → Segurança e cole o DS no Registro.br.", alerta=True)
     except ErroCF as ex:
         item("Segurança", "DNSSEC", False, str(ex)[:160], "Dê ao token a permissão DNS.", alerta=True)

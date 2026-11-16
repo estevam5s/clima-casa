@@ -27,17 +27,17 @@ export default function Visao({ resumo, saude, irPara }) {
 
       {z && (
         <div className="grid gap-3 md:grid-cols-3">
-          <button type="button" onClick={() => irPara('cloudflare/email')} className="cartao p-4 text-left hover:bg-muted/40">
+          <button type="button" onClick={() => irPara('cloudflare/email')} className="cartao w-full min-w-0 p-4 text-left hover:bg-muted/40">
             <p className="flex items-center gap-2 text-xs text-muted-foreground"><Mail className="h-3.5 w-3.5" />E-mails @{z.nome}</p>
             <p className="mt-1.5 font-semibold">{email?.erro ? 'sem permissão' : email ? `${email.ativas} endereços ativos` : '…'}</p>
             <p className="text-xs text-muted-foreground">{email && !email.erro ? `redirecionamento ${email.ativo ? 'ligado' : 'desligado'} · pega-tudo ${email.pega_tudo ? 'ligado' : 'desligado'}` : ''}</p>
           </button>
-          <button type="button" onClick={() => irPara('cloudflare/seguranca')} className="cartao p-4 text-left hover:bg-muted/40">
+          <button type="button" onClick={() => irPara('cloudflare/seguranca')} className="cartao w-full min-w-0 p-4 text-left hover:bg-muted/40">
             <p className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />Nameservers</p>
             <p className="mt-1.5 truncate font-mono text-sm">{(z.nameservers || []).join(' · ')}</p>
             <p className="text-xs text-muted-foreground">{z.registrador ? `registrador de origem: ${z.registrador}` : 'registrado no Registro.br'}</p>
           </button>
-          <button type="button" onClick={() => irPara('cloudflare/dns')} className="cartao p-4 text-left hover:bg-muted/40">
+          <button type="button" onClick={() => irPara('cloudflare/dns')} className="cartao w-full min-w-0 p-4 text-left hover:bg-muted/40">
             <p className="flex items-center gap-2 text-xs text-muted-foreground"><Globe className="h-3.5 w-3.5" />DNS</p>
             <p className="mt-1.5 font-semibold">{cf.d.registros} registros · {cf.d.com_proxy} com proxy</p>
             <p className="text-xs text-muted-foreground">tudo em “DNS only”: o tráfego do site passa direto para a Vercel</p>

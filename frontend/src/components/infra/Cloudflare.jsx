@@ -335,6 +335,15 @@ export function CfEmail({ dono }) {
 // ---------------- Turnstile ----------------
 const CORES_EVENTO = ['hsl(var(--primary))', '#0ea5e9', '#f59e0b', '#dc2626', '#64748b']   // séries do recharts (não aceitam classe do Tailwind)
 const COR_RUIM = CORES_EVENTO[3]
+const COR_EVENTO = {   // vermelho só para falha; os resolvidos em tons da marca e azul
+  challenge_issued: '#94a3b8', challenge_non_interactive_solved: 'hsl(var(--primary))', challenge_interactive_solved: '#0ea5e9',
+  challenge_non_interactive_siteverify_solved: '#5eead4', challenge_interactive_siteverify_solved: '#7dd3fc',
+}
+const NOME_EVENTO = {
+  challenge_issued: 'Desafios abertos', challenge_non_interactive_solved: 'Resolvidos sem clique', challenge_interactive_solved: 'Resolvidos com clique',
+  challenge_non_interactive_siteverify_solved: 'Confirmados no servidor (sem clique)', challenge_interactive_siteverify_solved: 'Confirmados no servidor (com clique)',
+  challenge_siteverify_failed_invalid_token: 'Recusados no servidor (token inválido)', challenge_failed: 'Falharam', challenge_interactive_failed: 'Falharam com clique',
+}
 
 export function CfTurnstile() {
   const [dias, setDias] = useState('7')
@@ -357,7 +366,7 @@ export function CfTurnstile() {
       <section className="cartao p-5">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2"><h2 className="titulo-secao">Desafios por dia</h2><Segmentos opcoes={[['7', '7 dias'], ['30', '30 dias']]} valor={dias} onChange={setDias} /></div>
         {ds.indisponivel ? <Aviso tipo="alerta">A Cloudflare não liberou estes números: {ds.indisponivel}</Aviso> : !ds.serie?.length ? <p className="text-sm text-muted-foreground">Nenhum desafio no período.</p>
-          : <Grafico tipo="bar" dados={ds.serie.map((s) => ({ ...s, rotulo: diaMes(s.dia) }))} series={ds.tipos.map((t, i) => [t, t, CORES_EVENTO[i % CORES_EVENTO.length]])} />}
+          : <Grafico tipo="bar" dados={ds.serie.map((s) => ({ ...s, rotulo: diaMes(s.dia) }))} series={ds.tipos.map((t) => [t, NOME_EVENTO[t] || t, /failed|invalid/.test(t) ? COR_RUIM : COR_EVENTO[t] || CORES_EVENTO[4]])} />}
       </section>
     </div>
   )
