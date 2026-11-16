@@ -47,7 +47,7 @@ function paginaPortao({ host, chave, endpoint, volta }) {
 <noscript><p>Ative o JavaScript para continuar.</p></noscript>
 </main>
 <footer>Desempenho e segurança por Cloudflare Turnstile</footer>
-<script src="/verificacao.js" defer></script></body></html>`
+<script src="/verificacao.js?v=2" defer></script></body></html>`
 }
 
 

@@ -8,6 +8,7 @@
   if (volta.charAt(0) !== '/' || volta.charAt(1) === '/') volta = '/'   // só caminhos do próprio site
   var caixa = document.getElementById('caixa'), status = document.getElementById('status'), erro = document.getElementById('erro')
   function mostrarErro(msg) {
+    if (!erro.hidden) return
     erro.textContent = msg; erro.hidden = false
     var b = document.createElement('button'); b.textContent = 'Tentar de novo'; b.onclick = function () { location.reload() }
     erro.appendChild(document.createElement('br')); erro.appendChild(b)
@@ -23,13 +24,27 @@
       })
       .catch(function () { mostrarErro('Não conseguimos confirmar a verificação.') })
   }
+  // Vigia: se a Cloudflare não devolver nada em 20 s, reinicia o widget uma vez; se travar de novo, oferece tentar de novo
+  // (antes a tela ficava em "Verificando…" para sempre quando o desafio emperrava).
+  var vigia = null, reinicios = 0, widget = null, resolvido = false
+  function armarVigia() {
+    clearTimeout(vigia)
+    vigia = setTimeout(function () {
+      if (resolvido) return
+      if (reinicios < 1 && window.turnstile && widget !== null) { reinicios++; window.turnstile.reset(widget); armarVigia(); return }
+      mostrarErro('A verificação da Cloudflare está demorando mais que o normal.')
+    }, 20000)
+  }
   window.aoCarregarTurnstile = function () {
-    window.turnstile.render(caixa, {
-      sitekey: chave, theme: 'dark', language: 'pt-br', appearance: 'always', action: 'acesso',
-      callback: enviar,
-      'error-callback': function () { mostrarErro('A verificação da Cloudflare não respondeu.') },
+    widget = window.turnstile.render(caixa, {
+      sitekey: chave, theme: 'dark', language: 'pt-br', appearance: 'always', action: 'acesso', retry: 'auto',
+      callback: function (token) { resolvido = true; clearTimeout(vigia); enviar(token) },
+      'error-callback': function () { clearTimeout(vigia); mostrarErro('A verificação da Cloudflare não respondeu.') },
+      'timeout-callback': function () { armarVigia() },
+      'before-interactive-callback': function () { clearTimeout(vigia) },   // pediu clique: espera a pessoa
       'expired-callback': function () { location.reload() },
     })
+    armarVigia()
   }
   var s = document.createElement('script')
   s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=aoCarregarTurnstile'
