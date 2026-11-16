@@ -85,6 +85,16 @@ def _aprender_local(h: dict, timeout=30) -> tuple[str, int]:
             codigo = ir.receive_button(timeout=timeout)
             ir.close()
         if isinstance(codigo, str) and len(codigo) > 8:
+            # Um comando de ar tem de ~100 a 300 pulsos; poucos pulsos = ruído (lâmpada, sol) ou só a ponta do sinal.
+            # Antes isso era salvo como "Gravado" e o botão não funcionava.
+            from tinytuya.Contrib.IRRemoteControlDevice import IRRemoteControlDevice
+            try:
+                pulsos = len(IRRemoteControlDevice.base64_to_pulses(codigo))
+            except Exception:  # noqa: BLE001
+                pulsos = 0
+            if pulsos < 16:
+                raise RuntimeError(f"Sinal incompleto ({pulsos} pulsos): aproxime o controle a 5 cm do transmissor, longe de lâmpadas e do sol, "
+                                   "e aperte o botão uma vez, firme.")
             return codigo, tipo
     raise RuntimeError("Nenhum sinal recebido. Aponte o controle a 10–20 cm do transmissor e tente de novo.")
 
