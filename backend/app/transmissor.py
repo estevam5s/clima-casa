@@ -170,6 +170,9 @@ def processar_fila_uma_vez() -> bool:
             resultado = {"resultados": autorreparar(forcar=True)}
         elif item["tipo"] == "descobrir":
             resultado = {"aparelhos": descobrir_local(dados.get("segundos", 6))}
+        elif item["tipo"] == "infra":   # operação na Vercel com o token que só o agente tem
+            from . import infra
+            resultado = infra.executar(dados["op"], dados.get("args") or {})
     except Exception as e:  # noqa: BLE001
         erro = str(e)
     db.executar("UPDATE fila_comandos SET estado = ?, resultado = CAST(? AS jsonb), erro = ?, fim_em = ? WHERE id = ?",

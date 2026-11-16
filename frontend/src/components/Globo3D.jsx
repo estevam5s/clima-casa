@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Compass, FastForward, Gamepad2, Globe2, Info, Maximize2, Minimize2, Minus, Orbit, Pause, Play, Plus, RotateCcw, Route, Satellite, SkipForward, X } from 'lucide-react'
+import { Compass, Crosshair, FastForward, Globe2, Info, Maximize2, Minimize2, Minus, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Route, Satellite, SkipForward, X } from 'lucide-react'
+import { criarAurora, criarMeteoros, criarNave } from './nave3d'
 import { api } from '../api'
 import { criarSatelites, GRUPOS_SAT } from './satelites3d'
 import * as THREE from 'three'
@@ -188,7 +189,9 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   const [info, setInfo] = useState(null)          // astro em foco (ficha)
   const [aba, setAba] = useState('dados')
   const [tour, setTour] = useState(false)
-  const [nave, setNave] = useState(false)         // voo livre pelo teclado
+  const [nave, setNave] = useState(false)         // pilotar a nave (voo livre pelo teclado)
+  const [hud, setHud] = useState(null)
+  const [seguirIss, setSeguirIss] = useState(false)
   const [tempo, setTempo] = useState(1)
   const [telaCheia, setTelaCheia] = useState(false)
   const [viajando, setViajando] = useState(false)
@@ -226,6 +229,14 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     const universo = criarUniverso(cena, globo)
     // satélites reais (SGP4) em volta da Terra
     const sats = criarSatelites(globo, vetor, satRotulosRef.current)
+    // nave (visão de perseguição, presa à câmera), estrelas cadentes e aurora nos polos
+    cena.add(camera)
+    const nave = criarNave(); nave.grupo.position.set(0.05, -0.3, -2.1); nave.grupo.scale.setScalar(0.75); nave.grupo.visible = false; camera.add(nave.grupo)
+    const luzNave = new THREE.DirectionalLight(0xffffff, 1.6); luzNave.position.set(-0.8, 1.2, 0.6); camera.add(luzNave); luzNave.target.position.set(0, -0.3, -2.1); camera.add(luzNave.target)   // alvo preso à câmera: ilumina a nave de cima, pela frente
+    const meteoros = criarMeteoros(cena)
+    const aurora = criarAurora(globo, R)
+    let ultimoHud = 0, ultimoIss = 0
+    const issPos = new THREE.Vector3(), posAntes = new THREE.Vector3()
     satsRef.current = { camada: sats, fonte: null }
     sats.visivel = mostrarSatsRef.current
     api.get('/api/satelites').then((d) => { sats.carregar(d.satelites || []); if (satsRef.current) satsRef.current.fonte = d }).catch(() => {})
@@ -535,6 +546,18 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       anelServ.scale.setScalar(1 + fs * (ataqueRef.current ? 4 : 2)); anelServ.material.opacity = 1 - fs
       anelServ.material.color.setHex(ataqueRef.current ? 0xef4444 : 0xffffff)
       universo.atualizar(dt, t, camera)
+      if (!calmo) { meteoros(dt); aurora(dt) }
+      // seguir a ISS: a câmera acompanha a estação em órbita
+      if (acoesRef.current.seguirIss && t - ultimoIss > 0.1) {
+        ultimoIss = t
+        const iss = sats.resumo().iss
+        if (iss) {
+          issPos.copy(vetor(iss.lat, iss.lon, R * (1 + iss.alt / 6371))).applyMatrix4(globo.matrixWorld)
+          controles.target.lerp(issPos, 0.25)
+          const longe = issPos.clone().setLength(issPos.length() + 0.55).add(new THREE.Vector3(0, 0.12, 0))
+          camera.position.lerp(longe, 0.08)
+        }
+      }
       sats.atualizar(t, camera, el.clientWidth, el.clientHeight, uniforms.sol.value, camera.position.length() < 14)
       // acompanha o astro em foco se ele estiver em órbita
       if (!viagem.ativa && foco.atual !== 'terra' && controles.maxDistance > 50) {
@@ -554,6 +577,19 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
         if (teclas.has('e')) mov.addScaledVector(camera.up, vel)
         if (teclas.has('q')) mov.addScaledVector(camera.up, -vel)
         camera.position.add(mov); controles.target.add(mov); seguir.pos = null; foco.atual = 'livre'
+      }
+      // nave: aparece no voo livre, chama conforme o empuxo, inclina nas curvas
+      nave.grupo.visible = !!acoesRef.current.naveLigada
+      if (nave.grupo.visible) {
+        const frenteT = teclas.has('w') || teclas.has('arrowup'), reT = teclas.has('s') || teclas.has('arrowdown')
+        nave.atualizar(dt, t, { empuxo: frenteT ? 1 : reT ? 0.35 : 0.12, boost: teclas.has('shift'), lado: (teclas.has('d') || teclas.has('arrowright') ? 1 : 0) - (teclas.has('a') || teclas.has('arrowleft') ? 1 : 0), sobe: (teclas.has('e') ? 1 : 0) - (teclas.has('q') ? 1 : 0) })
+        if (t - ultimoHud > 0.25) {
+          const v = camera.position.distanceTo(posAntes) / Math.max(1e-3, t - ultimoHud)
+          posAntes.copy(camera.position); ultimoHud = t
+          let perto = null
+          for (const [k, c] of Object.entries(universo.corpos)) { c.obj.getWorldPosition(tmp); const d = tmp.distanceTo(camera.position) - (c.raio || 0); if (!perto || d < perto.d) perto = { k, nome: c.nome, d } }
+          acoesRef.current.aoHud?.({ vel: v, perto, empuxo: nave.estado.empuxo, dobra: dobraNave })
+        }
       }
       const acelerando = teclas.has('shift') && (teclas.has('w') || teclas.has('arrowup'))
       const antes = dobraNave
@@ -623,7 +659,8 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   useEffect(() => { acoesRef.current.explorar?.(explorar) }, [explorar])
   useEffect(() => { acoesRef.current.explorarExterno = (v) => setExplorar(v) }, [])
   useEffect(() => { acoesRef.current.aoFocar = (k) => { setInfo(k); setAba('dados') }; acoesRef.current.viajando = setViajando }, [])
-  useEffect(() => { acoesRef.current.naveLigada = explorar && nave }, [explorar, nave])
+  useEffect(() => { acoesRef.current.naveLigada = explorar && nave; acoesRef.current.aoHud = setHud; if (!nave) setHud(null) }, [explorar, nave])
+  useEffect(() => { acoesRef.current.seguirIss = seguirIss && !explorar; if (seguirIss) acoesRef.current.girar?.(false) }, [seguirIss, explorar])
   useEffect(() => { acoesRef.current.tempo?.(explorar ? tempo : 1) }, [tempo, explorar])
   useEffect(() => { if (!explorar) { setInfo(null); setTour(false); setNave(false); setTempo(1) } }, [explorar])
   // tour guiado: visita cada astro com a ficha aberta
@@ -670,6 +707,15 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
           <p className="mt-1.5 text-[10px] text-white/45">Órbitas da {resumoSats.fonte?.fonte || 'CelesTrak'}, posição calculada aqui (SGP4). Apagados = na sombra da Terra.</p>
         </div>
       )}
+      {explorar && nave && hud && (
+        <div className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-4 rounded-lg border border-sky-300/20 bg-black/60 px-4 py-2 font-mono text-[11px] text-sky-100 backdrop-blur"> {/* marca: painel de voo da nave */}
+          <span>EMPUXO <b className="tabular-nums">{Math.round(Math.min(1.6, hud.empuxo) / 1.6 * 100)}%</b></span>
+          <span>DOBRA <b className="tabular-nums">{Math.round(hud.dobra / 0.7 * 100)}%</b></span>
+          <span>VEL <b className="tabular-nums">{hud.vel < 10 ? hud.vel.toFixed(2) : Math.round(hud.vel)}</b> u/s</span>
+          {hud.perto && <span>PERTO DE <b>{hud.perto.nome}</b></span>}
+        </div>
+      )}
+      {seguirIss && !explorar && <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center"><span className="rounded-full border border-yellow-200/30 bg-black/60 px-3 py-1 text-[11px] font-medium text-yellow-100 backdrop-blur">Seguindo a Estação Espacial Internacional</span></div>} {/* marca: aviso de câmera seguindo */}
       {viajando && <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center"><span className="rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[11px] font-medium tracking-wide text-sky-200 backdrop-blur">Em dobra espacial…</span></div>} {/* marca: aviso durante a viagem */}
       {explorar && (
         <div className="absolute left-3 top-3 flex max-h-[calc(100%-3rem)] w-48 flex-col overflow-hidden rounded-lg border border-white/15 bg-black/60 text-white backdrop-blur"> {/* marca: painel flutua sobre o espaço */}
@@ -685,12 +731,12 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
           <div className="space-y-2 border-t border-white/15 px-3 py-2">
             <div className="grid grid-cols-2 gap-1.5">
               <button onClick={() => setTour((v) => !v)} className={`flex items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] ${tour ? 'bg-white/20' : 'hover:bg-white/10'}`}><Route className="h-3 w-3" />{tour ? 'Parar tour' : 'Tour'}</button>
-              <button onClick={() => setNave((v) => !v)} className={`flex items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] ${nave ? 'bg-white/20' : 'hover:bg-white/10'}`} title="Voo livre pelo teclado"><Gamepad2 className="h-3 w-3" />Voo livre</button>
+              <button onClick={() => setNave((v) => !v)} className={`flex items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] ${nave ? 'bg-white/20' : 'hover:bg-white/10'}`} title="Pilotar a nave pelo teclado"><Rocket className="h-3 w-3" />{nave ? 'Sair da nave' : 'Pilotar nave'}</button>
             </div>
             {tour && <button onClick={() => { acoesRef.current.irPara?.(ROTEIRO[passoTour.current % ROTEIRO.length]); passoTour.current += 1 }} className="flex w-full items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] hover:bg-white/10"><SkipForward className="h-3 w-3" />Próximo destino</button>}
             <label className="block text-[10px] text-white/70"><span className="flex items-center justify-between"><span className="flex items-center gap-1"><FastForward className="h-3 w-3" />Tempo</span><span className="tabular-nums">{tempo}×</span></span>
               <input type="range" min={0} max={6} step={1} value={[0, 1, 5, 20, 100, 500, 2000].indexOf(tempo)} onChange={(e) => setTempo([0, 1, 5, 20, 100, 500, 2000][Number(e.target.value)])} className="w-full accent-sky-400" aria-label="Velocidade do tempo" /></label>
-            {nave && <p className="text-[10px] leading-snug text-sky-200">W/S ou ↑/↓ avança e recua · A/D de lado · Q/E desce e sobe · Shift acelera. Arraste para olhar.</p>}
+            {nave && <p className="text-[10px] leading-snug text-sky-200">W ou ↑ acelera · S freia/ré · A/D curva · Q/E desce e sobe · Shift dobra espacial · arraste para olhar · clique num destino para o piloto automático.</p>}
             {!nave && <p className="text-[10px] leading-snug text-white/55">Role para aproximar · dois cliques num astro para ir até ele. Direções reais; tamanhos fora de escala.</p>}
           </div>
         </div>
@@ -715,6 +761,8 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border border-white/15 bg-black/50 text-white backdrop-blur">
         <button onClick={alternarTelaCheia} className={botao} aria-label={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'} title={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}>{telaCheia ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
         <button onClick={() => setMostrarSats((v) => !v)} className={`${botao} border-b border-white/15 ${mostrarSats ? 'bg-white/15' : ''}`} aria-label={mostrarSats ? 'Esconder satélites' : 'Mostrar satélites'} title={mostrarSats ? 'Esconder satélites' : 'Mostrar satélites ao vivo'}><Satellite className="h-3.5 w-3.5" /></button>
+        <button onClick={() => { setExplorar(true); setNave((v) => !v || !explorar); setSeguirIss(false) }} className={`${botao} border-t border-white/15 ${explorar && nave ? 'bg-white/15' : ''}`} aria-label="Pilotar a nave" title="Pilotar a nave pelo universo"><Rocket className="h-3.5 w-3.5" /></button>
+        {!explorar && <button onClick={() => { setMostrarSats(true); setSeguirIss((v) => !v) }} className={`${botao} border-t border-white/15 ${seguirIss ? 'bg-white/15' : ''}`} aria-label={seguirIss ? 'Parar de seguir a ISS' : 'Seguir a ISS'} title={seguirIss ? 'Parar de seguir a ISS' : 'Seguir a Estação Espacial ao vivo'}><Crosshair className="h-3.5 w-3.5" /></button>}
         <button onClick={() => setExplorar((v) => !v)} className={`${botao} border-t border-white/15 ${explorar ? 'bg-white/15' : ''}`} aria-label={explorar ? 'Voltar ao globo' : 'Explorar o universo'} title={explorar ? 'Voltar ao globo' : 'Explorar o universo'}>{explorar ? <Globe2 className="h-3.5 w-3.5" /> : <Orbit className="h-3.5 w-3.5" />}</button>
         <button onClick={() => acoesRef.current.zoom?.(0.8)} className={`${botao} border-t border-white/15`} aria-label="Aproximar" title="Aproximar"><Plus className="h-3.5 w-3.5" /></button>
         <button onClick={() => acoesRef.current.zoom?.(1.25)} className={`${botao} border-t border-white/15`} aria-label="Afastar" title="Afastar"><Minus className="h-3.5 w-3.5" /></button>

@@ -175,10 +175,16 @@ def painel_analise(projeto_id: int | None = None):
                     "dias": mes["dias"], "fora_expediente_pct": mes["fora_expediente_pct"], "meta": float(meta or 0)}}
 
 
-def _atividade(limite, aparelho_id=None, origem=None, so_falhas=False, antes=None):
+def _atividade(limite, aparelho_id=None, origem=None, so_falhas=False, antes=None, de=None, ate=None, q=None):
     sql = ("SELECT t.*, a.nome AS aparelho_nome FROM atividade t LEFT JOIN aparelhos a ON a.id = t.aparelho_id "
            "WHERE 1=1")
     p = []
+    if de:
+        sql += " AND t.quando >= ?"; p.append(int(de))
+    if ate:
+        sql += " AND t.quando < ?"; p.append(int(ate))
+    if q:
+        sql += " AND (t.acao ILIKE ? OR t.detalhe ILIKE ? OR a.nome ILIKE ? OR t.origem ILIKE ?)"; p += [f"%{q[:80]}%"] * 4
     if aparelho_id:
         sql += " AND t.aparelho_id = ?"; p.append(aparelho_id)
     if origem:
@@ -195,8 +201,48 @@ def _atividade(limite, aparelho_id=None, origem=None, so_falhas=False, antes=Non
 
 @api.get("/atividade")
 def atividade(aparelho_id: int | None = None, origem: str | None = None, falhas: bool = False,
-              antes: int | None = None, limite: int = 50):
-    return _atividade(min(limite, 200), aparelho_id, origem, falhas, antes)
+              antes: int | None = None, limite: int = 50, de: int | None = None, ate: int | None = None, q: str | None = None):
+    return _atividade(min(limite, 500), aparelho_id, origem, falhas, antes, de, ate, (q or "").strip() or None)
+
+
+# dicas para as falhas mais comuns (o texto do erro → o que fazer)
+DICAS_FALHA = [
+    ("Nenhum botão gravado", "Grave os botões do controle original na tela do aparelho (Botões gravados).", "/aparelhos"),
+    ("ainda não foi gravado", "Grave esse botão na tela do aparelho.", "/aparelhos"),
+    ("não respondeu a tempo", "O agente do escritório estava offline ou ocupado. Confira em Infra → Agentes.", "/infra"),
+    ("offline", "Transmissor fora da rede: confira a tomada e o Wi-Fi 2,4 GHz e use Reconectar agora.", "/transmissores"),
+    ("state", "Login do Spotify vencido: clique em Conectar de novo.", "/musica"),
+    ("Spotify", "Veja a tela Música: conta, Premium e aparelho ativo.", "/musica"),
+    ("bloqueado", "Acesso barrado pelo firewall; veja Segurança.", "/seguranca"),
+]
+
+
+@api.get("/atividade/analise")
+def analise_atividade(dias: int = 7, aparelho_id: int | None = None, origem: str | None = None):
+    dias = max(1, min(dias, 90))
+    desde = db.agora() - dias * 86400
+    w, p = " WHERE t.quando >= ?", [desde]
+    if aparelho_id:
+        w += " AND t.aparelho_id = ?"; p.append(aparelho_id)
+    if origem:
+        w += " AND (t.origem = ? OR t.origem LIKE ?)"; p += [origem, origem + ":%"]
+    f, pp = _escopo("a.projeto_id"); w += f; p += list(pp)
+    base = "FROM atividade t LEFT JOIN aparelhos a ON a.id = t.aparelho_id" + w
+    # horário de Brasília (UTC-3) para dia, hora e dia da semana
+    por_dia = db.consultar(f"SELECT to_char(to_timestamp(t.quando - 10800) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS dia, COUNT(*) AS total, "
+                           f"SUM(CASE WHEN t.ok = 0 THEN 1 ELSE 0 END) AS falhas {base} GROUP BY 1 ORDER BY 1", tuple(p))
+    mapa = db.consultar(f"SELECT EXTRACT(DOW FROM to_timestamp(t.quando - 10800) AT TIME ZONE 'UTC')::int AS dow, "
+                        f"EXTRACT(HOUR FROM to_timestamp(t.quando - 10800) AT TIME ZONE 'UTC')::int AS hora, COUNT(*) AS n {base} GROUP BY 1, 2", tuple(p))
+    por_origem = db.consultar(f"SELECT split_part(t.origem, ':', 1) AS origem, COUNT(*) AS total, SUM(CASE WHEN t.ok = 0 THEN 1 ELSE 0 END) AS falhas {base} GROUP BY 1 ORDER BY 2 DESC", tuple(p))
+    por_aparelho = db.consultar(f"SELECT COALESCE(a.nome, '(sistema)') AS nome, t.aparelho_id, COUNT(*) AS total, SUM(CASE WHEN t.ok = 0 THEN 1 ELSE 0 END) AS falhas {base} GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 12", tuple(p))
+    acoes = db.consultar(f"SELECT t.acao, COUNT(*) AS total {base} GROUP BY 1 ORDER BY 2 DESC LIMIT 10", tuple(p))
+    falhas = db.consultar(f"SELECT COALESCE(NULLIF(t.detalhe, ''), t.acao) AS motivo, COUNT(*) AS total, MAX(t.quando) AS ultima {base} AND t.ok = 0 GROUP BY 1 ORDER BY 2 DESC LIMIT 8", tuple(p))
+    for x in falhas:
+        dica = next((d for d in DICAS_FALHA if d[0].lower() in (x["motivo"] or "").lower()), None)
+        x["dica"], x["link"] = (dica[1], dica[2]) if dica else ("", "")
+    total = sum(int(d["total"]) for d in por_dia); nf = sum(int(d["falhas"] or 0) for d in por_dia)
+    return {"dias": dias, "total": total, "falhas": nf, "sucesso_pct": round((total - nf) / total * 100, 1) if total else None,
+            "por_dia": por_dia, "mapa": mapa, "por_origem": por_origem, "por_aparelho": por_aparelho, "acoes": acoes, "falhas_comuns": falhas}
 
 
 # ---------------- aparelhos ----------------

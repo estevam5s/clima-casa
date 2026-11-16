@@ -10,11 +10,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import agenda, cripto, db, firewall, sinric, transmissor
+from . import agenda, coordenador, cripto, db, firewall, sinric, transmissor
 from .rotas import alexa as rotas_alexa
 from .rotas import api as rotas_api
 from .rotas import contas as rotas_contas
 from .rotas import musica as rotas_musica
+from .rotas import infra as rotas_infra
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -44,11 +45,16 @@ async def ciclo_de_vida(app):
     except Exception:  # noqa: BLE001
         pass
     tarefa = None
-    if transmissor.PAPEL == "agente":  # no Mac: fila de comandos, agenda e status dos transmissores
-        _migrar_env()
-        threading.Thread(target=transmissor.laco_agente, daemon=True, name="agente").start()
-        sinric.iniciar_no_agente()
-        tarefa = asyncio.create_task(agenda.laco())
+    if transmissor.PAPEL == "agente":  # no computador do escritório: fila de comandos, Alexa, agenda e transmissores
+        async def virar_agente():
+            # vários computadores podem ter o agente; só o principal executa (os outros ficam de reserva)
+            await asyncio.to_thread(coordenador.esperar_posto)
+            coordenador.vigiar()
+            _migrar_env()
+            threading.Thread(target=transmissor.laco_agente, daemon=True, name="agente").start()
+            sinric.iniciar_no_agente()
+            await agenda.laco()
+        tarefa = asyncio.create_task(virar_agente())
     yield
     if tarefa:
         tarefa.cancel()
@@ -128,6 +134,7 @@ app.include_router(rotas_contas.contas)
 app.include_router(rotas_api.api)
 app.include_router(rotas_musica.publico_musica)
 app.include_router(rotas_musica.rotas_musica)
+app.include_router(rotas_infra.rotas_infra)
 app.include_router(rotas_alexa.roteador)
 
 

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Copy, Eye, EyeOff, KeyRound } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, Modal, Ponto, useDados, useToast } from '../components/ui'
 
@@ -32,6 +33,25 @@ const PASSOS = [
   ['Ative no app Alexa', 'App Alexa → Mais → Skills → Suas Skills → Dev → Clima Escritório → Ativar. Faça login com a senha deste painel e autorize. Depois: "Alexa, descobrir dispositivos".'],
 ]
 
+// A Alexa do dia a dia funciona pelo Sinric Pro (tela Alexa e Google). Esta tela é da skill PRÓPRIA, opcional:
+// por isso "Não vinculada" é normal enquanto ela não for criada no Amazon Developer + AWS.
+function AlexaPeloSinric() {
+  const [d, setD] = useState(null)
+  useEffect(() => { api.get('/api/sinric/diagnostico').then(setD).catch(() => setD(false)) }, [])
+  const txt = d === null ? 'Conferindo…' : d === false ? 'Não deu para conferir agora.' : { funciona: 'Funcionando', parcial: 'Conecta, mas com ressalvas', nao_funciona: 'Não está funcionando' }[d.veredito]
+  const cor = d && d.veredito === 'funciona' ? 'ok' : 'alerta'
+  const pend = d ? d.itens.filter((i) => i.estado !== 'ok').slice(0, 3) : []
+  return (
+    <div className="mb-6">
+      <Aviso tipo={cor}>
+        <p><b>A sua Alexa usa o Sinric Pro: {txt}.</b> Esta tela é da <b>skill própria</b>, um caminho opcional (sem limite de aparelhos e com cenas por voz) que exige criar uma skill no Amazon Developer e uma função na AWS. Enquanto ela não for criada, “Não vinculada” é o esperado e não afeta a Alexa pelo Sinric.</p>
+        {pend.length > 0 && <ul className="mt-1.5 list-disc pl-5">{pend.map((i) => <li key={i.chave}>{i.titulo}: {i.detalhe}</li>)}</ul>}
+        <p className="mt-1.5"><Link to="/integracoes" className="font-medium underline">Abrir Alexa e Google (Sinric)</Link> · <Link to="/guia" className="font-medium underline">Passo a passo</Link></p>
+      </Aviso>
+    </div>
+  )
+}
+
 export default function Alexa() {
   const { dados, erro, setDados } = useDados(() => api.get('/api/alexa'))
   const [url, setUrl] = useState(null)
@@ -60,12 +80,14 @@ export default function Alexa() {
 
   return (
     <>
-      <Cabecalho titulo="Alexa" descricao="Skill Smart Home própria: controle os aparelhos por voz, com temperatura e modo." />
+      <Cabecalho titulo="Skill própria da Alexa (opcional)" descricao="Alternativa ao Sinric Pro: skill Smart Home sua, sem limite de aparelhos e com cenas por voz. Precisa de Amazon Developer + AWS Lambda." />
+      <AlexaPeloSinric />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="cartao px-4 py-3.5">
           <p className="text-xs text-muted-foreground">Vinculação</p>
           <p className="mt-1 flex items-center gap-2 font-medium"><Ponto ativo={dados.vinculada} /> {dados.vinculada ? `Vinculada ${haQuanto(dados.vinculada_em)}` : 'Não vinculada'}</p>
+          {!dados.vinculada && <p className="mt-0.5 text-xs text-muted-foreground">Skill própria ainda não criada (opcional)</p>}
         </div>
         <div className="cartao px-4 py-3.5">
           <p className="text-xs text-muted-foreground">Aparelhos visíveis para a Alexa</p>

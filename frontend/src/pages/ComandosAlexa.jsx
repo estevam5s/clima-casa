@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Check, Copy, MessageSquareQuote, Search } from 'lucide-react'
 import { api } from '../api'
-import { Aviso, Cabecalho, Carregando, Selo, useDados } from '../components/ui'
+import { Aviso, Cabecalho, Carregando, Selo, useDados, useToast } from '../components/ui'
+import CatalogoVoz from '../components/CatalogoVoz'
+import { modelosAr } from '../vozAlexa'
+import { useProjeto } from '../contexto'
 
 function Frase({ texto }) {
   const [ok, setOk] = useState(false)
@@ -17,6 +21,18 @@ function Frase({ texto }) {
 export default function ComandosAlexa() {
   const { dados, erro } = useDados(() => api.get('/api/alexa/comandos'))
   const [q, setQ] = useState('')
+  const toast = useToast()
+  const { sessao } = useProjeto()
+  const podeControlar = !!sessao?.permissoes?.includes('aparelhos.controlar')
+  const modelos = useMemo(() => modelosAr({ aparelhos: dados?.aparelhos || [] }), [dados])
+  // "Testar": faz pelo painel o mesmo que a frase faria (mesmo caminho: agente → transmissor → ar)
+  const testar = async (f) => {
+    const nome = String(f.alvo || '').replace(/^o /, '')
+    const ap = (dados?.aparelhos || []).find((a) => a.nome === nome) || (dados?.aparelhos || [])[0]
+    if (!ap) return
+    if (!window.confirm(`Mandar agora para “${ap.nome}”: ${f.faz.toLowerCase()} (${JSON.stringify(f.acao).replace(/[{}"]/g, '').replace(/,/g, ', ')})? O ar recebe o comando de verdade.`)) return
+    try { await api.post(`/api/aparelhos/${ap.id}/estado`, f.acao); toast(`Enviado para ${ap.nome}.`) } catch (e) { toast(e.message, 'erro') }
+  }
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const filtra = (f) => f.toLowerCase().includes(q.toLowerCase())
@@ -24,6 +40,14 @@ export default function ComandosAlexa() {
   return (
     <div className="w-full">
       <Cabecalho titulo="Comandos de voz" descricao={`${dados.total} comandos prontos para os seus aparelhos, mais as Rotinas da Alexa, que aceitam qualquer frase que você inventar.`} />
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <div className="cartao p-4"><p className="text-xs text-muted-foreground">Aparelhos na Alexa</p><p className="mt-1 text-lg font-semibold">{dados.aparelhos.filter((a) => a.no_sinric).length} de {dados.aparelhos.length}</p><p className="text-xs text-muted-foreground">pelo Sinric Pro (grátis: até 3)</p></div>
+        <div className="cartao p-4"><p className="text-xs text-muted-foreground">Frases prontas</p><p className="mt-1 text-lg font-semibold tabular">{(modelos.reduce((s2, m) => s2 + Object.values(m.lacunas).reduce((p2, v) => p2 * v.length, 1), 0) + dados.total).toLocaleString('pt-BR')}</p><p className="text-xs text-muted-foreground">mais qualquer frase sua numa Rotina</p></div>
+        <div className="cartao p-4"><p className="text-xs text-muted-foreground">Não funcionou?</p><p className="mt-1 text-sm">Veja o diagnóstico da Alexa e o que falta.</p><Link to="/integracoes" className="text-xs font-medium text-primary hover:underline">Abrir diagnóstico</Link></div>
+      </div>
+      <div className="mb-6"><CatalogoVoz titulo="Todas as frases do ar-condicionado" modelos={modelos} onTestar={podeControlar ? testar : undefined}
+        rodape={<>As frases de “Rotinas suas” precisam ser criadas no app Alexa (Mais → Rotinas → + → Voz). “Testar” manda o mesmo comando pelo painel, para conferir se o ar obedece sem precisar falar.</>} /></div>
+      <h2 className="mb-3 text-sm font-semibold">Por aparelho</h2>
       <div className="relative mb-6 max-w-sm">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <input className="campo pl-9" placeholder="Filtrar comandos" value={q} onChange={(e) => setQ(e.target.value)} />

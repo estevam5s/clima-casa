@@ -207,7 +207,7 @@ create policy admin_le on public.temporizadores for select to authenticated usin
 alter table public.hubs add column if not exists problema text;
 alter table public.hubs add column if not exists reparado_em bigint;
 alter table public.fila_comandos drop constraint if exists fila_comandos_tipo_check;
-alter table public.fila_comandos add constraint fila_comandos_tipo_check check (tipo in ('enviar','aprender','descobrir','evento','reparar'));
+alter table public.fila_comandos add constraint fila_comandos_tipo_check check (tipo in ('enviar','aprender','descobrir','evento','reparar','infra'));
 
 -- v6: segurança (lista de IPs e eventos) e potência para estimar consumo
 create table if not exists public.seguranca_ips (

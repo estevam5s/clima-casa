@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AirVent, ArrowRight, BookOpen, Check, CircleHelp, Cloud, Hand, Home, KeyRound, Map as MapaIcone, Mic, Music2, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
+import { AirVent, ArrowRight, BookOpen, Check, CircleHelp, Cloud, Hand, Home, KeyRound, Map as MapaIcone, Mic, Monitor, Music2, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
 import { Cabecalho } from '../components/ui'
 
 // Passo a passo do sistema inteiro: do transmissor no Wi-Fi (Smart Life) até a Alexa (Sinric Pro), outra Alexa,
@@ -94,6 +94,24 @@ const CAPITULOS = [
       { t: 'Agenda: horários fixos', d: 'Ex.: seg a sex, 18:30, desligar todos.', link: ['/agendamentos', 'Abrir Agenda'] },
       { t: 'Automações: regras', d: 'Ex.: quando o ar ligar fora do horário, desligar depois de 2 h.', link: ['/automacoes', 'Abrir Automações'] },
     ],
+  },
+  {
+    id: 'windows', icone: Monitor, titulo: 'Ir para casa com o Mac: agente no PC Windows',
+    resumo: 'Um PC que fica no escritório assume os comandos quando o Mac vai embora, sem perder nada.',
+    passos: [
+      { t: 'Por que precisa', d: 'O transmissor só recebe comandos pela rede do escritório. Quem manda é o agente, que precisa estar num computador ligado LÁ. O Windows de casa não serve para isso; um PC que fica no escritório, sim.' },
+      { t: 'Escolha o PC do escritório', d: 'Um PC Windows 10/11 que fique sempre ligado na tomada, no mesmo Wi-Fi 2,4 GHz do transmissor (ou no cabo do mesmo roteador). Também serve um Linux, Raspberry Pi ou mini PC.' },
+      { t: 'Copie a pasta do sistema para o PC', d: 'No painel: Baixar apps → Código-fonte → baixar o .zip do último commit (ou git clone). Descompacte em C:\\ClimaEscritorio\\ar-controle.', link: ['/apps', 'Abrir Baixar apps'] },
+      { t: 'Copie o arquivo .env do Mac', d: 'Ele fica na pasta ar-controle do Mac e tem as chaves do sistema. Leve por pendrive ou pela rede local e coloque na mesma pasta do PC. Nunca mande por e-mail ou chat.' },
+      { t: 'Rode o instalador como administrador', d: 'Menu Iniciar → PowerShell → botão direito → Executar como administrador. Depois: cd C:\\ClimaEscritorio\\ar-controle  e  powershell -ExecutionPolicy Bypass -File .\\instalar-windows.ps1. Ele instala o Python se faltar, as dependências, impede o PC de dormir, libera o firewall para achar o transmissor e cria o serviço que liga junto com o Windows.' },
+      { t: 'Deixe a rede como Privada', d: 'Configurações do Windows → Rede e Internet → propriedades do Wi-Fi → Perfil de rede: Privada. Em rede Pública o Windows bloqueia a busca do transmissor.' },
+      { t: 'Confira no painel', d: 'Infra → Agentes mostra os computadores. Com o Mac ligado, o PC aparece como Reserva; sem o Mac, como Principal.', link: ['/infra', 'Abrir Infra'] },
+      { t: 'Deixe o PC sempre no comando', d: 'Em Infra → Agentes, clique em “Preferir este” no PC. Ele assume na hora e o Mac fica só de reserva, então você pode fechar o Mac quando quiser.' },
+      { t: 'Vá para casa', d: 'Feche o Mac e leve. Se o PC não for o preferido, ele assume sozinho em até 45 segundos. Aparelhos, botões gravados, Alexa, agenda, automações e música continuam iguais: tudo fica no banco (Supabase), não no computador.' },
+      { t: 'Em casa, no Windows', d: 'Use o painel no navegador (app.zynio.com.br) ou o app de Windows (Baixar apps). Ligar, desligar e o resto funcionam porque o PC do escritório está no comando.' },
+      { t: 'Manutenção', d: 'Ver se está rodando: .\\instalar-windows.ps1 status. Atualizar depois de uma versão nova: baixe o .zip de novo e rode o instalador outra vez. Linux/Raspberry Pi: sudo ./instalar-linux.sh.' },
+    ],
+    dicas: ['Os dois podem ficar instalados para sempre: só um é o principal por vez, e o outro assume se ele sumir. Não dá conflito.'],
   },
   {
     id: 'sinric', icone: KeyRound, titulo: 'Sinric Pro: a ponte para a Alexa',

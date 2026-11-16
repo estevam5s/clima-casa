@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarClock, Disc3, ExternalLink, KeyRound, ListMusic, LogOut, Music2, Pause, Pencil, Play, Plus, Repeat, Repeat1, Search, Shuffle, SkipBack, SkipForward, Smartphone, Speaker, Trash2, Tv, Volume2, Zap } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Esqueleto, Interruptor, Modal, useToast } from '../components/ui'
 import { DIAS_SEMANA } from '../mapaUtil'
+import CatalogoVoz from '../components/CatalogoVoz'
+import { modelosMusica } from '../vozAlexa'
 
 // Música: Spotify ligado ao escritório. Player (o que toca, onde toca, volume), busca, playlists e rotinas que
 // tocam ou pausam sozinhas por horário ou quando um ar liga/desliga. Os Echo da Alexa aparecem como aparelhos
@@ -168,6 +170,34 @@ function PassoConexao({ redirect, aberto }) {
   )
 }
 
+// qualquer música, álbum ou artista do catálogo do Spotify vira comando de voz (é daí que vêm os milhões de frases)
+function MontadorFrase({ echos, podeControlar }) {
+  const toast = useToast()
+  const [item, setItem] = useState(null)
+  const frases = item ? (() => {
+    const onde = ['', ...echos.map((e) => ` no ${e}`)]
+    const base = item.tipo === 'track' ? [`toca ${item.nome}${item.sub ? ` de ${item.sub.split(',')[0]}` : ''} no Spotify`, `toca a música ${item.nome} no Spotify`, `adiciona ${item.nome} na fila`]
+      : item.tipo === 'album' ? [`toca o álbum ${item.nome}${item.sub ? ` de ${item.sub.split(',')[0]}` : ''} no Spotify`]
+        : item.tipo === 'artist' ? [`toca ${item.nome} no Spotify`, `toca as mais tocadas de ${item.nome}`, `toca a rádio de ${item.nome}`]
+          : [`toca a playlist ${item.nome} no Spotify`]
+    return [...base.flatMap((b) => onde.map((o) => `Alexa, ${b}${o}`)), `Alexa, me acorda amanhã às 07:00 com ${item.nome}`]
+  })() : []
+  const tocar = async () => { try { await api.post('/api/musica/comando', { acao: 'tocar', uri: item.uri }); toast(`Tocando ${item.nome}.`) } catch (e) { toast(e.message, 'erro') } }
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao">Qualquer música vira comando</h2>
+      <p className="mb-3 text-xs text-muted-foreground">O catálogo do Spotify tem mais de 100 milhões de músicas, e cada uma, cada álbum e cada artista dá para pedir à Alexa. Busque e copie a frase pronta.</p>
+      <Escolher rotulo="Ver frases" aoEscolher={setItem} />
+      {item && (
+        <div className="mt-4 rounded-lg border border-border p-3">
+          <div className="mb-2 flex items-center gap-3">{item.capa && <img src={item.capa} alt="" className="h-10 w-10 rounded object-cover" />}<div className="min-w-0 flex-1"><p className="truncate font-medium">{item.nome}</p><p className="truncate text-xs text-muted-foreground">{item.sub}</p></div>{podeControlar && <Botao tamanho="sm" icone={Play} onClick={tocar}>Tocar agora</Botao>}</div>
+          <ul className="space-y-0.5">{frases.map((f) => <li key={f}><button onClick={() => navigator.clipboard?.writeText(f).then(() => toast('Frase copiada.'))} className="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-muted">“{f}”</button></li>)}</ul>
+        </div>
+      )}
+    </section>
+  )
+}
+
 const NOVA = () => ({ id: `r-${Date.now().toString(36)}`, nome: '', ativo: true, gatilho: { tipo: 'horario', hora: '08:30', dias: [1, 2, 3, 4, 5], aparelho_id: null }, janela: { inicio: null, fim: null }, acao: { tipo: 'tocar', uri: null, nome: '', capa: '', aparelho_nome: '', volume: 30, aleatorio: true } })
 
 function EditorRotina({ inicial, ares, aparelhosSpotify, onSalvar, onFechar }) {
@@ -253,6 +283,7 @@ export default function Musica() {
   const [rotinas, setRotinas] = useState(null), [editando, setEditando] = useState(null)
   const [ares, setAres] = useState([]), [aparelhosSp, setAparelhosSp] = useState([])
   const [tocarModal, setTocarModal] = useState(false)
+  const [minhasPl, setMinhasPl] = useState([])
   const voltou = useRef(false)
 
   const carregar = () => api.get('/api/musica/estado').then(setEstado).catch((e) => setErro(e.message))
@@ -273,7 +304,8 @@ export default function Musica() {
     return () => window.removeEventListener('spotify-retorno', ver)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [erroLogin, setErroLogin] = useState('')
-  useEffect(() => { if (estado?.conectado) api.get('/api/musica/tocando').then((p) => setAparelhosSp(p.aparelhos)).catch(() => {}) }, [estado?.conectado])
+  useEffect(() => { if (estado?.conectado) { api.get('/api/musica/tocando').then((p) => setAparelhosSp(p.aparelhos)).catch(() => {}); api.get('/api/musica/playlists').then(setMinhasPl).catch(() => {}) } }, [estado?.conectado])
+  const modelosVoz = useMemo(() => modelosMusica({ playlists: minhasPl.map((p) => p.nome), echos: aparelhosSp.filter((d) => d.tipo === 'Speaker' || /echo|alexa/i.test(d.nome)).map((d) => d.nome) }), [minhasPl, aparelhosSp])
 
   const conectar = async () => { try { window.location.href = (await api.get('/api/musica/conectar')).url } catch (e) { toast(e.message, 'erro') } }
   const desconectar = async () => { if (!window.confirm('Desconectar a conta do Spotify? As rotinas param até conectar de novo.')) return; try { setEstado(await api.post('/api/musica/desconectar')) } catch (e) { toast(e.message, 'erro') } }
@@ -331,6 +363,10 @@ export default function Musica() {
               </div>
             )}
           </section>
+
+          <CatalogoVoz titulo="Comandos de voz de música" modelos={modelosVoz}
+            rodape={<>Para a Alexa tocar pelo Spotify sem dizer “no Spotify”: app Alexa → Mais → Configurações → Música e podcasts → Serviços padrão → Spotify. Frases com “me acorda” criam um alarme no Echo; “em todos os dispositivos” usa o grupo de música da Alexa.</>} />
+          <MontadorFrase echos={aparelhosSp.map((d) => d.nome)} podeControlar={podeControlar} />
         </>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">

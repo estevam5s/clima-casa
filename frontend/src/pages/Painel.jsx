@@ -183,7 +183,7 @@ export default function Painel() {
   })
   const serie = metricas.map((m) => ({ dia: m.dia.slice(8, 10) + '/' + m.dia.slice(5, 7), comandos: m.comandos, falhas: m.falhas }))
   const status = [
-    { nome: 'Agente do Mac', ok: dados.agente.online, det: dados.agente.online ? 'executando comandos' : `offline${dados.agente.visto_em ? `, visto ${haQuanto(dados.agente.visto_em)}` : ''}` },
+    { nome: 'Agente do escritório', ok: dados.agente.online, det: dados.agente.online ? 'executando comandos' : `offline${dados.agente.visto_em ? `, visto ${haQuanto(dados.agente.visto_em)}` : ''}` },
     { nome: 'Sinric Pro (Alexa/Google)', ok: dados.sinric, det: dados.sinric ? 'conectado' : 'desconectado' },
     { nome: 'Nuvem Tuya', ok: dados.nuvem, det: dados.nuvem ? 'conta conectada' : 'sem conta' },
     { nome: 'Skill própria da Alexa', ok: dados.alexa, det: dados.alexa ? 'vinculada' : 'não vinculada' },
@@ -212,7 +212,7 @@ export default function Painel() {
         if (totais.hubs && totais.hubs_online < totais.hubs) avisos.push({ t: `${totais.hubs - totais.hubs_online} transmissor${totais.hubs - totais.hubs_online > 1 ? 'es' : ''} fora da rede`, d: 'Os comandos não chegam ao ar. Confira se o transmissor está na tomada e no mesmo Wi-Fi 2,4 GHz do Mac.', l: '/transmissores', b: 'Ver transmissores' })
         const semBotao = aparelhos.filter((a) => !a.total_codigos)
         if (semBotao.length) avisos.push({ t: `${semBotao.map((a) => a.nome).join(', ')} sem botões gravados`, d: 'Sem o botão Desligar e as temperaturas gravados, o ar não liga nem desliga por aqui, pela Alexa ou pelo celular.', l: `/aparelhos/${semBotao[0].id}`, b: 'Gravar botões' })
-        if (!dados.agente.online) avisos.push({ t: 'Agente do Mac offline', d: 'É o Mac do escritório que manda o sinal ao transmissor. Ligue o Mac e confira o serviço.', l: '/guia', b: 'Ver o passo a passo' })
+        if (!dados.agente.online) avisos.push({ t: 'Agente do escritório offline', d: 'É o computador do escritório (Mac ou PC Windows) que manda o sinal ao transmissor. Ligue-o ou veja Infra → Agentes.', l: '/guia', b: 'Ver o passo a passo' })
         if (!avisos.length) return null
         return (
           <motion.div variants={entrar} initial="hidden" animate="show" className="cartao divide-y divide-border border-amber-300/60 dark:border-amber-700/50">
