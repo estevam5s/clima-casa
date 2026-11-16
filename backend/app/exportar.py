@@ -129,37 +129,56 @@ def xlsx_(doc):
 
 
 def docx_(doc):
-    from docx import Document
-    from docx.enum.section import WD_ORIENT
-    from docx.shared import Pt, RGBColor
-    cor = doc.get("cor", "#0f766a").lstrip("#")
-    d = Document()
-    sec = d.sections[0]
-    sec.orientation, sec.page_width, sec.page_height = WD_ORIENT.LANDSCAPE, sec.page_height, sec.page_width
-    d.styles["Normal"].font.name = "Calibri"; d.styles["Normal"].font.size = Pt(9.5)
-    d.add_heading(doc["titulo"], 0); d.add_paragraph(doc.get("subtitulo", ""))
+    """Word (.docx) montado à mão (zip + WordprocessingML), sem python-docx: tira o lxml (≈19 MB) do pacote da nuvem.
+    Página A4 deitada, títulos na cor da marca, tabelas com cabeçalho sombreado e bordas, rodapé em itálico."""
+    from xml.sax.saxutils import escape
+    cor = doc.get("cor", "#0f766a").lstrip("#")[:6] or "0f766a"
+
+    def run(texto, negrito=False, italico=False, tam=None, cor_txt=None):
+        props = "".join([f'<w:b/>' if negrito else "", f'<w:i/>' if italico else "",
+                         f'<w:color w:val="{cor_txt}"/>' if cor_txt else "", f'<w:sz w:val="{tam}"/><w:szCs w:val="{tam}"/>' if tam else ""])
+        return f'<w:r>{f"<w:rPr>{props}</w:rPr>" if props else ""}<w:t xml:space="preserve">{escape(_s(texto))}</w:t></w:r>'
+
+    def par(texto="", estilo=None, **kw):
+        return f'<w:p>{f"<w:pPr><w:pStyle w:val=\"{estilo}\"/></w:pPr>" if estilo else ""}{run(texto, **kw) if texto else ""}</w:p>'
 
     def tabela(cab, linhas):
-        t = d.add_table(rows=1, cols=len(cab)); t.style = "Light Grid Accent 1"
-        for i, c in enumerate(cab):
-            t.rows[0].cells[i].text = c
-        for l in linhas[:500]:
-            cel = t.add_row().cells
-            for i, v in enumerate(l):
-                cel[i].text = _s(v)
+        bordas = "".join(f'<w:{b} w:val="single" w:sz="4" w:space="0" w:color="BFC5CC"/>' for b in ("top", "left", "bottom", "right", "insideH", "insideV"))
+        cel = lambda t, cabeca=False: (f'<w:tc><w:tcPr>{f"<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"{cor}\"/>" if cabeca else ""}</w:tcPr>'  # noqa: E731
+                                       f'<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>{run(t, negrito=cabeca, cor_txt="FFFFFF" if cabeca else None, tam=18)}</w:p></w:tc>')
+        linhas_xml = "".join("<w:tr>" + "".join(cel(v) for v in l) + "</w:tr>" for l in linhas[:500])
+        return (f'<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>{bordas}</w:tblBorders></w:tblPr>'
+                f'<w:tr><w:trPr><w:tblHeader/></w:trPr>{"".join(cel(c, True) for c in cab)}</w:tr>{linhas_xml}</w:tbl>')
+
+    corpo = [par(doc["titulo"], "Titulo"), par(doc.get("subtitulo", ""), cor_txt="555B63")]
     for titulo, cab, linhas, nota in [("Resumo", ["Indicador", "Valor"], doc["resumo"], "")] + [(s["titulo"], s["cabecalho"], s["linhas"], s.get("nota", "")) for s in doc["secoes"]]:
-        h = d.add_heading(titulo, 1)
-        for r in h.runs:
-            r.font.color.rgb = RGBColor(int(cor[0:2], 16), int(cor[2:4], 16), int(cor[4:6], 16))
+        corpo.append(par(titulo, "Secao"))
         if nota:
-            d.add_paragraph(nota)
-        if linhas:
-            tabela(cab, linhas)
-        else:
-            d.add_paragraph("Sem registros no período.")
+            corpo.append(par(nota))
+        corpo.append(tabela(cab, linhas) if linhas else par("Sem registros no período.", italico=True))
+        corpo.append(par())
     if doc.get("rodape"):
-        d.add_paragraph().add_run(doc["rodape"]).italic = True
-    buf = io.BytesIO(); d.save(buf)
+        corpo.append(par(doc["rodape"], italico=True, cor_txt="555B63"))
+    W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    documento = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document {W}><w:body>{"".join(corpo)}'
+                 '<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900" w:header="500" w:footer="500" w:gutter="0"/></w:sectPr></w:body></w:document>')
+    estilos = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles {W}>'
+               '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="19"/><w:szCs w:val="19"/><w:lang w:val="pt-BR"/></w:rPr></w:rPrDefault>'
+               '<w:pPrDefault><w:pPr><w:spacing w:after="80"/></w:pPr></w:pPrDefault></w:docDefaults>'
+               '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>'
+               f'<w:style w:type="paragraph" w:styleId="Titulo"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="120"/></w:pPr><w:rPr><w:b/><w:sz w:val="40"/><w:color w:val="{cor}"/></w:rPr></w:style>'
+               f'<w:style w:type="paragraph" w:styleId="Secao"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="100"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/><w:color w:val="{cor}"/></w:rPr></w:style>'
+               '</w:styles>')
+    arquivos = {
+        "[Content_Types].xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+        "_rels/.rels": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+        "word/_rels/document.xml.rels": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+        "word/document.xml": documento, "word/styles.xml": estilos,
+    }
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for nome, conteudo in arquivos.items():
+            z.writestr(nome, conteudo)
     return buf.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
 
 
