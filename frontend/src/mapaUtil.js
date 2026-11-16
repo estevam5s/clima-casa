@@ -9,7 +9,10 @@ const salaDoPonto = (s, e) => { const cx = e.x + e.w / 2, cy = e.y + e.h / 2; re
 // Salas sem posição ganham um lugar automático (linhas da esquerda para a direita, tamanho pelo número de ares).
 export function completar(mapa, projetos, ares) {
   const m = copia(mapa)
-  const vagas = projetos.filter((p) => !m.salas[p.id])
+  // Projeto sem sala mas com o ar já posicionado (ex.: "Devs", um ar ao lado das mesas no salão) não ganha sala
+  // inventada: no 3D ela viraria paredes que não existem.
+  const semSalaPropria = (p) => ares.some((a) => a.projeto_id === p.id && m.ares[a.id])
+  const vagas = projetos.filter((p) => !m.salas[p.id] && !semSalaPropria(p))
   let x = 40, y = 40, alturaLinha = 0
   const ocupadas = Object.values(m.salas)
   if (ocupadas.length) y = Math.max(...ocupadas.map((s) => s.y + s.h)) + 40
@@ -25,6 +28,7 @@ export function completar(mapa, projetos, ares) {
   m.consumidos = []
   for (const p of projetos) {
     const s = m.salas[p.id]
+    if (!s) continue   // projeto sem sala própria: os ares dele já têm lugar no mapa
     let sem = ares.filter((a) => a.projeto_id === p.id && !m.ares[a.id])
     // primeiro as vagas desenhadas na planta ("ar previsto" dentro da sala)
     const vagas = m.elementos.filter((e) => e.tipo === 'ar_previsto' && salaDoPonto(s, e))

@@ -439,6 +439,8 @@ segurar os comandos de infravermelho; os demais tipos seguem um por vez.
 - Rotas: `GET/PUT /api/mapa`, `POST /api/mapa/elementos/{id}/estado` (persiana/ligar; cor/modelo só quem gerencia todos os
   projetos), `POST /api/mapa/ares/{id}/aparencia`, `PUT /api/mapa/pessoas`, `PUT /api/mapa/escritas`.
 - Edição 2D: o clique depois de apertar num item cai no SVG (pointer capture): `cliqueDeItem` evita limpar a seleção.
+- Projeto sem sala própria (ex.: **Devs**, só um ar ao lado das mesas no salão): `completar` não inventa sala quando o ar do projeto
+  já tem posição em `mapa.ares` (senão o 3D desenharia paredes que não existem).
 
 ### 8.3 Globo da Segurança
 Países (world-atlas), dia/noite pelo Sol real, atmosfera, arcos de acesso até o servidor, satélites reais (TLE da CelesTrak,
