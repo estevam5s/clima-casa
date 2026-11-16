@@ -581,7 +581,9 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 - Agente: só o Mac (principal). **PC Windows do escritório** ainda não instalado (`instalar-windows.ps1` não foi executado em Windows).
 - **Resend**: domínio `zynio.com.br` **verificado** (16/11, São Paulo); remetente `nao-responda@zynio.com.br`; "Esqueci a senha" passa a
   usar o modelo próprio. Webhook cadastrado e segredo salvo (cifrado); e-mail de teste pelo domínio chegou como "entregue" (16/11).
-  Falta testar o "Esqueci a senha" de ponta a ponta. Opcional: SMTP do Supabase Auth pelo Resend.
+  **SMTP do Supabase Auth pelo Resend** ligado em 16/11 (`smtp.resend.com:465`, usuário `resend`, senha = chave de envio, remetente
+  `Clima Escritório <nao-responda@zynio.com.br>`; limite do Auth subiu para 30 e-mails/h). Trocar a chave do Resend = trocar também lá.
+  Falta testar o "Esqueci a senha" de ponta a ponta.
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
 - **Vercel**: ~2,1 GB "Functions Storage"; limpeza de 55 publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
   `python-docx` saiu (Word gerado por `docx_simples.py`).
