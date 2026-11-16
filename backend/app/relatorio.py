@@ -667,117 +667,88 @@ def _png_barras(titulo, rotulos, valores, cor, horizontal=False, largura=1600, a
 
 
 def exportar_docx(d):
-    from docx import Document
-    from docx.enum.section import WD_SECTION
-    from docx.enum.table import WD_TABLE_ALIGNMENT
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
-    from docx.shared import Cm, Pt, RGBColor
+    """Word do relatório completo, gerado sem python-docx (ver docx_simples)."""
+    from .docx_simples import Documento, trecho
     cor = _cor().lstrip("#")
-    rgb = RGBColor(int(cor[0:2], 16), int(cor[2:4], 16), int(cor[4:6], 16))
     r = d["resumo"]
-    doc = Document()
-    sec = doc.sections[0]; sec.left_margin = sec.right_margin = Cm(2); sec.top_margin = sec.bottom_margin = Cm(1.8)
-    doc.styles["Normal"].font.name = "Calibri"; doc.styles["Normal"].font.size = Pt(10.5)
-    for nivel in (1, 2):
-        st = doc.styles[f"Heading {nivel}"]; st.font.color.rgb = rgb if nivel == 1 else RGBColor(0x3F, 0x3F, 0x46); st.font.name = "Calibri"
+    doc = Documento(cor_titulo=cor)
+    cinza = "52525B"
 
-    def sombrear(celula, hexa):
-        tc = celula._tc.get_or_add_tcPr(); s = OxmlElement("w:shd"); s.set(qn("w:val"), "clear"); s.set(qn("w:color"), "auto"); s.set(qn("w:fill"), hexa); tc.append(s)
-
-    def tabela(cab, linhas, larg=None):
-        tb = doc.add_table(rows=1, cols=len(cab)); tb.style = "Table Grid"; tb.alignment = WD_TABLE_ALIGNMENT.LEFT
-        for i, c in enumerate(cab):
-            cel = tb.rows[0].cells[i]; cel.text = ""; run = cel.paragraphs[0].add_run(str(c)); run.bold = True; run.font.color.rgb = RGBColor(255, 255, 255); run.font.size = Pt(9)
-            sombrear(cel, cor)
-        for j, l in enumerate(linhas):
-            cel = tb.add_row().cells
-            for i, v in enumerate(l):
-                cel[i].text = ""; run = cel[i].paragraphs[0].add_run(str(v)); run.font.size = Pt(9)
-                if j % 2:
-                    sombrear(cel[i], "F6F6F7")
-        doc.add_paragraph()
-        return tb
+    def tabela(cab, linhas):
+        doc.tabela([str(c) for c in cab], [[str(v) for v in l] for l in linhas], cor=cor)
 
     # capa
-    logo, _ = _marca_rel()
+    logo, rodape = _marca_rel()
     if logo:
         try:
-            doc.add_picture(io.BytesIO(logo), width=Cm(2.2))
+            doc.imagem(logo, 2.2)
         except Exception:  # noqa: BLE001
             pass
-    p = doc.add_paragraph(); run = p.add_run((d["marca"] or "").upper()); run.font.color.rgb = rgb; run.bold = True; run.font.size = Pt(11)
-    t = doc.add_paragraph(); run = t.add_run("Relatório de uso dos ares-condicionados"); run.font.size = Pt(26); run.bold = True
-    s_ = doc.add_paragraph(); run = s_.add_run(_periodo(d)); run.font.size = Pt(16); run.font.color.rgb = RGBColor(0x52, 0x52, 0x5B)
+    doc.paragrafo(trecho((d["marca"] or "").upper(), negrito=True, tam=11, cor=cor))
+    doc.paragrafo(trecho("Relatório de uso dos ares-condicionados", negrito=True, tam=26))
+    doc.paragrafo(trecho(_periodo(d), tam=16, cor=cinza))
     filtros = " · ".join(x for x in (d["filtros"]["projeto"] and f"Projeto {d['filtros']['projeto']}", d["filtros"]["aparelho"] and f"Aparelho {d['filtros']['aparelho']}") if x) or "Todos os projetos e aparelhos"
-    doc.add_paragraph(f"{filtros}\nGerado em {_data(d['gerado_em']):%d/%m/%Y às %H:%M} · tarifa {_brl(d['tarifa_kwh'])}/kWh")
-    kp = doc.add_table(rows=2, cols=3); kp.style = "Table Grid"
-    for i, (a, b) in enumerate((("Custo estimado", _brl(r["custo"])), ("Projeção 30 dias", _brl(r["projecao_mes"])), ("Horas ligado", f"{_n(r['horas_ligado'])} h"),
-                                ("Fora do expediente", f"{_n(r['fora_expediente_pct'])}%"), ("Comandos", str(r["comandos"])), ("Taxa de sucesso", f"{_n(r['sucesso_pct'])}%"))):
-        cel = kp.rows[i // 3].cells[i % 3]; cel.text = ""
-        pa = cel.paragraphs[0]; ra = pa.add_run(a + "\n"); ra.font.size = Pt(9); ra.font.color.rgb = RGBColor(0x71, 0x71, 0x7A)
-        rb = pa.add_run(b); rb.bold = True; rb.font.size = Pt(18)
-    doc.add_page_break()
+    doc.paragrafo(f"{filtros}\nGerado em {_data(d['gerado_em']):%d/%m/%Y às %H:%M} · tarifa {_brl(d['tarifa_kwh'])}/kWh")
+    kpis = (("Custo estimado", _brl(r["custo"])), ("Projeção 30 dias", _brl(r["projecao_mes"])), ("Horas ligado", f"{_n(r['horas_ligado'])} h"),
+            ("Fora do expediente", f"{_n(r['fora_expediente_pct'])}%"), ("Comandos", str(r["comandos"])), ("Taxa de sucesso", f"{_n(r['sucesso_pct'])}%"))
+    celula = lambda a, b: [trecho(a + "\n", tam=9, cor="71717A"), trecho(b, negrito=True, tam=18)]  # noqa: E731
+    doc.tabela(None, [[celula(*k) for k in kpis[:3]], [celula(*k) for k in kpis[3:]]], zebra=None)
+    doc.quebra_pagina()
 
-    doc.add_heading("1. Sumário executivo", 1)
+    doc.titulo_secao("1. Sumário executivo", 1)
     for c in d["conclusoes"]:
-        par = doc.add_paragraph(style="List Bullet"); rr = par.add_run({"alerta": "Atenção: ", "bom": "Positivo: ", "info": ""}[c["tipo"]])
-        rr.bold = True; rr.font.color.rgb = {"alerta": RGBColor(0xD9, 0x77, 0x06), "bom": RGBColor(0x05, 0x96, 0x69), "info": RGBColor(0, 0, 0)}[c["tipo"]]
-        par.add_run(c["texto"])
-    doc.add_heading("Comparativo com o período anterior", 2)
+        pre = {"alerta": ("Atenção: ", "D97706"), "bom": ("Positivo: ", "059669"), "info": ("", None)}[c["tipo"]]
+        doc.marcador(trecho(pre[0], negrito=True, cor=pre[1]), c["texto"])
+    doc.titulo_secao("Comparativo com o período anterior", 2)
     cp = _comparativo(d); tabela(cp[0], cp[1:])
-    doc.add_heading("Indicadores", 2)
+    doc.titulo_secao("Indicadores", 2)
     tabela(["Indicador", "Valor"], _resumo_linhas(d))
 
-    doc.add_heading("2. Uso ao longo do tempo", 1)
+    doc.titulo_secao("2. Uso ao longo do tempo", 1)
     if d["por_dia"]:
-        doc.add_picture(_png_barras("Comandos por dia", [x["dia"][8:] for x in d["por_dia"]], [x["comandos"] for x in d["por_dia"]], "#" + cor), width=Cm(17))
-        doc.add_picture(_png_barras("Horas ligado por dia", [x["dia"][8:] for x in d["por_dia"]], [x["horas"] for x in d["por_dia"]], "#f59e0b", formato=lambda v: _n(v)), width=Cm(17))
+        doc.imagem(_png_barras("Comandos por dia", [x["dia"][8:] for x in d["por_dia"]], [x["comandos"] for x in d["por_dia"]], "#" + cor), 17)
+        doc.imagem(_png_barras("Horas ligado por dia", [x["dia"][8:] for x in d["por_dia"]], [x["horas"] for x in d["por_dia"]], "#f59e0b", formato=lambda v: _n(v)), 17)
     else:
-        doc.add_paragraph("Sem comandos no período.")
-    doc.add_heading("3. Quando os ares são usados", 1)
-    doc.add_picture(_png_barras("Comandos por hora do dia", [f"{h['hora']}h" for h in d["por_hora"]], [h["comandos"] for h in d["por_hora"]], "#" + cor), width=Cm(17))
+        doc.paragrafo("Sem comandos no período.")
+    doc.titulo_secao("3. Quando os ares são usados", 1)
+    doc.imagem(_png_barras("Comandos por hora do dia", [f"{h['hora']}h" for h in d["por_hora"]], [h["comandos"] for h in d["por_hora"]], "#" + cor), 17)
     tabela(["Dia", "Comandos", "Horas ligado"], [[x["dia"], x["comandos"], _n(x["horas"])] for x in d["por_dia_semana"]])
 
-    doc.add_heading("4. Consumo e custo", 1)
+    doc.titulo_secao("4. Consumo e custo", 1)
     top = sorted(d["por_aparelho"], key=lambda a: -a["custo"])[:12]
     if top and any(a["custo"] for a in top):
-        doc.add_picture(_png_barras("Custo estimado por aparelho", [a["nome"] for a in top], [a["custo"] for a in top], "#" + cor, horizontal=True,
-                                    altura=120 + 70 * len(top), formato=_brl), width=Cm(17))
-    nova = doc.add_section(WD_SECTION.NEW_PAGE)
-    from docx.enum.section import WD_ORIENT
-    nova.orientation = WD_ORIENT.LANDSCAPE; nova.page_width, nova.page_height = nova.page_height, nova.page_width
-    doc.add_heading("Detalhe por aparelho", 2)
+        doc.imagem(_png_barras("Custo estimado por aparelho", [a["nome"] for a in top], [a["custo"] for a in top], "#" + cor, horizontal=True,
+                               altura=120 + 70 * len(top), formato=_brl), 17)
+    doc.nova_secao(deitado=True)   # as tabelas largas vão em página deitada
+    doc.titulo_secao("Detalhe por aparelho", 2)
     tabela(*_tabela_aparelhos(d))
-    doc.add_heading("Por projeto", 2)
+    doc.titulo_secao("Por projeto", 2)
     tabela(["Projeto", "Aparelhos", "Comandos", "Falhas", "Horas", "kWh", "Custo"], [[x["projeto"], x["aparelhos"], x["comandos"], x["falhas"], _n(x["horas_ligado"]), _n(x["kwh"]), _brl(x["custo"])] for x in d["por_projeto"]])
-    doc.add_heading("5. Hábitos de uso", 1)
+    doc.titulo_secao("5. Hábitos de uso", 1)
     if d["modos"]:
         tabela(["Modo", "Vezes"], [[m["modo"], m["vezes"]] for m in d["modos"]])
     if d["temperaturas"]:
         tabela(["Temperatura", "Vezes"], [[f"{t['temperatura']}°C", t["vezes"]] for t in d["temperaturas"]])
-    doc.add_heading("Sessões mais longas", 2)
+    doc.titulo_secao("Sessões mais longas", 2)
     if d["sessoes"]:
         tabela(["Aparelho", "Ligou", "Desligou", "Horas", "Fora exped.", "Ligado por", "Desligado por"],
                [[x["aparelho"], f"{_data(x['inicio']):%d/%m %H:%M}", f"{_data(x['fim']):%d/%m %H:%M}", _n(x["horas"]), _n(x["fora_expediente_h"]), _origem(x["origem"]), _origem(x["origem_fim"])] for x in d["sessoes"][:20]])
     else:
-        doc.add_paragraph("Nenhuma sessão completa no período.")
-    doc.add_heading("6. Confiabilidade", 1)
+        doc.paragrafo("Nenhuma sessão completa no período.")
+    doc.titulo_secao("6. Confiabilidade", 1)
     if d["por_transmissor"]:
         tabela(["Transmissor", "Aparelhos", "Comandos", "Falhas", "Sucesso"], [[x["transmissor"], x["aparelhos"], x["comandos"], x["falhas"], f"{_n(x['sucesso_pct'])}%"] for x in d["por_transmissor"]])
     if d["rotinas"]:
         tabela(["Tipo", "Nome", "Execuções", "Falhas"], [[x["tipo"], x["nome"], x["execucoes"], x["falhas"]] for x in d["rotinas"]])
     if d["falhas"]:
-        doc.add_heading("Falhas", 2)
+        doc.titulo_secao("Falhas", 2)
         tabela(["Quando", "Aparelho", "Ação", "Origem", "Detalhe"], [[f"{_data(x['quando']):%d/%m %H:%M}", x["aparelho"], x["acao"], _origem(x["origem"]), x["detalhe"][:140]] for x in reversed(d["falhas"])])
-    doc.add_heading("7. Metodologia", 1)
+    doc.titulo_secao("7. Metodologia", 1)
     for a, b in METODOLOGIA:
-        par = doc.add_paragraph(); par.add_run(f"{a}. ").bold = True; par.add_run(b)
-    for sec in doc.sections:
-        pe = sec.footer.paragraphs[0]; pe.text = _marca_rel()[1] or f"{d['titulo']} · {_periodo(d)}"; pe.runs[0].font.size = Pt(8); pe.runs[0].font.color.rgb = RGBColor(0x71, 0x71, 0x7A)
-    doc.core_properties.title = d["titulo"]; doc.core_properties.author = d["marca"] or ""
-    buf = io.BytesIO(); doc.save(buf)
-    return buf.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
+        doc.paragrafo(trecho(f"{a}. ", negrito=True), b)
+    doc.rodape = rodape or f"{d['titulo']} · {_periodo(d)}"
+    doc.titulo, doc.autor = d["titulo"], d["marca"] or ""
+    return doc.salvar(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
 
 
 # ---------- PDF ----------
