@@ -319,10 +319,15 @@ def diagnosticar(h: dict) -> str:
         d = tinytuya.Device(h["id"], h["ip"], h["local_key"], version=float(h["versao"]),
                             connection_timeout=4, connection_retry_limit=1)
         r = d.status() or {}
+        tipo_disp = getattr(d, "dev_type", "")
         d.close()
     err = str(r.get("Err", "")) if isinstance(r, dict) else ""
     if err == "914":
         return "chave"
+    # SRW-004 v3.3 ("device22"): responde e decifra (a troca de formato prova que a chave está certa), mas não devolve status.
+    # Sem isto o diagnóstico dizia "rede" e o autorreparo mexia num transmissor que funciona.
+    if not r and tipo_disp == "device22" and porta_aberta(h["ip"]):
+        return "ok"
     if err in ("905", "901", "902") or not r:
         return "rede"
     return "ok"
@@ -380,13 +385,16 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
             return False, msg
         try:
             ids_nuvem = {d["id"]: d for d in tuya_nuvem.listar_aparelhos() if d["transmissor_ir"]}
-            if h["id"] not in ids_nuvem:  # foi removido e adicionado de novo com outro ID
+            # pareado de novo com outro ID: o antigo some da conta OU fica nela offline (o Smart Life não apaga sozinho)
+            if h["id"] not in ids_nuvem or not ids_nuvem[h["id"]].get("online"):
                 cadastrados = {x["id"] for x in db.consultar("SELECT id FROM hubs")}
-                novos = [i for i in ids_nuvem if i not in cadastrados]
-                if len(novos) != 1:
+                novos = [i for i in ids_nuvem if i not in cadastrados and (h["id"] not in ids_nuvem or ids_nuvem[i].get("online"))]
+                if len(novos) == 1:
+                    h = _migrar_id(h, novos[0])
+                    mudancas.append(f"novo ID {novos[0]}")
+                elif h["id"] not in ids_nuvem:   # sumiu da conta e não dá para saber qual é o novo
                     raise RuntimeError("não está mais na conta Smart Life" + (" e há vários transmissores novos; importe pela tela" if novos else ""))
-                h = _migrar_id(h, novos[0])
-                mudancas.append(f"novo ID {novos[0]}")
+                # na conta, offline e sem um novo óbvio: segue o fluxo normal (pode só estar sem energia)
             info = tuya_nuvem.detalhes(h["id"])
             ip = info["ip"] if (info.get("ip") or "").startswith(("192.168.", "10.", "172.")) else None
             if varredura and varredura.get(h["id"]):
