@@ -79,12 +79,15 @@ function QuandoVisivel({ children, fallback }) {
 
 function Destaque({ aparelhos, aoMudar, aparencia = {} }) {
   const { escuro } = useTema()
-  const [id, setId] = useState(() => (aparelhos.find((a) => a.ligado) || aparelhos[0])?.id)
+  // abre num ar que dá para comandar (com transmissor): ligado primeiro. Um ar recém-cadastrado sem transmissor
+  // não pode virar o padrão (deixava os botões desativados sem aviso).
+  const padrao = () => (aparelhos.find((a) => a.ligado && a.hub_id) || aparelhos.find((a) => a.hub_id) || aparelhos[0])?.id
+  const [id, setId] = useState(padrao)
   const [ocupado, setOcupado] = useState(false)
   const toast = useToast()
   const ar = aparelhos.find((a) => a.id === id) || aparelhos[0]
   const [fora, setFora] = useState(null)
-  useEffect(() => { if (!aparelhos.some((a) => a.id === id)) setId(aparelhos[0]?.id) }, [aparelhos, id])
+  useEffect(() => { if (!aparelhos.some((a) => a.id === id)) setId(padrao()) }, [aparelhos, id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!ar) return undefined
     const buscar = () => api.get(`/api/clima-externo${ar.projeto_id ? `?projeto_id=${ar.projeto_id}` : ''}`).then(setFora).catch(() => {})
@@ -143,6 +146,7 @@ function Destaque({ aparelhos, aoMudar, aparencia = {} }) {
                 className={`rounded-md border px-2.5 py-1 text-xs transition-colors disabled:opacity-40 ${ar.ligado && ar.modo === m ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'}`}>{MODOS[m]}</button>
             ))}
           </div>
+          {!ar.hub_id && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Este ar ainda não tem transmissor: os comandos não têm por onde sair. Vincule um em <Link to={`/aparelhos/${ar.id}`} className="underline">Detalhes</Link> ou escolha outro ar na lista acima.</p>}
           <Botao className="mt-auto w-full" variante={ar.ligado ? 'secundario' : 'primario'} icone={Power} carregando={ocupado} disabled={!ar.hub_id}
             onClick={() => mudar({ ligado: !ar.ligado })}>{ar.ligado ? 'Desligar' : 'Ligar'}</Botao>
           {!ar.total_codigos && <p className="ajuda mt-2 text-center">Grave os botões do controle original na tela do aparelho.</p>}

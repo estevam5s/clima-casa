@@ -43,7 +43,8 @@ export default function ArCartao({ ar, aoMudar, indice = 0 }) {
       </div>
 
       <p className="-mt-2 text-center text-xs text-muted-foreground">
-        {ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador]?.toLowerCase()}` : 'Desligado'}
+        {semIR ? <Link to={`/aparelhos/${ar.id}`} className="text-amber-700 underline dark:text-amber-400">Sem transmissor: vincule um para comandar</Link>
+          : ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador]?.toLowerCase()}` : 'Desligado'}
       </p>
 
       <div className="mt-3 flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
