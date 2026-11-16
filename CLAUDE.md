@@ -66,7 +66,8 @@ Usuários: **dono**, **admin** (Deison) e papéis abaixo (seção 7.7). Sem cada
 | Alexa/Google | Sinric Pro (dispositivo "Ar do escritório" `6af888eb7d04ce9fd64d6777`, plano grátis: 3 dispositivos) |
 | E-mail | Resend (conta do dono); domínio `zynio.com.br` **verificado** em 16/11 (São Paulo, `sa-east-1`), remetente `nao-responda@zynio.com.br` (seção 7.10) |
 | Música | Spotify Web API, app do dono no Spotify for Developers (conta Premium conectada em 15/11) |
-| Domínio | `zynio.com.br` no Registro.br, **DNS na Cloudflare**. Registros "DNS only" (proxy laranja quebra o certificado da Vercel): A @ → 216.198.79.1 e 64.29.17.1; CNAME www e app → vercel-dns; TXT `google-site-verification`, SPF `v=spf1 -all`, DMARC `p=reject` |
+| Domínio | `zynio.com.br` no Registro.br, **DNS na Cloudflare**. Registros "DNS only" (proxy laranja quebra o certificado da Vercel): A @ → 216.198.79.1 e 64.29.17.1; CNAME www e app → vercel-dns; TXT `google-site-verification`, SPF `v=spf1 include:_spf.mx.cloudflare.net ~all` (era `-all` até 16/11), DMARC `p=reject`; Resend: TXT `resend._domainkey`, CNAME `send`/`rsend`; Email Routing: MX `route1/2/3.mx.cloudflare.net` + TXT `cf2024-1._domainkey` (travados pela Cloudflare) |
+| E-mails recebidos | Cloudflare Email Routing: `contato@`, `suporte@`, `financeiro@`, `seguranca@` e pega-tudo → Gmail do dono (destino verificado). Só recebe; enviar como esses endereços = "Enviar como" no Gmail pelo SMTP do Resend |
 | Bloqueio de bots | Cloudflare Turnstile, widget "Zynio - Clima Escritorio" |
 | Painel local do agente | http://localhost:8090 (a 8080 do Mac é de outro app) |
 
@@ -353,8 +354,9 @@ sentidos em < 60 s.
   (não mais MX + TXT em `send`); a checagem aceita os dois formatos. Registros na Cloudflare (DNS only): TXT `resend._domainkey`,
   CNAME `send`, CNAME `rsend`. Domínio no Resend: id `3a1c15b9-8b9d-415b-9dc4-fefc4987a4ae`. Sem `api_key_total`, o botão não atualiza
   `config.email.dominio.status`; o estado `verified` foi gravado à mão (`correio.cfg()` → `c["dominio"]` → `salvar_cfg`). `provisionar()` (com a chave total e o token da Cloudflare) cadastra o domínio no Resend (região `sa-east-1`), cria os
-  registros (proxy desligado) e pede a verificação. O SPF `-all` e o DMARC `p=reject` da raiz **continuam**: o Resend passa no
-  DMARC pela assinatura DKIM.
+  registros (proxy desligado) e pede a verificação. O SPF da raiz virou `v=spf1 include:_spf.mx.cloudflare.net ~all` (exigência do
+  Email Routing, 16/11) e o DMARC `p=reject` **continua**: o Resend passa no DMARC pela assinatura DKIM. Nunca criar um segundo SPF na
+  raiz (dois SPF = falha de validação); editar o existente.
 - Webhook público `POST /api/email/webhook` com assinatura **Svix** verificada (5 min de tolerância); atualiza o estado sem rebaixar
   (aberto/clicado > entregue). Cadastrado no Resend em 16/11 com 7 eventos (`sent`, `delivered`, `delivery_delayed`, `bounced`,
   `complained`, `opened`, `clicked`); o `whsec_…` é o dono quem cola em /emails → Chaves.
