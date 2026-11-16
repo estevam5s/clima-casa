@@ -1,4 +1,4 @@
-# Instala o agente do Clima Escritório num PC Windows que fica no escritório (mesmo Wi-Fi 2,4 GHz do transmissor).
+﻿# Instala o agente do Clima Escritório num PC Windows que fica no escritório (mesmo Wi-Fi 2,4 GHz do transmissor).
 #
 # Uso (PowerShell COMO ADMINISTRADOR, dentro da pasta ar-controle):
 #   powershell -ExecutionPolicy Bypass -File .\instalar-windows.ps1            instala ou atualiza

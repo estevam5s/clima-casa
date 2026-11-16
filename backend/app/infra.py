@@ -229,7 +229,19 @@ def op_env(a):
 
 OPS = {"resumo": op_resumo, "uso": op_uso, "publicacoes": op_publicacoes, "eventos": op_eventos, "promover": op_promover, "republicar": op_republicar,
        "cancelar": op_cancelar, "apagar": op_apagar, "limpar": op_limpar, "retencao": op_retencao, "env": op_env}
-ALTERAM = {"promover", "republicar", "cancelar", "apagar", "limpar", "retencao"}
+ALTERAM = {"promover", "republicar", "cancelar", "apagar", "limpar", "retencao", "agente_convite"}
+
+
+def op_agente_convite(a):
+    """Código de instalação de outro computador: só o agente tem o .env para cifrar (convite.py)."""
+    from . import convite
+    try:
+        return convite.criar(a.get("criado_por", ""))
+    except RuntimeError as e:
+        raise ErroInfra(str(e)) from e
+
+
+OPS["agente_convite"] = op_agente_convite
 
 
 def executar(op: str, args: dict):

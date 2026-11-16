@@ -70,7 +70,7 @@ export default function Infra() {
     'cloudflare/turnstile': <CfTurnstile />,
     'cloudflare/seguranca': <CfSeguranca dono={dono} />,
     'cloudflare/token': <CfToken />,
-    agentes: <Agentes dono={dono} />,
+    agentes: <Agentes dono={dono} admin={sessao?.papel === 'admin'} />,
   }[subAtiva ? `${def[0]}/${subAtiva}` : def[0]]
 
   return (

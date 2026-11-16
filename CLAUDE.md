@@ -339,7 +339,13 @@ link com `generate_link(type=recovery)` e manda o modelo `recuperar_senha` (com 
 ### 7.9 Agente em vários computadores (`coordenador.py`)
 Aluguel em `config.agente_lider` renovado a cada 10 s por `INSERT … ON CONFLICT DO UPDATE … WHERE dono = eu OR vencido`
 (vence em 45 s): nunca há dois principais. Cada computador se anuncia em `agente_maquina:<id>` (id em `data/maquina.id`).
-`agente_preferido` faz o principal ceder. Perdeu o posto → `os._exit(3)` e o serviço reinicia como reserva. O `main.py` só
+`agente_preferido` faz o principal ceder (só se o preferido estiver online **e** enxergar os transmissores). Cada computador anuncia
+`ve_transmissores`/`total_transmissores` (porta 6668 de cada hub, sondada no máximo a cada 30 s: o SRW-004 aceita poucas conexões);
+principal cego por ~40 s cede se outro online enxerga; reserva cega não tenta assumir. Preferido: dono **ou admin**.
+**Instalar em outro PC** (`convite.py`): Infra → Agentes → código de uso único (30 min, só o dono). O agente cifra o `.env` com
+scrypt(código)+AES-GCM e grava em `config.agente_convite:<id>` (banco não tem o código, só hash da prova). PC: `frontend/public/instalar-agente.ps1`
+(fora do portão no `middleware.js`) → `POST /api/agentes/convite/resgatar` (pública, uso único, erro conta no firewall) → zip do código
+(Storage) → `backend/convite_env.py` decifra → `instalar-windows.ps1`. Scripts .ps1 com BOM (acentos no PowerShell 5.1). Perdeu o posto → `os._exit(3)` e o serviço reinicia como reserva. O `main.py` só
 liga fila/Sinric/agenda depois de `esperar_posto()`. Tela: Infra → Agentes (preferir, tirar da lista). Testado: troca nos dois
 sentidos em < 60 s.
 
@@ -601,7 +607,8 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 - **Transmissor "Smart IR"** (`eb3f5451cddd399055p54z`) **offline** desde 15/11 00:10; a varredura do Mac não o encontra.
   Conferir tomada e Wi-Fi 2,4 GHz no escritório (e se o Mac está na mesma rede).
 - **Nenhum botão IR gravado** no "Ar do escritório": nenhum comando aciona o ar de verdade (as falhas da Atividade são isso).
-- Agente: só o Mac (principal). **PC Windows do escritório** ainda não instalado (`instalar-windows.ps1` não foi executado em Windows).
+- Agente: só o Mac (principal). **PC Windows do escritório** ainda não instalado: agora é pelo código de instalação (Infra → Agentes);
+  o `instalar-agente.ps1` ainda não rodou num Windows de verdade. Transmissor da Sala Bancada fora do ar desde a tarde de 16/11.
 - **Resend**: domínio `zynio.com.br` **verificado** (16/11, São Paulo); remetente `nao-responda@zynio.com.br`; "Esqueci a senha" passa a
   usar o modelo próprio. Webhook cadastrado e segredo salvo (cifrado); e-mail de teste pelo domínio chegou como "entregue" (16/11).
   **SMTP do Supabase Auth pelo Resend** ligado em 16/11 (`smtp.resend.com:465`, usuário `resend`, senha = chave de envio, remetente

@@ -2513,6 +2513,39 @@ class EsqueciIn(BaseModel):
     voltar_para: str = Field("", max_length=300)
 
 
+class ResgateConvite(BaseModel):
+    id: str = Field(..., pattern=r"^[0-9a-f]{16}$")
+    prova: str = Field(..., pattern=r"^[0-9a-f]{64}$")
+
+
+@publico.post("/agentes/convite/resgatar")
+def resgatar_convite(d: ResgateConvite, request: Request):
+    """Instalador do PC: troca id + prova pelo .env CIFRADO (só o código decifra) e pelo link do código do sistema. Uso único."""
+    from pathlib import Path
+    from .. import convite, firewall
+    ip = firewall.ip_do_pedido(request)
+    r = convite.resgatar(d.id, d.prova)
+    if r == "prova":
+        firewall.registrar(ip, "login_falhou", "/api/agentes/convite/resgatar", "código de instalação errado")
+        raise HTTPException(403, "Código de instalação errado. Confira as letras ou gere outro no painel.")
+    if isinstance(r, str):
+        raise HTTPException(410, "Código vencido ou já usado. Gere outro no painel (Infra → Agentes).")
+    pacote = None
+    try:
+        rep = json.loads((Path(__file__).resolve().parent.parent / "repositorio.json").read_text(encoding="utf-8"))
+        arquivo = next(p["arquivo"] for p in rep.get("pacotes", []) if p.get("atual") and p.get("formato") == "zip")
+        env = db.carregar_env()
+        rr = httpx.post(f"{env['SUPABASE_URL']}/storage/v1/object/sign/codigo-fonte/{arquivo}",
+                        headers={"apikey": env["SUPABASE_SECRET_KEY"], "Authorization": f"Bearer {env['SUPABASE_SECRET_KEY']}"},
+                        json={"expiresIn": 300}, timeout=15)
+        assinado = rr.json().get("signedURL") or rr.json().get("signedUrl")
+        pacote = {"url": f"{env['SUPABASE_URL']}/storage/v1{assinado}", "arquivo": arquivo, "pasta": arquivo.rsplit(".zip", 1)[0]}
+    except Exception:  # noqa: BLE001  (sem pacote: o instalador avisa para baixar em Apps → Código-fonte)
+        pacote = None
+    firewall.registrar(ip, "login_ok", "/api/agentes/convite/resgatar", "código de instalação usado")
+    return {**r, "pacote": pacote}
+
+
 class VerificacaoIn(BaseModel):
     turnstile: str = Field(..., max_length=4000)
 

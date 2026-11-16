@@ -495,6 +495,20 @@ tail -f ~/Library/Logs/ClimaCasa.log    acompanha o log
 - Configure o Mac para **não dormir** com a tampa fechada/energia (Ajustes do Sistema → Bateria/Energia →
   impedir repouso automático quando conectado).
 
+
+## 13.1 Outro computador com o agente (PC Windows do escritório)
+
+1. No painel: **Infra → Agentes → Gerar código de instalação** (só o dono). Vale 30 min e serve uma vez.
+2. No PC: PowerShell **como administrador** → cole o comando que o painel mostra. Ele baixa o sistema, instala o Python,
+   recebe as chaves cifradas (só o código decifra, no PC) e cria o serviço que liga com o Windows, sem ninguém logado.
+3. Rede do Windows como **Privada**.
+4. Em **Infra → Agentes**, cada computador mostra quantos transmissores enxerga. **Preferir este** (dono ou admin) escolhe
+   quem fica no comando. Quem não enxerga os transmissores passa o comando para quem enxerga; o preferido retoma quando
+   volta ao escritório.
+
+Atualizar o PC: gere outro código e rode o mesmo comando. Sem internet no PC: pasta e `.env` por pendrive e
+`instalar-windows.ps1`.
+
 # 14. Banco de dados, rotinas e backups
 
 O sistema guarda tudo no **Supabase** e roda **10 rotinas automáticas**: marca transmissores sem sinal, calcula

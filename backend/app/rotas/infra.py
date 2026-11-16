@@ -274,8 +274,17 @@ def cf_auditoria(limite: int = 50):
 # ---------- computadores com o agente ----------
 @rotas_infra.get("/agentes")
 def agentes():
-    _papel("dono", "admin")
-    return {"maquinas": coordenador.maquinas(), "principal": coordenador.lider(), "preferido": coordenador.preferido(), "aluguel_s": coordenador.ALUGUEL}
+    u = _papel("dono", "admin")
+    from .. import convite
+    return {"maquinas": coordenador.maquinas(), "principal": coordenador.lider(), "preferido": coordenador.preferido(), "aluguel_s": coordenador.ALUGUEL,
+            "convites": convite.pendentes() if u.get("papel") == "dono" else []}
+
+
+@rotas_infra.post("/agentes/convite")
+def agentes_convite():
+    """Gera o código de instalação de outro computador. Só o dono: o código abre todas as chaves do sistema."""
+    u = _papel("dono")
+    return _via_agente("agente_convite", {"criado_por": u.get("email", "")})
 
 
 class Preferido(BaseModel):
@@ -284,7 +293,7 @@ class Preferido(BaseModel):
 
 @rotas_infra.post("/agentes/preferido")
 def preferido(d: Preferido):
-    _papel("dono")
+    _papel("dono", "admin")   # o admin também escolhe quem fica no comando (ex.: o PC Windows dele)
     if d.id and not db.cfg(f"agente_maquina:{d.id}"):
         raise HTTPException(404, "Computador não encontrado.")
     db.set_cfg("agente_preferido", d.id or None)
