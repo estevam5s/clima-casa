@@ -34,6 +34,7 @@ import Apps from './pages/Apps'
 import Musica from './pages/Musica'
 import Guia from './pages/Guia'
 import Infra from './pages/Infra'
+import Emails from './pages/Emails'
 
 function Protegido({ children }) {
   const [estado, setEstado] = useState(null)
@@ -112,6 +113,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="musica" element={<Musica />} />
             <Route path="guia" element={<Guia />} />
             <Route path="infra" element={<Infra />} />
+            <Route path="emails" element={<Emails />} />
             <Route path="configuracoes" element={<Configuracoes />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Route>

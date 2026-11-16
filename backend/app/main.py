@@ -16,6 +16,7 @@ from .rotas import api as rotas_api
 from .rotas import contas as rotas_contas
 from .rotas import musica as rotas_musica
 from .rotas import infra as rotas_infra
+from .rotas import correio as rotas_correio
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -135,6 +136,8 @@ app.include_router(rotas_api.api)
 app.include_router(rotas_musica.publico_musica)
 app.include_router(rotas_musica.rotas_musica)
 app.include_router(rotas_infra.rotas_infra)
+app.include_router(rotas_correio.publico_email)
+app.include_router(rotas_correio.rotas_email)
 app.include_router(rotas_alexa.roteador)
 
 

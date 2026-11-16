@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, AirVent, BarChart3, BookOpen, CalendarClock, Check, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Workflow, Wrench, X } from 'lucide-react'
+import { Activity, AirVent, BarChart3, BookOpen, CalendarClock, Check, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Mail, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Workflow, Wrench, X } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -31,6 +31,7 @@ export const GRUPOS = [
   { titulo: 'Integrações', itens: [
     { para: '/integracoes', rotulo: 'Alexa e Google', icone: Plug, perm: 'integracoes.gerenciar' },
     { para: '/comandos-alexa', rotulo: 'Comandos de voz', icone: MessageSquareQuote },
+    { para: '/emails', rotulo: 'E-mails', icone: Mail, perm: 'configuracoes.gerenciar' },
     { para: '/alexa', rotulo: 'Skill própria', icone: Mic, perm: 'integracoes.gerenciar' },
     { para: '/supabase', rotulo: 'Supabase', icone: Database, perm: 'configuracoes.gerenciar' },
     { para: '/infra', rotulo: 'Infra', icone: Server, perm: 'configuracoes.gerenciar' },

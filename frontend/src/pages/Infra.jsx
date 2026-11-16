@@ -283,7 +283,7 @@ export default function Infra() {
     agentes: <Agentes dono={dono} />,
     config: <Config resumo={resumo} dono={dono} recarregar={carregar} />,
   }), [resumo, saude, uso, dias, dono, carregar])
-  if (!['dono', 'admin'].includes(sessao?.papel)) return <Aviso>Só o dono e os administradores veem a infraestrutura.</Aviso>
+  if (sessao && !['dono', 'admin'].includes(sessao.papel)) return <Aviso>Só o dono e os administradores veem a infraestrutura.</Aviso>
   return (
     <div>
       <Cabecalho titulo="Infra" descricao="Vercel do app e do site (uso, publicações, retenção, variáveis) e os computadores com o agente. A Vercel é operada pelo agente do escritório: o token não fica na nuvem." />

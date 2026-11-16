@@ -57,6 +57,11 @@ def notificar(chave: str, tipo: str, gravidade: str, titulo: str, detalhe: str =
             (chave[:120], tipo, gravidade, titulo[:200], str(detalhe)[:500], link[:200], json.dumps(acao) if acao else None, agora, agora))
     except Exception:  # noqa: BLE001  (notificação nunca derruba quem chamou)
         pass
+    try:
+        from . import correio
+        correio.avisar_admins(titulo, str(detalhe), gravidade, link)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _condicoes() -> list[dict]:

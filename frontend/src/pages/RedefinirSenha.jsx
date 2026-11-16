@@ -40,6 +40,10 @@ export default function RedefinirSenha() {
     setOcupado(false)
     if (error) return setErro(error.message)
     setOk(true)
+    try { // aviso por e-mail "sua senha foi alterada" (com a sessão de recuperação; se falhar, não atrapalha)
+      const { data } = await sb.auth.getSession()
+      if (data?.session?.access_token) await fetch('/api/conta/senha-trocada', { method: 'POST', headers: { Authorization: `Bearer ${data.session.access_token}` } })
+    } catch { /* sem aviso */ }
     await sb.auth.signOut()
   }
 

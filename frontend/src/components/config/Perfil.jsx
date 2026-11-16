@@ -110,6 +110,7 @@ export default function Perfil() {
       await validarSenhaNova(senha.nova)
       const { error } = await sb.auth.updateUser({ password: senha.nova })
       if (error) throw new Error(error.message)
+      api.post('/api/conta/senha-trocada').catch(() => {})   // aviso de segurança por e-mail
       setSenha({ atual: '', nova: '', confirma: '' }); toast('Senha alterada.')
     } catch (err) { setErroSenha(err.message) }
   }

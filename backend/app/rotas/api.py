@@ -2552,6 +2552,12 @@ def esqueci_senha(d: EsqueciIn, request: Request):
     firewall.registrar(ip, "esqueci_senha", "/api/auth/esqueci", "")
     host = urlparse(d.voltar_para).hostname or ""
     destino = d.voltar_para if host in ("app.zynio.com.br", "clima-casa-lac.vercel.app", "localhost", "127.0.0.1") else "https://app.zynio.com.br/redefinir-senha"
+    from .. import correio
+    try:   # e-mail próprio pelo Resend (com a marca); se não der, o Supabase manda o dele
+        if correio.recuperar_senha(d.email.strip().lower(), destino, correio.contexto(request)):
+            return {"ok": True}
+    except Exception:  # noqa: BLE001
+        pass
     try:
         httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/recover", params={"redirect_to": destino}, timeout=12,
                    headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}, json={"email": d.email.strip()})
@@ -2612,6 +2618,11 @@ def entrar(d: EntrarIn, request: Request):
         cidade = request.headers.get("x-vercel-ip-city", "")
         from urllib.parse import unquote
         local = ", ".join(x for x in (unquote(cidade), pais) if x)
+        try:
+            from .. import correio
+            correio.enviar_quieto(u["email"], "acesso_novo", {**correio.contexto(request), "nome": u.get("nome"), "email": u["email"]})
+        except Exception:  # noqa: BLE001
+            pass
         notificacoes.notificar(f"login-{ip}", "seguranca", "media", "Entrada do administrador por um IP novo",
                                f"IP {ip}{' · ' + local if local else ''}. Se não foi você, troque a senha e bloqueie o IP.", "/seguranca",
                                {"rotulo": "Ver segurança", "tipo": "link", "para": "/seguranca"})

@@ -174,7 +174,17 @@ def criar_usuario(d: UsuarioIn, request: Request):
     if db.um("SELECT 1 FROM usuarios WHERE lower(email) = ?", (email,)):
         raise HTTPException(409, "Já existe um usuário com esse e-mail.")
     senha = None
-    if d.convite:
+    from .. import correio
+    link_convite = None
+    if d.convite and correio.configurado() and correio.dominio_verificado() and correio.automatico("boas_vindas"):
+        # convite com o e-mail da marca: o Supabase só gera o link e o Resend envia
+        r_ = httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/admin/generate_link", timeout=12, headers={"apikey": db.ENV["SUPABASE_SECRET_KEY"], "Authorization": f"Bearer {db.ENV['SUPABASE_SECRET_KEY']}"},
+                        json={"type": "invite", "email": email, "data": {"nome": d.nome.strip()}, "redirect_to": "https://app.zynio.com.br/redefinir-senha"})
+        if r_.status_code < 300:
+            auth = r_.json(); link_convite = auth.get("action_link") or (auth.get("properties") or {}).get("action_link")
+        else:
+            auth = _admin("POST", "/invite", json={"email": email, "data": {"nome": d.nome.strip()}})
+    elif d.convite:
         auth = _admin("POST", "/invite", json={"email": email, "data": {"nome": d.nome.strip()}})
     else:
         senha = d.senha if (d.senha and not d.gerar_senha) else _gerar_senha()
@@ -193,6 +203,13 @@ def criar_usuario(d: UsuarioIn, request: Request):
         _admin("DELETE", f"/admin/users/{uid}")   # não deixa conta órfã no Supabase
         raise
     db.registrar("painel", f"Usuário criado: {email}", detalhe=f"papel {acesso.PAPEIS[d.papel]['rotulo']} · por {ator['email']}")
+    try:   # boas-vindas: link para a pessoa criar a própria senha (a senha temporária nunca vai por e-mail)
+        if correio.dominio_verificado():
+            link = link_convite or correio.link_auth("recovery", email, "https://app.zynio.com.br/redefinir-senha")
+            if link:
+                correio.enviar_quieto(email, "boas_vindas", {"nome": d.nome.strip(), "email": email, "link": link, "papel": acesso.PAPEIS[d.papel]["rotulo"], "convidado_por": ator.get("nome") or ator["email"]})
+    except Exception:  # noqa: BLE001
+        pass
     return {"id": uid, "senha": senha, "convite": d.convite}
 
 
@@ -254,6 +271,13 @@ def redefinir_senha_usuario(uid: str, d: SenhaAdminIn, request: Request):
     _admin("PUT", f"/admin/users/{uid}", json={"password": senha})
     db.executar("UPDATE usuarios SET exige_troca_senha = ? WHERE id = ?", (d.exige_troca_senha, uid))
     db.registrar("painel", f"Senha redefinida: {alvo['email']}", detalhe=f"por {ator['email']}")
+    try:
+        from .. import correio
+        if correio.dominio_verificado():
+            link = correio.link_auth("recovery", alvo["email"], "https://app.zynio.com.br/redefinir-senha")
+            correio.enviar_quieto(alvo["email"], "senha_redefinida", {"nome": alvo.get("nome"), "email": alvo["email"], "por": ator.get("nome") or ator["email"], "link": link})
+    except Exception:  # noqa: BLE001
+        pass
     return {"senha": senha}
 
 
@@ -327,7 +351,13 @@ def encerrar_sessoes_usuario(uid: str, request: Request):
 
 @contas.post("/conta/senha-trocada")
 def senha_trocada(request: Request):
-    db.executar("UPDATE usuarios SET exige_troca_senha = false WHERE id = ?", (request.state.u["id"],))
+    u = request.state.u
+    db.executar("UPDATE usuarios SET exige_troca_senha = false WHERE id = ?", (u["id"],))
+    try:   # aviso de segurança para o dono da conta
+        from .. import correio
+        correio.enviar_quieto(u["email"], "senha_alterada", {**correio.contexto(request), "nome": u.get("nome"), "email": u["email"]})
+    except Exception:  # noqa: BLE001
+        pass
     return {"ok": True}
 
 

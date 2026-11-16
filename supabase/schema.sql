@@ -431,3 +431,20 @@ create index if not exists ix_temporizadores_aparelho on public.temporizadores (
 alter table public.projetos add column if not exists tipo text not null default 'escritorio';
 alter table public.projetos add column if not exists responsavel text not null default '';
 alter table public.projetos add column if not exists meta_custo_mes numeric not null default 0;
+
+-- e-mails enviados pelo Resend (recuperação de senha, boas-vindas, avisos de segurança, alertas, testes)
+create table if not exists public.email_envios (
+  id bigserial primary key,
+  resend_id text,
+  tipo text not null,
+  para text not null,
+  assunto text,
+  estado text not null default 'enviando',
+  erro text,
+  eventos jsonb not null default '[]'::jsonb,
+  criado_em bigint not null,
+  atualizado_em bigint
+);
+create index if not exists email_envios_resend_idx on public.email_envios (resend_id);
+create index if not exists email_envios_criado_idx on public.email_envios (criado_em desc);
+alter table public.email_envios enable row level security;
