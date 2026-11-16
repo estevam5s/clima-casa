@@ -34,7 +34,8 @@ caminhos de serviço e o projeto da Vercel).
 | Frases de voz geradas | `frontend/src/vozAlexa.js`, `components/CatalogoVoz.jsx` |
 | E-mails (Resend) | `backend/app/correio.py`, `rotas/correio.py`, `pages/Emails.jsx` |
 | Música (Spotify) | `backend/app/musica.py`, `rotas/musica.py`, `pages/Musica.jsx` |
-| Vercel pelo painel | `backend/app/infra.py`, `rotas/infra.py`, `pages/Infra.jsx` |
+| Vercel pelo painel | `backend/app/infra.py`, `rotas/infra.py`, `pages/Infra.jsx`, `components/infra/Vercel.jsx` |
+| Cloudflare pelo painel (DNS, e-mails, DNSSEC, Turnstile) | `backend/app/cloudflare.py`, `rotas/infra.py` (`/infra/cf/*`), `components/infra/Cloudflare.jsx`, `Visao.jsx` |
 | Mapa 2D/3D do escritório | `pages/Mapa.jsx`, `components/Mapa3D.jsx`, `mapaUtil.js`, `predio3d.js`, `dispositivos3d.js`, `CartoesMapa3D.jsx`, `EquipeMapa.jsx`, `catalogoMapa.js` |
 | Globo da Segurança | `components/Globo3D.jsx`, `universo.js`, `satelites3d.js`, `nave3d.js` |
 | Relatórios e exportação | `relatorio.py`, `exportar.py`, `docx_simples.py` |
@@ -140,7 +141,8 @@ ar-controle/
 │       ├── automacao.py · agenda.py   automações, temporizadores, agenda (laço de 20 s)
 │       ├── musica.py          Spotify (OAuth, player, busca, rotinas)
 │       ├── correio.py         e-mail pelo Resend (modelos, envio, histórico, webhook, domínio + Cloudflare)
-│       ├── infra.py           operações na Vercel (só no agente; lista fechada OPS)
+│       ├── infra.py           operações na Vercel (só no agente; lista fechada OPS); despacha as `cf_*`
+│       ├── cloudflare.py      operações na Cloudflare da zona zynio.com.br (só no agente; token CLOUDFLARE_API_TOKEN)
 │       ├── vercel_ataque.py   modo de ataque da Vercel junto com o escudo anti-DDoS
 │       ├── relatorio.py · exportar.py · docx_simples.py · seguranca_relatorio.py
 │       ├── notificacoes.py · clima_externo.py · supabase_painel.py · conformidade.py · perfil.py
@@ -218,6 +220,7 @@ Scripts de exemplo ficam no scratchpad da sessão; não versionar.
 | `SUPABASE_DB_PASSWORD` (+ `_HOST`/`_PORT`) | Postgres | agente (5432) e Vercel (6543) |
 | `SINRIC_API_KEY/APP_KEY/APP_SECRET` | Sinric (copiados para `config.sinric`) | agente |
 | `VERCEL_TOKEN` | deploy **e** Infra (escopo amplo: **só** no agente, nunca na Vercel) | agente, `publicar-vercel.sh` |
+| `CLOUDFLARE_API_TOKEN` | Infra → Cloudflare (zona zynio.com.br: DNS edit, e-mail, DNSSEC, analytics, Turnstile read, auditoria). **Só** no agente; o dono cria (lista de permissões em Infra → Cloudflare → Token) | agente |
 | `CLIMA_CHAVE_MESTRA` | AES-256-GCM dos segredos em repouso. **A mesma** no agente e na Vercel. Perder = reconectar Smart Life, Sinric, Alexa, Spotify e Resend | todos |
 | `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`, `VERIFICACAO_SEGREDO` | anti-robô | agente e Vercel (os dois projetos) |
 | `TUYA_*` | legado (migrado para `hubs`) | agente |
@@ -371,12 +374,23 @@ playlists. Sem aparelho ativo, o play usa o primeiro disponível. Rotinas em `co
 janela opcional) rodam no agente (`agenda.laco` → `musica.ciclo`, `automacao.processar_evento` → `musica.evento_ar`). Controlar
 exige **Premium**. Tentativas e erros vão para Atividade (origem `musica`).
 
-### 7.12 Infra (Vercel) — `infra.py`
+### 7.12 Infra (Vercel + Cloudflare) — `infra.py`, `cloudflare.py`
 A nuvem enfileira `tipo = 'infra'` com `{op, args}`; o agente executa com o `VERCEL_TOKEN` local. `OPS`: `resumo`, `uso`
 (`GET /v2/usage?type=requests|builds`, funciona no Hobby), `publicacoes`, `eventos` (log do build), `promover`, `republicar`,
 `cancelar`, `apagar` (recusa a que está no ar), `limpar` (mantém as N mais novas e a do ar; para em 45 s), `retencao`, `env`
 (só nomes). Só os projetos `clima-casa` e `clima-escritorio-site`. Alterar é só do dono. "Functions Storage" não sai pela API
 (≈ publicações guardadas × pacote Python; não zera por mês, cai quando publicações expiram ou são apagadas).
+
+**Cloudflare (`cloudflare.py`, ops `cf_*` no mesmo `infra.executar`/fila `infra`)**: token `CLOUDFLARE_API_TOKEN` só no `.env` do agente.
+Zona e conta descobertas por `GET /zones?name=zynio.com.br` (cache 10 min). Ops: `cf_resumo`, `cf_saude` (checklist que une DNS da
+Cloudflare + domínios da Vercel + `correio.dns_publico()`/Resend), `cf_token` (verify + teste de cada permissão), `cf_dns` (+ `para`,
+`protegido`, `travado`), `cf_dns_criar|editar|apagar`, `cf_dns_exportar` (BIND), `cf_dns_analise` (GraphQL `dnsAnalyticsAdaptiveGroups`),
+`cf_dnssec`/`cf_dnssec_mudar` (devolve o DS para o Registro.br), `cf_config` (só leitura), `cf_email` (Email Routing: regras, pega-tudo,
+destinos, atividade GraphQL `emailRoutingAdaptive`; a lista de mensagens só para o dono), `cf_email_regra|pegatudo|destino`, `cf_turnstile`,
+`cf_auditoria`. Travas no backend: registro protegido (Vercel, Resend, e-mail, SPF, DMARC, Google) só muda com `confirmar=<nome>`;
+proxy laranja recusado nos endereços da Vercel; segundo SPF na raiz recusado; CNAME na raiz recusado; registros `meta.read_only`
+(Email Routing) não editam. GraphQL que o plano grátis negar volta `indisponivel` com o motivo (a tela mostra, não inventa número).
+Tudo é "DNS only": WAF, cache e métricas HTTP da Cloudflare não se aplicam (o tráfego é da Vercel).
 
 ---
 
@@ -398,13 +412,13 @@ A nuvem enfileira `tipo = 'infra'` com `{op, args}`; o agente executa com o `VER
 | `/emails` | Conexões (passos Resend/Cloudflare, DNS público, chaves cifradas), Modelos (prévia + teste), Histórico (estados do webhook), Automáticos (liga/desliga cada e-mail, remetente) |
 | `/alexa` | skill própria opcional (mostra o estado do Sinric no topo) |
 | `/supabase` | painel no formato do Supabase (tabelas, SQL só leitura, rotinas, backups, avisos) |
-| `/infra` | Vercel (visão geral, uso, publicações com log/voltar/apagar, agentes, retenção e variáveis) |
+| `/infra` | abas em dois níveis: **Visão geral** (saúde do domínio ao vivo), **Vercel** (painel, uso, publicações, configurações), **Cloudflare** (DNS com travas e consultas, e-mails @zynio.com.br, Turnstile, Segurança: DNSSEC/config/auditoria, Token), **Agentes**. Componentes em `components/infra/` |
 | `/atividade` | linha do tempo (período, origem, aparelho, falhas, busca no servidor, detalhe, CSV/JSON) + **Análise** |
 | `/seguranca` | postura, globo 3D, eventos ao vivo, IPs, países, regras, checklist, relatório |
 | `/mensagens` | mensagens do site no estilo WhatsApp Web |
 | `/configuracoes?aba=` | perfil, geral, aparência, marca (white label), segurança, contas, sistema |
 | `/apps` | downloads, PWA, código-fonte (dono/admin) |
-| `/guia` | **passo a passo** (17 capítulos: Smart Life, transmissores, botões, desligar de longe, Sinric, outra Alexa, Google, mapa, música, agente no Windows, problemas) |
+| `/guia` | **passo a passo** (18 capítulos: Smart Life, transmissores, botões, desligar de longe, Sinric, outra Alexa, Google, mapa, música, agente no Windows, domínio e e-mails, problemas) |
 | `/oauth/autorizar`, `/redefinir-senha`, `/login` | fluxos de conta |
 
 ### 8.2 Mapa (2D/3D)
@@ -586,6 +600,9 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   **SMTP do Supabase Auth pelo Resend** ligado em 16/11 (`smtp.resend.com:465`, usuário `resend`, senha = chave de envio, remetente
   `Clima Escritório <nao-responda@zynio.com.br>`; limite do Auth subiu para 30 e-mails/h). Trocar a chave do Resend = trocar também lá.
   Falta testar o "Esqueci a senha" de ponta a ponta.
+- **Cloudflare**: Email Routing ligado (contato@, suporte@, financeiro@, seguranca@ e pega-tudo → Gmail do dono). Infra → Cloudflare
+  pronta no código, mas **falta o dono criar o `CLOUDFLARE_API_TOKEN`** e pôr no `.env` do agente; até lá as abas mostram o passo a passo.
+  Leituras e escritas reais (`cf_*`) ainda não testadas com token. DNSSEC desligado (recomendado ligar + DS no Registro.br).
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
 - **Vercel**: ~2,1 GB "Functions Storage"; limpeza de 55 publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
   `python-docx` saiu (Word gerado por `docx_simples.py`).
@@ -601,4 +618,6 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   diagnóstico de outra Alexa, código-fonte em /apps, notas de release; mapa com loja, equipe/expediente, persianas, escrita e
   controle de avatar; música (Spotify), passo a passo, Infra (Vercel pelo agente), agente em vários computadores
   (Windows/Linux), catálogo de voz, Atividade com análise, nave no globo; ar escuro legível no painel; Word sem python-docx.
-- **16/11**: e-mail transacional pelo Resend (modelos, histórico, webhook, domínio + Cloudflare), CLAUDE.md reorganizado.
+- **16/11**: e-mail transacional pelo Resend (modelos, histórico, webhook, domínio verificado, SMTP do Supabase), CLAUDE.md reorganizado;
+  e-mails @zynio.com.br pela Cloudflare Email Routing (SPF da raiz trocado); Infra unida com a Cloudflare (DNS, e-mails, DNSSEC, Turnstile,
+  auditoria, saúde do domínio).

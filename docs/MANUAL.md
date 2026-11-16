@@ -339,6 +339,32 @@ Em **Configurações → Segurança**, cada usuário cuida da própria conta:
 - **Biometria**: *Cadastrar aparelho* usa o Face ID / Touch ID / digital / Windows Hello do aparelho. Na tela de login,
   **Entrar com biometria** entra sem senha (e já vale como segunda etapa). Dá para renomear e remover aparelhos.
 
+## 8.14 Infra: domínio, Vercel e Cloudflare
+
+Menu **Sistema → Infra** (dono e administradores; só o dono altera). Quatro abas:
+
+- **Visão geral**: a **saúde do domínio** zynio.com.br conferida ao vivo. Inclui o site e o app na Vercel, o envio de e-mail
+  (Resend), o SPF, o DMARC, o recebimento de e-mails, o DNSSEC e o CAA. Cada item que falha diz o que fazer.
+- **Vercel**: uso do plano, publicações (log, voltar versão, apagar), retenção e variáveis (só nomes).
+- **Cloudflare**:
+  - **DNS**: todos os registros com "serve para". Os que têm cadeado sustentam o site, o app ou os e-mails: para mudar,
+    é preciso digitar o nome. O proxy laranja fica bloqueado nos endereços da Vercel. Tem gráfico de consultas e o
+    botão **Exportar zona** (cópia de segurança).
+  - **E-mails**: endereços **@zynio.com.br** (contato@, suporte@, financeiro@, seguranca@…), para onde cada um
+    encaminha, o **pega-tudo** e os destinos. Um destino novo precisa confirmar pelo link que a Cloudflare manda.
+    Também mostra o gráfico do que chegou nos últimos 7 dias.
+  - **Turnstile**: os widgets anti-robô do login e do site, com os desafios por dia.
+  - **Segurança**: **DNSSEC** (ligar, e depois colar o registro DS no Registro.br), as configurações da zona e o
+    histórico de alterações da conta.
+  - **Token**: confere o token e mostra o passo a passo para criá-lo.
+- **Agentes**: os computadores com o agente.
+
+A Vercel e a Cloudflare são operadas **pelo agente do escritório**: os tokens ficam só no `.env` do computador do
+agente e nunca vão para a nuvem. Com o agente desligado, essas abas avisam e esperam.
+
+Os endereços @zynio.com.br **só recebem**. Para responder como eles, use no Gmail **Configurações → Contas → Enviar
+e-mail como**, com o servidor `smtp.resend.com`, a porta 465, o usuário `resend` e a chave do Resend como senha.
+
 # 9. Vários ares, vários transmissores
 
 - Cadastre cada transmissor no Smart Life (capítulo 4) e use **Transmissores → Importar todos**.

@@ -233,6 +233,14 @@ ALTERAM = {"promover", "republicar", "cancelar", "apagar", "limpar", "retencao"}
 
 
 def executar(op: str, args: dict):
+    if op.startswith("cf_"):           # Cloudflare (cloudflare.py): mesmo caminho, token próprio no .env do agente
+        from . import cloudflare
+        if op not in cloudflare.OPS:
+            raise ErroInfra("Operação desconhecida.")
+        try:
+            return cloudflare.OPS[op](args or {})
+        except cloudflare.ErroCF as e:
+            raise ErroInfra(str(e)) from e
     if op not in OPS:
         raise ErroInfra("Operação desconhecida.")
     return OPS[op](args or {})

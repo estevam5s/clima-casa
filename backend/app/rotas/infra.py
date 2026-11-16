@@ -117,6 +117,160 @@ def retencao(d: Retencao):
     return _via_agente("retencao", d.model_dump())
 
 
+# ---------- Cloudflare (zynio.com.br) — também pelo agente, com o CLOUDFLARE_API_TOKEN dele ----------
+@rotas_infra.get("/infra/cf/resumo")
+def cf_resumo():
+    _papel("dono", "admin")
+    return _via_agente("cf_resumo", {})
+
+
+@rotas_infra.get("/infra/cf/saude")
+def cf_saude():
+    _papel("dono", "admin")
+    return _via_agente("cf_saude", {}, 50)
+
+
+@rotas_infra.get("/infra/cf/token")
+def cf_token():
+    _papel("dono", "admin")
+    return _via_agente("cf_token", {})
+
+
+@rotas_infra.get("/infra/cf/dns")
+def cf_dns():
+    _papel("dono", "admin")
+    return _via_agente("cf_dns", {})
+
+
+@rotas_infra.get("/infra/cf/dns/analise")
+def cf_dns_analise(dias: int = 7):
+    _papel("dono", "admin")
+    return _via_agente("cf_dns_analise", {"dias": max(1, min(dias, 30))})
+
+
+@rotas_infra.get("/infra/cf/dns/exportar")
+def cf_dns_exportar():
+    _papel("dono")
+    return _via_agente("cf_dns_exportar", {})
+
+
+class RegistroDNS(BaseModel):
+    tipo: str = Field(pattern=r"^(A|AAAA|CNAME|TXT|MX|CAA|SRV)$")
+    nome: str = Field(min_length=1, max_length=255, pattern=r"^[A-Za-z0-9@._*-]+$")
+    conteudo: str = Field(min_length=1, max_length=2048)
+    ttl: int = Field(1, ge=1, le=86400)
+    proxy: bool = False
+    prioridade: int | None = Field(None, ge=0, le=65535)
+    comentario: str | None = Field(None, max_length=100)
+    confirmar: str | None = Field(None, max_length=255)
+
+
+@rotas_infra.post("/infra/cf/dns")
+def cf_dns_criar(d: RegistroDNS):
+    _papel("dono")
+    return _via_agente("cf_dns_criar", d.model_dump())
+
+
+@rotas_infra.put("/infra/cf/dns/{rid}")
+def cf_dns_editar(rid: str, d: RegistroDNS):
+    _papel("dono")
+    if not rid.isalnum() or len(rid) > 40:
+        raise HTTPException(422, "Registro inválido.")
+    return _via_agente("cf_dns_editar", {**d.model_dump(), "id": rid})
+
+
+class Confirmar(BaseModel):
+    confirmar: str | None = Field(None, max_length=255)
+
+
+@rotas_infra.post("/infra/cf/dns/{rid}/apagar")
+def cf_dns_apagar(rid: str, d: Confirmar):
+    _papel("dono")
+    if not rid.isalnum() or len(rid) > 40:
+        raise HTTPException(422, "Registro inválido.")
+    return _via_agente("cf_dns_apagar", {"id": rid, "confirmar": d.confirmar})
+
+
+@rotas_infra.get("/infra/cf/dnssec")
+def cf_dnssec():
+    _papel("dono", "admin")
+    return _via_agente("cf_dnssec", {})
+
+
+class DNSSEC(BaseModel):
+    ligar: bool
+    confirmar: str | None = Field(None, max_length=255)
+
+
+@rotas_infra.post("/infra/cf/dnssec")
+def cf_dnssec_mudar(d: DNSSEC):
+    _papel("dono")
+    return _via_agente("cf_dnssec_mudar", d.model_dump())
+
+
+@rotas_infra.get("/infra/cf/config")
+def cf_config():
+    _papel("dono", "admin")
+    return _via_agente("cf_config", {})
+
+
+@rotas_infra.get("/infra/cf/email")
+def cf_email():
+    u = _papel("dono", "admin")
+    # a lista de mensagens recebidas (remetente/destinatário) é só do dono: são os e-mails dele
+    return _via_agente("cf_email", {"detalhe": u.get("papel") == "dono"})
+
+
+class RegraEmail(BaseModel):
+    acao: str = Field(pattern=r"^(criar|ligar|desligar|apagar)$")
+    id: str | None = Field(None, max_length=64, pattern=r"^[A-Za-z0-9]+$")
+    local: str | None = Field(None, max_length=64)
+    destino: str | None = Field(None, max_length=254)
+    nome: str | None = Field(None, max_length=100)
+
+
+@rotas_infra.post("/infra/cf/email/regra")
+def cf_email_regra(d: RegraEmail):
+    _papel("dono")
+    if d.acao != "criar" and not d.id:
+        raise HTTPException(422, "Falta a regra.")
+    return _via_agente("cf_email_regra", d.model_dump())
+
+
+class PegaTudo(BaseModel):
+    ativo: bool
+    acao: str = Field("forward", pattern=r"^(forward|drop)$")
+    destino: str | None = Field(None, max_length=254)
+
+
+@rotas_infra.post("/infra/cf/email/pega-tudo")
+def cf_email_pegatudo(d: PegaTudo):
+    _papel("dono")
+    return _via_agente("cf_email_pegatudo", d.model_dump())
+
+
+class Destino(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+
+
+@rotas_infra.post("/infra/cf/email/destino")
+def cf_email_destino(d: Destino):
+    _papel("dono")
+    return _via_agente("cf_email_destino", d.model_dump())
+
+
+@rotas_infra.get("/infra/cf/turnstile")
+def cf_turnstile(dias: int = 7):
+    _papel("dono", "admin")
+    return _via_agente("cf_turnstile", {"dias": max(1, min(dias, 30))})
+
+
+@rotas_infra.get("/infra/cf/auditoria")
+def cf_auditoria(limite: int = 50):
+    _papel("dono", "admin")
+    return _via_agente("cf_auditoria", {"limite": limite})
+
+
 # ---------- computadores com o agente ----------
 @rotas_infra.get("/agentes")
 def agentes():

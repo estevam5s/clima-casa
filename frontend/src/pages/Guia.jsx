@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AirVent, ArrowRight, BookOpen, Check, CircleHelp, Cloud, Hand, Home, KeyRound, Map as MapaIcone, Mic, Monitor, Music2, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
+import { AirVent, ArrowRight, BookOpen, Check, CircleHelp, Cloud, Globe, Hand, Home, KeyRound, Map as MapaIcone, Mic, Monitor, Music2, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
 import { Cabecalho } from '../components/ui'
 
 // Passo a passo do sistema inteiro: do transmissor no Wi-Fi (Smart Life) até a Alexa (Sinric Pro), outra Alexa,
@@ -182,6 +182,19 @@ const CAPITULOS = [
       { t: 'Crie rotinas', d: 'Por horário (ex.: seg a sex 08:30 tocar a playlist do escritório a 25%) ou junto com os ares (ex.: quando o ar da reunião ligar, pausar). Elas rodam no agente do Mac.' },
       { t: 'Premium', d: 'O Spotify só deixa controlar a reprodução (tocar, pausar, volume) com conta Premium.' },
     ],
+  },
+  {
+    id: 'dominio', icone: Globe, titulo: 'Domínio e e-mails do zynio.com.br',
+    resumo: 'Cloudflare no painel: DNS, endereços @zynio.com.br, DNSSEC e anti-robô, pela tela Infra.',
+    passos: [
+      { t: 'Crie o token da Cloudflare (uma vez)', d: 'Em Infra → Cloudflare → Token está a lista exata de permissões. Crie o token em dash.cloudflare.com → My Profile → API Tokens, cole no arquivo .env do computador do agente (CLOUDFLARE_API_TOKEN=…) e atualize o agente. O token nunca vai para a nuvem.', link: ['/infra', 'Abrir Infra'] },
+      { t: 'Confira a saúde do domínio', d: 'Infra → Visão geral confere ao vivo o site e o app na Vercel, os registros do Resend, o SPF, o DMARC, o recebimento de e-mails e o DNSSEC. Cada item que falha diz o que fazer.' },
+      { t: 'Endereços de e-mail', d: 'Infra → Cloudflare → E-mails: crie endereços como comercial@zynio.com.br, ligue e desligue, escolha para onde encaminham e o que fazer com endereços desconhecidos (pega-tudo). Um destino novo precisa clicar no link de confirmação que a Cloudflare manda.' },
+      { t: 'Responder como contato@', d: 'Os endereços só recebem. Para responder como contato@zynio.com.br, no Gmail: Configurações → Contas → Enviar e-mail como → servidor smtp.resend.com, porta 465, usuário resend, senha = chave do Resend.' },
+      { t: 'Registros DNS', d: 'Infra → Cloudflare → DNS lista tudo com “serve para”. Os registros com cadeado sustentam o site, o app ou os e-mails: para mudar, o painel pede para digitar o nome. O proxy laranja fica bloqueado nos endereços da Vercel (quebraria o certificado).' },
+      { t: 'DNSSEC (recomendado)', d: 'Infra → Cloudflare → Segurança → Ligar DNSSEC. Depois copie os quatro campos do DS e cole no Registro.br (domínio → DNSSEC). Só vale depois desse passo.' },
+    ],
+    dicas: ['Exportar zona (em DNS) baixa o arquivo com todos os registros: bom guardar uma cópia antes de mudanças grandes.', 'O tráfego do site não passa pela Cloudflare (tudo em “DNS only”); por isso não há cache, WAF ou gráficos de visitas lá: esses números ficam na aba Vercel.'],
   },
   {
     id: 'problemas', icone: CircleHelp, titulo: 'Quando algo não funciona',
