@@ -95,6 +95,7 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   const porEstilo = Object.fromEntries(Object.keys(ESTILOS).map((k) => [k, { perto: [], longe: [] }]))
   const tetos = [], parapeitos = [], sacadas = [], maquinas = [], caixas = [], calcadas = [], gramados = [], toldos = []
   const arvores = [], postes = []
+  const andaveis = [], pracas = []   // para vida3d: perímetro das calçadas das quadras e centro das praças
   const camN = Math.hypot(camera[0], camera[1]) || 1, cam = [camera[0] / camN, camera[1] / camN]
   const cruza = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
   const nomes = Object.keys(ESTILOS)
@@ -106,6 +107,7 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
     const dx = lx - cx, dz = lz - cz, dist = Math.hypot(dx, dz)
     const naFrente = (dx * cam[0] + dz * cam[1]) / dist > 0.55 && dist < 150   // entre a câmera e o prédio
     calcadas.push(planoGeo(LOTE + 5, LOTE + 5, lx, 0.012, lz))
+    if (dist < 150) andaveis.push([lx - LOTE / 2 - 1.3, lz - LOTE / 2 - 1.3, lx + LOTE / 2 + 1.3, lz + LOTE / 2 + 1.3])
     // postes nas quinas da quadra e árvores na calçada
     postes.push([lx - LOTE / 2 - 1.6, lz - LOTE / 2 - 1.6])
     for (let k = 0; k < 4; k++) {
@@ -115,6 +117,7 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
     const sorte = r()
     if (sorte < 0.1 || (naFrente && sorte < 0.45)) {   // praça: gramado com árvores
       gramados.push(planoGeo(LOTE - 1, LOTE - 1, lx, 0.02, lz))
+      pracas.push([lx, lz])
       for (let k = 0; k < 6; k++) arvores.push([lx + (r() - 0.5) * (LOTE - 5), lz + (r() - 0.5) * (LOTE - 5)])
       continue
     }
@@ -213,5 +216,5 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   instancias(new THREE.IcosahedronGeometry(1.7, 1), M({ color: noite ? 0x1f3d2b : 0x3f7d4e, roughness: 0.9, flatShading: true }), arvores, (i) => [3.4, escala[i]])
   instancias(new THREE.CylinderGeometry(0.07, 0.1, 7, 6), M({ color: 0x6b7280, roughness: 0.6, metalness: 0.4 }), postes, () => [3.5, 1], false)
   instancias(new THREE.BoxGeometry(0.5, 0.14, 0.5), M({ color: 0xfff3c4, emissive: 0xffe2a0, emissiveIntensity: noite ? 2.2 : 0.1 }), postes, () => [7.05, 1], false)
-  return { grupo }
+  return { grupo, calcadas: andaveis, pracas }
 }

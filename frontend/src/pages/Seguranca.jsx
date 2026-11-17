@@ -287,7 +287,7 @@ function Monitoramento({ barra }) {
       {erro && <Aviso>{erro}</Aviso>}
       {!dados && !erro && <div className="grid gap-4"><Esqueleto className="h-24" /><Esqueleto className="h-[520px]" /></div>}
       {dados && (
-        <div className="grid gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <FaixaMetricas itens={[
             { rotulo: 'Postura de segurança', valor: t.postura, sufixo: '/100', tom: t.postura >= 80 ? 'bom' : 'ruim', dica: t.postura >= 80 ? 'Sem sinais de ataque persistente' : 'Veja as recomendações no relatório' },
             { rotulo: 'Ataques reais', valor: t.ataques, tom: t.ataques ? 'ruim' : 'bom', dica: varAtaques == null ? `${t.logins_falhos} login(s) recusado(s) · ${t.sem_login} visita(s) sem login` : `${varAtaques > 0 ? '+' : ''}${varAtaques}% vs período anterior` },
@@ -301,7 +301,7 @@ function Monitoramento({ barra }) {
 
           <Analise analise={dados.analise} total={t.ips_unicos} />
 
-          <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
             <section className="cartao relative overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
                 <div>
@@ -440,7 +440,7 @@ function Monitoramento({ barra }) {
             <PainelSeguranca />
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 break-words rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
             <span>A localização vem do IP (borda da Vercel) e é aproximada. Acessos são registrados uma vez por IP a cada 10 minutos; eventos com mais de 30 dias são apagados pela rotina diária.</span>
             <Botao variante="secundario" tamanho="sm" icone={Trash2} onClick={limparAntigos}>Apagar eventos com mais de 30 dias</Botao>
           </div>

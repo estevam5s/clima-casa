@@ -247,7 +247,7 @@ export function Incidentes() {
   }
   const abertos = dados.itens.filter((i) => i.status !== 'resolvido')
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <Secao titulo="Incidentes de segurança" contexto={`${abertos.length} em aberto · ${dados.itens.length} no total`} acao={<Botao tamanho="sm" icone={Plus} onClick={() => setForm({ ...VAZIO_INC })}>Registrar incidente</Botao>}>
         {!dados.itens.length && <p className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhum incidente registrado. Quando algo acontecer, registre aqui para ter o histórico e cumprir a LGPD.</p>}
         <ul className="divide-y divide-border">
@@ -300,7 +300,7 @@ export function Acessos() {
   const comAlerta = dados.itens.filter((u) => u.alertas.length)
   const concluir = async () => { try { const revisoes = await api.post('/api/seguranca/acessos/revisao', { nota }); setDados((d) => ({ ...d, revisoes })); setNota(''); toast('Revisão registrada.') } catch (e) { toast(e.message, 'erro') } }
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <Secao titulo="Contas e privilégios" contexto={`${dados.itens.length} conta(s) · ${comAlerta.length} com ponto de atenção`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -373,7 +373,7 @@ export function Integridade() {
   if (!dados) return <Esqueleto className="h-80" />
   const selar = async () => { setSelando(true); try { setDados(await api.post('/api/seguranca/integridade/selar')); toast('Registros selados e conferidos.') } catch (e) { toast(e.message, 'erro') } finally { setSelando(false) } }
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <Secao titulo="Selos de integridade" contexto="Cadeia de hashes SHA-256 por dia sobre a atividade e os eventos de segurança">
         <div className="space-y-4 p-5">
           <div className={`flex items-center gap-3 rounded-lg border p-4 ${dados.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-red-500/40 bg-red-500/5'}`}>

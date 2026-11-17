@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
-import { Box, Building2, Clock, DoorOpen, Eye, Maximize2, Minimize2, Moon, Pause, PenLine, Play, RotateCcw, Sun } from 'lucide-react'
+import { Box, Building2, Clock, CloudRain, DoorOpen, Eye, Maximize2, Minimize2, Moon, Pause, PenLine, Play, RotateCcw, Sun } from 'lucide-react'
+import { api } from '../api'
 import { BarraControle, CartaoMapa, RascunhoEscrita } from './CartoesMapa3D'
 import { animarDispositivos, montarDispositivo } from './dispositivos3d'
 import { ITEM } from '../catalogoMapa'
@@ -10,6 +11,7 @@ import { horaBR, noExpediente } from '../mapaUtil'
 import { salasPrivativas } from '../mapaUtil'
 import { useMarca } from '../marca'
 import { caminho, criarGrade, celulaLivre, livreProxima, montarPredio, visaoLivre } from './predio3d'
+import { ROTULO_PAPEL, desenharTela, papelDaSala, sementeDe } from './telas3d'
 
 // Escritório em 3D montado a partir da mesma planta do mapa 2D (config.mapa):
 // paredes com vão de porta e janela, pisos por sala (cor do projeto), mesas com PCs e cadeiras, ares de parede
@@ -208,6 +210,15 @@ function pessoa(r, sentada, ap = null) {
   return g
 }
 
+// senta (pose de digitar) e levanta: o avatar controlado usa as duas
+function sentarPose(p) {
+  const u = p.userData
+  u.sentada = true
+  u.pernas.forEach((q) => { q.quad.rotation.x = -Math.PI / 2; q.joelho.rotation.x = Math.PI / 2 })
+  u.bracos.forEach((b) => { b.ombro.rotation.x = -0.55; b.cotovelo.rotation.x = -0.9 })
+  u.quadril.position.y = 0.47
+}
+
 // levanta quem estava sentado (para andar no controle)
 function levantar(p) {
   const u = p.userData
@@ -350,6 +361,25 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   const [paredesAltas, setParedesAltas] = useState(true)
   const [pronto, setPronto] = useState(false)
   const [hora, setHora] = useState('agora')   // agora | dia | noite
+  // tempo no 3D: previsão real (Open-Meteo pelo backend) ou pré-visualização escolhida
+  const [clima, setClima] = useState(null)
+  const [tempoVista, setTempoVista] = useState('agora')   // agora | limpo | nublado | chuva | trovoada
+  const [verPrevisao, setVerPrevisao] = useState(() => typeof window === 'undefined' || window.innerWidth > 640)
+  const tempoRef = useRef({ tipo: 'limpo', nuvens: 0 })
+  useEffect(() => {
+    if (!comPredio) return undefined
+    let vivo = true
+    const buscar = () => api.get('/api/clima-externo').then((c) => { if (vivo && c?.disponivel) setClima(c) }).catch(() => {})
+    buscar()
+    const id = setInterval(buscar, 10 * 60 * 1000)
+    return () => { vivo = false; clearInterval(id) }
+  }, [comPredio])
+  useEffect(() => {
+    tempoRef.current = { tipo: tempoVista === 'agora' ? clima?.tipo || 'limpo' : tempoVista, nuvens: clima?.nuvens ?? 0 }
+    const E = estado.current
+    E.predio?.definirTempo?.(tempoRef.current.tipo, tempoRef.current.nuvens)
+    if (E.cena?.fog && E.foFar0) { const nev = tempoRef.current.tipo === 'neblina', ch = ['chuva', 'trovoada'].includes(tempoRef.current.tipo); E.cena.fog.near = nev ? 25 : ch ? 70 : E.foNear0; E.cena.fog.far = nev ? 120 : ch ? 220 : E.foFar0 }
+  }, [clima, tempoVista])
   const [relogio, setRelogio] = useState(() => Math.floor(horaBrasilia() * 4))  // muda a cada 15 min
   const [aberto, setAberto] = useState(!comPredio)   // prédio fechado: clicar abre o andar do escritório
   // cartões do 3D (janela, item, pessoa, escrita), modo de escrever no vidro e controle de avatar
@@ -379,6 +409,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const k = nome(e)
       if (k === 'escape') { estado.current.pararControle?.(); return }
       if (k === 'v') { estado.current.mudarModo?.(c.modo === '1' ? '3' : '1'); return }
+      if (k === 'f') { e.preventDefault(); estado.current.sentar?.(); return }
       if (['w', 'a', 's', 'd', 'q', 'e', 'shift', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { e.preventDefault(); c.teclas.add(k) }
     }
     const cima = (e) => { estado.current.ctrl?.teclas.delete(nome(e)) }
@@ -430,6 +461,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     controles.maxPolarAngle = Math.PI / 2.15; controles.minDistance = 3; controles.maxDistance = 45
     controles.enableZoom = true; controles.zoomToCursor = true
     estado.current = { cena, camera, controles, renderer }
+    try { if (localStorage.getItem('clima-debug-3d') === '1') window.__mapa3d = estado }   // só para testes (Playwright): liga à mão no navegador
+    catch { /* sem armazenamento */ }
     setPronto(true)
     let quadro
     const relogio = new THREE.Clock()
@@ -484,6 +517,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     E.ceu = ceu
     const fundoCeu = texturaCeu(ceu); cena.background = fundoCeu
     cena.fog = new THREE.Fog(new THREE.Color(ceu.noite ? 0x0b1530 : ceu.crepusculo ? 0xe2a07a : 0xdbe9f6), comPredio ? 110 : 45, comPredio ? 300 : 95)
+    E.foNear0 = cena.fog.near; E.foFar0 = cena.fog.far
     controles.maxDistance = comPredio ? 170 : 45
     camera.far = comPredio ? 700 : 200; camera.updateProjectionMatrix()
     renderer.toneMappingExposure = ceu.noite ? 0.95 : 1.05
@@ -745,6 +779,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       pl.position.set(fx1 + 2.5, 2, fz1 + 2.5); pl.scale.multiplyScalar(7); mundo.add(pl); E.placaAndar = pl
     }
     E.predio = predio
+    if (predio) {   // tempo atual (previsão ou pré-visualização) no prédio recém-montado
+      predio.definirTempo(tempoRef.current.tipo, tempoRef.current.nuvens)
+      const nev = tempoRef.current.tipo === 'neblina', ch = ['chuva', 'trovoada'].includes(tempoRef.current.tipo)
+      if (nev || ch) { cena.fog.near = nev ? 25 : 70; cena.fog.far = nev ? 120 : 220 }
+    }
     // luz de teto: painéis acesos (fortes à noite) e uma luz por sala
     const paineis = []
     const matPainel = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4dc, emissiveIntensity: ceu.noite ? 1.6 : ceu.crepusculo ? 0.9 : 0.35 })   // só a face de baixo: de cima não aparece
@@ -849,7 +888,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       caixa(0.05, 0.14, 0.05, matPreto, 0, 0.83, -0.24, 0, g)
       caixa(0.42, 0.015, 0.14, matPreto, 0, 0.77, 0.05, 0, g)
       cadeira(g, 0, 0.55, Math.PI)
-      assentos.push({ g, posto, comPessoa, nome, x: 0, z: 0.5, ry: Math.PI })
+      assentos.push({ g, posto, comPessoa, nome, x: 0, z: 0.5, ry: Math.PI, tela })
       return g
     }
     const NAO_PESSOA = /^(sala\s+)?(bancada|reuni|escrit|sem nome|apoio|t[eé]cnica)/i
@@ -918,7 +957,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           caixa(0.24, 0.004, 0.2, new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.9 }), ax + 0.33, 0.769, fz + 0.3, 0, g)   // mouse pad
           caixa(0.06, 0.03, 0.1, matPreto, ax + 0.33, 0.786, fz + 0.3, 0, g)   // mouse
           cadeira(g, ax, prof / 2 + 0.25, Math.PI)
-          assentos.push({ g, posto: `${e.id}:${i}`, comPessoa: i === 0 && r() > 0.3, nome: null, x: ax, z: prof / 2 + 0.2, ry: Math.PI })
+          assentos.push({ g, posto: `${e.id}:${i}`, comPessoa: i === 0 && r() > 0.3, nome: null, x: ax, z: prof / 2 + 0.2, ry: Math.PI, tela })
         }
         alvoItem(e.id, 0, 0, longo, prof, 0.8, 0, g)
         const th = g.rotation.y; bloquear(x + Math.sin(th) * 0.3, z + Math.cos(th) * 0.3, longo + 0.06, prof + 0.6, th)
@@ -1008,6 +1047,19 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const px = vv.x / S + cx, py = vv.z / S + cy
       a.sala = salas.find((sl) => px > sl.x && px < sl.x + sl.w && py > sl.y && py < sl.y + sl.h)?.p.id
     }
+    // monitores: cada posto com o próprio conteúdo (semente do posto) conforme a sala (telas3d.js); vazio = tela bloqueada
+    const telas = []
+    if (!compacto) assentos.forEach((a, i) => {
+      if (!a.tela) return
+      const sem = sementeDe(a.posto || `posto-${i}`)
+      a.papel = papelDaSala(salas.find((sl) => sl.p.id === a.sala)?.p.nome || '', sem)
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 144
+      const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace
+      a.tela.material = new THREE.MeshStandardMaterial({ map: tx, emissiveMap: tx, emissive: 0xffffff, emissiveIntensity: ceu.noite ? 0.85 : 0.6, roughness: 0.3 })
+      const tw = new THREE.Vector3(); a.tela.getWorldPosition(tw)
+      telas.push({ a, cv, g: cv.getContext('2d'), tx, sem, pos: tw, ult: -9 })
+    })
+    E.telas = telas
     const ocupado = new Map(), semLugar = []
     for (const pp of presentes) {
       let a = pp.posto ? assentos.find((x) => x.posto === pp.posto && !ocupado.has(x)) : null
@@ -1019,11 +1071,12 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const hb = new THREE.Mesh(new THREE.BoxGeometry(0.6, sentada ? 1.35 : 1.8, 0.6), new THREE.MeshBasicMaterial({ visible: false }))
       hb.position.y = sentada ? 0.7 : 0.9; hb.userData = info; av.add(hb); clicaveis.push(hb)
     }
+    const salasDaEquipe = new Set(equipe.map((pp) => String(pp.sala)).filter(Boolean))
     for (const a of assentos) {
       const pp = ocupado.get(a)
-      if (!pp && (!a.comPessoa || reservados.has(a.posto))) continue
+      if (!pp && (!a.comPessoa || reservados.has(a.posto) || salasDaEquipe.has(String(a.sala)))) continue
       const av = pessoa(r, true, pp?.aparencia || null)
-      av.position.set(a.x, 0, a.z); av.rotation.y = a.ry; a.g.add(av); pessoas.push(av)
+      av.position.set(a.x, 0, a.z); av.rotation.y = a.ry; a.g.add(av); pessoas.push(av); a.ocupante = av
       const info = pp ? { tipo: 'pessoa', id: pp.id } : { tipo: 'generico', posto: a.posto || '', sala: a.sala ? String(a.sala) : '', ap: av.userData.ap }
       let label = null
       if (pp) { label = etiquetaPessoa(pp.nome, pp.cargo); label.position.set(a.x, 1.78, a.z); a.g.add(label) }
@@ -1075,6 +1128,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       alvoPessoa(p, info, false); avatares.push({ av: p, info, label })
     }
     E.avatares = avatares
+    telas.forEach((x) => { desenharTela(x.g, x.a.ocupante ? x.a.papel : 'bloqueio', x.sem, 0); x.tx.needsUpdate = true })   // primeiro desenho de todas
 
     // escritas de caneta nos vidros (texto à mão, legível do lado de quem escreveu)
     const CORES_CANETA = { azul: '#1d4ed8', preto: '#111827', vermelho: '#dc2626' }
@@ -1239,7 +1293,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       E.ctrl = null
       c.av.userData.pescoco.visible = true
       if (c.label) c.label.visible = true
-      andarilhos.push({ p: c.av, vel: 1, estado: 'parado', espera: 3, rota: null, i: 0, passo: c.passo, preso: 0 })
+      if (c.assento) pessoas.push(c.av)   // largou sentado: continua trabalhando
+      else andarilhos.push({ p: c.av, vel: 1, estado: 'parado', espera: 3, rota: null, i: 0, passo: c.passo, preso: 0 })
       camera.position.copy(c.camPos); controles.target.copy(c.camAlvo); controles.enabled = true
       E.setControle?.(null)
     }
@@ -1252,6 +1307,15 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (ai >= 0) andarilhos.splice(ai, 1)
       const pi = pessoas.indexOf(av)
       if (pi >= 0) pessoas.splice(pi, 1)
+      const assentoAtual = assentos.find((a) => a.ocupante === av)
+      if (assentoAtual && av.userData.sentada) {   // já está sentado: assume sentado, trabalhando (F levanta)
+        const q = new THREE.Quaternion(); av.getWorldQuaternion(q)
+        const yawS = new THREE.Euler().setFromQuaternion(q, 'YXZ').y
+        E.ctrl = { av, label: it.label, modo, yaw: yawS, pitch: -0.25, teclas: new Set(), passo: 0, camPos: camera.position.clone(), camAlvo: controles.target.clone(), info: it.info, assento: assentoAtual }
+        controles.enabled = false
+        E.setControle?.({ modo, info: it.info, sentado: true })
+        return
+      }
       if (av.parent !== mundo) mundo.attach(av)
       const sentadoAntes = av.userData.sentada
       const yaw = Math.atan2(Math.sin(av.rotation.y), Math.cos(av.rotation.y)) + (sentadoAntes ? Math.PI : 0)   // levanta e vira para a sala
@@ -1263,12 +1327,53 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const cel = livreProxima(grade, P.x + Math.sin(yaw) * 0.45, P.z + Math.cos(yaw) * 0.45, 15)
         if (cel) { P.x = grade.bx0 + (cel[0] + 0.5) * grade.C; P.z = grade.bz0 + (cel[1] + 0.5) * grade.C }
       }
+      if (assentoAtual) assentoAtual.ocupante = null
       E.ctrl = { av, label: it.label, modo, yaw, pitch: -0.08, teclas: new Set(), passo: 0, camPos: camera.position.clone(), camAlvo: controles.target.clone(), info: it.info }
       controles.enabled = false
-      E.setControle?.({ modo, info: it.info })
+      E.setControle?.({ modo, info: it.info, sentado: false })
     }
+    // F (ou o botão): senta na cadeira livre mais perto (até 1,4 m) e começa a trabalhar; de novo, levanta
+    E.sentar = () => {
+      const c = E.ctrl
+      if (!c) return
+      const av = c.av
+      if (c.assento) {
+        const a = c.assento; a.ocupante = null; c.assento = null
+        mundo.attach(av); levantar(av)
+        const yaw = c.yaw + Math.PI   // vira de costas para a mesa e sai da cadeira
+        av.rotation.set(0, yaw, 0); c.yaw = yaw; c.pitch = -0.08
+        const P = av.position, cel = livreProxima(grade, P.x + Math.sin(yaw) * 0.5, P.z + Math.cos(yaw) * 0.5, 15)
+        if (cel) { P.x = grade.bx0 + (cel[0] + 0.5) * grade.C; P.z = grade.bz0 + (cel[1] + 0.5) * grade.C }
+        E.setControle?.({ modo: c.modo, info: c.info, sentado: false })
+        return
+      }
+      const P = av.position
+      let melhor = null, dm = 1.4
+      for (const a of assentos) { if (a.ocupante) continue; const d = Math.hypot(a.wx - P.x, a.wz - P.z); if (d < dm) { dm = d; melhor = a } }
+      if (!melhor) { E.setControle?.({ modo: c.modo, info: c.info, sentado: false, aviso: 'Chegue perto de uma cadeira livre (até 1,4 m) para sentar.' }); return }
+      melhor.g.add(av); av.position.set(melhor.x, 0, melhor.z); av.rotation.set(0, melhor.ry, 0); sentarPose(av)
+      melhor.ocupante = av; c.assento = melhor
+      const q = new THREE.Quaternion(); av.updateMatrixWorld(true); av.getWorldQuaternion(q)
+      c.yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y; c.pitch = -0.25
+      E.setControle?.({ modo: c.modo, info: c.info, sentado: true })
+    }
+    const vSent = new THREE.Vector3()
     const moverControle = (dt, t) => {
       const c = E.ctrl, av = c.av, P = av.position, k = c.teclas
+      if (c.assento) {   // sentado trabalhando: digita; câmera da cabeça (1ª) ou por cima do ombro (3ª), olhando o monitor
+        animarPessoa(av, t)
+        av.getWorldPosition(vSent)
+        const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw)
+        if (c.modo === '1') {
+          av.userData.pescoco.visible = false; if (c.label) c.label.visible = false
+          camera.position.set(vSent.x + fx * 0.12, 1.22, vSent.z + fz * 0.12)
+        } else {
+          av.userData.pescoco.visible = true; if (c.label) c.label.visible = true
+          camera.position.lerp(new THREE.Vector3(vSent.x - fx * 0.85 + fz * 0.35, 1.62, vSent.z - fz * 0.85 - fx * 0.35), Math.min(1, dt * 6))
+        }
+        camera.lookAt(vSent.x + fx * 0.75, 1.04, vSent.z + fz * 0.75)
+        return
+      }
       if (k.has('q') || k.has('arrowleft')) c.yaw += dt * 2
       if (k.has('e') || k.has('arrowright')) c.yaw -= dt * 2
       let f = 0, lat = 0
@@ -1307,12 +1412,24 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       }
     }
     E.iniciarControle = iniciarControle; E.pararControle = pararControle
-    E.mudarModo = (m) => { if (E.ctrl) { E.ctrl.modo = m; E.setControle?.({ modo: m, info: E.ctrl.info }) } }
+    E.mudarModo = (m) => { if (E.ctrl) { E.ctrl.modo = m; E.setControle?.({ modo: m, info: E.ctrl.info, sentado: !!E.ctrl.assento }) } }
     if (E.ctrlPendente) { const pend = E.ctrlPendente; E.ctrlPendente = null; iniciarControle(pend.info, pend.modo) }
 
     // animação
     E.tick = (dt, t) => {
       pessoas.forEach((p) => animarPessoa(p, t))
+      if (E.telas?.length) {
+        const cam = camera.position, ativo = E.ctrl?.assento
+        const perto = E.telas.filter((x) => x.a === ativo || x.pos.distanceToSquared(cam) < 64)
+          .sort((a, b) => a.pos.distanceToSquared(cam) - b.pos.distanceToSquared(cam)).slice(0, 6)
+        for (const x of perto) {
+          const vivo = x.a === ativo
+          if (t - x.ult < (vivo ? 0.2 : 0.5)) continue
+          x.ult = t
+          desenharTela(x.g, x.a.ocupante ? x.a.papel : 'bloqueio', x.sem, t, vivo)
+          x.tx.needsUpdate = true
+        }
+      }
       arvores.forEach((a) => { a.copa.rotation.z = Math.sin(t * 0.9 + a.fase) * 0.035; a.copa.rotation.x = Math.cos(t * 0.7 + a.fase) * 0.025 })
       climas.forEach((c) => { c.m.material.opacity = 0.42 + Math.sin(t * 1.3 + c.fase) * 0.18 })
       matTela.emissiveIntensity = (ceu.noite ? 0.7 : 0.35) + Math.sin(t * 7) * 0.03 + (Math.sin(t * 0.37) > 0.97 ? 0.25 : 0)
@@ -1405,6 +1522,12 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         if (u?.tipo === 'predio') { E.setAberto?.(true); baixo = null; return }
         if (predio && !E.aberto) { baixo = null; return }
         if (E.ctrl) { baixo = null; return }
+        if (u?.tipo === 'pessoa' || u?.tipo === 'generico') {   // situação ao vivo (mesmo objeto: o controle acha o avatar por ele)
+          const it = (E.avatares || []).find((x) => x.info === u), av = it?.av
+          const assento = av && assentos.find((x) => x.ocupante === av)
+          u.agora = !av ? '' : assento ? 'trabalhando' : E.ctrl?.av === av ? 'sendo controlada' : 'andando pelo escritório'
+          u.tela = assento ? ROTULO_PAPEL[assento.papel] || '' : ''
+        }
         if (['janela', 'item', 'pessoa', 'generico', 'escrita', 'vidro'].includes(u?.tipo)) { E.abrirCartao?.(u); baixo = null; return }
         E.abrirCartao?.(null)
         E.aoSelecionar?.(u?.tipo ? u : null)
@@ -1457,6 +1580,34 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           <button key={k} onClick={() => setHora(k)} className={`${botao} ${i ? 'border-l border-border' : ''} ${hora === k ? 'bg-black/5 font-medium dark:bg-white/10' : ''}`} title={k === 'agora' ? 'Luz da hora real (Brasília)' : `Simular ${r.toLowerCase()}`}><I className="h-3.5 w-3.5" />{r}</button>
         ))}
       </div>
+      {comPredio && !compacto && !controle && (
+        <div className="absolute left-3 top-14 z-[5] w-[min(260px,calc(100%-24px))] rounded-lg border border-border bg-card/90 text-xs backdrop-blur">
+          <button onClick={() => setVerPrevisao((v) => !v)} className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left" aria-expanded={verPrevisao}>
+            <span className="flex items-center gap-1.5 font-medium"><CloudRain className="h-3.5 w-3.5" />{clima ? `${clima.cidade || 'Tempo'} · ${Math.round(clima.temperatura)}°, ${clima.condicao}` : 'Previsão do tempo'}</span>
+            <span className="text-muted-foreground">{verPrevisao ? 'ocultar' : 'ver'}</span>
+          </button>
+          {verPrevisao && (
+            <div className="border-t border-border px-2.5 pb-2 pt-1.5">
+              {clima ? <>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {(clima.proximas || []).slice(0, 6).map((h) => (
+                    <div key={h.hora} className="shrink-0 text-center"><p className="text-muted-foreground">{h.hora}</p><p className="font-medium tabular">{Math.round(h.temperatura)}°</p><p className={`tabular ${h.chuva >= 60 ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>{h.chuva ?? 0}%</p></div>
+                  ))}
+                </div>
+                <ul className="mt-1 space-y-0.5">
+                  {(clima.dias || []).map((d) => <li key={d.data} className="flex justify-between gap-2"><span>{new Date(`${d.data}T12:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' })} · {d.condicao}</span><span className="tabular text-muted-foreground">{Math.round(d.min)}°/{Math.round(d.max)}° · {d.chuva ?? 0}%</span></li>)}
+                </ul>
+              </> : <p className="text-muted-foreground">Buscando a previsão…</p>}
+              <div className="mt-2 flex flex-wrap gap-1" role="group" aria-label="Tempo no 3D">
+                {[['agora', 'Agora'], ['limpo', 'Sol'], ['nublado', 'Nublado'], ['chuva', 'Chuva'], ['trovoada', 'Trovoada']].map(([k, rot]) => (
+                  <button key={k} onClick={() => setTempoVista(k)} className={`rounded-md border px-1.5 py-0.5 ${tempoVista === k ? 'border-primary bg-primary/10 font-medium' : 'border-border text-muted-foreground hover:bg-muted'}`}>{rot}</button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[10px] text-muted-foreground">Previsão real (Open-Meteo). Pessoas, carros, animais e o terminal são ilustração.</p>
+            </div>
+          )}
+        </div>
+      )}
       <div className="absolute bottom-3 right-3 flex overflow-hidden rounded-lg border border-border bg-card/90 backdrop-blur">
         {comPredio && <button onClick={() => setAberto((v) => !v)} className={`${botao} border-r border-border font-medium`} title={aberto ? 'Fechar e ver o prédio por fora' : 'Abrir o andar do escritório'}>{aberto ? <Building2 className="h-3.5 w-3.5" /> : <DoorOpen className="h-3.5 w-3.5" />}{aberto ? 'Ver prédio' : 'Abrir andar'}</button>}
         <button onClick={() => estado.current.enquadrar?.(false)} className={botao} title="Vista inicial"><RotateCcw className="h-3.5 w-3.5" />Inicial</button>
@@ -1473,7 +1624,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         controlar={(info, modo) => { setCartao(null); setEscrevendo(false); estado.current.iniciarControle?.(info, modo) }} />}
       {acoes && <RascunhoEscrita mapa={mapa} rascunho={rascunhoEsc} setRascunho={setRascunhoEsc} acoes={acoes} ocupado={ocupado} executar={executar} />}
       <BarraControle controle={controle} nome={controle?.info?.tipo === 'pessoa' ? ((mapa.pessoas || []).find((p) => p.id === controle.info.id)?.nome || 'Pessoa') : 'Pessoa sem cadastro'}
-        mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />
+        mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} sentar={() => estado.current.sentar?.()} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />
       {extra}
       <p className={`pointer-events-none absolute bottom-3 left-4 text-[11px] text-muted-foreground ${compacto || controle ? 'hidden' : ''}`}>{comPredio && !aberto ? 'Clique no prédio para abrir o andar do escritório' : 'Arraste para girar · role para aproximar · clique numa sala ou num ar para ir até ele'}</p>
     </div>

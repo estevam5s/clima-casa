@@ -169,7 +169,7 @@ export default function Apps() {
           {desatualizado && destaque && <a href={destaque.url}><Botao tamanho="sm" icone={Download}>Baixar {RELEASE.versao}</Botao></a>}
         </div>
       )}
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="cartao flex flex-col justify-between gap-6 p-6 sm:flex-row sm:items-center">
           {destaque ? (
             <>
@@ -222,7 +222,7 @@ export default function Apps() {
         </motion.div>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Secao titulo="O que cada app faz" contexto="Todos usam o mesmo login e falam com o mesmo servidor">
           <div className="-mx-5 -my-5 overflow-x-auto">
             <table className="tabela w-full min-w-[560px]">
@@ -253,7 +253,7 @@ export default function Apps() {
         </Secao>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Secao titulo="Requisitos" contexto="O mínimo para cada plataforma">
           <div className="-mx-5 -my-5 overflow-x-auto">
             <table className="tabela w-full min-w-[560px]">

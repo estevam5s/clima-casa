@@ -58,7 +58,7 @@ export default function PainelSeguranca() {
         { rotulo: 'Logins (24 h)', valor: ev.login_ok || 0, dica: `${ev.login_falhou || 0} tentativa(s) com senha errada`, tom: ev.login_falhou ? 'ruim' : '' },
       ]} />
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
           <section className="cartao p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">

@@ -15,7 +15,7 @@ const TRAJES = [['camisa', 'Camisa'], ['social', 'Social (paletó e gravata)'], 
 
 export function novaPessoa(preset = {}) {
   return {
-    id: `p-${Date.now().toString(36)}`, nome: '', cargo: '', sala: preset.sala || '', posto: preset.posto || '',
+    id: `p-${Date.now().toString(36)}`, nome: '', cargo: '', sexo: '', sala: preset.sala || '', posto: preset.posto || '',
     inicio: '08:00', fim: '18:00', dias: [1, 2, 3, 4, 5],
     aparencia: { pele: '#f1c27d', cabelo: 'curto', cor_cabelo: '#2b1b12', roupa: '#1e3a5f', calca: '#1f2937', sapato: '#111111', traje: 'camisa', corpo: 'a', oculos: false, barba: false, cracha: true, ...(preset.aparencia || {}) },
   }
@@ -75,6 +75,8 @@ export function EditorPessoa({ inicial, postos, projetos, ocupado, onSalvar, onA
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-xs text-muted-foreground">Nome<input required maxLength={40} value={p.nome} onChange={(e) => muda('nome', e.target.value)} className="campo mt-1 h-9" placeholder="Ex.: Deison" /></label>
           <label className="text-xs text-muted-foreground">Cargo<input maxLength={40} value={p.cargo} onChange={(e) => muda('cargo', e.target.value)} className="campo mt-1 h-9" placeholder="Ex.: Analista de TI" /></label>
+          <label className="text-xs text-muted-foreground">Sexo<select value={p.sexo || ''} onChange={(e) => muda('sexo', e.target.value)} className="campo mt-1 h-9">
+            <option value="">Não informado</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label>
           <label className="text-xs text-muted-foreground">Sala<select value={p.sala} onChange={(e) => setP((x) => ({ ...x, sala: e.target.value, posto: '' }))} className="campo mt-1 h-9">
             <option value="">Qualquer sala</option>{projetos.map((s) => <option key={s.id} value={String(s.id)}>{s.nome}</option>)}</select></label>
           <label className="text-xs text-muted-foreground">Posto (onde senta)<select value={p.posto} onChange={(e) => { const po = postos.find((x) => x.id === e.target.value); setP((x) => ({ ...x, posto: e.target.value, sala: po?.sala || x.sala })) }} className="campo mt-1 h-9">

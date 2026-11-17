@@ -33,7 +33,10 @@ caminhos de serviço e o projeto da Vercel).
 | Quero mudar… | Arquivo(s) |
 |---|---|
 | Ligar/desligar/temperatura de um ar | `backend/app/clima.py` (`aplicar`, `responderam_juntos`) → `transmissor.py` |
-| Vários ares num transmissor (ligar todos, ares iguais, limite) | `rotas/api.py` (`_hub_publico`, `/hubs/{id}/todos`), `clima.grupos_juntos`, `pages/Transmissores.jsx` (`AresDoTransmissor`) |
+| Vários ares num transmissor, **zonas** (ares iguais que obedecem juntos), teste de interferência, mover transmissor | `backend/app/zonas.py`, `rotas/api.py` (`_hub_publico`, `/zonas`, `/hubs/{id}/todos|ares|teste-interferencia`), `clima.aplicar`, `pages/Transmissores.jsx` (`ZonaControle`, `TesteInterferencia`, `EditarAres`) |
+| Alexa por zona, diagnóstico da Alexa, ritmo dos eventos do Sinric | `backend/app/sinric.py` (`organizar_zona`, `notificar_estado`/`_esvaziar`), `rotas/api.py` (`/sinric/zona/{id}`, `/sinric/diagnostico`), `pages/Integracoes.jsx` (`ZonasAlexa`, `NovaAlexa`) |
+| Previsão do tempo (painel e 3D) | `backend/app/clima_externo.py` (`agora`, `tipo_tempo`), `components/tempo3d.js`, cartão no `Mapa3D.jsx` |
+| Cidade viva (pedestres, animais, semáforos, TICEN), monitores e sentar/trabalhar | `components/vida3d.js`, `predio3d.js` (semáforo, carros), `cidade3d.js`, `telas3d.js`, `Mapa3D.jsx` (`E.sentar`, `E.telas`) |
 | Gerar botões Gree / copiar botões de outro ar | `backend/app/gree.py`, `rotas/api.py` (`/aparelhos/{id}/gree`, `/copiar-botoes`), `pages/Aparelho.jsx` (`AtalhosBotoes`), `scripts/gree_gerar.py` |
 | "O que há de novo" (versões) | `backend/app/novidades.json`, `rotas/api.py` (`/novidades`), `components/Novidades.jsx`, `pages/Novidades.jsx` |
 | Painel abre em qual ar / aviso "sem transmissor" | `pages/Painel.jsx` (`Destaque`), `components/ArCartao.jsx` |
@@ -94,7 +97,8 @@ Usuários: **dono**, **admin** (Deison) e papéis abaixo (seção 7.7). Sem cada
 | **Transmissor / hub** | o Smart IR SRW-004 (Tuya), tabela `hubs`. Um no teto atende até ~4 ares à vista |
 | **Botão / código** | sinal infravermelho gravado (base64 de pulsos), tabela `codigos`; chave `modo_temp_vent` ou `desligar` |
 | **Gree** | protocolo do controle Gree: com o Desligar gravado, o sistema gera os 300 ajustes (`gree.py`) |
-| **Responder junto** | ares do mesmo modelo à vista do mesmo transmissor obedecem ao mesmo sinal (o IR não tem endereço) |
+| **Responder junto / zona** | ares do mesmo modelo à vista do mesmo transmissor obedecem ao mesmo sinal (o IR não tem endereço). O grupo é uma **zona** (`zonas.py`): um comando muda todos, e na Alexa a zona é UM aparelho |
+| **Teste de interferência** | assistente que manda o sinal de um ar por vez; quem está no salão marca quem apitou; grava as zonas reais |
 | **Portão** | página "Executando verificação de segurança" (Turnstile + cookie `zv`) antes do sistema |
 | **Convite / código de instalação** | código de uso único (30 min) que leva o `.env` cifrado para um PC novo |
 | **Novidades** | entradas de versão em `novidades.json`, mostradas uma vez a cada pessoa no modal "O que há de novo" |
@@ -167,6 +171,7 @@ ar-controle/
 │       ├── coordenador.py     agente em vários computadores (principal/reserva/preferido)
 │       ├── convite.py         código de instalação do agente em outro PC (.env cifrado com scrypt + AES-GCM, uso único)
 │       ├── gree.py            protocolo Gree: gera qualquer botão a partir do Desligar gravado (também usado pelo script)
+│       ├── zonas.py           zonas de ar (ares iguais no mesmo transmissor): listar, quem_responde, gravar_do_teste
 │       ├── tuya_nuvem.py      Smart Life por QR, Local Key, envio pela nuvem Tuya
 │       ├── sinric.py · alexa.py   Alexa/Google (Sinric) e skill própria
 │       ├── automacao.py · agenda.py   automações, temporizadores, agenda (laço de 20 s)
@@ -189,7 +194,8 @@ ar-controle/
 │       ├── catalogoMapa.js    loja do mapa (itens, modelos, cores)
 │       ├── vozAlexa.js        gerador de frases da Alexa (música e ar)
 │       ├── components/        Layout, ui (design system), Mapa3D, Cena3D, Globo3D, Barras3D, CartoesMapa3D,
-│       │                      EquipeMapa, CatalogoVoz, dispositivos3d, nave3d, predio3d, cidade3d, satelites3d, universo,
+│       │                      EquipeMapa, CatalogoVoz, dispositivos3d, nave3d, predio3d, cidade3d, vida3d (pedestres, animais,
+│       │                      TICEN), tempo3d (nuvens/chuva), telas3d (monitores), satelites3d, universo,
 │       │                      Novidades (modal), infra/ (Visao, Vercel, Cloudflare, Agentes, comum)…
 │       └── pages/             uma por rota (seção 8)
 ├── supabase/  schema.sql (idempotente) · cron-jobs.json (10 rotinas)
@@ -448,6 +454,25 @@ segurar os comandos de infravermelho; os demais tipos seguem um por vez.
   `{acao: conferir|testar|gerar}` (Gree; testar manda Frio 24° pela fila; gerar grava 300 botões com rótulo "gerado (Gree)").
 - "Adicionar ar a este transmissor" abre `/aparelhos?novo=1&hub=<id>&projeto=<id>` (`FormAparelho` aceita `padrao`).
 - Ares **iguais** só ficam independentes com um transmissor para cada, perto e virado só para o seu ar.
+- **Zonas** (`zonas.py`, `config.zonas` + `config.zonas_testadas`): `listar()` = zonas salvas + automáticas (mesmo Desligar no
+  mesmo transmissor; transmissor já testado não ganha zona automática). `quem_responde()` é chamado em `clima.aplicar` ANTES do
+  envio: os ares da zona mudam junto no banco (`responderam_juntos`) e os que estão na Alexa vão no `contexto.juntos` para o
+  agente avisar o Sinric. Rotas: `GET|PUT /api/zonas`, `POST /api/zonas/{id}/estado` (um sinal, a zona inteira),
+  `POST /api/hubs/{id}/teste-interferencia` (`enviar` não mexe no estado salvo; `gravar` = componentes conectados viram zonas),
+  `PUT /api/hubs/{id}/ares` (planejar/mover: quem sai fica `hub_id = NULL`). `/api/aparelhos`, `/painel` e o detalhe trazem
+  `zona {id, nome, total, outros}` para a tela avisar. Limite recomendado: 6 ares por transmissor.
+- **Escritório (16/11)**: salão aberto; transmissor A = Escritório, Bancada, Analistas, Diretor, Deison (5 Gree iguais = zona
+  "Salão"); B = Fabio e Devs; C = Reunião (a comprar). Roteiro: `docs/continuar/2026-11-16-nova-alexa-e-zonas.md`.
+
+### 7.13b Alexa com zonas e muitos ares (`sinric.py`)
+- Uma zona = **um** aparelho no Sinric (`organizar_zona`: renomeia/cria o representante e apaga os outros da zona; `executar=false`
+  devolve só a prévia). Rota `POST /api/sinric/zona/{id}` `{nome, executar}`; tela Integrações → Zonas na Alexa (prévia + confirmar).
+  **Mudar o Sinric muda o que a Alexa conhece: sempre mostrar a prévia e pedir o "sim" do dono.**
+- Eventos para o Sinric: fila por aparelho com só o último estado, envia só os campos que mudaram, `INTERVALO_EVENTO` = 1,2 s
+  entre eventos (rajadas são descartadas pelo Sinric). Reconexão zera `_enviado`.
+- Diagnóstico (`/api/sinric/diagnostico`) também confere: zona por zona (1 aparelho na Alexa), capacidade (zonas + ares soltos ≤ 3
+  no grátis) e se o agente no comando enxerga os transmissores.
+- Alexa nova com a mesma conta: só ativar a skill Sinric Pro nela e "descobrir dispositivos" (cartão "Nova Alexa" em Integrações).
 
 ### 7.14 Um comando de ar, de ponta a ponta (onde olhar quando falha)
 1. **Tela** (`Painel`/`ArCartao`/`Aparelho`/mapa) → `POST /api/aparelhos/{id}/estado`. Botões desativados = ar sem `hub_id`
@@ -514,6 +539,19 @@ rota) abre uma vez por pessoa quando `atual > vista`, em qualquer aparelho. A pr
 - Cidade (`cidade3d.js`): lotes de 24 m a cada 34 m (±170 m) fora do quarteirão e das avenidas, 7 estilos de prédio, praças, árvores
   e postes; skyline ao fundo. Tudo mesclado por material (`mergeGeometries`) e instâncias: ~20 chamadas de desenho. Na direção da
   câmera e perto do prédio, só prédios baixos. Nada de prédio real ou marca.
+- **Tempo**: `GET /api/clima-externo` traz `tipo` (limpo, nublado, neblina, chuva, trovoada), `nuvens`, `proximas` (12 h) e
+  `dias` (3). O `Mapa3D` busca a cada 10 min e chama `predio.definirTempo(tipo, nuvens)` (nuvens instanciadas, chuva em linhas,
+  clarões, asfalto molhado; neblina/chuva encurtam a névoa). Cartão da previsão com Agora/Sol/Nublado/Chuva/Trovoada.
+- **Vida** (`vida3d.js`, tudo instanciado): pedestres nas calçadas das quadras (`cidade3d` devolve `calcadas`/`pracas`), cães,
+  pombos que voam quando alguém passa, gaivotas, gatos, quem atravessa nas faixas na fase de pedestres; **terminal inspirado no
+  TICEN** do outro lado da avenida horizontal (3 plataformas cobertas, 6 ônibus com fila, passageiros). Semáforo no cruzamento
+  (`predio3d`): ciclo de 30 s, carros freiam na retenção e guardam distância.
+- **Monitores** (`telas3d.js`): textura por posto com semente própria e papel pela sala (Devs código, Analistas planilha/painel,
+  Diretor/Deison/Fabio e-mail/agenda, Bancada terminal, Reunião slides); posto vazio = tela bloqueada. Redesenho só perto da câmera.
+- **Sentar e trabalhar**: no controle, `F`/botão senta na cadeira livre a até 1,4 m (`E.sentar`); quem já estava sentado continua
+  sentado ao ser controlado; parar o controle sentado deixa a pessoa trabalhando. Cartão da pessoa: nome, sexo, cargo, sala, agora.
+  Figurante não senta em sala que tem equipe cadastrada. `PessoaMapa.sexo` (masculino/feminino/vazio).
+- **Teste**: `localStorage['clima-debug-3d'] = '1'` expõe `window.__mapa3d` (estado do 3D) para o Playwright; nada além do próprio 3D.
 - 3D: prédio (pódio + torre, clicar abre o andar), pessoas com A* numa grade de colisão, persianas clicáveis, itens com cartão
   (cor/modelo/ligar), escrita no vidro (dono/admin, altura 0,9–1,8 m), controle de avatar em 1ª/3ª pessoa (WASD, Shift, V, Esc),
   tela cheia, compilação de shaders assíncrona, para de desenhar fora da tela.
@@ -583,6 +621,7 @@ Prefixo `/api`, JSON, Bearer (exceto as públicas). Erros `{"detail": "…"}` em
 - **Infra/agentes**: `GET /infra/saude|resumo|uso|publicacoes|publicacoes/{id}/log|variaveis`, `POST /infra/publicacoes/acao|limpar|retencao`,
   `GET /agentes`, `POST /agentes/preferido|esquecer|convite` (dono ou admin)
 - **Segurança e marca**: `/seguranca…` (resumo, relatório, checklist, ips, eventos), `/marca…`, `/notificacoes…`
+- **Zonas**: `GET|PUT /zonas`, `POST /zonas/{id}/estado`, `POST /hubs/{id}/teste-interferencia`, `PUT /hubs/{id}/ares`; Alexa: `POST /sinric/zona/{id}`
 - **Novidades**: `GET /novidades`, `POST /novidades/vista` (qualquer usuário logado)
 - **Agentes (público)**: `POST /agentes/convite/resgatar` (uso único; erro conta no firewall)
 - **Outros**: `GET /satelites`, `GET /clima-externo`, `GET /apps/qr|versao|repositorio|codigo/{arquivo}`, `/site/…`, `/supabase/…`, `GET /backup`
@@ -652,6 +691,13 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 - Logs `atividade` e `seguranca_eventos` selados com SHA-256; `GET /api/seguranca/checklist` confere 18 controles ao vivo.
 - Tokens amplos (GitHub, Vercel) **nunca** na Vercel; o token da Vercel só no agente.
 - Vulnerabilidade/segredo vazado: rotacionar imediatamente (Supabase, Vercel, Sinric, Spotify, Resend, Turnstile).
+- **Auditoria (rodar antes de releases grandes)**: `uvx pip-audit -r requirements.txt` e `-r backend/requirements.txt`;
+  `cd frontend && npm audit --omit=dev` (e `site/`); `cd backend && uvx bandit -r app -ll -q`. Estado em 16/11: Python e site sem
+  achados; frontend com aviso moderado do react-router (só SSR, que não usamos; correção exige v7); bandit B608 = falsos positivos
+  (identificadores vêm de listas fechadas e valores vão como `?`), B104 = string "0.0.0.0" do firewall, não bind.
+- **Permissões de rota**: `rotas_sem_regra()` (rotas/api.py) lista rotas que mudam dados sem regra em `acesso.REGRAS` (fora
+  `/api/infra/`, `/api/email/`, `/api/agentes/`, que exigem `configuracoes.gerenciar` + papel de propósito). Aparece no checklist da
+  tela Segurança; meta: vazio. As rotas públicas (sem login) são 23, todas com proteção própria (Turnstile, Svix, `state`, prova).
 
 ---
 
@@ -692,6 +738,11 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | Teste Playwright travado por um modal | é o "O que há de novo": intercepte `/api/novidades/vista` e aperte Esc |
 | Instalador Windows: falha ao decifrar / acentos quebrados | PowerShell 5.1 grava UTF-8 **com BOM**: JSON com `UTF8Encoding($false)`, Python com `PYTHONUTF8=1` e `utf-8-sig` |
 | `WinError 10048` no agente Windows | duas varreduras UDP (6666/6667) ao mesmo tempo (reparar + autorreparo). Passa sozinho; se repetir, reiniciar o serviço |
+| `app.routes` do FastAPI só mostra `_IncludedRouter` | esta versão não achata: percorra os `APIRouter` (`rotas_sem_regra`) |
+| `curl -X $1` com `set --` no zsh dá 405/404 falsos | separação de palavras do zsh; teste com comandos explícitos |
+| Cintilação (listras) no asfalto do cruzamento | planos a 2 mm de distância brigam no depth buffer à distância: afaste ≥ 3 cm |
+| Avatar sentado: trocar câmera volta "Sentar" | `mudarModo` precisa repassar `sentado` ao `setControle` |
+| Dois ares Gree ligam juntos | é físico (zona). Não é bug: ver seção 7.13 |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
@@ -708,6 +759,14 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   (Windows 11, instalado por código em 16/11 ~18:35, **preferido**, enxergou 1 de 2, offline desde 19:02). Enquanto o PC do João
   estiver desligado e o Mac fora da rede, nenhum comando chega aos ares. Pendente: deixar um PC do escritório sempre ligado.
 - **Painel**: corrigido em 16/11 (abria no "Ar dos devs" sem transmissor e os botões ficavam mudos).
+- **Plano de transmissores do dono (16/11, noite)**: salão aberto; A "Smart IR · Escritório" atende Escritório, Bancada, Analistas,
+  Diretor e Deison (5 Gree iguais = zona "Salão", ainda só o Ar do escritório cadastrado); B renomeado para **"Smart IR · Fabio e
+  Devs"** (projeto Sala Fabio; o "Ar dos devs" foi vinculado a ele, ainda sem botões: copiar do Ar do escritório se for Gree igual);
+  C (Reunião) ainda não comprado. Zonas e teste de interferência prontos, **teste real pendente** (precisa de alguém no salão).
+- **Alexa definitiva**: mesma conta do Sinric. Pendente: organizar as zonas na Alexa (renomear "Ar do escritório" → "Ar do salão",
+  só com o "sim" do dono) e ativar a skill na Alexa nova. Roteiro: `docs/continuar/2026-11-16-nova-alexa-e-zonas.md`.
+- **Equipe**: projeto 7 renomeado para **Analistas**; Cássio e Alexandre com sexo masculino (aparecem só no expediente); **Deison**
+  cadastrado (masculino, Sala Deison, cargo "Subsecretário" **a confirmar**, seg–sex 8h–18h).
 - **Vários ares por transmissor**, **Gree pela tela** e **novidades por versão** (1.3.0 e 1.3.1) publicados em 16/11. Não testado com
   ares reais além do Ar do escritório (os outros transmissores ainda vão para o teto: `docs/continuar/2026-11-16-ares-por-sala.md`).
 - **Mapa 3D**: prédio de 11 andares (escritório no 9º), cidade em volta, corredor e hall dos elevadores (`config.mapa.andares = 11`).
@@ -738,6 +797,8 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   agente no PC Windows por código de uso único (PC do João), quem não enxerga os transmissores não manda. Noite: Painel abre num ar com
   transmissor; um transmissor para vários ares; Gree e copiar botões pela tela; novidades por versão (1.3.0, 1.3.1); prédio de 11 andares
   com cidade, corredor e hall no mapa 3D; CLAUDE.md ampliado (glossário, fluxo do comando, versões, roteiros).
+  Fim da noite (1.4.0): zonas de ar no salão aberto, teste de interferência, mover transmissor, Alexa por zona, previsão do tempo
+  e chuva no 3D, semáforos, pedestres, animais, terminal (TICEN), sentar/trabalhar, monitores únicos, auditoria de segurança.
 
 ---
 
@@ -779,6 +840,12 @@ Falhou ao decifrar: gerar código novo (uso único). Ver armadilhas (BOM/UTF-8).
 **Transmissor pareado de novo / Wi-Fi novo** → parear no Smart Life (2,4 GHz) com o agente na mesma rede; Transmissores → "Reconectar
 agora". ID novo único → o cadastro migra sozinho e os botões continuam.
 
-**Dois ares iguais mudando juntos** → é físico (seção 7.13). Separar = um transmissor para cada, perto e virado só para o seu ar.
+**Dois ares iguais mudando juntos** → é físico (seção 7.13): trate como zona (Transmissores → Testar interferência). Separar = um
+transmissor para cada, perto e virado só para o seu ar, e refazer o teste.
+
+**Alexa diz "ok" e o ar não muda** → Integrações → Diagnóstico: agente enxerga os transmissores? zona com 1 aparelho na Alexa?
+botões gravados no ar representante? O último comando de voz aparece? Ver seção 7.13b.
+
+**Transmissor levado para outra sala** → cartão do transmissor → "Ares deste transmissor": desmarque os que ficaram para trás.
 
 **Publicação deu erro** → seção 13 (BLOCKED, 100 MB, import). Nunca `vercel deploy` na pasta com `.git`.

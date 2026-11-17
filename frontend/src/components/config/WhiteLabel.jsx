@@ -289,7 +289,7 @@ export default function WhiteLabel() {
       </div>
 
       <BuscaCtx.Provider value={busca}>
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <Bloco titulo="Temas prontos" descricao="Aplica cores, fonte, cantos, densidade, menu e tema de uma vez. Ajuste o que quiser depois.">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"> {/* marca: amostras dos temas prontos */}
@@ -518,7 +518,7 @@ export default function WhiteLabel() {
           <Bloco titulo="Comunicação" descricao="Avisos e contatos exibidos dentro do sistema.">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm md:col-span-2">Banner de aviso no topo<Interruptor ligado={f.banner_ativo} onChange={set('banner_ativo')} rotulo="Banner" /></label>
-              <div className="md:col-span-2 grid gap-4 sm:grid-cols-[1fr_160px]">
+              <div className="md:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
                 <Campo rotulo="Texto do banner"><input className="campo" value={f.banner_texto} onChange={set('banner_texto')} maxLength={200} placeholder="Manutenção do ar da sala na sexta às 14h" /></Campo>
                 <Campo rotulo="Cor"><select className="campo" value={f.banner_cor} onChange={set('banner_cor')}><option value="info">Informação</option><option value="alerta">Alerta</option><option value="sucesso">Sucesso</option><option value="marca">Marca</option></select></Campo>
               </div>

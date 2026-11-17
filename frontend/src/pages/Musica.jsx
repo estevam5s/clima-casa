@@ -369,7 +369,7 @@ export default function Musica() {
           <MontadorFrase echos={aparelhosSp.map((d) => d.nome)} podeControlar={podeControlar} />
         </>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           {admin ? <Configurar estado={estado} aoMudar={setEstado} /> : <Aviso tipo="alerta">O Spotify ainda não foi conectado. Peça ao dono ou a um administrador.</Aviso>}
           <div className="cartao p-5">
             <h2 className="titulo-secao">2. Conectar a conta</h2>

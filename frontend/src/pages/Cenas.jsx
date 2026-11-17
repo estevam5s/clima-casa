@@ -20,7 +20,7 @@ function Form({ inicial, aparelhos, projetoPadrao, projetos, aoSalvar, onFechar 
   }
   return (
     <form onSubmit={enviar} className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
         <div><label className="rotulo" htmlFor="cn">Nome</label><input id="cn" className="campo" value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Dormir, Chegar em casa…" required /></div>
         <div>
           <label className="rotulo" htmlFor="cp">Projeto</label>

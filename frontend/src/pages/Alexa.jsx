@@ -99,7 +99,7 @@ export default function Alexa() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
           <form onSubmit={salvar} className="cartao space-y-3 p-5">
             <h2 className="text-sm font-semibold">URL pública</h2>

@@ -46,6 +46,7 @@ export default function ArCartao({ ar, aoMudar, indice = 0 }) {
         {semIR ? <Link to={`/aparelhos/${ar.id}`} className="text-amber-700 underline dark:text-amber-400">Sem transmissor: vincule um para comandar</Link>
           : ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador]?.toLowerCase()}` : 'Desligado'}
       </p>
+      {ar.zona && <p className="mt-1 px-4 text-center text-[11px] text-amber-700 dark:text-amber-400" title={`Obedece junto com: ${ar.zona.outros.join(', ')}`}>{ar.zona.nome}: o comando muda os {ar.zona.total} ares</p>}
 
       <div className="mt-3 flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5"><Ponto ativo={ar.hub_online} />{semIR ? 'Sem transmissor' : ar.hub_nome || 'Transmissor'}</span>

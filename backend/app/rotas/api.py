@@ -126,6 +126,18 @@ def _filtro_projeto(projeto_id, alias="a"):
     return (f" WHERE true{f}", pp) if f else ("", ())
 
 
+def _com_zona(lista):
+    """Marca em cada ar a zona dele (ares que obedecem juntos): a tela avisa que o comando muda a zona inteira."""
+    from .. import zonas
+    mapa_z = {}
+    for z in zonas.listar():
+        for i in z["aparelhos"]:
+            mapa_z[i] = {"id": z["id"], "nome": z["nome"], "total": len(z["aparelhos"]), "outros": [a["nome"] for a in z["ares"] if a["id"] != i]}
+    for a in lista:
+        a["zona"] = mapa_z.get(a["id"])
+    return lista
+
+
 @api.get("/painel")
 def painel(projeto_id: int | None = None):
     w, p = _filtro_projeto(projeto_id)
@@ -148,7 +160,7 @@ def painel(projeto_id: int | None = None):
                                   (hoje,))["n"],
             "falhas_24h": db.um("SELECT COUNT(*) n FROM atividade WHERE quando > ? AND ok = 0", (hoje,))["n"],
         },
-        "aparelhos": aparelhos,
+        "aparelhos": _com_zona(aparelhos),
         "atividade": _atividade(8),
         "projetos": db.um("SELECT COUNT(*) n FROM projetos")["n"],
         "sinric": (db.cfg("sinric_status") or {}).get("conectado", False),
@@ -271,11 +283,11 @@ def _validar_aparelho(d: AparelhoIn):
 @api.get("/aparelhos")
 def listar_aparelhos(projeto_id: int | None = None):
     w, p = _filtro_projeto(projeto_id)
-    return db.consultar(f"""
+    return _com_zona(db.consultar(f"""
         SELECT a.*, h.nome AS hub_nome, h.online AS hub_online, pr.nome AS projeto_nome,
                (SELECT COUNT(*) FROM codigos c WHERE c.aparelho_id = a.id) AS total_codigos
         FROM aparelhos a LEFT JOIN hubs h ON h.id = a.hub_id LEFT JOIN projetos pr ON pr.id = a.projeto_id
-        {w} ORDER BY pr.nome, a.comodo, a.nome""", p)
+        {w} ORDER BY pr.nome, a.comodo, a.nome""", p))
 
 
 @api.post("/aparelhos")
@@ -315,6 +327,7 @@ def ver_aparelho(aid: int):
         a = clima.aparelho(aid)
     except KeyError as e:
         _erro(e)
+    _com_zona([a])
     cods = db.consultar("SELECT id, chave, rotulo, criado_em FROM codigos WHERE aparelho_id = ? ORDER BY chave", (aid,))
     for c in cods:
         c["descricao"] = c["rotulo"] or clima.rotulo_chave(c["chave"])
@@ -450,6 +463,124 @@ class TodosIn(BaseModel):
     temperatura: int | None = Field(None, ge=16, le=30)
 
 
+# ---------------- zonas (ares que obedecem juntos ao mesmo transmissor: backend/app/zonas.py) ----------------
+@api.get("/zonas")
+def listar_zonas():
+    from .. import zonas
+    perm = _ids_aparelhos_permitidos()
+    return [z for z in zonas.listar() if perm is None or set(z["aparelhos"]) & perm]
+
+
+class ZonaIn(BaseModel):
+    id: str = Field("", max_length=40)
+    nome: str = Field(min_length=1, max_length=40)
+    hub_id: str = Field(min_length=1, max_length=40)
+    aparelhos: list[int] = Field(max_length=20)
+    alexa_aparelho_id: int | None = None
+
+
+@api.put("/zonas")
+def salvar_zonas(d: list[ZonaIn]):
+    """Substitui as zonas salvas (nome, ares, qual ar representa a zona na Alexa)."""
+    from .. import zonas
+    if len(d) > 30:
+        raise HTTPException(422, "Zonas demais.")
+    for z in d:
+        transmissor.hub(z.hub_id)
+        if z.alexa_aparelho_id and z.alexa_aparelho_id not in z.aparelhos:
+            raise HTTPException(422, f"O ar da Alexa da zona '{z.nome}' precisa estar na zona.")
+    r = zonas.salvar([{**z.model_dump(), "origem": "manual"} for z in d])
+    db.registrar("painel", "Zonas de ar atualizadas", detalhe=", ".join(f"{z['nome']} ({len(z['aparelhos'])})" for z in r))
+    return zonas.listar()
+
+
+class EstadoZonaIn(BaseModel):
+    ligado: bool | None = None
+    modo: str | None = Field(None, pattern=r"^(auto|frio|seco|ventilar|quente)$")
+    temperatura: int | None = Field(None, ge=16, le=30)
+    ventilador: str | None = Field(None, pattern=r"^(auto|baixa|media|alta)$")
+
+
+@api.post("/zonas/{zid}/estado")
+def estado_zona(zid: str, d: EstadoZonaIn):
+    """Um único sinal pelo transmissor: todos os ares da zona mudam (é o que acontece fisicamente)."""
+    from .. import zonas
+    z = next((x for x in zonas.listar() if x["id"] == zid), None)
+    if not z:
+        raise HTTPException(404, "Zona não encontrada.")
+    _exigir_aparelhos(z["aparelhos"])
+    com_botoes = {r["aparelho_id"] for r in db.consultar(
+        f"SELECT DISTINCT aparelho_id FROM codigos WHERE aparelho_id IN ({','.join('?' * len(z['aparelhos']))})", tuple(z["aparelhos"]))}
+    rep_id = z.get("alexa_aparelho_id") if z.get("alexa_aparelho_id") in com_botoes else next((i for i in z["aparelhos"] if i in com_botoes), None)
+    if not rep_id:
+        raise HTTPException(409, "Nenhum ar desta zona tem botões gravados.")
+    try:
+        r = clima.aplicar(rep_id, "painel", **d.model_dump())
+    except Exception as e:  # noqa: BLE001
+        _erro(e)
+    return {**r, "zona": z["id"]}
+
+
+class TesteInterferenciaIn(BaseModel):
+    acao: str = Field(pattern=r"^(enviar|gravar)$")
+    aparelho_id: int | None = None
+    comando: str = Field("ligar", pattern=r"^(ligar|desligar)$")
+    respostas: dict[int, list[int]] = Field(default_factory=dict)
+
+
+@api.post("/hubs/{hid}/teste-interferencia")
+def teste_interferencia(hid: str, d: TesteInterferenciaIn):
+    """Assistente: manda o sinal de UM ar (Ligar Frio 24° ou Desligar) sem mexer no estado salvo; a pessoa no salão diz quem
+    apitou. No fim ('gravar'), os grupos viram as zonas deste transmissor (o resultado real vence o palpite por código)."""
+    from .. import zonas
+    transmissor.hub(hid)
+    if d.acao == "gravar":
+        ids = {r["id"] for r in db.consultar("SELECT id FROM aparelhos WHERE hub_id = ?", (hid,))}
+        respostas = {a: [b for b in lst if b in ids] for a, lst in d.respostas.items() if a in ids}
+        zs = zonas.gravar_do_teste(hid, respostas)
+        db.registrar("painel", "Teste de interferência gravado", detalhe=f"{len([z for z in zs if z['hub_id'] == hid])} zona(s) no transmissor")
+        return {"zonas": [z for z in zonas.listar() if z["hub_id"] == hid]}
+    a = db.um("SELECT id, nome, hub_id FROM aparelhos WHERE id = ?", (d.aparelho_id or 0,))
+    if not a or a["hub_id"] != hid:
+        raise HTTPException(422, "Escolha um ar deste transmissor.")
+    cods = clima.codigos(a["id"])
+    chave = "desligar" if d.comando == "desligar" else (clima.escolher_codigo(cods, "frio", 24, "auto")[0])
+    if not chave or chave not in cods:
+        raise HTTPException(409, f"O ar '{a['nome']}' não tem o botão necessário gravado.")
+    try:
+        via = transmissor.enviar(hid, cods[chave])
+    except Exception as e:  # noqa: BLE001
+        _erro(e)
+    db.registrar("painel", f"Teste de interferência: {'Desligar' if d.comando == 'desligar' else 'Ligar Frio 24°'}", aparelho_id=a["id"], detalhe=f"via {via}")
+    return {"ok": True, "via": via, "botao": chave}
+
+
+class AresDoHubIn(BaseModel):
+    aparelhos: list[int] = Field(max_length=30)
+    projeto_id: int | None = None
+
+
+@api.put("/hubs/{hid}/ares")
+def ares_do_hub(hid: str, d: AresDoHubIn):
+    """Planejar ou mover um transmissor: quais ares ele atende agora. Quem sai fica 'sem transmissor' (botões continuam
+    salvos), assim um transmissor levado para outro lugar nunca dispara num ar que não vê mais."""
+    h = transmissor.hub(hid)
+    _exigir_aparelhos(d.aparelhos)
+    if d.projeto_id:
+        _exigir_projeto(d.projeto_id)
+    antes = {r["id"] for r in db.consultar("SELECT id FROM aparelhos WHERE hub_id = ?", (hid,))}
+    _exigir_aparelhos(antes)
+    novos = set(d.aparelhos)
+    for i in antes - novos:
+        db.executar("UPDATE aparelhos SET hub_id = NULL WHERE id = ?", (i,))
+    for i in novos - antes:
+        db.executar("UPDATE aparelhos SET hub_id = ? WHERE id = ?", (hid, i))
+    if d.projeto_id:
+        db.executar("UPDATE hubs SET projeto_id = ? WHERE id = ?", (d.projeto_id, hid))
+    db.registrar("painel", f"Ares do transmissor {h['nome']} atualizados", detalhe=f"entraram {len(novos - antes)}, saíram {len(antes - novos)}")
+    return listar_hubs()
+
+
 @api.post("/hubs/{hid}/todos")
 def hub_todos(hid: str, d: TodosIn):
     """Liga ou desliga todos os ares de um transmissor, um de cada vez (o SRW-004 manda um sinal por vez)."""
@@ -579,7 +710,7 @@ class HubEdit(BaseModel):
     projeto_id: int | None = None
 
 
-LIMITE_ARES_POR_TRANSMISSOR = 4   # recomendado: um SRW-004 no teto alcança bem 3–4 ares no mesmo ambiente
+LIMITE_ARES_POR_TRANSMISSOR = 6   # recomendado: um SRW-004 no teto de um salão aberto alcança bem até ~6 ares à vista
 
 
 def _hub_publico(h):
@@ -591,7 +722,11 @@ def _hub_publico(h):
                         "FROM aparelhos a LEFT JOIN projetos p ON p.id = a.projeto_id WHERE a.hub_id = ? ORDER BY a.nome", (h["id"],))
     h["aparelhos"] = len(ares)
     h["ares"] = [dict(a) for a in ares]
-    h["juntos"] = clima.grupos_juntos(h["id"])
+    from .. import zonas
+    zs = [z for z in zonas.listar() if z["hub_id"] == h["id"]]
+    h["zonas"] = [{k: z[k] for k in ("id", "nome", "aparelhos", "alexa_aparelho_id", "origem")} for z in zs]
+    h["juntos"] = [z["aparelhos"] for z in zs]
+    h["testado"] = h["id"] in (db.cfg(zonas.TESTADOS) or [])
     h["limite_recomendado"] = LIMITE_ARES_POR_TRANSMISSOR
     return h
 
@@ -1207,6 +1342,7 @@ class PessoaMapa(BaseModel):
     id: str = Field(min_length=1, max_length=40, pattern=r"^[\w-]+$")
     nome: str = Field(min_length=1, max_length=40)
     cargo: str = Field("", max_length=40)
+    sexo: str = Field("", pattern=r"^(masculino|feminino|)$")   # mostrado no cartão da pessoa no 3D
     sala: str = Field("", max_length=12)
     posto: str = Field("", max_length=60)
     inicio: str = Field("08:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -1783,9 +1919,53 @@ def sinric_diagnostico():
     item("ultimo", "Último comando de voz recebido", "ok" if ult else "aviso",
          (time.strftime("%d/%m %H:%M", time.gmtime(ult["quando"] - 3 * 3600)) + f" · {ult['acao']} ({'ok' if ult['ok'] else 'falhou'})") if ult
          else "Nenhum ainda. Depois de conectar a nova Alexa, fale um comando e clique em Verificar de novo.")
+    # zonas: ares iguais no mesmo transmissor mudam juntos; na Alexa cada zona deve ser UM aparelho
+    from .. import zonas as _z
+    zs = _z.listar()
+    for z in zs:
+        na_alexa = [a["nome"] for a in z["ares"] if a.get("sinric_device_id")]
+        item(f"zona-{z['id']}", f"Zona {z['nome']} na Alexa", "ok" if len(na_alexa) == 1 else "aviso",
+             f"Na Alexa como 1 aparelho ({na_alexa[0]}): falar com ele muda os {len(z['aparelhos'])} ares." if len(na_alexa) == 1 else
+             (f"{len(na_alexa)} ares desta zona estão na Alexa ({', '.join(na_alexa)}): qualquer um muda todos e gasta o limite. Use 'Organizar na Alexa'."
+              if na_alexa else "Esta zona ainda não está na Alexa. Use 'Organizar na Alexa'."))
+    em_zona = {i for z in zs for i in z["aparelhos"]}
+    soltos = [a for a in ap if a["id"] not in em_zona and a["botoes"]]
+    precisa = len(zs) + len(soltos)
+    item("capacidade", "Cabe no plano gratuito do Sinric (3)?", "ok" if precisa <= 3 else "aviso",
+         f"Precisa de {precisa} aparelho(s) no Sinric: {len(zs)} zona(s) + {len(soltos)} ar(es) independente(s) com botões."
+         + ("" if precisa <= 3 else " Acima de 3: plano pago do Sinric ou juntar ares em zonas."))
+    lider = (db.cfg("agente_lider") or {}).get("id")
+    maq = db.cfg(f"agente_maquina:{lider}") if lider else None
+    if maq and maq.get("total_transmissores"):
+        ve, tot = maq.get("ve_transmissores", 0), maq["total_transmissores"]
+        item("rede", "Agente enxerga os transmissores", "ok" if ve == tot else ("aviso" if ve else "erro"),
+             f"O computador no comando ({maq.get('nome', lider)}) enxerga {ve} de {tot}." + ("" if ve == tot else " A Alexa responde 'ok', mas o sinal não sai: ligue o PC do escritório."))
     bloqueia = [i for i in itens if i["estado"] == "erro"]
     veredito = "funciona" if not bloqueia and not [i for i in itens if i["estado"] == "aviso" and i["chave"] in ("ir", "vinculos")] else ("parcial" if not bloqueia else "nao_funciona")
     return {"veredito": veredito, "itens": itens, "remotos": len(remotos), "verificado_em": db.agora()}
+
+
+class ZonaAlexaIn(BaseModel):
+    nome: str = Field(min_length=3, max_length=60)
+    executar: bool = False
+
+
+@api.post("/sinric/zona/{zid}")
+def sinric_zona(zid: str, d: ZonaAlexaIn):
+    """Prévia (executar=false) ou execução: a zona vira UM aparelho na Alexa com o nome falado escolhido."""
+    from .. import sinric, zonas
+    z = next((x for x in zonas.listar() if x["id"] == zid), None)
+    if not z:
+        raise HTTPException(404, "Zona não encontrada.")
+    try:
+        r = sinric.organizar_zona(z, d.nome.strip(), d.executar)
+    except Exception as e:  # noqa: BLE001
+        _erro(e)
+    if d.executar:   # guarda quem representa a zona (zona automática vira salva)
+        salvas = [x for x in (db.cfg(zonas.CHAVE) or []) if x.get("id") != zid]
+        zonas.salvar(salvas + [{**{k: z[k] for k in ("id", "nome", "hub_id", "aparelhos")}, "id": zid if not zid.startswith("auto-") else "",
+                                "alexa_aparelho_id": r["representante"], "origem": z.get("origem") if z.get("origem") != "auto" else "manual"}])
+    return r
 
 
 @api.get("/sinric/conectar-alexa")
@@ -2838,6 +3018,26 @@ class SegurancaIn(BaseModel):
     exigir_2fa_admin: bool = False
 
 
+# rotas que mudam dados e, de propósito, caem na regra padrão (configuracoes.gerenciar) + checagem própria de papel
+_PADRAO_DE_PROPOSITO = ("/api/infra/", "/api/email/", "/api/agentes/")
+
+
+def rotas_sem_regra() -> list[str]:
+    """Rotas logadas que mudam dados sem regra explícita em acesso.REGRAS (fora as de propósito acima)."""
+    from .. import acesso
+    from . import alexa, contas, correio, infra, musica
+    sem = []
+    for rt in (api, contas.contas, musica.rotas_musica, infra.rotas_infra, correio.rotas_email, alexa.roteador):
+        for r in rt.routes:
+            caminho = getattr(r, "path", "")
+            if not caminho.startswith("/api") or caminho.startswith(_PADRAO_DE_PROPOSITO):
+                continue
+            for met in getattr(r, "methods", set()) - {"GET", "HEAD"}:
+                if not any((mm is None or met in mm) and pp.search(caminho) for mm, pp, _ in acesso._REGRAS):
+                    sem.append(f"{met} {caminho}")
+    return sorted(set(sem))
+
+
 @api.get("/seguranca/checklist")
 def checklist_seguranca():
     """Controles de segurança conferidos na hora (não é texto fixo): cada item diz se está ok e como corrigir."""
@@ -2862,6 +3062,8 @@ def checklist_seguranca():
         ("acesso", "Dono com verificação em duas etapas", any(a["papel"] == "dono" and (a["pk"] or a["totp"]) for a in admins), "Google Authenticator ou biometria cadastrados."),
         ("acesso", "Todos os administradores com duas etapas", not sem2fa, f"Sem duas etapas: {', '.join(sem2fa)}" if sem2fa else "Dono, admins e subadmins protegidos."),
         ("acesso", "Duas etapas obrigatórias para administradores", bool(c.get("exigir_2fa_admin")), "Ligue em Regras do firewall: admin sem 2FA não usa o sistema."),
+        ("acesso", "Toda rota que muda dados tem permissão explícita", not (sem_regra := rotas_sem_regra()),
+         f"Sem regra (só o dono/admin consegue usar): {', '.join(sem_regra[:6])}" if sem_regra else "Cada ação confere a permissão certa do usuário (acesso.REGRAS)."),
         ("acesso", "Sessões expiram por inatividade", bool(c.get("sessao_inatividade_min")), f"Sem uso por {c.get('sessao_inatividade_min')} min pede login de novo."),
         ("acesso", "Duração máxima de cada login", bool(c.get("sessao_max_horas")), f"Login vale no máximo {c.get('sessao_max_horas')} h."),
         ("acesso", "Senhas fortes (10+ caracteres, 4 tipos) e conferência de vazamento", True, "Regra no Supabase Auth e checagem no Have I Been Pwned ao trocar a senha."),

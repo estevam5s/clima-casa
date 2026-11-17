@@ -375,6 +375,16 @@ agente e nunca vão para a nuvem. Com o agente desligado, essas abas avisam e es
 Os endereços @zynio.com.br **só recebem**. Para responder como eles, use no Gmail **Configurações → Contas → Enviar
 e-mail como**, com o servidor `smtp.resend.com`, a porta 465, o usuário `resend` e a chave do Resend como senha.
 
+## 8.16 Mapa vivo: tempo, cidade e avatares
+
+- **Previsão do tempo real** (Open-Meteo) no canto do 3D: agora, próximas horas e 3 dias. O céu acompanha: nuvens, chuva
+  e trovoada quando a previsão indica. Os botões Sol, Nublado, Chuva e Trovoada mostram como fica.
+- A cidade em volta é **ilustração**: semáforos (com fase para pedestres), pedestres (com guarda-chuva na chuva), cães,
+  pombos, gaivotas, gatos e um terminal de ônibus inspirado no TICEN.
+- **Avatar**: clique numa pessoa → 1ª ou 3ª pessoa. Perto de uma cadeira livre, **F** (ou "Sentar") senta e começa a
+  trabalhar; **F** de novo levanta. Cada monitor mostra um conteúdo próprio, conforme a sala (fictício).
+- O cartão da pessoa mostra nome, sexo, cargo, sala e o que ela está fazendo. A equipe aparece só no expediente.
+
 ## 8.15 Novidades a cada versão
 
 Quando o sistema é atualizado, aparece **uma vez** a janela **"O que há de novo"** com a versão e o que mudou, separado em
@@ -408,6 +418,32 @@ painel e mostra um aviso amarelo no cartão. Para comandar cada um separado, use
 seu ar e virado só para ele. Modelos diferentes funcionam separados no mesmo transmissor.
 
 **Teste**: com alguém olhando os ares, mande Ligar para um e veja quem apitou; depois Desligar.
+
+## 9.2 Salão aberto: zonas
+
+No escritório, os ares do salão (Escritório, Sala Bancada, Analistas, Diretor e Sala Deison) são **Gree iguais** e ficam
+no **mesmo transmissor**. Como o infravermelho não tem endereço, **um comando muda todos eles**. O sistema trata esse
+grupo como uma **zona**:
+
+- No cartão do transmissor aparecem **Ligar zona**, **Desligar zona** e a temperatura da zona.
+- Nas telas de cada ar, um aviso lembra que o comando muda a zona inteira.
+- **Testar interferência** (no cartão): com alguém no salão, o sistema manda o sinal de um ar por vez e você marca quem
+  apitou. Ao gravar, as zonas passam a seguir o que aconteceu de verdade.
+- **Ares deste transmissor (planejar ou mover)**: marque os ares que o transmissor enxerga agora. Se levar o transmissor
+  para outro lugar, desmarque os que ficaram para trás: eles ficam sem transmissor (os botões continuam salvos) e nenhum
+  comando sai para eles por engano.
+- Para comandar um ar **sozinho**, a única saída é um transmissor só para ele, colado no ar e virado para ele. Num salão
+  aberto o sinal ainda pode refletir no teto: faça o teste de interferência.
+
+## 9.3 Alexa por zona
+
+Em **Integrações → Zonas na Alexa → Organizar na Alexa**, cada zona vira **um aparelho** com um nome só (por exemplo
+"Ar do salão"). Antes de aplicar, a tela mostra exatamente o que muda no Sinric Pro e pede confirmação. Depois diga
+"Alexa, descobrir dispositivos". Três zonas (salão, Fabio e Devs, Reunião) cabem no plano gratuito do Sinric (3 aparelhos).
+
+**Alexa nova com a mesma conta**: no app Alexa da conta nova, ative a skill **Sinric Pro** entrando com a mesma conta,
+diga "Alexa, descobrir dispositivos" e teste "Alexa, ligue o ar do salão". O diagnóstico em Integrações mostra o comando
+chegando. A Alexa antiga pode continuar ativa.
 
 # 10. Alexa e Google Home com o Sinric Pro
 

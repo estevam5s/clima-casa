@@ -103,7 +103,18 @@ def aplicar(aparelho_id: int, origem: str, ligado=None, modo=None, temperatura=N
             raise RuntimeError("Botão 'Desligar' ainda não foi gravado.")
         descricao = "Desligar"
 
-    contexto = {"aparelho": {**a, **novo}} if notificar_sinric and a.get("sinric_device_id") else None
+    # quem muda junto (zona ou mesmo código no mesmo transmissor): calculado antes do envio para o agente avisar o Sinric
+    # de todos os que estão na Alexa, não só do ar comandado
+    from . import zonas
+    outros = zonas.quem_responde(aparelho_id, a["hub_id"], chave, cods[chave])
+    juntos_alexa = [{**aparelho(i), **novo} for i in outros]
+    juntos_alexa = [j for j in juntos_alexa if j.get("sinric_device_id")]
+    contexto = {}
+    if notificar_sinric and a.get("sinric_device_id"):
+        contexto["aparelho"] = {**a, **novo}
+    if juntos_alexa:
+        contexto["juntos"] = juntos_alexa
+    contexto = contexto or None
     try:
         via = transmissor.enviar(a["hub_id"], cods[chave], contexto)
     except Exception as e:
@@ -116,19 +127,17 @@ def aplicar(aparelho_id: int, origem: str, ligado=None, modo=None, temperatura=N
          aparelho_id),
     )
     db.registrar(origem, descricao, aparelho_id=aparelho_id, detalhe=f"via {via}")
-    juntos = responderam_juntos(aparelho_id, a["hub_id"], chave, cods[chave], novo, origem)
+    juntos = responderam_juntos(aparelho_id, outros, chave, novo, origem)
     if bool(a["ligado"]) != bool(novo["ligado"]):  # mudou de desligado↔ligado: avalia automações
         from . import automacao
         automacao.evento(aparelho_id, origem, bool(novo["ligado"]))
     return {**aparelho(aparelho_id), "via": via, "juntos": juntos}
 
 
-def responderam_juntos(aparelho_id: int, hub_id: str, chave: str, codigo: str, novo: dict, origem: str) -> list[int]:
-    """Infravermelho não tem endereço: dois ares do MESMO modelo à vista do mesmo transmissor obedecem ao mesmo sinal.
-    Quem tem exatamente o mesmo código para essa chave mudou de verdade; o painel passa a mostrar isso."""
-    ids = [r["aparelho_id"] for r in db.consultar(
-        "SELECT c.aparelho_id FROM codigos c JOIN aparelhos a ON a.id = c.aparelho_id "
-        "WHERE a.hub_id = ? AND c.aparelho_id <> ? AND c.chave = ? AND c.codigo = ?", (hub_id, aparelho_id, chave, codigo))]
+def responderam_juntos(aparelho_id: int, ids: list[int], chave: str, novo: dict, origem: str) -> list[int]:
+    """Infravermelho não tem endereço: ares do MESMO modelo à vista do mesmo transmissor obedecem ao mesmo sinal.
+    `ids` vem de zonas.quem_responde (a zona do teste de interferência ou, sem teste, quem tem o mesmo código).
+    Esses ares mudaram de verdade; o painel, o mapa e a Alexa passam a mostrar isso."""
     for i in ids:
         db.executar("UPDATE aparelhos SET ligado = ?, modo = ?, temperatura = ?, ventilador = ?, atualizado_em = ?, "
                     "ligado_desde = CASE WHEN ? = 1 THEN coalesce(CASE WHEN ligado = 1 THEN ligado_desde END, ?) END WHERE id = ?",

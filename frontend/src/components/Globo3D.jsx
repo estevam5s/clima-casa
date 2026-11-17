@@ -635,6 +635,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     laco()
     return () => {
       cancelAnimationFrame(quadro); ro.disconnect(); clearTimeout(retomar)
+      clearTimeout(retomar)   // o "voltar a girar" não dispara depois de fechar a tela
       el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair); el.removeEventListener('dblclick', duplo)
       window.removeEventListener('keydown', tecla); window.removeEventListener('keyup', tecla); window.removeEventListener('blur', soltar)
       universo.descartar(); sats.descartar()

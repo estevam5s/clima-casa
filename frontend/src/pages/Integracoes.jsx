@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertTriangle, ArrowLeftRight, CheckCircle2, ExternalLink, Link2, Plus, QrCode, RefreshCw, Smartphone, XCircle } from 'lucide-react'
 import { api, haQuanto } from '../api'
-import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Ponto, Selo, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Modal, Ponto, Selo, useDados, useToast } from '../components/ui'
 
 const PASSOS_ALEXA = [
   ['Escaneie o QR Code com o celular', 'O celular com o app Alexa da outra conta. Ele abre direto a skill "Sinric Pro".'],
@@ -71,7 +71,7 @@ export default function Integracoes() {
     <>
       <Cabecalho titulo="Alexa e Google Home" descricao="Pelo Sinric Pro: funciona em qualquer conta Alexa ou Google Home, sem criar skill própria." />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="cartao p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -184,6 +184,8 @@ export default function Integracoes() {
               <ul className="space-y-1 text-muted-foreground">{COMANDOS.map((c) => <li key={c}>"{c}"</li>)}</ul>
             </div>
           </motion.div>
+          <NovaAlexa />
+          <ZonasAlexa />
           <DiagnosticoAlexa />
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="cartao p-5">
             <h2 className="flex items-center gap-2 titulo-secao"><Smartphone className="h-4 w-4" /> Google Home</h2>
@@ -269,5 +271,88 @@ function DiagnosticoAlexa() {
         ))}
       </div>
     </motion.div>
+  )
+}
+
+
+// Zonas na Alexa: ares iguais no mesmo transmissor mudam juntos, então cada zona vira UM aparelho na Alexa
+// (backend: sinric.organizar_zona). Primeiro a prévia do que muda no Sinric; só executa depois de confirmar.
+function ZonasAlexa() {
+  const { dados: zonas, recarregar } = useDados(() => api.get('/api/zonas'))
+  const [alvo, setAlvo] = useState(null)   // { zona, nome, previa }
+  const [ocupado, setOcupado] = useState(false)
+  const toast = useToast()
+  if (!zonas) return null
+  const previa = async (z) => {
+    const nome = z.nome.replace(/^Zona\s+(Smart IR\s*·\s*)?/i, 'Ar do ').trim()
+    setOcupado(true)
+    try { setAlvo({ zona: z, nome, previa: await api.post(`/api/sinric/zona/${z.id}`, { nome, executar: false }) }) }
+    catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  const atualizarPrevia = (nome) => setAlvo((a) => ({ ...a, nome }))
+  const recalcular = async () => {   // ao sair do campo: a prévia passa a citar o nome novo
+    if (!alvo || alvo.nome.trim().length < 3) return
+    try { const previa = await api.post(`/api/sinric/zona/${alvo.zona.id}`, { nome: alvo.nome, executar: false }); setAlvo((a) => ({ ...a, previa })) } catch { /* mantém a prévia anterior */ }
+  }
+  const executar = async () => {
+    setOcupado(true)
+    try {
+      await api.post(`/api/sinric/zona/${alvo.zona.id}`, { nome: alvo.nome, executar: true })
+      toast(`Feito. Diga "Alexa, descobrir dispositivos" e depois "Alexa, ligue o ${alvo.nome.toLowerCase()}".`)
+      setAlvo(null); recarregar()
+    } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  return (
+    <div className="cartao p-5">
+      <h2 className="titulo-secao">Zonas na Alexa</h2>
+      <p className="mt-2 text-sm text-muted-foreground">Ares do mesmo modelo no mesmo transmissor obedecem juntos. Na Alexa, cada zona deve ser <b>um</b> aparelho com um nome só (ex.: "Ar do salão"): assim a fala corresponde ao que acontece e cabe no plano gratuito do Sinric (3 aparelhos).</p>
+      {zonas.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhuma zona ainda. Elas aparecem quando dois ou mais ares iguais estão no mesmo transmissor (ou depois do teste de interferência em Transmissores).</p> : (
+        <ul className="mt-3 divide-y divide-border">
+          {zonas.map((z) => {
+            const naAlexa = z.ares.filter((a) => a.sinric_device_id)
+            return (
+              <li key={z.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                <span className="min-w-0"><b>{z.nome}</b> · {z.ares.length} ares<span className="block text-xs text-muted-foreground">{naAlexa.length === 1 ? `Na Alexa como 1 aparelho (${naAlexa[0].nome})` : naAlexa.length ? `${naAlexa.length} ares desta zona na Alexa: organize` : 'Ainda fora da Alexa'}</span></span>
+                <Botao tamanho="sm" variante="secundario" carregando={ocupado && !alvo} onClick={() => previa(z)}>Organizar na Alexa</Botao>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <Modal aberto={!!alvo} titulo={`Organizar ${alvo?.zona?.nome || ''} na Alexa`} onFechar={() => setAlvo(null)}>
+        {alvo && (
+          <div className="space-y-3 text-sm">
+            <label className="rotulo block">Nome que você vai falar para a Alexa
+              <input className="campo mt-1" value={alvo.nome} maxLength={60} onChange={(e) => atualizarPrevia(e.target.value)} onBlur={recalcular} />
+            </label>
+            <p className="font-medium">O que vai mudar no Sinric:</p>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">{alvo.previa.passos.map((p, i) => <li key={i}>{p.texto}</li>)}</ul>
+            <Aviso tipo="alerta">Isto muda o que a Alexa conhece: frases e rotinas antigas com o nome anterior param de funcionar até você dizer "Alexa, descobrir dispositivos" e ajustar as rotinas.</Aviso>
+            <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={() => setAlvo(null)}>Cancelar</Botao><Botao carregando={ocupado} disabled={alvo.nome.trim().length < 3} onClick={executar}>Confirmar e aplicar</Botao></div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
+// Alexa nova com a MESMA conta do Sinric Pro: nada muda no sistema; é só ativar a skill nela e descobrir os aparelhos.
+function NovaAlexa() {
+  const passos = [
+    ['Antes: o PC do escritório ligado', 'Os comandos da Alexa saem pelo agente no escritório. Confira o diagnóstico abaixo ("Agente enxerga os transmissores").'],
+    ['No app Alexa da conta nova', 'Mais → Skills e jogos → "Sinric Pro" → Ativar para uso → entre com a MESMA conta do Sinric Pro de hoje (ou escaneie o QR acima).'],
+    ['Descobrir', 'Diga "Alexa, descobrir dispositivos". Aparecem os aparelhos do Sinric (um por zona, depois de organizar as zonas).'],
+    ['Testar', 'Diga "Alexa, ligue o ar do salão". Em "Último comando de voz recebido", logo abaixo, o comando aparece em segundos.'],
+    ['Alexa antiga', 'Pode continuar ativa: várias Alexas usam a mesma conta. Para tirar, desative a skill Sinric Pro nela.'],
+  ]
+  return (
+    <div className="cartao p-5">
+      <h2 className="titulo-secao">Nova Alexa (mesma conta do Sinric)</h2>
+      <ol className="mt-3 space-y-2.5 text-sm">
+        {passos.map(([t, d], i) => (
+          <li key={t} className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium tabular">{i + 1}</span><span><b>{t}.</b> <span className="text-muted-foreground">{d}</span></span></li>
+        ))}
+      </ol>
+    </div>
   )
 }

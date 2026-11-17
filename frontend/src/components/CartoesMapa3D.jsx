@@ -95,6 +95,13 @@ export function CartaoMapa({ mapa, projetos, cartao, fechar, acoes, perm, ocupad
     return (
       <div className={caixaCls}>
         <Topo icone={UserRound} titulo={p ? p.nome : 'Pessoa sem cadastro'} sub={p ? [p.cargo, sala?.nome].filter(Boolean).join(' · ') : 'Dê nome e cargo para aparecer na equipe'} fechar={fechar} />
+        <dl className="mb-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+          <dt className="text-muted-foreground">Nome</dt><dd>{p ? p.nome : 'Figurante (sem cadastro)'}</dd>
+          {p && <><dt className="text-muted-foreground">Sexo</dt><dd>{p.sexo === 'masculino' ? 'Masculino' : p.sexo === 'feminino' ? 'Feminino' : 'Não informado'}</dd></>}
+          {p && <><dt className="text-muted-foreground">Cargo</dt><dd>{p.cargo || 'Não informado'}</dd></>}
+          {(sala || cartao.sala) && <><dt className="text-muted-foreground">Sala</dt><dd>{sala?.nome || projetos.find((x) => String(x.id) === String(cartao.sala))?.nome}</dd></>}
+          {cartao.agora && <><dt className="text-muted-foreground">Agora</dt><dd>{cartao.agora}{cartao.tela ? ` · ${cartao.tela}` : ''}</dd></>}
+        </dl>
         {p && (
           <div className="mb-3 rounded-md border border-border p-2 text-xs">
             <p className="font-medium">{situacaoExpediente(p)}</p>
@@ -166,7 +173,7 @@ export function RascunhoEscrita({ mapa, rascunho, setRascunho, acoes, ocupado, e
 }
 
 // barra do controle: quem está sendo controlado, câmera, dicas e setas na tela para toque
-export function BarraControle({ controle, nome, mudarModo, sair, tecla }) {
+export function BarraControle({ controle, nome, mudarModo, sair, sentar, tecla }) {
   if (!controle) return null
   const toque = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
   const seta = (k, I, rot) => (
@@ -179,9 +186,11 @@ export function BarraControle({ controle, nome, mudarModo, sair, tecla }) {
         <span className="flex items-center gap-1.5 px-2 font-medium"><Footprints className="h-3.5 w-3.5 text-primary" />{nome}</span>
         <button onClick={() => mudarModo('1')} className={`h-7 rounded-md px-2 ${controle.modo === '1' ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted'}`}>1ª pessoa</button>
         <button onClick={() => mudarModo('3')} className={`h-7 rounded-md px-2 ${controle.modo === '3' ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted'}`}>3ª pessoa</button>
+        <button onClick={sentar} className="h-7 rounded-md px-2 font-medium text-primary hover:bg-muted">{controle.sentado ? 'Levantar' : 'Sentar'} <kbd className="ml-0.5 text-[10px]">F</kbd></button>
         <button onClick={sair} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Sair <kbd className="ml-0.5 text-[10px]">Esc</kbd></button>
       </div>
-      {!toque && <p className="pointer-events-none absolute left-1/2 top-14 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/45 px-2 py-1 text-[11px] text-white">W A S D andam · arraste para olhar · Shift corre · V troca a câmera</p>}
+      {controle.aviso && !controle.sentado && <p className="pointer-events-none absolute left-1/2 top-24 z-10 -translate-x-1/2 rounded-md bg-amber-500/90 px-2 py-1 text-[11px] text-white">{controle.aviso}</p>}
+      {!toque && <p className="pointer-events-none absolute left-1/2 top-14 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/45 px-2 py-1 text-[11px] text-white">{controle.sentado ? 'Trabalhando: F levanta · V troca a câmera' : 'W A S D andam · Shift corre · F senta na cadeira perto · V troca a câmera'}</p>}
       {toque && (
         <div className="absolute bottom-14 left-3 z-10 grid grid-cols-3 gap-1">
           <span />{seta('w', ArrowUp, 'Andar para frente')}<span />

@@ -59,18 +59,27 @@ REGRAS = [
     ("POST|PUT|DELETE", r"^/api/agendamentos", "agenda.gerenciar"),
     ("POST|PUT|DELETE", r"^/api/automacoes", "automacoes.gerenciar"),
     ("*", r"^/api/hubs/descobrir", "transmissores.gerenciar"),
-    ("POST", r"^/api/hubs/\{hid\}/todos$", "aparelhos.controlar"),   # ligar/desligar todos os ares de um transmissor
+    ("POST", r"^/api/hubs/\{hid\}/todos$", "aparelhos.controlar"),
+    ("POST", r"^/api/zonas/\{zid\}/estado$", "aparelhos.controlar"),   # comando de uma zona (ares que obedecem juntos)
+    ("PUT", r"^/api/zonas$", "transmissores.gerenciar"),   # ligar/desligar todos os ares de um transmissor
     ("POST|PUT|DELETE", r"^/api/hubs", "transmissores.gerenciar"),
     ("POST", r"^/api/projetos/\{pid\}/desligar$", "aparelhos.controlar"),
     ("GET", r"^/api/projetos/\{pid\}/exportar$", "projetos.gerenciar"),
     ("POST|PUT|DELETE", r"^/api/projetos", "projetos.gerenciar"),
     ("PUT", r"^/api/mapa$", "projetos.gerenciar"),
+    # ações rápidas do mapa (a própria rota ainda confere quem pode mudar cor/modelo e escrever no vidro)
+    ("POST", r"^/api/mapa/elementos/\{eid\}/estado$", "aparelhos.controlar"),
+    ("POST", r"^/api/mapa/ares/\{aid\}/aparencia$", "projetos.gerenciar"),
+    ("PUT", r"^/api/mapa/(pessoas|escritas)$", "projetos.gerenciar"),
+    # música: tocar/pausar é controle do dia a dia; conta, credenciais e rotinas são integração
+    ("POST", r"^/api/musica/comando$", "aparelhos.controlar"),
+    ("*", r"^/api/musica/(credenciais|desconectar|retorno|rotinas)", "integracoes.gerenciar"),
     ("*", r"^/api/(relatorios|metricas|painel/analise)", "relatorios.ver"),
     ("*", r"^/api/atividade", "atividade.ver"),
     ("*", r"^/api/site/(mensagens|conversas?|respostas-prontas)", "mensagens.ver"),
     ("*", r"^/api/site/cookies/(config|relatorio|consentimento/|exportar|escanear)", "configuracoes.gerenciar"),
     ("*", r"^/api/(sinric|tuya|alexa/(?!comandos)|oauth/aprovar)", "integracoes.gerenciar"),
-    ("GET", r"^/api/alexa$", "integracoes.gerenciar"),
+    ("GET|PUT", r"^/api/alexa$", "integracoes.gerenciar"),
     ("*", r"^/api/seguranca", "seguranca.gerenciar"),
     ("*", r"^/api/usuarios", "usuarios.gerenciar"),
     ("*", r"^/api/(backup|supabase/)", "configuracoes.gerenciar"),

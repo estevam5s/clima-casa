@@ -51,6 +51,18 @@ def local(projeto_id: int | None, request) -> dict | None:
     return {"lat": ev["lat"], "lon": ev["lon"], "cidade": ev["cidade"]} if ev else None
 
 
+def tipo_tempo(codigo, precipitacao=0, chance_hora=0) -> str:
+    """Resumo para o 3D: limpo, nublado, neblina, chuva ou trovoada (chove agora ou chance >= 60% nesta hora)."""
+    codigo = codigo or 0
+    if codigo >= 95:
+        return "trovoada"
+    if codigo >= 51 or (precipitacao or 0) > 0.1 or (chance_hora or 0) >= 60:
+        return "chuva"
+    if codigo in (45, 48):
+        return "neblina"
+    return "nublado" if codigo >= 2 else "limpo"
+
+
 def agora(projeto_id: int | None, request) -> dict:
     lugar = local(projeto_id, request)
     if not lugar:
@@ -60,14 +72,23 @@ def agora(projeto_id: int | None, request) -> dict:
         return _cache[chave][1]
     r = httpx.get("https://api.open-meteo.com/v1/forecast", timeout=8, params={
         "latitude": lugar["lat"], "longitude": lugar["lon"], "timezone": "auto",
-        "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,is_day",
-        "hourly": "temperature_2m", "forecast_hours": 12})
+        "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,is_day,cloud_cover,precipitation",
+        "hourly": "temperature_2m,precipitation_probability,weather_code,cloud_cover", "forecast_hours": 12,
+        "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max", "forecast_days": 3})
     j = r.json()
     c = j.get("current") or {}
+    hr, dl = j.get("hourly") or {}, j.get("daily") or {}
+    proximas = [{"hora": h[11:16], "temperatura": t, "chuva": pr, "codigo": cd, "condicao": CODIGOS.get(cd, ""), "nuvens": nv}
+                for h, t, pr, cd, nv in zip(hr.get("time", []), hr.get("temperature_2m", []), hr.get("precipitation_probability", []),
+                                            hr.get("weather_code", []), hr.get("cloud_cover", []))]
+    dias = [{"data": d, "codigo": cd, "condicao": CODIGOS.get(cd, ""), "max": mx, "min": mn, "chuva": pr}
+            for d, cd, mx, mn, pr in zip(dl.get("time", []), dl.get("weather_code", []), dl.get("temperature_2m_max", []),
+                                         dl.get("temperature_2m_min", []), dl.get("precipitation_probability_max", []))]
     dados = {"disponivel": True, "cidade": lugar.get("cidade") or "", "temperatura": c.get("temperature_2m"),
              "sensacao": c.get("apparent_temperature"), "umidade": c.get("relative_humidity_2m"), "vento": c.get("wind_speed_10m"),
-             "dia": bool(c.get("is_day", 1)), "condicao": CODIGOS.get(c.get("weather_code"), ""), "atualizado": c.get("time"),
-             "proximas": [{"hora": h[11:16], "temperatura": t} for h, t in zip((j.get("hourly") or {}).get("time", []), (j.get("hourly") or {}).get("temperature_2m", []))],
-             "fonte": "Open-Meteo"}
+             "dia": bool(c.get("is_day", 1)), "condicao": CODIGOS.get(c.get("weather_code"), ""), "codigo": c.get("weather_code"),
+             "nuvens": c.get("cloud_cover"), "precipitacao": c.get("precipitation"), "tipo": tipo_tempo(c.get("weather_code"), c.get("precipitation"),
+                                                                                                     proximas[0]["chuva"] if proximas else 0),
+             "atualizado": c.get("time"), "proximas": proximas, "dias": dias, "fonte": "Open-Meteo"}
     _cache[chave] = (time.time(), dados)
     return dados

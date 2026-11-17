@@ -296,6 +296,7 @@ export default function Aparelho() {
         <p className="w-full text-sm text-muted-foreground">
           {[ar.comodo, ar.marca].filter(Boolean).join(' · ') || 'Sem cômodo'} · atualizado {haQuanto(ar.atualizado_em)}
         </p>
+        {ar.zona && <p className="w-full text-sm text-amber-800 dark:text-amber-300">Na <b>{ar.zona.nome}</b>: obedece junto com {ar.zona.outros.join(', ')} (mesmo modelo, mesmo transmissor). <Link to="/transmissores" className="underline">Ver a zona</Link></p>}
       </div>
 
       <div className="mb-5">
@@ -326,7 +327,7 @@ export default function Aparelho() {
       )}
 
       {aba === 'controle' && (
-        <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="cartao p-5 sm:p-6">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-sm text-muted-foreground">

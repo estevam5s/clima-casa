@@ -18,6 +18,16 @@ AGENTE_ONLINE_SEG = 45
 _travas: dict[str, threading.Lock] = {}
 
 
+# Varredura UDP da rede (tinytuya.deviceScan) escuta as portas 6666/6667: duas ao mesmo tempo (reparar + autorreparo +
+# "Procurar na rede") dão "WinError 10048 / Address already in use". Uma varredura por vez no processo inteiro.
+_varredura = threading.Lock()
+
+
+def _varrer(segundos: int) -> dict:
+    with _varredura:
+        return tinytuya.deviceScan(False, segundos)
+
+
 def _trava(hub_id):
     return _travas.setdefault(hub_id, threading.Lock())
 
@@ -101,7 +111,7 @@ def _aprender_local(h: dict, timeout=30) -> tuple[str, int]:
 
 def descobrir_local(segundos=8) -> list[dict]:
     import tinytuya
-    achados = tinytuya.deviceScan(False, segundos)
+    achados = _varrer(segundos)
     cadastrados = {h["id"] for h in db.consultar("SELECT id FROM hubs")}
     return [{"id": d.get("gwId"), "ip": ip, "versao": d.get("version"), "cadastrado": d.get("gwId") in cadastrados}
             for ip, d in achados.items()]
@@ -235,9 +245,12 @@ def laco_agente():
 
 # ---------------- API usada pelo resto do sistema ----------------
 def _avisar_sinric(contexto):
-    if contexto and contexto.get("aparelho"):
-        from . import sinric
-        sinric.notificar_estado(contexto["aparelho"])
+    """Depois do envio: avisa o Sinric (Alexa/Google) do ar comandado e dos que mudaram junto (zona)."""
+    if not contexto:
+        return
+    from . import sinric
+    for ap in ([contexto["aparelho"]] if contexto.get("aparelho") else []) + list(contexto.get("juntos") or []):
+        sinric.notificar_estado(ap)
 
 
 def enviar(hub_id: str, codigo: str, contexto: dict | None = None) -> str:
@@ -376,7 +389,7 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
     if diag == "rede":
         if varredura is None:
             import tinytuya
-            varredura = {d.get("gwId"): {"ip": ip, "versao": d.get("version")} for ip, d in tinytuya.deviceScan(False, 6).items()}
+            varredura = {d.get("gwId"): {"ip": ip, "versao": d.get("version")} for ip, d in _varrer(6).items()}
         achado = varredura.get(h["id"])
         if achado:
             if achado["ip"] != h["ip"]:
@@ -416,7 +429,7 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
             h = hub(h["id"])
             if ip is None and diagnosticar(h) == "rede":  # IP ainda desconhecido: varre de novo com a chave certa
                 import tinytuya
-                for ip_achado, d in tinytuya.deviceScan(False, 6).items():
+                for ip_achado, d in _varrer(6).items():
                     if d.get("gwId") == h["id"]:
                         db.executar("UPDATE hubs SET ip = ? WHERE id = ?", (ip_achado, h["id"]))
                         mudancas.append(f"IP → {ip_achado}")
@@ -454,7 +467,7 @@ def autorreparar(forcar: bool = False) -> list[dict]:
         _ultimo_reparo[h["id"]] = agora
         if varredura is None and (not h["online"] or forcar):
             import tinytuya
-            varredura = {d.get("gwId"): {"ip": ip, "versao": d.get("version")} for ip, d in tinytuya.deviceScan(False, 6).items()}
+            varredura = {d.get("gwId"): {"ip": ip, "versao": d.get("version")} for ip, d in _varrer(6).items()}
         ok, msg = reparar(h, varredura)
         resultados.append({"id": h["id"], "nome": h["nome"], "ok": ok, "mensagem": msg})
     return resultados

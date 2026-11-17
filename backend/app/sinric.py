@@ -139,6 +139,7 @@ async def _sessao(cfg: dict, vinculos: dict[str, int]):
 
     def conectado():
         _estado.update(conectado=True, erro=None, desde=int(time.time()))
+        _enviado.clear()   # sessão nova: o próximo estado de cada aparelho vai completo
         _gravar_status()
         db.registrar("sistema", f"Sinric Pro conectado ({len(vinculos)} aparelho(s))")
 
@@ -187,26 +188,53 @@ def iniciar_no_agente():
     threading.Thread(target=lambda: _loop.run_until_complete(_laco()), daemon=True, name="sinric").start()
 
 
+# Eventos para o Sinric: o servidor limita o ritmo de eventos por aparelho (rajadas são descartadas e podem bloquear o
+# aparelho por um tempo). Com zonas, um comando muda vários ares de uma vez. Então: cada aparelho tem UMA fila com só o
+# último estado desejado; um envio por vez, só dos campos que mudaram, com INTERVALO entre eventos.
+INTERVALO_EVENTO = 1.2
+_pendente: dict[str, dict] = {}
+_enviado: dict[str, dict] = {}
+_enviando: set[str] = set()
+
+
 def notificar_estado(aparelho: dict):
     """Avisa o Sinric (e a Alexa/Google) que o ar mudou por outro caminho. Só tem efeito no agente."""
     dev_id = aparelho.get("sinric_device_id")
     if not (dev_id and _loop and _sdk and _estado["conectado"]):
         return
-    d = _sdk.get(dev_id)
-    if not d:
-        return
+    _pendente[dev_id] = {k: aparelho.get(k) for k in ("ligado", "modo", "temperatura", "ventilador")}
+    if dev_id not in _enviando:
+        _enviando.add(dev_id)
+        asyncio.run_coroutine_threadsafe(_esvaziar(dev_id), _loop)
 
-    async def enviar():
-        try:
-            await d.send_power_state_event(bool(aparelho["ligado"]))
-            if aparelho["ligado"]:
-                await d.send_thermostat_mode_event(MODO_PARA_SINRIC.get(aparelho["modo"], "AUTO"))
-                await d.send_target_temperature_event(float(aparelho["temperatura"]))
-                await d.send_range_value_event(VENT_PARA_NIVEL.get(aparelho["ventilador"], 0))
-        except Exception as e:  # noqa: BLE001
-            log.debug("evento Sinric não enviado: %s", e)
 
-    asyncio.run_coroutine_threadsafe(enviar(), _loop)
+async def _esvaziar(dev_id: str):
+    try:
+        while dev_id in _pendente:
+            alvo = _pendente.pop(dev_id)
+            d = _sdk.get(dev_id) if _sdk else None
+            if not d:
+                return
+            ja = _enviado.get(dev_id, {})
+            eventos = []
+            if ja.get("ligado") != bool(alvo["ligado"]):
+                eventos.append(("ligado", bool(alvo["ligado"]), lambda v: d.send_power_state_event(v)))
+            if alvo["ligado"]:
+                if ja.get("modo") != alvo["modo"]:
+                    eventos.append(("modo", alvo["modo"], lambda v: d.send_thermostat_mode_event(MODO_PARA_SINRIC.get(v, "AUTO"))))
+                if ja.get("temperatura") != alvo["temperatura"]:
+                    eventos.append(("temperatura", alvo["temperatura"], lambda v: d.send_target_temperature_event(float(v))))
+                if ja.get("ventilador") != alvo["ventilador"]:
+                    eventos.append(("ventilador", alvo["ventilador"], lambda v: d.send_range_value_event(VENT_PARA_NIVEL.get(v, 0))))
+            for campo, valor, mandar in eventos:
+                try:
+                    await mandar(valor)
+                    _enviado.setdefault(dev_id, {})[campo] = valor
+                except Exception as e:  # noqa: BLE001  (Sinric fora ou limite: tenta de novo no próximo estado)
+                    log.debug("evento Sinric não enviado (%s): %s", campo, e)
+                await asyncio.sleep(INTERVALO_EVENTO)
+    finally:
+        _enviando.discard(dev_id)
 
 
 # ---------------- automação: criar/apagar dispositivos e conectar Alexas ----------------
@@ -283,3 +311,39 @@ def conectar_alexa() -> dict:
     qrcode.make(SKILL_ALEXA, box_size=8, border=2).save(buf, format="PNG")
     return {"skill_url": SKILL_ALEXA, "qr": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
             "google": "https://play.google.com/store/apps/details?id=com.google.android.apps.chromecast.app"}
+
+
+def organizar_zona(zona: dict, nome_alexa: str, executar: bool) -> dict:
+    """Uma zona = UM aparelho na Alexa (falar com qualquer ar da zona muda todos). Escolhe o ar que representa a zona,
+    garante que ele exista no Sinric com o nome falado e tira do Sinric os outros ares da zona.
+    executar=False só descreve o que seria feito (a tela pede confirmação: muda o que a Alexa conhece)."""
+    ares = {a["id"]: a for a in db.consultar(
+        f"SELECT a.*, (SELECT COUNT(*) FROM codigos c WHERE c.aparelho_id = a.id) AS botoes FROM aparelhos a "
+        f"WHERE a.id IN ({','.join('?' * len(zona['aparelhos']))})", tuple(zona["aparelhos"]))}
+    rep_id = zona.get("alexa_aparelho_id") if zona.get("alexa_aparelho_id") in ares else None
+    rep_id = rep_id or next((i for i in zona["aparelhos"] if ares.get(i, {}).get("sinric_device_id")), None) \
+        or next((i for i in zona["aparelhos"] if ares.get(i, {}).get("botoes")), None) or zona["aparelhos"][0]
+    rep = ares[rep_id]
+    passos = []
+    if rep.get("sinric_device_id"):
+        passos.append({"tipo": "renomear", "aparelho_id": rep_id, "texto": f"Renomear no Sinric '{rep['nome']}' para '{nome_alexa}' (a Alexa passa a chamar assim depois de 'descobrir dispositivos')."})
+    else:
+        passos.append({"tipo": "criar", "aparelho_id": rep_id, "texto": f"Criar no Sinric o aparelho '{nome_alexa}' ligado ao ar '{rep['nome']}' (conta 1 no limite do plano)."})
+    for i in zona["aparelhos"]:
+        if i != rep_id and ares[i].get("sinric_device_id"):
+            passos.append({"tipo": "apagar", "aparelho_id": i, "texto": f"Tirar '{ares[i]['nome']}' do Sinric (ele muda junto com a zona; ficar na Alexa só confunde e gasta o limite)."})
+    if not executar:
+        return {"representante": rep_id, "passos": passos}
+    for ps in passos:
+        a = ares[ps["aparelho_id"]]
+        if ps["tipo"] == "renomear":
+            renomear_dispositivo(a["sinric_device_id"], nome_alexa, a.get("comodo") or "")
+        elif ps["tipo"] == "criar":
+            dev = criar_dispositivo({**a, "nome": nome_alexa})
+            db.executar("UPDATE aparelhos SET sinric_device_id = ?, alexa = 1 WHERE id = ?", (dev, a["id"]))
+        elif ps["tipo"] == "apagar":
+            apagar_dispositivo(a["sinric_device_id"])
+            db.executar("UPDATE aparelhos SET sinric_device_id = NULL, alexa = 0 WHERE id = ?", (a["id"],))
+    db.registrar("painel", f"Alexa organizada por zona: {zona['nome']}", aparelho_id=rep_id, detalhe=" · ".join(p["tipo"] for p in passos))
+    return {"representante": rep_id, "passos": passos, "feito": True}
+

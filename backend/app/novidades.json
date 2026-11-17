@@ -2,6 +2,39 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.4.0",
+      "data": "2026-11-16",
+      "titulo": "Zonas de ar no salão aberto, Alexa por zona e cidade viva no mapa",
+      "resumo": "Ares iguais no mesmo transmissor agora são tratados como uma zona, do painel à Alexa. O mapa ganhou a previsão do tempo real, chuva, semáforos, pedestres, animais e um terminal de ônibus, e os avatares sentam e trabalham.",
+      "novo": [
+        "Zonas: ares do mesmo modelo no mesmo transmissor obedecem juntos; o cartão do transmissor tem Ligar zona, Desligar zona e a temperatura da zona",
+        "Teste de interferência guiado: você marca quais ares apitaram e o sistema grava as zonas reais",
+        "Ares deste transmissor: planejar ou mover um transmissor sem disparar sinal em ar que ficou para trás",
+        "Integrações: Zonas na Alexa (cada zona vira um aparelho, com prévia e confirmação) e o passo a passo da Alexa nova com a mesma conta",
+        "Mapa: previsão do tempo real (agora, próximas horas e 3 dias), nuvens, chuva e trovoada conforme a previsão",
+        "Mapa: semáforos com fase de pedestres, pedestres com guarda-chuva na chuva, cães, pombos, gaivotas e gatos",
+        "Mapa: terminal de ônibus inspirado no TICEN, com ônibus entrando, parando e saindo",
+        "Avatar: sentar na cadeira (tecla F) e trabalhar; cada monitor mostra um conteúdo diferente, conforme a sala",
+        "Cartão da pessoa com nome, sexo, cargo, sala e o que ela está fazendo agora"
+      ],
+      "melhorias": [
+        "Alexa recebe o estado de todos os ares que mudaram juntos, em ritmo que o Sinric aceita",
+        "Diagnóstico da Alexa confere zona por zona, a capacidade do plano do Sinric e se o agente enxerga os transmissores",
+        "Projeto Analista passa a se chamar Analistas; Deison cadastrado na sala dele",
+        "Até 6 ares por transmissor num salão aberto"
+      ],
+      "seguranca": [
+        "Permissões explícitas para persianas, equipe, escrita no vidro e música (antes, só administradores conseguiam)",
+        "Checklist de segurança confere, ao vivo, se toda ação que muda dados tem permissão definida",
+        "Auditoria de dependências e do código do servidor sem vulnerabilidade conhecida aberta"
+      ],
+      "correcoes": [
+        "Duas buscas de transmissores ao mesmo tempo não derrubam mais o agente no Windows (erro 10048)",
+        "Trocar de câmera com o avatar sentado mantém o botão Levantar",
+        "O globo da Segurança não tenta girar depois de fechar a tela"
+      ]
+    },
+    {
       "versao": "1.3.1",
       "data": "2026-11-16",
       "titulo": "Mapa 3D: prédio de 11 andares e a cidade em volta",

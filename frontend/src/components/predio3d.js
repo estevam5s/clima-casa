@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { montarCidade } from './cidade3d'
+import { montarTempo } from './tempo3d'
+import { montarVida } from './vida3d'
 
 // ---------------------------------------------------------------------------------------------------------------
 // Física simples das pessoas: uma grade de 10 cm sobre o andar marca o que é ocupado (paredes, mesas, cadeiras,
@@ -371,6 +373,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   plano(BW + 2 * CAL + 6, BD + 2 * CAL + 6, matCalcada, cxp, czp, 0.004)
   // rua do lado da entrada (oeste/leste → corre em z; norte/sul → corre em x) e a rua da esquina (sul)
   const ruas = []
+  const pe0 = (horiz) => (horiz ? bx0 - CAL - 6 : bz1 + CAL + 6)   // onde a faixa de pedestre é pintada
   const ladoRua1 = ladoEntrada, ladoRua2 = ['oeste', 'leste'].includes(ladoEntrada) ? 'sul' : 'oeste'
   for (const lado of [ladoRua1, ladoRua2]) {
     const L = LADOS[lado], horiz = L.horiz
@@ -386,7 +389,8 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       plano(horiz ? 2.2 : 0.14, horiz ? 0.14 : 2.2, matFaixa, horiz ? cxp + k : meio2, horiz ? meio2 : czp + k, 0.012)
     }
     plano(horiz ? comp : 0.12, horiz ? 0.12 : comp, matAmarela, horiz ? cxp : meio - L.n * (RUA / 2 - 0.3), horiz ? meio - L.n * (RUA / 2 - 0.3) : czp, 0.012)
-    ruas.push({ horiz, faixas: [meio - L.n * 2.4, meio + L.n * 2.4] })
+    const pa = L.k + L.n * (CAL + 3), pb = L.k + L.n * (CAL + 3 + 2 * RUA + MED)
+    ruas.push({ horiz, lado, faixas: [meio - L.n * 2.4, meio + L.n * 2.4], centro: (pa + pb) / 2, meia: (2 * RUA + MED) / 2, faixaPedestre: pe0(horiz) })
     // faixa de pedestre perto da esquina
     const pe = horiz ? bx0 - CAL - 6 : bz1 + CAL + 6
     for (let i = 0; i < 9; i++) plano(horiz ? 0.5 : RUA - 0.6, horiz ? RUA - 0.6 : 0.5, matFaixa, horiz ? pe : meio - RUA / 2 + 0.6 + i * 1.05, horiz ? meio - RUA / 2 + 0.6 + i * 1.05 : pe, 0.013)
@@ -400,7 +404,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     const can = L.k + L.n * (CAL + 3 + RUA + MED / 2)
     for (let k = -60; k <= 60; k += 7) {
       const pm = palmeira(r, matTronco, matFolha)
-      pm.g.position.set(L.horiz ? cxp + k : can, 0, L.horiz ? can : czp + k); entorno.add(pm.g); arvores.push({ copa: pm.copa, fase: r() * 6 })
+      pm.g.position.set(L.horiz ? cxp + k : can, 0, L.horiz ? can : czp + k); entorno.add(pm.g); arvores.push({ copa: pm.copa, fase: r() * 6, g: pm.g })
     }
   }
   // postes
@@ -426,10 +430,39 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       const sentido = mao ? 1 : -1
       c.g.rotation.y = rua.horiz ? (sentido > 0 ? 0 : Math.PI) : (sentido > 0 ? -Math.PI / 2 : Math.PI / 2)
       entorno.add(c.g)
-      carros.push({ ...c, rua, lin, sentido, u: -90 + r() * 180 + i * 60 + ir * 13, vel: 7 + r() * 5 })
+      const vmax = 7 + r() * 5
+      carros.push({ ...c, rua, lin, sentido, u: -150 + r() * 300 + i * 60 + ir * 13, vel: vmax, vmax })
     }
   }))
-  // cidade em volta (cidade3d.js): lotes fora do quarteirão do prédio e fora das duas avenidas
+  // cidade em volta (cidade3d.js): lotes fora do quarteirão do prédio, das duas avenidas e do terminal de ônibus
+  let vida = null, tempo = null
+  const Lh = ruas.find((x) => x.horiz), Lv = ruas.find((x) => !x.horiz)
+  // semáforo no cruzamento das duas avenidas: verde/amarelo para cada uma e uma fase só de pedestres
+  const cruz = Lh && Lv ? { x: Lv.centro, z: Lh.centro } : null
+  const sinal = { fase: 'H', pedestre: false }
+  const lampadas = { H: {}, V: {} }
+  if (cruz) {
+    // miolo do cruzamento: asfalto por cima dos canteiros e das faixas tracejadas (as faixas de pedestre ficam por cima)
+    const miolo = new THREE.Mesh(new THREE.PlaneGeometry(2 * Lv.meia, 2 * Lh.meia), matAsfalto); miolo.rotation.x = -Math.PI / 2
+    miolo.position.set(cruz.x, 0.035, cruz.z); miolo.receiveShadow = true; entorno.add(miolo)
+    arvores.forEach((a) => { if (a.g && Math.abs(a.g.position.x - cruz.x) < Lv.meia + 1 && Math.abs(a.g.position.z - cruz.z) < Lh.meia + 1) a.g.visible = false })
+    const cores = { vermelho: 0xef4444, amarelo: 0xf59e0b, verde: 0x22c55e }
+    for (const via of ['H', 'V']) for (const [k, c] of Object.entries(cores)) lampadas[via][k] = new THREE.MeshStandardMaterial({ color: 0x1f2937, emissive: c, emissiveIntensity: 0 })
+    const matCaixa = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 })
+    const ext = Lv.meia + 1.2, extz = Lh.meia + 1.2
+    for (const [sx, sz, via] of [[-1, -1, 'H'], [1, 1, 'H'], [1, -1, 'V'], [-1, 1, 'V']]) {
+      const px = cruz.x + sx * ext, pz = cruz.z + sz * extz
+      const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 4.6, 8), matPoste); poste.position.set(px, 2.3, pz); poste.castShadow = true; entorno.add(poste)
+      const cx = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.2, 0.42), matCaixa); cx.position.set(px, 4.9, pz); entorno.add(cx)
+      ;['vermelho', 'amarelo', 'verde'].forEach((k, i) => {
+        for (const [dx, dz] of [[0.22, 0], [-0.22, 0], [0, 0.22], [0, -0.22]]) {
+          const l = new THREE.Mesh(new THREE.CircleGeometry(0.12, 14), lampadas[via][k]); l.position.set(px + dx, 5.3 - i * 0.38, pz + dz)
+          l.rotation.y = dx ? (dx > 0 ? Math.PI / 2 : -Math.PI / 2) : (dz > 0 ? 0 : Math.PI); entorno.add(l)
+        }
+      })
+    }
+  }
+  let cidadeInfo = { calcadas: [], pracas: [] }, posTerminal = null
   if (cidade) {
     plano(400, 400, matAsfalto, cxp, czp, 0.002)   // ruas entre as quadras
     const livres = [[bx0 - CAL - 9, bz0 - CAL - 9, bx1 + CAL + 9, bz1 + CAL + 9]]
@@ -438,9 +471,26 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       const [p0, p1] = [Math.min(a, b), Math.max(a, b)]
       livres.push(L.horiz ? [cxp - 400, p0, cxp + 400, p1] : [p0, czp - 400, p1, czp + 400])
     }
+    // terminal de ônibus (inspirado no TICEN) do outro lado da avenida horizontal, afastado da vertical: fica à vista da câmera
+    if (Lh) {
+      const LH = LADOS[Lh.lado], lado = Lv ? -LADOS[Lv.lado].n : 1
+      posTerminal = { x: cxp + lado * 40, z: LH.k + LH.n * (CAL + 6 + 2 * RUA + MED + 24) }
+      livres.push([posTerminal.x - 58, posTerminal.z - 21, posTerminal.x + 58, posTerminal.z + 21])
+    }
     const c = montarCidade({ centro: [cxp, czp], livres, camera: [-0.6, 0.85], noite, r })
-    entorno.add(c.grupo)
+    entorno.add(c.grupo); cidadeInfo = c
   }
+  // calçada do próprio quarteirão + as das quadras; travessias nas faixas pintadas perto da esquina
+  const travessias = []
+  for (const rua of ruas) {
+    const L = LADOS[rua.lado], a = L.k + L.n * (CAL + 2), b = L.k + L.n * (CAL + 4 + 2 * RUA + MED)
+    travessias.push(rua.horiz ? [rua.faixaPedestre, a, rua.faixaPedestre, b] : [a, rua.faixaPedestre, b, rua.faixaPedestre])
+  }
+  vida = montarVida({ calcadas: [[bx0 - CAL / 2 - 0.5, bz0 - CAL / 2 - 0.5, bx1 + CAL / 2 + 0.5, bz1 + CAL / 2 + 0.5], ...cidadeInfo.calcadas],
+    pracas: cidadeInfo.pracas, terminal: posTerminal, travessias, noite, r })
+  entorno.add(vida.grupo)
+  tempo = montarTempo({ centro: [cxp, czp], topo: Math.max(80, base + TH + 40), noite, r })
+  entorno.add(tempo.grupo)
 
   // abertura: 0 = prédio fechado, 1 = andar aberto (torre sobe e some, fachada some)
   let k = 0
@@ -451,15 +501,39 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     fade.forEach((m) => { m.opacity = m.userData.op0 * op })
     torre.visible = andarG.visible = v < 0.999
   }
+  let relogio = 0, chovendo = false
+  const CICLO = 30   // H verde 0–11, amarelo 11–13, pedestres 13–16, V verde 16–27, amarelo 27–29, vermelho geral 29–30
+  const corDe = (via, k) => (via === 'H' ? (k < 11 ? 'verde' : k < 13 ? 'amarelo' : 'vermelho') : (k >= 16 && k < 27 ? 'verde' : k >= 27 && k < 29 ? 'amarelo' : 'vermelho'))
   const tick = (dt, t) => {
+    relogio += dt
+    const k = relogio % CICLO
+    sinal.pedestre = k >= 13 && k < 16
+    if (cruz) for (const via of ['H', 'V']) { const cor = corDe(via, k); for (const nome of ['vermelho', 'amarelo', 'verde']) lampadas[via][nome].emissiveIntensity = nome === cor ? 2.2 : 0 }
     carros.forEach((c) => {
+      // semáforo: freia antes da faixa de retenção se não estiver verde; fila: guarda distância do carro da frente
+      let alvo = c.vmax
+      if (cruz) {
+        const baseEixo = c.rua.horiz ? cxp : czp, pos = baseEixo + c.u
+        const xi = c.rua.horiz ? cruz.x : cruz.z, meia = c.rua.horiz ? Lv.meia : Lh.meia
+        const linha = xi - c.sentido * (meia + 4), d = (linha - pos) * c.sentido
+        const cor = corDe(c.rua.horiz ? 'H' : 'V', k)
+        if (cor !== 'verde' && d > -0.5 && d < 30 && !(cor === 'amarelo' && d < 6)) alvo = Math.max(0, (d - 2.5) * 0.7)
+      }
+      for (const o of carros) {
+        if (o === c || o.rua !== c.rua || o.lin !== c.lin) continue
+        const gap = (o.u - c.u) * c.sentido
+        if (gap > 0 && gap < 9) alvo = Math.min(alvo, Math.max(0, (gap - 5.5) * 1.5))
+      }
+      c.vel += Math.max(-dt * 9, Math.min(dt * 3.5, alvo - c.vel))
       c.u += c.sentido * c.vel * dt
-      if (c.u > 110) c.u -= 220
-      if (c.u < -110) c.u += 220
+      if (c.u > 185) c.u -= 370
+      if (c.u < -185) c.u += 370
       const base2 = c.rua.horiz ? cxp : czp
       if (c.rua.horiz) c.g.position.set(base2 + c.u, 0, c.lin); else c.g.position.set(c.lin, 0, base2 + c.u)
       c.rodas.forEach((w) => { w.rotation.y += c.vel * dt / 0.33 * c.sentido })
     })
+    vida?.tick(dt, t, chovendo, sinal)
+    tempo?.tick(dt, t)
     bandeiras.forEach(({ b, base: b0, fase }) => {
       const pos = b.geometry.attributes.position
       for (let i = 0; i < pos.count; i++) { const x = b0[i * 3] + 0.55; pos.array[i * 3 + 2] = Math.sin(x * 4 - t * 5 + fase) * 0.08 * x }
@@ -467,6 +541,13 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     })
     arvores.forEach((a) => { a.copa.rotation.z = Math.sin(t * 0.8 + a.fase) * 0.05; a.copa.rotation.x = Math.cos(t * 0.6 + a.fase) * 0.04 })
   }
+  const corAsfalto = matAsfalto.color.clone(), corCalcada = matCalcada.color.clone()
+  const definirTempo = (tipo, nuvens) => {   // vem da previsão real (Mapa3D): nuvens, chuva, raios e chão molhado
+    tempo?.aplicar(tipo, nuvens)
+    chovendo = tipo === 'chuva' || tipo === 'trovoada'
+    matAsfalto.color.copy(corAsfalto).multiplyScalar(chovendo ? 0.62 : 1); matAsfalto.roughness = chovendo ? 0.35 : 0.95; matAsfalto.metalness = chovendo ? 0.25 : 0
+    matCalcada.color.copy(corCalcada).multiplyScalar(chovendo ? 0.75 : 1); matCalcada.roughness = chovendo ? 0.5 : 0.9
+  }
   grupo.position.y = -yA
-  return { grupo, alvos, aplicar, tick, get k() { return k }, yA, altura: base + TH + 4, largura: Math.max(BW, BD) }
+  return { grupo, alvos, aplicar, tick, definirTempo, get k() { return k }, yA, altura: base + TH + 4, largura: Math.max(BW, BD) }
 }

@@ -53,7 +53,7 @@ export default function ComandosAlexa() {
         <input className="campo pl-9" placeholder="Filtrar comandos" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           {dados.aparelhos.length === 0 && <Aviso tipo="alerta">Nenhum aparelho disponível na Alexa. Marque "Disponível na Alexa" nos ajustes do aparelho.</Aviso>}
           {dados.aparelhos.map((a) => (

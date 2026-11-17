@@ -185,14 +185,150 @@ function GuiaRede() {
   )
 }
 
-// Ares que este transmissor atende. Um SRW-004 no teto alcança 3–4 ares no mesmo ambiente; infravermelho não tem
-// endereço, então ares do MESMO modelo à vista dele obedecem juntos (o backend marca isso em `juntos`).
-function AresDoTransmissor({ hub, aoMudar }) {
+// Zona: ares que obedecem juntos a este transmissor (backend/app/zonas.py). Num salão aberto com ares iguais, um sinal
+// chega a todos: o controle aqui é da zona inteira (é o que acontece de verdade).
+function ZonaControle({ zona, ares, aoMudar, aoTestar }) {
+  const [ocupado, setOcupado] = useState(null)
+  const toast = useToast()
+  const membros = ares.filter((a) => zona.aparelhos.includes(a.id))
+  const ref = membros.find((a) => a.id === zona.alexa_aparelho_id) || membros[0]
+  const mandar = async (estado, k) => {
+    setOcupado(k)
+    try { await api.post(`/api/zonas/${zona.id}/estado`, estado); toast(`Zona ${zona.nome}: comando enviado para os ${membros.length} ares.`); aoMudar() }
+    catch (e) { toast(e.message, 'erro') } finally { setOcupado(null) }
+  }
+  return (
+    <div className="mt-3 rounded-md border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium">{zona.nome}</p>
+        <Selo cor={zona.origem === 'teste' ? 'verde' : 'ambar'}>{zona.origem === 'teste' ? 'confirmada no teste' : 'pelos botões iguais'}</Selo>
+      </div>
+      <p className="ajuda mt-1">{membros.map((a) => a.nome).join(', ')} obedecem juntos: o infravermelho não tem endereço e os ares são do mesmo modelo. Um comando muda a zona inteira.</p>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <Botao tamanho="sm" icone={Power} carregando={ocupado === 'ligar'} disabled={!!ocupado} onClick={() => mandar({ ligado: true }, 'ligar')}>Ligar zona</Botao>
+        <Botao tamanho="sm" variante="secundario" icone={Power} carregando={ocupado === 'desligar'} disabled={!!ocupado} onClick={() => mandar({ ligado: false }, 'desligar')}>Desligar zona</Botao>
+        {ref && <span className="inline-flex items-center gap-1 rounded-md border border-border">
+          <button className="px-2 py-1 text-sm hover:bg-muted disabled:opacity-40" disabled={!!ocupado || ref.temperatura <= 16} onClick={() => mandar({ ligado: true, temperatura: ref.temperatura - 1 }, 'temp')} aria-label="Diminuir temperatura da zona">−</button>
+          <span className="w-10 text-center text-sm tabular">{ref.temperatura}°</span>
+          <button className="px-2 py-1 text-sm hover:bg-muted disabled:opacity-40" disabled={!!ocupado || ref.temperatura >= 30} onClick={() => mandar({ ligado: true, temperatura: ref.temperatura + 1 }, 'temp')} aria-label="Aumentar temperatura da zona">+</button>
+        </span>}
+        <button className="text-xs text-primary underline-offset-2 hover:underline" onClick={aoTestar}>Testar interferência</button>
+      </div>
+    </div>
+  )
+}
+
+// Assistente do teste de interferência: manda o sinal de um ar por vez (sem mexer no estado salvo) e quem está no salão
+// marca quais ares apitaram. No fim, os grupos viram as zonas do transmissor.
+function TesteInterferencia({ hub, onFechar, aoGravar }) {
+  const ares = hub.ares || []
+  const [i, setI] = useState(0)
+  const [respostas, setRespostas] = useState({})
+  const [enviado, setEnviado] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+  const toast = useToast()
+  const atual = ares[i]
+  const marcados = respostas[atual?.id] || []
+  const jaNumGrupo = (id) => Object.entries(respostas).some(([a, l]) => +a !== id && (l.includes(id)))
+  const enviar = async (comando) => {
+    setOcupado(true)
+    try { await api.post(`/api/hubs/${hub.id}/teste-interferencia`, { acao: 'enviar', aparelho_id: atual.id, comando }); setEnviado(true) }
+    catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  const alternar = (id) => setRespostas((r) => ({ ...r, [atual.id]: marcados.includes(id) ? marcados.filter((x) => x !== id) : [...marcados, id] }))
+  const gravar = async () => {
+    setOcupado(true)
+    try {
+      const r = await api.post(`/api/hubs/${hub.id}/teste-interferencia`, { acao: 'gravar', respostas })
+      toast(r.zonas.length ? `${r.zonas.length} zona(s) gravada(s) para ${hub.nome}.` : 'Nenhum ar responde junto: cada um é comandado sozinho.')
+      aoGravar(); onFechar()
+    } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  if (ares.length < 2) return <p className="text-sm text-muted-foreground">O teste precisa de pelo menos dois ares neste transmissor.</p>
+  if (!atual) {
+    return (
+      <div className="space-y-3 text-sm">
+        <p>Teste concluído. Ao gravar, os ares que apitaram juntos viram uma zona; os demais ficam independentes.</p>
+        <ul className="space-y-1 text-muted-foreground">{ares.map((a) => <li key={a.id}>{a.nome}: {(respostas[a.id] || []).length ? `apitou junto com ${(respostas[a.id]).map((x) => ares.find((y) => y.id === x)?.nome).join(', ')}` : 'sozinho ou não testado'}</li>)}</ul>
+        <p className="ajuda">Depois, desligue a zona pelo cartão: o teste não muda o estado salvo dos ares.</p>
+        <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={() => { setI(0); setEnviado(false) }}>Refazer</Botao><Botao carregando={ocupado} onClick={gravar}>Gravar zonas</Botao></div>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-4 text-sm">
+      <p className="text-muted-foreground">Precisa de alguém no salão olhando os ares. Ar {i + 1} de {ares.length}.</p>
+      <div className="rounded-md border border-border p-3">
+        <p className="font-medium">{atual.nome}</p>
+        {jaNumGrupo(atual.id) && <p className="ajuda mt-1">Este ar já apitou junto com outro testado antes: dá para pular.</p>}
+        {!atual.botoes ? <p className="mt-2 text-amber-700 dark:text-amber-400">Sem botões gravados: não dá para mandar sinal dele. Marque abaixo só se souber, ou pule.</p> : (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Botao tamanho="sm" carregando={ocupado} onClick={() => enviar('ligar')}>Mandar Ligar Frio 24°</Botao>
+            <Botao tamanho="sm" variante="secundario" disabled={ocupado} onClick={() => enviar('desligar')}>Mandar Desligar</Botao>
+          </div>
+        )}
+      </div>
+      {(enviado || !atual.botoes) && (
+        <div>
+          <p className="mb-1.5 font-medium">Além dele, quais apitaram ou mudaram?</p>
+          {ares.filter((a) => a.id !== atual.id).map((a) => (
+            <label key={a.id} className="flex items-center gap-2 py-1"><input type="checkbox" checked={marcados.includes(a.id)} onChange={() => alternar(a.id)} />{a.nome}</label>
+          ))}
+        </div>
+      )}
+      <div className="flex justify-between gap-2">
+        <Botao variante="secundario" disabled={i === 0} onClick={() => { setI(i - 1); setEnviado(false) }}>Voltar</Botao>
+        <Botao onClick={() => { setI(i + 1); setEnviado(false) }}>{enviado || !atual.botoes || jaNumGrupo(atual.id) ? 'Próximo ar' : 'Pular'}</Botao>
+      </div>
+    </div>
+  )
+}
+
+// Planejar ou mover: quais ares este transmissor atende agora. Quem sai fica sem transmissor (botões continuam salvos),
+// para que um transmissor levado para outro lugar nunca dispare num ar que não vê mais.
+function EditarAres({ hub, onFechar, aoSalvar }) {
+  const { dados: lista } = useDados(() => api.get('/api/aparelhos'))
+  const { projetos } = useProjeto()
+  const [sel, setSel] = useState(() => (hub.ares || []).map((a) => a.id))
+  const [projeto, setProjeto] = useState(hub.projeto_id || '')
+  const [ocupado, setOcupado] = useState(false)
+  const toast = useToast()
+  if (!lista) return <Carregando />
+  const salvar = async () => {
+    setOcupado(true)
+    try { await api.put(`/api/hubs/${hub.id}/ares`, { aparelhos: sel, projeto_id: projeto ? +projeto : null }); toast('Ares do transmissor atualizados.'); aoSalvar(); onFechar() }
+    catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  return (
+    <div className="space-y-4 text-sm">
+      <p className="text-muted-foreground">Marque os ares que este transmissor enxerga <b>agora</b>. Mudou o transmissor de lugar? Desmarque os que ficaram para trás: eles ficam sem transmissor (os botões continuam salvos) e nenhum comando sai para eles por engano.</p>
+      <label className="rotulo block">Lugar do transmissor (projeto)
+        <select className="campo mt-1" value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+          <option value="">Sem projeto</option>
+          {projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+        </select>
+      </label>
+      <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+        {lista.map((a) => (
+          <label key={a.id} className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 last:border-0">
+            <span className="flex items-center gap-2"><input type="checkbox" checked={sel.includes(a.id)} onChange={() => setSel((s) => s.includes(a.id) ? s.filter((x) => x !== a.id) : [...s, a.id])} />{a.nome}<span className="text-muted-foreground"> · {a.projeto_nome || 'sem projeto'}</span></span>
+            {a.hub_id && a.hub_id !== hub.id && <span className="text-xs text-amber-700 dark:text-amber-400">hoje em {a.hub_nome}</span>}
+          </label>
+        ))}
+      </div>
+      <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={onFechar}>Cancelar</Botao><Botao carregando={ocupado} onClick={salvar}>Salvar</Botao></div>
+    </div>
+  )
+}
+
+// Ares que este transmissor atende (até ~6 à vista num salão aberto) e as zonas (ares iguais que obedecem juntos).
+function AresDoTransmissor({ hub, aoMudar, abrir }) {
   const [ocupado, setOcupado] = useState(null)
   const toast = useToast()
   const ares = hub.ares || []
-  const limite = hub.limite_recomendado || 4
+  const limite = hub.limite_recomendado || 6
   const nomes = Object.fromEntries(ares.map((a) => [a.id, a.nome]))
+  const naZona = new Set((hub.zonas || []).flatMap((z) => z.aparelhos))
   const todos = async (ligado) => {
     setOcupado(ligado ? 'ligar' : 'desligar')
     try {
@@ -216,19 +352,16 @@ function AresDoTransmissor({ hub, aoMudar }) {
           <span className="shrink-0 text-xs text-muted-foreground tabular">{a.botoes ? (a.ligado ? `${a.temperatura}°` : 'desligado') : <span className="text-amber-700 dark:text-amber-400">sem botões</span>}</span>
         </Link>
       ))}
-      {hub.juntos?.length > 0 && (
-        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          {hub.juntos.map((g) => g.map((i) => nomes[i] || `#${i}`).join(' e ')).join('; ')}: mesmo modelo de controle, respondem juntos a este transmissor.
-          Para separar, use um transmissor para cada, cada um apontado só para o seu ar. <Link to="/guia#varios-ares" className="underline">Entenda</Link>
-        </p>
-      )}
+      {(hub.zonas || []).map((z) => <ZonaControle key={z.id} zona={z} ares={ares} aoMudar={aoMudar} aoTestar={() => abrir('teste')} />)}
       {ares.length > limite && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">Mais de {limite} ares num transmissor: confira se todos estão à vista dele (até 8–10 m, sem parede no caminho).</p>}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {ares.length > 1 && <>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {ares.length > 1 && ares.some((a) => !naZona.has(a.id)) && <>
           <Botao tamanho="sm" variante="secundario" icone={Power} carregando={ocupado === 'ligar'} disabled={!!ocupado} onClick={() => todos(true)}>Ligar todos</Botao>
           <Botao tamanho="sm" variante="secundario" icone={Power} carregando={ocupado === 'desligar'} disabled={!!ocupado} onClick={() => todos(false)}>Desligar todos</Botao>
         </>}
-        <Link to={novo} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-primary hover:bg-muted"><Plus className="h-3.5 w-3.5" />Adicionar ar a este transmissor</Link>
+        {ares.length > 1 && !(hub.zonas || []).length && <button className="text-xs text-primary hover:underline" onClick={() => abrir('teste')}>Testar interferência</button>}
+        <button className="text-xs text-primary hover:underline" onClick={() => abrir('ares')}>Ares deste transmissor (planejar ou mover)</button>
+        <Link to={novo} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-primary hover:bg-muted"><Plus className="h-3.5 w-3.5" />Adicionar ar novo</Link>
       </div>
     </div>
   )
@@ -323,7 +456,7 @@ export default function Transmissores() {
                 <div><dt className="text-xs text-muted-foreground">Formato de comando</dt><dd>{h.control_type ? `Tipo ${h.control_type}` : 'Definido ao gravar o 1º botão'}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Envio pela nuvem</dt><dd>{h.funcoes_nuvem.length ? 'Disponível' : 'Importe da conta para ativar'}</dd></div>
               </dl>
-              <AresDoTransmissor hub={h} aoMudar={recarregar} />
+              <AresDoTransmissor hub={h} aoMudar={recarregar} abrir={(t) => setModal({ tipo: t, hub: h })} />
             </motion.div>
           ))}
         </div>
@@ -337,6 +470,12 @@ export default function Transmissores() {
       </Modal>
       <Modal aberto={modal?.tipo === 'editar'} titulo="Editar transmissor" onFechar={() => setModal(null)}>
         {modal?.tipo === 'editar' && <Editar hub={modal.hub} onFechar={() => setModal(null)} aoSalvar={recarregar} />}
+      </Modal>
+      <Modal aberto={modal?.tipo === 'teste'} titulo={`Teste de interferência · ${modal?.hub?.nome || ''}`} onFechar={() => setModal(null)}>
+        {modal?.tipo === 'teste' && <TesteInterferencia hub={modal.hub} onFechar={() => setModal(null)} aoGravar={recarregar} />}
+      </Modal>
+      <Modal aberto={modal?.tipo === 'ares'} titulo={`Ares de ${modal?.hub?.nome || ''}`} onFechar={() => setModal(null)}>
+        {modal?.tipo === 'ares' && <EditarAres hub={modal.hub} onFechar={() => setModal(null)} aoSalvar={recarregar} />}
       </Modal>
       <Modal aberto={modal?.tipo === 'remover'} titulo={`Remover ${modal?.hub?.nome}?`} onFechar={() => setModal(null)}>
         <p className="text-sm text-muted-foreground dark:text-muted-foreground/70">

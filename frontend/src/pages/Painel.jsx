@@ -146,6 +146,7 @@ function Destaque({ aparelhos, aoMudar, aparencia = {} }) {
                 className={`rounded-md border px-2.5 py-1 text-xs transition-colors disabled:opacity-40 ${ar.ligado && ar.modo === m ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'}`}>{MODOS[m]}</button>
             ))}
           </div>
+          {ar.zona && <p className="mt-3 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">Este ar está na <b>{ar.zona.nome}</b>: o transmissor manda o mesmo sinal para {ar.zona.outros.join(', ')}. O comando muda os {ar.zona.total} ares juntos.</p>}
           {!ar.hub_id && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Este ar ainda não tem transmissor: os comandos não têm por onde sair. Vincule um em <Link to={`/aparelhos/${ar.id}`} className="underline">Detalhes</Link> ou escolha outro ar na lista acima.</p>}
           <Botao className="mt-auto w-full" variante={ar.ligado ? 'secundario' : 'primario'} icone={Power} carregando={ocupado} disabled={!ar.hub_id}
             onClick={() => mudar({ ligado: !ar.ligado })}>{ar.ligado ? 'Desligar' : 'Ligar'}</Botao>

@@ -46,7 +46,7 @@ function Conexoes({ e, recarregar, dono }) {
   const dnsOk = e.dns.every((r) => r.ok)
   const verif = e.dominio.status === 'verified'
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
       <section className="cartao p-5">
         <h2 className="titulo-secao">Caminho até e-mails com o seu domínio</h2>
         <ol className="mt-4 space-y-4">
@@ -65,7 +65,7 @@ function Conexoes({ e, recarregar, dono }) {
           </Passo>
           <Passo ok={verif} titulo="4. Domínio verificado">{verif ? `Verificado. Os e-mails saem de ${e.remetente}.` : `Estado no Resend: ${e.dominio.status}. Depois dos registros, a verificação leva de segundos a alguns minutos.`}</Passo>
           <Passo ok={e.webhook} titulo="5. Eventos de entrega (webhook)">
-            No Resend → Webhooks → Add endpoint: URL <code className="rounded bg-muted px-1 text-xs text-foreground">{e.webhook_url}</code>, eventos “email.*”. Copie o “Signing secret” (whsec_…) ao lado: o histórico passa a mostrar entregue, aberto, clicado e devolvido.
+            No Resend → Webhooks → Add endpoint: URL <code className="break-all rounded bg-muted px-1 text-xs text-foreground">{e.webhook_url}</code>, eventos “email.*”. Copie o “Signing secret” (whsec_…) ao lado: o histórico passa a mostrar entregue, aberto, clicado e devolvido.
           </Passo>
         </ol>
         {dono && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
@@ -177,7 +177,7 @@ function Automaticos({ e, recarregar, dono }) {
   const [nome, setNome] = useState(e.remetente_nome), [local, setLocal] = useState(e.remetente_local), [resp, setResp] = useState(e.responder_para)
   const salvar = async (extra) => { try { await api.put('/api/email/config', { remetente_nome: nome, remetente_local: local, responder_para: resp, ...extra }); toast('Salvo.'); recarregar() } catch (err) { toast(err.message, 'erro') } }
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <section className="cartao divide-y divide-border">
         {Object.entries(NOMES_AUTO).map(([k, [n, d]]) => (
           <div key={k} className="flex items-start gap-4 p-4">
