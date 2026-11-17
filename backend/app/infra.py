@@ -211,13 +211,9 @@ def op_limpar(a):
 
 
 def op_retencao(a):
-    pid = _pid(a.get("projeto", "clima-casa"))
-    dias = max(1, min(int(a.get("dias", 30)), 365)); manter = max(3, min(int(a.get("manter", 10)), 100))
-    _req("PATCH", f"/v9/projects/{pid}", json={"deploymentExpiration": {"expirationDays": dias, "expirationDaysProduction": dias,
-                                                                        "expirationDaysCanceled": dias, "expirationDaysErrored": dias, "deploymentsToKeep": manter}})
-    _projetos.clear()
-    db.registrar("sistema", "Infra: retenção de publicações mudada", detalhe=f"{a.get('projeto')} · {dias} dias, manter {manter}")
-    return {"ok": True}
+    # Desde nov/2026 a Vercel recusa deploymentExpiration no PATCH do projeto (400 "additional property"): a regra só muda no
+    # painel (Settings → Build and Deployment → Deployment Retention Policy). Fica a mensagem clara em vez de um 400 cru.
+    raise ErroInfra("A Vercel não muda mais a retenção pela API. Abra o projeto na Vercel → Settings → Build and Deployment → Deployment Retention Policy.")
 
 
 def op_env(a):

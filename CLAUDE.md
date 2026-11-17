@@ -787,6 +787,7 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | Portão do app volta para si mesmo / "Verificando…" para sempre | (1) `db.carregar_env` só lê do ambiente da Vercel os prefixos `SUPABASE_`, `TUYA_`, `CLIMA_`, `TURNSTILE_`, `VERIFICACAO_`: variável nova com outro prefixo NÃO chega à nuvem (até 17/11 o `VERIFICACAO_SEGREDO` não chegava e o app nunca gravava o passe). (2) Turnstile emperrado (Brave, bloqueadores): a verificação alternativa assume em 7 s |
 | Checagem de segredos "passou" mas o commit seguiu | encadeie com `&&` (`test "$(git diff --cached \| grep -c …)" = 0 && git commit`); `;` ignora o resultado |
 | `ERR_CERT_AUTHORITY_INVALID` / "Failed to fetch" no login, só em certas redes | firewall corporativo (Fortinet/FortiGate) fazendo inspeção SSL troca o certificado de `zynio.com.br` (domínio novo, de 14/11: o FortiGuard trata como não classificado). Conferir: `openssl s_client -connect app.zynio.com.br:443 -servername app.zynio.com.br \| openssl x509 -noout -issuer` (Fortinet = interceptado). Na hora: usar `https://clima-casa-lac.vercel.app` (Turnstile aceita; biometria não, o RP ID é zynio.com.br). De vez: a TI da rede libera `zynio.com.br` e `*.zynio.com.br` da inspeção, ou pedir a reclassificação no FortiGuard. Nunca instalar a CA do Fortinet num Mac pessoal. Essas redes também bloqueiam 5432/6543: o agente não alcança o banco lá |
+| Retenção da Vercel dá 400 "additional property `deploymentExpiration`" | a Vercel tirou a retenção da API (nov/2026): `infra.op_retencao` só avisa; mudar no painel (Settings → Build and Deployment → Deployment Retention Policy). Apagar publicações (`op_limpar`) continua pela API |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
@@ -821,7 +822,9 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   ("Clima Escritorio - agente", sem validade, 9 permissões) só no `.env` do agente (o PC do João recebeu o `.env` pelo código).
   **DNSSEC ativo** (DS no Registro.br: keytag 2371, alg 13). Para desligar: tirar o DS no Registro.br, esperar 1 dia, depois a Cloudflare.
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
-- **Vercel**: ~2,1 GB "Functions Storage"; limpeza de publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
+- **Vercel** (17/11): Functions Storage estava em 3,32 GB (80 publicações do app × ~42 MB). Com o "sim" do dono: 70 publicações antigas do app
+  e 7 do site apagadas (ficam as 10 mais novas de cada) e **retenção de 7 dias** nos dois projetos (feita no painel: a API não aceita mais).
+  O número cai em alguns dias (a Vercel guarda as apagadas num período de recuperação antes de liberar o espaço).
 - **Alexa (Sinric)**: plano grátis (3) + plano por aparelho de 5 (cobrança automática) + plano por aparelho de 1 (**pagamento manual
   com lembrete**: renovar à mão até 17/11/2027), comprados em 17/11/2026 = **9 aparelhos**, um para cada um dos 9 ares; gravado em
   `config.sinric.limite_aparelhos = 9`. Em uso: 1 ("Ar do escritório", online). "Ar dos devs" sem botões: só vai para a

@@ -152,11 +152,8 @@ export function Config({ resumo, dono, recarregar }) {
   const toast = useToast()
   const [projeto, setProjeto] = useState('clima-casa')
   const p = resumo?.projetos?.find((x) => x.nome === projeto)
-  const [dias, setDias] = useState(30), [manter, setManter] = useState(10)
-  useEffect(() => { if (p?.retencao) { setDias(p.retencao.expirationDays); setManter(p.retencao.deploymentsToKeep) } }, [p?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const [vars, setVars] = useState(null), [ocupado, setOcupado] = useState(false)
   useEffect(() => { setVars(null); api.get(`/api/infra/variaveis?projeto=${projeto}`).then(setVars).catch(() => setVars({ itens: [] })) }, [projeto])
-  const salvarRet = async () => { setOcupado(true); try { await api.post('/api/infra/retencao', { projeto, dias, manter }); toast('Retenção salva na Vercel.'); recarregar() } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) } }
   const limpar = async () => {
     setOcupado(true)
     try {
@@ -174,12 +171,14 @@ export function Config({ resumo, dono, recarregar }) {
         <section className="cartao p-5">
           <h2 className="titulo-secao flex items-center gap-2"><HardDrive className="h-4 w-4" />Espaço das publicações</h2>
           <p className="mt-1 text-sm text-muted-foreground">Cada publicação guarda o pacote da função. Menos publicações guardadas = menos “Functions Storage”. A Vercel apaga sozinha as mais velhas que a retenção, sempre mantendo as mais novas.</p>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <label className="text-xs text-muted-foreground">Apagar depois de (dias)<input type="number" min="1" max="365" value={dias} disabled={!dono} onChange={(e) => setDias(+e.target.value)} className="campo mt-1 h-9" /></label>
-            <label className="text-xs text-muted-foreground">Manter sempre as mais novas<input type="number" min="3" max="100" value={manter} disabled={!dono} onChange={(e) => setManter(+e.target.value)} className="campo mt-1 h-9" /></label>
-          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-md border border-border p-2"><dt className="text-xs text-muted-foreground">Apaga depois de</dt><dd className="font-medium tabular">{p?.retencao ? `${p.retencao.expirationDays} dias` : '—'}</dd></div>
+            <div className="rounded-md border border-border p-2"><dt className="text-xs text-muted-foreground">Mantém sempre</dt><dd className="font-medium tabular">{p?.retencao ? `as ${p.retencao.deploymentsToKeep} mais novas` : '—'}</dd></div>
+          </dl>
+          {/* a Vercel não muda mais a retenção pela API (17/11/2026): só no painel dela */}
+          <p className="mt-2 text-xs text-muted-foreground">Para mudar a regra: na Vercel, projeto → Settings → Build and Deployment → Deployment Retention Policy.</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Botao disabled={!dono || ocupado} onClick={salvarRet}>Salvar retenção</Botao>
+            <a href={`https://vercel.com/estevamsouzalaureth001s-projects/${projeto}/settings/build-and-deployment`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted">Abrir na Vercel</a>
             <Botao variante="secundario" icone={Trash2} disabled={!dono || ocupado} onClick={limpar}>Apagar antigas agora</Botao>
           </div>
           {!dono && <p className="mt-2 text-xs text-muted-foreground">Só o dono muda a retenção e apaga publicações.</p>}
