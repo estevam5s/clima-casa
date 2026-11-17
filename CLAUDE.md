@@ -731,7 +731,7 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
     código/refresh com `DELETE … RETURNING`; diretiva só age em ar com `alexa = 1`.
   - Agente sem `proxy_headers` (só com `CLIMA_CONFIAR_PROXY=1`); instalador Windows tira a herança de permissão da pasta (`Proteger-Pasta`).
   - Planilhas: todo texto passa por `exportar.celula` (= + - @ viram texto). Login: limite por conta além do por IP (`firewall.falhas_da_conta`).
-  - **CAPTCHA no Supabase Auth** (Attack Protection, provedor Turnstile, mesmo segredo `TURNSTILE_SECRET_KEY`): o código está pronto
+  - **CAPTCHA no Supabase Auth: LIGADO em 17/11/2026** (Attack Protection, provedor Turnstile, mesmo segredo `TURNSTILE_SECRET_KEY`). Desligar = os dois passos ao contrário (Supabase primeiro, depois `config.auth_captcha`). O código
     (`turnstile.no_supabase()` lê `config.auth_captcha.ativo`; com ele, `/api/auth/entrar` e `/api/conta/conferir-senha` mandam o token
     para o Supabase em `gotrue_meta_security.captcha_token` em vez de conferir antes). Ligar = PATCH na Management API
     (`security_captcha_enabled/provider/secret`) **e** `config.auth_captcha = {"ativo": true}` juntos. Efeito colateral: o **login por
