@@ -1,13 +1,17 @@
-// Confere o Turnstile da tela de verificação e grava o passe assinado "zv" (12 h), igual ao do sistema.
+// Confere o Turnstile (ou a prova de trabalho, quando o Turnstile emperra: ./pow.js) da tela de verificação e grava o
+// passe assinado "zv" (12 h), igual ao do sistema.
 import crypto from 'node:crypto'
+import { provaOk } from './pow'
 
 export async function POST(request) {
   const segredo = process.env.VERIFICACAO_SEGREDO, chaveSecreta = process.env.TURNSTILE_SECRET_KEY
   let corpo = {}
   try { corpo = await request.json() } catch { /* sem corpo */ }
   const token = String(corpo.turnstile || '').slice(0, 4000)
-  if (!token) return Response.json({ detail: 'Falta a verificação.' }, { status: 400 })
-  if (chaveSecreta) {
+  if (corpo.prova) {
+    if (!provaOk(corpo.prova)) return Response.json({ detail: 'A verificação expirou. Recarregue a página.' }, { status: 400 })
+  } else if (!token) return Response.json({ detail: 'Falta a verificação.' }, { status: 400 })
+  else if (chaveSecreta) {
     const ip = request.headers.get('x-real-ip') || ''
     const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST', body: new URLSearchParams({ secret: chaveSecreta, response: token, ...(ip ? { remoteip: ip } : {}) }),

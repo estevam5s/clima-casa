@@ -43,7 +43,7 @@ export function paginaPortao({ host, chave, endpoint, volta }) {
 <noscript><p>Ative o JavaScript para continuar.</p></noscript>
 </main>
 <footer>Desempenho e segurança por Cloudflare Turnstile</footer>
-<script src="/verificacao.js" defer></script></body></html>`
+<script src="/verificacao.js?v=3" defer></script></body></html>`
 }
 
 // IP dentro das faixas oficiais do Google (verificador de marca do OAuth, Googlebot, ferramentas do Search Console)

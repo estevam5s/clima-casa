@@ -2873,20 +2873,66 @@ def resgatar_convite(d: ResgateConvite, request: Request):
     return {**r, "pacote": pacote}
 
 
+# Verificação alternativa do portão (prova de trabalho): quando o Turnstile da Cloudflare emperra no navegador
+# (bloqueadores, Brave, instabilidade da Cloudflare), o navegador resolve um desafio assinado por nós: achar um número
+# que, junto do desafio, dá um SHA-256 com POW_BITS bits zero no começo (~1 s num computador comum). Sem estado no
+# servidor: o desafio leva validade e assinatura HMAC (VERIFICACAO_SEGREDO). O login continua com Turnstile + firewall.
+POW_BITS = 16
+
+
+def _assinar_pow(desafio: str, bits: int, exp: int) -> str:
+    import hashlib
+    import hmac
+    return hmac.new(db.ENV.get("VERIFICACAO_SEGREDO", "").encode(), f"pow:{desafio}:{bits}:{exp}".encode(), hashlib.sha256).hexdigest()
+
+
+@publico.get("/verificacao/desafio")
+def verificacao_desafio():
+    import secrets
+    desafio, exp = secrets.token_hex(16), db.agora() + 300
+    return {"desafio": desafio, "bits": POW_BITS, "exp": exp, "assinatura": _assinar_pow(desafio, POW_BITS, exp)}
+
+
+class ProvaIn(BaseModel):
+    desafio: str = Field(pattern=r"^[0-9a-f]{32}$")
+    bits: int = Field(ge=8, le=30)
+    exp: int
+    assinatura: str = Field(pattern=r"^[0-9a-f]{64}$")
+    nonce: int = Field(ge=0, le=10**9)
+
+
+def _prova_ok(pv: ProvaIn) -> bool:
+    import hashlib
+    import hmac
+    if pv.bits < POW_BITS or pv.exp < db.agora() or pv.exp > db.agora() + 600:
+        return False
+    if not hmac.compare_digest(_assinar_pow(pv.desafio, pv.bits, pv.exp), pv.assinatura):
+        return False
+    h = int.from_bytes(hashlib.sha256(f"{pv.desafio}:{pv.nonce}".encode()).digest(), "big")
+    return h >> (256 - pv.bits) == 0
+
+
 class VerificacaoIn(BaseModel):
-    turnstile: str = Field(..., max_length=4000)
+    turnstile: str | None = Field(None, max_length=4000)
+    prova: ProvaIn | None = None
 
 
 @publico.post("/verificacao")
 def verificacao(d: VerificacaoIn, request: Request):
-    """Tela "Executando verificação de segurança": confere o Turnstile e grava um passe assinado (cookie) por 12 h.
-    O passe vale para o site e o sistema (domínio .zynio.com.br); o middleware da Vercel confere a assinatura."""
+    """Tela "Executando verificação de segurança": confere o Turnstile (ou a prova de trabalho, quando o Turnstile emperra)
+    e grava um passe assinado (cookie) por 12 h. O passe vale para o site e o sistema (domínio .zynio.com.br); o
+    middleware da Vercel confere a assinatura."""
     import hashlib
     import hmac
     from fastapi.responses import JSONResponse
     from .. import firewall, turnstile
     ip = firewall.ip_do_pedido(request)
-    turnstile.exigir(d.turnstile, ip, "/api/verificacao")
+    if d.prova is not None:
+        if not _prova_ok(d.prova):
+            firewall.registrar(ip, "bot_bloqueado", "/api/verificacao", "prova de trabalho inválida ou vencida")
+            raise HTTPException(400, "A verificação expirou. Recarregue a página.")
+    else:
+        turnstile.exigir(d.turnstile, ip, "/api/verificacao")
     segredo = db.ENV.get("VERIFICACAO_SEGREDO", "")
     if not segredo:
         return {"ok": True}

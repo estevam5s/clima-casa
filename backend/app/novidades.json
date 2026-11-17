@@ -2,6 +2,22 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.4.1",
+      "data": "2026-11-17",
+      "titulo": "Verificação de segurança não trava mais",
+      "resumo": "Quando a verificação da Cloudflare emperra em \"Verificando…\" (alguns navegadores e bloqueadores causam isso), o sistema faz sozinho uma verificação alternativa e libera a entrada em poucos segundos.",
+      "novo": [],
+      "melhorias": [
+        "Tela \"Executando verificação de segurança\" libera em até ~8 s mesmo se a Cloudflare não responder"
+      ],
+      "seguranca": [
+        "Verificação alternativa por prova de trabalho assinada pelo servidor, com validade de 5 minutos; o login continua com a verificação da Cloudflare, firewall e bloqueio por tentativas"
+      ],
+      "correcoes": [
+        "Portão parado em \"Verificando…\" no navegador Brave e com bloqueadores de rastreio"
+      ]
+    },
+    {
       "versao": "1.4.0",
       "data": "2026-11-16",
       "titulo": "Zonas de ar no salão aberto, Alexa por zona e cidade viva no mapa",
