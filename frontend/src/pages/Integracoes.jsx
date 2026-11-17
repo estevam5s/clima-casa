@@ -187,7 +187,7 @@ export default function Integracoes() {
               <ul className="space-y-1 text-muted-foreground">{COMANDOS.map((c) => <li key={c}>"{c}"</li>)}</ul>
             </div>
           </motion.div>
-          <NovaAlexa />
+          <TrocarContaAlexa conexao={conexao} aparelhos={aparelhos} />
           <ZonasAlexa />
           <DiagnosticoAlexa />
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="cartao p-5">
@@ -315,7 +315,7 @@ function ZonasAlexa() {
             const naAlexa = z.ares.filter((a) => a.sinric_device_id)
             return (
               <li key={z.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
-                <span className="min-w-0"><b>{z.nome}</b> · {z.ares.length} ares<span className="block text-xs text-muted-foreground">{naAlexa.length === 1 ? `Na Alexa como 1 aparelho (${naAlexa[0].nome})` : naAlexa.length ? `${naAlexa.length} ares desta zona na Alexa: organize` : 'Ainda fora da Alexa'}</span></span>
+                <span className="min-w-0"><b>{z.nome}</b> · {z.ares.length} ares<span className="block text-xs text-muted-foreground">{naAlexa.length === 1 ? `Na Alexa como 1 aparelho (${naAlexa[0].nome})` : naAlexa.length ? `${naAlexa.length} ares desta zona na Alexa, um por sala: falar com qualquer um muda os ${z.ares.length}` : 'Ainda fora da Alexa'}</span></span>
                 <Botao tamanho="sm" variante="secundario" carregando={ocupado && !alvo} onClick={() => previa(z)}>Organizar na Alexa</Botao>
               </li>
             )
@@ -340,22 +340,66 @@ function ZonasAlexa() {
 }
 
 // Alexa nova com a MESMA conta do Sinric Pro: nada muda no sistema; é só ativar a skill nela e descobrir os aparelhos.
-function NovaAlexa() {
+// Trocar (ou adicionar) a conta Amazon da Alexa: o sistema não troca a conta do Echo (só a Amazon faz isso), então o
+// assistente leva a cada lugar certo, guarda o progresso neste navegador e confirma no fim, ao vivo, que o comando de voz
+// da conta nova chegou (rota /api/sinric/ultimo-comando).
+const AMAZON_DISPOSITIVOS = 'https://www.amazon.com.br/hz/mycd/digital-console/alldevices'
+const APP_ALEXA = { ios: 'https://apps.apple.com/br/app/amazon-alexa/id944011620', android: 'https://play.google.com/store/apps/details?id=com.amazon.dee.app' }
+function TrocarContaAlexa({ conexao, aparelhos }) {
+  const CHAVE = 'clima-troca-alexa'
+  const [feito, setFeito] = useState(() => { try { return JSON.parse(localStorage.getItem(CHAVE) || '{}') } catch { return {} } })
+  const [espera, setEspera] = useState(null)   // { desde, achou, fim }
+  const marcar = (k) => setFeito((f) => { const n = { ...f, [k]: !f[k] }; try { localStorage.setItem(CHAVE, JSON.stringify(n)) } catch { /* navegador sem armazenamento */ } return n })
+  const naAlexa = (aparelhos || []).filter((a) => a.sinric_device_id).map((a) => a.nome)
+  useEffect(() => {
+    if (!espera || espera.achou || Date.now() > espera.fim) return undefined
+    const t = setInterval(async () => {
+      try {
+        const r = await api.get('/api/sinric/ultimo-comando')
+        if (r.comando && r.comando.quando >= espera.desde) setEspera((e) => ({ ...e, achou: r.comando }))
+        else if (Date.now() > espera.fim) setEspera((e) => ({ ...e }))
+      } catch { /* tenta de novo no próximo ciclo */ }
+    }, 3000)
+    return () => clearInterval(t)
+  }, [espera])
+  const link = (href, rot) => <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">{rot}<ExternalLink className="h-3 w-3" /></a>
   const passos = [
-    ['Antes: o PC do escritório ligado', 'Os comandos da Alexa saem pelo agente no escritório. Confira o diagnóstico abaixo ("Agente enxerga os transmissores").'],
-    ['No app Alexa da conta nova', 'Mais → Skills e jogos → "Sinric Pro" → Ativar para uso → entre com a MESMA conta do Sinric Pro de hoje (ou escaneie o QR acima).'],
-    ['Descobrir', 'Diga "Alexa, descobrir dispositivos". Aparecem os aparelhos do Sinric (um por zona, depois de organizar as zonas).'],
-    ['Testar', 'Diga "Alexa, ligue o ar do salão". Em "Último comando de voz recebido", logo abaixo, o comando aparece em segundos.'],
-    ['Alexa antiga', 'Pode continuar ativa: várias Alexas usam a mesma conta. Para tirar, desative a skill Sinric Pro nela.'],
+    ['tirar', 'Tirar o Echo da conta antiga', <>Entre com a conta <b>antiga</b> na Amazon, abra o Echo e toque em <b>Cancelar registro</b>. {link(AMAZON_DISPOSITIVOS, 'Abrir meus dispositivos na Amazon')} <span className="block text-xs">Sem a opção? Redefina o Echo: segure o botão de Ação (o do ponto) uns 25 s, até a luz ficar laranja.</span></>],
+    ['entrar', 'Configurar o Echo na conta nova', <>No app Alexa: Mais → Configurações → <b>Sair</b>, entre com a conta <b>nova</b> e em Dispositivos → + → Adicionar dispositivo → Amazon Echo. O Echo só precisa de internet (não precisa ser o Wi-Fi dos transmissores). App: {link(APP_ALEXA.ios, 'iPhone')} · {link(APP_ALEXA.android, 'Android')}</>],
+    ['skill', 'Ativar a skill Sinric Pro', <>Na conta nova, ative a skill e entre com a <b>mesma conta do Sinric Pro</b> (a dos aparelhos). Pelo celular, o QR Code ao lado abre direto. {conexao?.skill_url ? link(conexao.skill_url, 'Abrir a skill na Amazon') : null}</>],
+    ['descobrir', 'Descobrir os aparelhos', <>Diga <b>“Alexa, descobrir dispositivos”</b>. Devem aparecer {naAlexa.length ? <b>{naAlexa.join(', ')}</b> : 'os aparelhos que estão no Sinric'}.</>],
+    ['antiga', 'Conta antiga (opcional)', <>Para a conta antiga não controlar mais os ares, desative nela a skill Sinric Pro (Mais → Skills e jogos → Suas skills). Rotinas e grupos não passam de uma conta para a outra.</>],
   ]
+  const feitos = passos.filter(([k]) => feito[k]).length
+  const ouvir = () => setEspera({ desde: Math.floor(Date.now() / 1000) - 5, achou: null, fim: Date.now() + 90000 })
+  const exemplo = naAlexa[0] ? `Alexa, ligar o ${naAlexa.find((n) => /diretor/i.test(n)) || naAlexa[0]}` : 'Alexa, ligar o ar'
   return (
     <div className="cartao p-5">
-      <h2 className="titulo-secao">Nova Alexa (mesma conta do Sinric)</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="titulo-secao">Passo a passo: trocar a conta da Alexa</h2>
+        <span className="text-xs tabular text-muted-foreground">{feitos} de {passos.length} feitos</span>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">A troca da conta do Echo é feita no app e no site da Amazon: aqui estão os atalhos na ordem certa. A mesma conta do Sinric pode estar em várias Alexas.</p>
       <ol className="mt-3 space-y-2.5 text-sm">
-        {passos.map(([t, d], i) => (
-          <li key={t} className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium tabular">{i + 1}</span><span><b>{t}.</b> <span className="text-muted-foreground">{d}</span></span></li>
+        {passos.map(([k, t, d], i) => (
+          <li key={k} className="flex gap-3">
+            <button onClick={() => marcar(k)} aria-pressed={!!feito[k]} aria-label={`${t}: ${feito[k] ? 'feito' : 'marcar como feito'}`}
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular ${feito[k] ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-border bg-muted'}`}>
+              {feito[k] ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+            </button>
+            <span className={feito[k] ? 'text-muted-foreground' : ''}><b className={feito[k] ? 'line-through decoration-1' : ''}>{t}.</b> <span className="text-muted-foreground">{d}</span></span>
+          </li>
         ))}
       </ol>
+      <div className="mt-4 rounded-md border border-border p-3">
+        <p className="text-sm font-medium">Teste ao vivo</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Toque em “Esperar o comando” e diga <b>“{exemplo}”</b> no Echo da conta nova. Quando o comando chegar ao sistema, aparece aqui.</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Botao tamanho="sm" variante="secundario" onClick={ouvir} disabled={!!espera && !espera.achou && Date.now() < espera.fim}>{espera && !espera.achou && Date.now() < espera.fim ? 'Esperando o comando…' : 'Esperar o comando'}</Botao>
+          {espera?.achou && <span className={`text-sm ${espera.achou.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>{espera.achou.ok ? 'Chegou' : 'Chegou, mas falhou'}: {espera.achou.acao}{espera.achou.aparelho ? ` · ${espera.achou.aparelho}` : ''}{!espera.achou.ok && espera.achou.detalhe ? ` (${espera.achou.detalhe})` : ''}</span>}
+          {espera && !espera.achou && Date.now() > espera.fim && <span className="text-sm text-muted-foreground">Nada chegou em 90 s. Confira se a skill foi ativada com a conta certa do Sinric e o diagnóstico abaixo.</span>}
+        </div>
+      </div>
     </div>
   )
 }

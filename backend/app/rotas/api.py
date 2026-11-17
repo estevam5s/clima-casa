@@ -1986,6 +1986,15 @@ def criar_no_sinric(aid: int):
     return {"sinric_device_id": dev}
 
 
+@api.get("/sinric/ultimo-comando")
+def sinric_ultimo_comando():
+    """Último comando de voz que chegou (Alexa/Google pelo Sinric ou skill própria): o assistente de troca de conta usa
+    para confirmar ao vivo que a Alexa nova está mandando comandos."""
+    u = db.um("SELECT t.quando, t.acao, t.ok, t.detalhe, a.nome AS aparelho FROM atividade t LEFT JOIN aparelhos a ON a.id = t.aparelho_id "
+              "WHERE t.origem IN ('alexa', 'sinric') ORDER BY t.quando DESC LIMIT 1")
+    return {"comando": u, "agora": db.agora()}
+
+
 @api.get("/sinric/diagnostico")
 def sinric_diagnostico():
     """Confere, ao vivo, se os aparelhos vão funcionar numa Alexa nova (ou trocada): credencial, agente conectado ao

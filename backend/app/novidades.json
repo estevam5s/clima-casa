@@ -2,6 +2,22 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.5.2",
+      "data": "2026-11-17",
+      "titulo": "Alexa por sala e troca de conta guiada",
+      "resumo": "Cada ar do escritório está na Alexa com o nome da sala, e a tela de Integrações guia a troca da conta Amazon do Echo, com um teste ao vivo no fim.",
+      "novo": [
+        "Integrações → “Passo a passo: trocar a conta da Alexa”: atalhos para tirar o Echo da conta antiga, configurar na nova e ativar a skill Sinric Pro, com o progresso marcado",
+        "Teste ao vivo: toque em “Esperar o comando”, fale com a Alexa e o comando aparece na tela quando chega"
+      ],
+      "melhorias": [
+        "Os 6 ares do escritório (Escritório, Analistas, Diretor, Bancada 1 e 2, Deison) estão na Alexa, cada um numa sala com o nome do projeto no Sinric",
+        "Ar novo, renomeado ou que muda de projeto vai sozinho para a sala certa no Sinric"
+      ],
+      "seguranca": [],
+      "correcoes": []
+    },
+    {
       "versao": "1.5.1",
       "data": "2026-11-17",
       "titulo": "Instalar ar por ar com um transmissor só",
