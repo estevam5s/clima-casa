@@ -214,6 +214,16 @@ Por isso cada combinação que você quer usar vira um "botão gravado".
 - Gravar só funciona com o **Mac ligado na mesma rede** do transmissor. Pode ser feito pelo site ou pelo app de
   celular (Aparelhos → ar → **Gravar botão do controle**).
 
+## 7.3 Sem gravar tudo: Gree e copiar de outro ar
+
+Na aba **Botões gravados** há dois atalhos:
+
+- **Controle Gree: gerar todos os botões.** Com só o **Desligar** gravado, o sistema monta os 300 ajustes (5 modos,
+  16 a 30°, 4 ventilações). Siga os passos: **Conferir** (o sinal é Gree?), **Testar** (manda Frio 24°: o ar tem que
+  apitar e ir para 24°) e **Gerar 300 botões**. Se o Conferir disser que não é Gree, grave os ajustes à mão.
+- **Copiar de outro ar.** Ar do mesmo modelo (o mesmo controle remoto) de outro já pronto: escolha o ar e **Copiar
+  botões**. Botões com o mesmo nome são substituídos.
+
 # 8. Uso no dia a dia
 
 ## 8.1 Painel
@@ -365,12 +375,39 @@ agente e nunca vão para a nuvem. Com o agente desligado, essas abas avisam e es
 Os endereços @zynio.com.br **só recebem**. Para responder como eles, use no Gmail **Configurações → Contas → Enviar
 e-mail como**, com o servidor `smtp.resend.com`, a porta 465, o usuário `resend` e a chave do Resend como senha.
 
+## 8.15 Novidades a cada versão
+
+Quando o sistema é atualizado, aparece **uma vez** a janela **"O que há de novo"** com a versão e o que mudou, separado em
+**Novo**, **Melhorias**, **Segurança** e **Correções**. Ao fechar, ela não volta naquela versão (vale em qualquer aparelho em
+que você entrar). O histórico completo fica em **Sistema → Novidades**, e a central de notificações avisa "Versão X no ar".
+
 # 9. Vários ares, vários transmissores
 
 - Cadastre cada transmissor no Smart Life (capítulo 4) e use **Transmissores → Importar todos**.
 - Cadastre cada ar escolhendo o **transmissor do mesmo cômodo**.
 - Use **projetos** para separar lugares diferentes (casa, escritório, casa de praia).
 - Na Alexa, cada ar aparece com o nome que você deu. Mantenha os nomes diferentes entre si.
+
+## 9.1 Um transmissor para 3 ou 4 ares
+
+Um transmissor no teto pode atender vários ares **do mesmo ambiente**:
+
+1. **Posição**: no teto ou no alto da parede, no meio do ambiente, com visão direta do receptor de cada ar (o canto do
+   painel onde você aponta o controle). Alcance bom: **8 a 10 metros**. Infravermelho não atravessa parede, divisória,
+   porta fechada nem luminária: ar em outra sala precisa do próprio transmissor.
+2. **Cadastro**: **Transmissores →** no cartão do transmissor, **Adicionar ar a este transmissor**. O transmissor e o projeto
+   já vêm escolhidos. O ar pode pertencer a outro projeto e usar o mesmo transmissor.
+3. **Botões**: grave o Desligar do primeiro ar. Controle Gree: use **Controle Gree** (seção 7.3). Ar do mesmo modelo de
+   outro já pronto: **Copiar de outro ar** (seção 7.3).
+4. **Ligar todos / Desligar todos**, no cartão do transmissor, mandam um ar de cada vez (cerca de 1 segundo entre eles).
+5. O cartão mostra **"N de 4 recomendados"** e avisa quando passar disso.
+
+**Ares iguais respondem juntos.** O sinal infravermelho não tem endereço: dois ares do **mesmo modelo** à vista do mesmo
+transmissor obedecem a qualquer comando. O sistema percebe (mesmos botões no mesmo transmissor), atualiza os dois no
+painel e mostra um aviso amarelo no cartão. Para comandar cada um separado, use **um transmissor para cada**, bem perto do
+seu ar e virado só para ele. Modelos diferentes funcionam separados no mesmo transmissor.
+
+**Teste**: com alguém olhando os ares, mande Ligar para um e veja quem apitou; depois Desligar.
 
 # 10. Alexa e Google Home com o Sinric Pro
 

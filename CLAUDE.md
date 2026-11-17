@@ -1,7 +1,7 @@
 # CLAUDE.md — Clima Escritório (marca zynio)
 
 Guia do projeto para quem (pessoa ou agente) for mexer nele. **Leia as seções 0 a 2 antes da primeira mudança**;
-o resto é consulta. Tudo em **pt-BR**: código, nomes, rotas, textos de interface e mensagens de erro.
+o resto é consulta. Problema em produção? Vá direto aos roteiros da **seção 17**. Vai publicar? **Seção 16** (novidades). Tudo em **pt-BR**: código, nomes, rotas, textos de interface e mensagens de erro.
 O repositório e alguns nomes técnicos ainda se chamam "clima-casa" (nome antigo): não renomeie (quebra apps,
 caminhos de serviço e o projeto da Vercel).
 
@@ -23,11 +23,20 @@ caminhos de serviço e o projeto da Vercel).
 5. **Testar antes de entregar** (seção 11): build, import do backend, teste no navegador com sessão temporária, e em
    produção as rotas tocadas. Diga o que não foi testado.
 6. **Sem cara de IA** na interface (seção 8.9) e copy direta em pt-BR.
+7. **Toda publicação que muda o que o usuário vê ou usa ganha entrada nova em `backend/app/novidades.json`** (seção 16):
+   versão, novo, melhorias, segurança, correções. Só fatos que entraram; o modal "O que há de novo" mostra isso a cada pessoa.
+8. **Ar só obedece com um agente no escritório.** O agente principal precisa enxergar os transmissores (Infra → Agentes:
+   "enxerga N de M"). Mac em casa + PC do escritório desligado = nenhum comando chega ao ar, mesmo com o painel "online".
+   Antes de dizer que algo "funciona", confira isso e a Atividade.
 
 ### Onde mexer (mapa rápido)
 | Quero mudar… | Arquivo(s) |
 |---|---|
-| Ligar/desligar/temperatura de um ar | `backend/app/clima.py` (`aplicar`) → `transmissor.py` |
+| Ligar/desligar/temperatura de um ar | `backend/app/clima.py` (`aplicar`, `responderam_juntos`) → `transmissor.py` |
+| Vários ares num transmissor (ligar todos, ares iguais, limite) | `rotas/api.py` (`_hub_publico`, `/hubs/{id}/todos`), `clima.grupos_juntos`, `pages/Transmissores.jsx` (`AresDoTransmissor`) |
+| Gerar botões Gree / copiar botões de outro ar | `backend/app/gree.py`, `rotas/api.py` (`/aparelhos/{id}/gree`, `/copiar-botoes`), `pages/Aparelho.jsx` (`AtalhosBotoes`), `scripts/gree_gerar.py` |
+| "O que há de novo" (versões) | `backend/app/novidades.json`, `rotas/api.py` (`/novidades`), `components/Novidades.jsx`, `pages/Novidades.jsx` |
+| Painel abre em qual ar / aviso "sem transmissor" | `pages/Painel.jsx` (`Destaque`), `components/ArCartao.jsx` |
 | Gravação de botões IR | `transmissor.py` (`aprender`), tela `pages/Aparelho.jsx` |
 | Quem é o computador principal do agente | `backend/app/coordenador.py`, tela Infra → Agentes |
 | Alexa/Google (Sinric) | `backend/app/sinric.py`, tela `pages/Integracoes.jsx` |
@@ -36,12 +45,13 @@ caminhos de serviço e o projeto da Vercel).
 | Música (Spotify) | `backend/app/musica.py`, `rotas/musica.py`, `pages/Musica.jsx` |
 | Vercel pelo painel | `backend/app/infra.py`, `rotas/infra.py`, `pages/Infra.jsx`, `components/infra/Vercel.jsx` |
 | Cloudflare pelo painel (DNS, e-mails, DNSSEC, Turnstile) | `backend/app/cloudflare.py`, `rotas/infra.py` (`/infra/cf/*`), `components/infra/Cloudflare.jsx`, `Visao.jsx` |
-| Mapa 2D/3D do escritório | `pages/Mapa.jsx`, `components/Mapa3D.jsx`, `mapaUtil.js`, `predio3d.js`, `dispositivos3d.js`, `CartoesMapa3D.jsx`, `EquipeMapa.jsx`, `catalogoMapa.js` |
+| Mapa 2D/3D do escritório | `pages/Mapa.jsx`, `components/Mapa3D.jsx`, `mapaUtil.js`, `predio3d.js` (prédio, ruas, grade A*), `cidade3d.js` (cidade em volta), `dispositivos3d.js`, `CartoesMapa3D.jsx`, `EquipeMapa.jsx`, `catalogoMapa.js` |
 | Globo da Segurança | `components/Globo3D.jsx`, `universo.js`, `satelites3d.js`, `nave3d.js` |
 | Relatórios e exportação | `relatorio.py`, `exportar.py`, `docx_simples.py` |
 | Permissões de rota | `backend/app/acesso.py` (`REGRAS`) |
 | Firewall / anti-robô | `firewall.py`, `turnstile.py`, `middleware.js` |
 | Passo a passo para o usuário | `pages/Guia.jsx` (e `docs/MANUAL.md`) |
+| Instalar o agente em outro PC (código de uso único) | `backend/app/convite.py`, `backend/convite_env.py`, `frontend/public/instalar-agente.ps1`, `components/infra/Agentes.jsx` |
 
 ---
 
@@ -71,6 +81,23 @@ Usuários: **dono**, **admin** (Deison) e papéis abaixo (seção 7.7). Sem cada
 | E-mails recebidos | Cloudflare Email Routing: `contato@`, `suporte@`, `financeiro@`, `seguranca@` e pega-tudo → Gmail do dono (destino verificado). Só recebe; enviar como esses endereços = "Enviar como" no Gmail pelo SMTP do Resend |
 | Bloqueio de bots | Cloudflare Turnstile, widget "Zynio - Clima Escritorio" |
 | Painel local do agente | http://localhost:8090 (a 8080 do Mac é de outro app) |
+
+### Glossário
+| Termo | O que é |
+|---|---|
+| **Agente** | o backend rodando num computador do escritório (Mac, PC Windows, Linux). Fala com os transmissores pela rede local |
+| **Principal / reserva** | só um agente executa (o principal, aluguel em `config.agente_lider`); os outros esperam e assumem em até 45 s |
+| **Preferido** | o computador que deve ficar no comando quando online e enxergando os transmissores (`config.agente_preferido`) |
+| **Enxergar** | o agente alcança a porta 6668 do transmissor (`ve_transmissores` / `total_transmissores`) |
+| **Nuvem** | o mesmo backend na Vercel; não alcança a rede do escritório e pede ao agente pela fila |
+| **Fila** | tabela `fila_comandos`: a nuvem grava o pedido, o agente executa e grava o resultado |
+| **Transmissor / hub** | o Smart IR SRW-004 (Tuya), tabela `hubs`. Um no teto atende até ~4 ares à vista |
+| **Botão / código** | sinal infravermelho gravado (base64 de pulsos), tabela `codigos`; chave `modo_temp_vent` ou `desligar` |
+| **Gree** | protocolo do controle Gree: com o Desligar gravado, o sistema gera os 300 ajustes (`gree.py`) |
+| **Responder junto** | ares do mesmo modelo à vista do mesmo transmissor obedecem ao mesmo sinal (o IR não tem endereço) |
+| **Portão** | página "Executando verificação de segurança" (Turnstile + cookie `zv`) antes do sistema |
+| **Convite / código de instalação** | código de uso único (30 min) que leva o `.env` cifrado para um PC novo |
+| **Novidades** | entradas de versão em `novidades.json`, mostradas uma vez a cada pessoa no modal "O que há de novo" |
 
 ---
 
@@ -129,6 +156,7 @@ ar-controle/
 │                              gree_gerar.py (gera os 300 botões de um ar Gree a partir do Desligar gravado)
 ├── backend/
 │   ├── requirements.txt       deps do agente (inclui sinricpro)
+│   ├── convite_env.py         decifra o .env no PC novo (roda antes de existir .env; não importa o app)
 │   ├── supabase-ca.crt        CA raiz do pooler (TLS verificado)
 │   └── app/
 │       ├── main.py            FastAPI, middleware (CSRF/CSP/HSTS/firewall), ciclo de vida (agente: coordenador → threads)
@@ -137,6 +165,8 @@ ar-controle/
 │       ├── clima.py           estado do ar → código IR (aplicar), rótulos
 │       ├── transmissor.py     envio local/fila/nuvem, aprender, descobrir, autorreparo, laço do agente, fila
 │       ├── coordenador.py     agente em vários computadores (principal/reserva/preferido)
+│       ├── convite.py         código de instalação do agente em outro PC (.env cifrado com scrypt + AES-GCM, uso único)
+│       ├── gree.py            protocolo Gree: gera qualquer botão a partir do Desligar gravado (também usado pelo script)
 │       ├── tuya_nuvem.py      Smart Life por QR, Local Key, envio pela nuvem Tuya
 │       ├── sinric.py · alexa.py   Alexa/Google (Sinric) e skill própria
 │       ├── automacao.py · agenda.py   automações, temporizadores, agenda (laço de 20 s)
@@ -147,17 +177,20 @@ ar-controle/
 │       ├── vercel_ataque.py   modo de ataque da Vercel junto com o escudo anti-DDoS
 │       ├── relatorio.py · exportar.py · docx_simples.py · seguranca_relatorio.py
 │       ├── notificacoes.py · clima_externo.py · supabase_painel.py · conformidade.py · perfil.py
+│       ├── novidades.json     "O que há de novo": uma entrada por versão (seção 16)
+│       ├── versao_apps.json   última versão dos apps Android/desktop (os apps avisam)
 │       └── rotas/  api.py (quase tudo) · contas.py (usuários, sessões, passkeys) · alexa.py (OAuth + diretivas)
 │                   musica.py · infra.py · correio.py
 ├── frontend/                  React 18 + Vite 5 + Tailwind 3 + framer-motion + recharts + three
-│   ├── public/                manifest, sw.js (PWA), tema.js, verificacao.js, ícones (icone-192.png = logo dos e-mails)
+│   ├── public/                manifest, sw.js (PWA), tema.js, verificacao.js, instalar-agente.ps1, ícones (icone-192.png = logo dos e-mails)
 │   └── src/
 │       ├── main.jsx · api.js · supabase.js · contexto.jsx · tema.jsx · marca.jsx · preferencias.js
 │       ├── mapaUtil.js        completar/colocarMoveis/postosDoMapa/expediente (horaBR, noExpediente)
 │       ├── catalogoMapa.js    loja do mapa (itens, modelos, cores)
 │       ├── vozAlexa.js        gerador de frases da Alexa (música e ar)
 │       ├── components/        Layout, ui (design system), Mapa3D, Cena3D, Globo3D, Barras3D, CartoesMapa3D,
-│       │                      EquipeMapa, CatalogoVoz, dispositivos3d, nave3d, predio3d, satelites3d, universo…
+│       │                      EquipeMapa, CatalogoVoz, dispositivos3d, nave3d, predio3d, cidade3d, satelites3d, universo,
+│       │                      Novidades (modal), infra/ (Visao, Vercel, Cloudflare, Agentes, comum)…
 │       └── pages/             uma por rota (seção 8)
 ├── supabase/  schema.sql (idempotente) · cron-jobs.json (10 rotinas)
 ├── alexa/     GUIA.md · lambda/index.mjs (skill própria)
@@ -256,7 +289,7 @@ Datas em **epoch segundos** (bigint); booleanos de negócio 0/1 (exceto tabelas 
 | `cenas`, `agendamentos`, `automacoes`, `temporizadores` | automação |
 | `atividade` | todo comando/evento (origem, ação, ok, detalhe) |
 | `fila_comandos` | ponte nuvem → agente. **Tipos permitidos pela constraint**: `enviar`, `aprender`, `descobrir`, `evento`, `reparar`, `infra` (tipo novo = ampliar a constraint) |
-| `usuarios`, `passkeys`, `webauthn_desafios`, `sessoes_fortes`, `sessoes_uso` | contas e sessões |
+| `usuarios`, `passkeys`, `webauthn_desafios`, `sessoes_fortes`, `sessoes_uso` | contas e sessões (`usuarios.novidades_vista` = última versão que a pessoa viu) |
 | `notificacoes` | central de notificações |
 | `seguranca_ips`, `seguranca_eventos`, `seguranca_ip_info` | firewall e tela Segurança |
 | `site_mensagens`, consentimentos de cookies | site |
@@ -292,6 +325,8 @@ Estado desejado limitado à faixa → código exato `modo_temp_vent` → outra v
 mesmo modo (e o estado salvo vira o do código enviado). Desligar usa `desligar`. `transmissor.enviar`: no agente, local;
 na nuvem, fila (8 s); falhou e `modo_envio = auto` → nuvem Tuya. Depois: `aparelhos`, `atividade`, aviso ao Sinric e
 `automacao.evento` (que também dispara as rotinas de música). O ar **não** informa estado de volta.
+Depois do envio, `responderam_juntos`: outro ar no mesmo transmissor com **o mesmo código** para aquela chave também muda de
+estado no banco (e na Atividade, "respondeu junto"). A resposta traz `juntos: [ids]`.
 
 ### 7.2 Gravar um botão
 `POST /api/aparelhos/{id}/aprender {chave}` → fila `aprender` → SRW-004 em modo estudo (30 s). Descobre o `control_type`
@@ -343,7 +378,7 @@ Aluguel em `config.agente_lider` renovado a cada 10 s por `INSERT … ON CONFLIC
 `agente_preferido` faz o principal ceder (só se o preferido estiver online **e** enxergar os transmissores). Cada computador anuncia
 `ve_transmissores`/`total_transmissores` (porta 6668 de cada hub, sondada no máximo a cada 30 s: o SRW-004 aceita poucas conexões);
 principal cego por ~40 s cede se outro online enxerga; reserva cega não tenta assumir. Preferido: dono **ou admin**.
-**Instalar em outro PC** (`convite.py`): Infra → Agentes → código de uso único (30 min, só o dono). O agente cifra o `.env` com
+**Instalar em outro PC** (`convite.py`): Infra → Agentes → código de uso único (30 min, dono ou admin). O agente cifra o `.env` com
 scrypt(código)+AES-GCM e grava em `config.agente_convite:<id>` (banco não tem o código, só hash da prova). PC: `frontend/public/instalar-agente.ps1`
 (fora do portão no `middleware.js`) → `POST /api/agentes/convite/resgatar` (pública, uso único, erro conta no firewall) → zip do código
 (Storage) → `backend/convite_env.py` decifra → `instalar-windows.ps1`. Scripts .ps1 com BOM (acentos no PowerShell 5.1). Perdeu o posto → `os._exit(3)` e o serviço reinicia como reserva. O `main.py` só
@@ -402,6 +437,37 @@ Turnstile e auditoria filtram pelo domínio (a conta tem widgets de outros proje
 (`_paralelo`): resumo ~1,5 s, saúde ~2,7 s. **Fila**: itens `infra` rodam num pool de 4 threads no agente (`transmissor._infra_pool`), sem
 segurar os comandos de infravermelho; os demais tipos seguem um por vez.
 
+### 7.13 Vários ares num transmissor
+- Banco: vários `aparelhos` com o mesmo `hub_id` (o ar pode ser de outro projeto). Recomendado até **4** (`LIMITE_ARES_POR_TRANSMISSOR`),
+  todos à vista (8–10 m, sem parede, divisória ou porta no caminho).
+- `GET /api/hubs` traz por transmissor `ares` (id, nome, projeto, ligado, botões), `juntos` (grupos com o mesmo `desligar` =
+  mesmo modelo) e `limite_recomendado`. A tela mostra "N de 4", aviso de ares que respondem juntos e de excesso.
+- `POST /api/hubs/{id}/todos {ligado, modo?, temperatura?}` (`aparelhos.controlar`, respeita o escopo de projetos): um ar por vez,
+  1,2 s entre eles; quem já mudou junto não recebe o sinal de novo. Devolve `feitos` e `falhas`.
+- Botões sem gravar: `POST /api/aparelhos/{id}/copiar-botoes {de}` (mesmo modelo) e `POST /api/aparelhos/{id}/gree`
+  `{acao: conferir|testar|gerar}` (Gree; testar manda Frio 24° pela fila; gerar grava 300 botões com rótulo "gerado (Gree)").
+- "Adicionar ar a este transmissor" abre `/aparelhos?novo=1&hub=<id>&projeto=<id>` (`FormAparelho` aceita `padrao`).
+- Ares **iguais** só ficam independentes com um transmissor para cada, perto e virado só para o seu ar.
+
+### 7.14 Um comando de ar, de ponta a ponta (onde olhar quando falha)
+1. **Tela** (`Painel`/`ArCartao`/`Aparelho`/mapa) → `POST /api/aparelhos/{id}/estado`. Botões desativados = ar sem `hub_id`
+   (a tela diz "sem transmissor"). Sem pedido na rede = problema na tela, não no backend.
+2. **Nuvem** (`clima.aplicar`): escolhe o código. Erros "Nenhum botão gravado…" / "Botão Desligar ainda não foi gravado" saem aqui
+   e vão para `atividade` com `ok = 0`.
+3. **Fila** (`transmissor.enviar` no papel nuvem): linha `enviar` em `fila_comandos`, espera 8 s. "Tempo esgotado" = nenhum agente
+   principal pegou (agente offline ou cego).
+4. **Agente principal** (`processar_fila_uma_vez`) → `_enviar_local` (tinytuya, TCP 6668). `WinError 10048`/"sem resposta" = rede
+   ou varredura UDP concorrente; "Local Key mudou" = pareado de novo.
+5. **Transmissor → ar**: o ar apita se aceitou. Não apitou = sinal errado (Gree com soma errada, gravação ruim) ou sem visada.
+Onde ver: Atividade (filtro falhas), `fila_comandos` (estado/erro), Infra → Agentes (quem é o principal e o que enxerga),
+log do agente (`~/Library/Logs/ClimaCasa.log`, `data\agente.log` no Windows).
+
+### 7.15 Novidades a cada versão
+`backend/app/novidades.json` → `GET /api/novidades` (logado; devolve `versoes`, `atual`, `vista`, `mostrar`) e
+`POST /api/novidades/vista {versao}` (grava `usuarios.novidades_vista`). O `NovidadesModal` (no `Layout`, fora do bloco que remonta por
+rota) abre uma vez por pessoa quando `atual > vista`, em qualquer aparelho. A primeira leitura de uma versão cria a notificação
+`versao:<v>` (gravidade baixa, link `/novidades`). Página `/novidades` com o histórico. Processo na seção 16.
+
 ---
 
 ## 8. Interface web
@@ -409,13 +475,13 @@ segurar os comandos de infravermelho; os demais tipos seguem um por vez.
 ### 8.1 Rotas (`frontend/src/main.jsx`; todas protegidas exceto `/login`, `/redefinir-senha`)
 | Rota | Tela |
 |---|---|
-| `/` | Painel: avisos do que impede o ar de obedecer, métricas, ar 3D grande (cor do mapa), integrações, semana, gasto, escritório 3D compacto, origens, uso por hora, barras 3D, aparelhos, atividade. Os 3D de baixo montam perto da tela ou no ocioso |
+| `/` | Painel (abre num ar **com transmissor**, ligado primeiro; ar sem transmissor mostra aviso em vez de botões mudos): avisos do que impede o ar de obedecer, métricas, ar 3D grande (cor do mapa), integrações, semana, gasto, escritório 3D compacto, origens, uso por hora, barras 3D, aparelhos, atividade. Os 3D de baixo montam perto da tela ou no ocioso |
 | `/projetos` | projetos com meta de gasto, aparelhos ao vivo, desligar todos, exportar |
 | `/mapa` | mapa 2D (edição) e 3D (seção 8.2) |
 | `/relatorios` | período livre, conclusões, comparativo, sessões, fora do expediente, exportar em 8 formatos |
-| `/aparelhos`, `/aparelhos/:id` | lista e detalhe (mostrador, modos, botões, gravação, temporizador, histórico) |
+| `/aparelhos`, `/aparelhos/:id` | lista e detalhe (mostrador, modos, botões, gravação, temporizador, histórico). Botões gravados: **Copiar de outro ar** e **Controle Gree** (Conferir → Testar → Gerar 300). `?novo=1&hub=&projeto=` abre o cadastro já preenchido |
 | `/cenas`, `/automacoes`, `/agendamentos` | automação |
-| `/transmissores` | SRW-004: status, importar, procurar na rede, reconectar |
+| `/transmissores` | SRW-004: status, importar, procurar na rede, reconectar; por cartão **Ares atendidos** (N de 4), Ligar/Desligar todos, aviso de ares que respondem juntos, Adicionar ar a este transmissor |
 | `/musica` | player, onde tocar, rotinas, frases de voz geradas + "qualquer música vira comando", passo a passo da conexão |
 | `/integracoes` | Sinric (credenciais, criar no Sinric, outra Alexa por QR, diagnóstico e teste ao vivo) |
 | `/comandos-alexa` | catálogo de frases do ar (busca, categorias, **Testar** manda a ação pelo painel) + por aparelho |
@@ -428,18 +494,26 @@ segurar os comandos de infravermelho; os demais tipos seguem um por vez.
 | `/mensagens` | mensagens do site no estilo WhatsApp Web |
 | `/configuracoes?aba=` | perfil, geral, aparência, marca (white label), segurança, contas, sistema |
 | `/apps` | downloads, PWA, código-fonte (dono/admin) |
-| `/guia` | **passo a passo** (18 capítulos: Smart Life, transmissores, botões, desligar de longe, Sinric, outra Alexa, Google, mapa, música, agente no Windows, domínio e e-mails, problemas) |
+| `/guia` | **passo a passo** (19 capítulos: Smart Life, transmissores, botões, desligar de longe, agente no Windows, **um transmissor para vários ares**, Sinric, outra Alexa, Google, mapa, música, domínio e e-mails, problemas). `/guia#<id>` abre no capítulo |
+| `/novidades` | histórico de versões (novo, melhorias, segurança, correções); o modal "O que há de novo" aparece sozinho uma vez por versão |
 | `/oauth/autorizar`, `/redefinir-senha`, `/login` | fluxos de conta |
 
 ### 8.2 Mapa (2D/3D)
 - Planta em `config.mapa`: `salas` (por projeto), `ares` (posição + `modelo` split/cassete/piso_teto/janela + `cor`),
   `elementos` (porta, janela com `aberta` 0–100, mesa, estacao, bancada, gaveteiro, armário, sofá, dispositivos da loja com
-  `modelo`/`cor`/`ligado`…), `auto`, `andar` (9º), `pessoas` (nome, cargo, sala, posto, expediente, aparência) e `escritas`
+  `modelo`/`cor`/`ligado`…), `auto`, `andar` (9º), `andares` (11, total do prédio), `pessoas` (nome, cargo, sala, posto, expediente, aparência) e `escritas`
   (caneta azul/preta/vermelha nos vidros).
 - Vidro só na parede da porta das salas privativas, nas divisórias entre elas e na parede da bancada para o salão.
   `colocarMoveis` cria uma vez a mesa individual e a janela em frente à porta (ids em `mapa.auto`).
 - Postos (`postosDoMapa`): mesa individual = id do elemento; fileira `id:i:a|b` (a = oeste/esquerda); bancada `id:i`;
   automático `sala-<id>`. Pessoa fora do expediente (Brasília) não aparece e o posto fica vazio.
+- Prédio (`predio3d.js`): `andares` no total (térreo e 1º no pódio, 2º ao último na torre), escritório no `andar`. Torre com pele de
+  vidro (`texturaCortina`), faixas brancas de sacada e colunas azuis (inspirado no prédio real), cobertura com platibanda, caixas
+  d'água e condensadoras. O andar tem **corredor de 2,5 m** (`MARGEM` no `Mapa3D`) em volta das salas, guarda-corpo de vidro e
+  **hall dos elevadores** em frente à porta de entrada; a grade A* vai até a fachada (`E.limitesAndar`): ninguém sai da laje.
+- Cidade (`cidade3d.js`): lotes de 24 m a cada 34 m (±170 m) fora do quarteirão e das avenidas, 7 estilos de prédio, praças, árvores
+  e postes; skyline ao fundo. Tudo mesclado por material (`mergeGeometries`) e instâncias: ~20 chamadas de desenho. Na direção da
+  câmera e perto do prédio, só prédios baixos. Nada de prédio real ou marca.
 - 3D: prédio (pódio + torre, clicar abre o andar), pessoas com A* numa grade de colisão, persianas clicáveis, itens com cartão
   (cor/modelo/ligar), escrita no vidro (dono/admin, altura 0,9–1,8 m), controle de avatar em 1ª/3ª pessoa (WASD, Shift, V, Esc),
   tela cheia, compilação de shaders assíncrona, para de desenhar fora da tela.
@@ -496,7 +570,8 @@ Prefixo `/api`, JSON, Bearer (exceto as públicas). Erros `{"detail": "…"}` em
   `POST /conta/senha-trocada`, `GET /conta/sessoes`, `POST /conta/sessoes/encerrar`, usuários em `/usuarios…` (contas.py)
 - **Painel e dados**: `GET /painel`, `GET /painel/analise`, `GET /metricas`, `GET /atividade?origem&aparelho_id&falhas&antes&limite&de&ate&q`,
   `GET /atividade/analise?dias&origem&aparelho_id`, `GET /alertas`
-- **Aparelhos/transmissores/automação**: `/aparelhos…` (estado, aprender, botões, temporizador, sinric), `/hubs…`, `/projetos`,
+- **Aparelhos/transmissores/automação**: `/aparelhos…` (estado, aprender, botões, temporizador, sinric, `gree`, `copiar-botoes`), `/hubs…`
+  (+ `POST /hubs/{id}/todos`), `/projetos`,
   `/cenas`, `/agendamentos`, `/automacoes`, `GET /gravacoes/{job}`
 - **Mapa**: `GET|PUT /mapa`, `POST /mapa/elementos/{id}/estado`, `POST /mapa/ares/{id}/aparencia`, `PUT /mapa/pessoas`, `PUT /mapa/escritas`
 - **Relatórios**: `GET /relatorios/completo`, `GET /relatorios/exportar?formato=pdf|docx|xlsx|csv|html|xml|json|md`
@@ -506,8 +581,10 @@ Prefixo `/api`, JSON, Bearer (exceto as públicas). Erros `{"detail": "…"}` em
 - **E-mail**: `GET /email/estado`, `PUT /email/config` (chave vazia mantém, "-" apaga), `POST /email/dominio/provisionar|verificar`,
   `GET /email/modelos`, `GET /email/modelos/{tipo}/previa`, `POST /email/teste`, `GET /email/envios`, pública `POST /email/webhook`
 - **Infra/agentes**: `GET /infra/saude|resumo|uso|publicacoes|publicacoes/{id}/log|variaveis`, `POST /infra/publicacoes/acao|limpar|retencao`,
-  `GET /agentes`, `POST /agentes/preferido|esquecer`
+  `GET /agentes`, `POST /agentes/preferido|esquecer|convite` (dono ou admin)
 - **Segurança e marca**: `/seguranca…` (resumo, relatório, checklist, ips, eventos), `/marca…`, `/notificacoes…`
+- **Novidades**: `GET /novidades`, `POST /novidades/vista` (qualquer usuário logado)
+- **Agentes (público)**: `POST /agentes/convite/resgatar` (uso único; erro conta no firewall)
 - **Outros**: `GET /satelites`, `GET /clima-externo`, `GET /apps/qr|versao|repositorio|codigo/{arquivo}`, `/site/…`, `/supabase/…`, `GET /backup`
 - **Fora de /api**: `POST /oauth/token`, `POST /alexa/diretiva`, `GET /saude`
 
@@ -544,16 +621,22 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 - **Nova tela**: `pages/`, rota em `main.jsx`, item em `GRUPOS` (`Layout.jsx`), estados carregando/vazio/erro, capítulo no `Guia.jsx`.
   Telas que dependem do papel: só decidir depois que `sessao` carregar (senão pisca "sem permissão").
 - **Mudou o que o usuário vê**: `Guia.jsx` + `docs/MANUAL.md` (`docs/gerar-pdf.sh`).
-- **Novo ar numa sala** (sala = projeto, um transmissor por sala): roteiro e prompt prontos em `docs/continuar/2026-11-16-ares-por-sala.md`;
-  controle Gree → `scripts/gree_gerar.py <id>` (`--testar`, `--gravar`).
+- **Novo ar numa sala** (sala = projeto): roteiro e prompt prontos em `docs/continuar/2026-11-16-ares-por-sala.md`. Pela tela:
+  Transmissores → "Adicionar ar a este transmissor" → Botões gravados → Desligar → Controle Gree (ou Copiar de outro ar).
+  Terminal: `scripts/gree_gerar.py <id>` (`--testar`, `--gravar`).
+- **Nova versão para os usuários**: entrada no topo de `backend/app/novidades.json` (seção 16). Se os apps mudaram, também
+  `docs/releases/vX.Y.Z.md` e, depois do release, `versao_apps.json`.
 - **Commits**: pt-BR, terminar com `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ### Checklist antes de entregar
 1. `cd frontend && npx vite build` sem erro; auditor ≥ 98.
 2. `cd backend && ../.venv/bin/python -c "import app.main"`.
 3. Navegador (Playwright) com sessão temporária: telas tocadas em 1440 e 375, sem erro de JS, sem 4xx/5xx, sem rolagem lateral.
-4. Commit (sem segredos) + push; `./publicar-vercel.sh`; `./instalar-servico.sh`; `/saude` 200; rotas novas 401 sem login.
-5. Apagar a sessão de teste e dados de teste do banco; relatar o que **não** foi testado.
+4. Entrada nova em `novidades.json` se o usuário vai notar a mudança (o `publicar-vercel.sh` avisa quando falta).
+5. Commit (sem segredos) + push; `./publicar-vercel.sh`; `./instalar-servico.sh`; `/saude` 200; rotas novas 401 sem login
+   (logo depois de publicar, a 1ª chamada pode cair na publicação antiga e dar 404: repita).
+6. Apagar a sessão de teste e dados de teste do banco; relatar o que **não** foi testado. No Playwright, intercepte
+   `POST /api/novidades/vista` para não marcar o dono como "já viu" (e feche o modal com Esc antes de clicar na tela).
 
 ---
 
@@ -601,31 +684,42 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | Avisos `%c%d`/`fetch data:` no console do site | script do Turnstile, não nosso |
 | Porta 8080 ocupada | outro app; o sistema usa 8090 |
 | Portão "Executando verificação" parado em "Verificando…" | desafio do Turnstile emperrado do lado da Cloudflare (16/11). `verificacao.js` tem vigia de 20 s: reinicia o widget uma vez e depois mostra "Tentar de novo". Passar pelo site zynio.com.br também libera (cookie `zv` vale para o domínio todo) |
+| Botões do Painel desativados sem motivo aparente | o ar escolhido não tem transmissor (ex.: "Ar dos devs"). O Painel agora abre num ar com transmissor e avisa |
+| João (ou outro) "consegue pelo mapa e não pelo painel" | conferir qual ar está selecionado e se há agente principal enxergando os transmissores (seção 7.14) |
+| `Cannot read properties of undefined (reading 'isReady')` | descartar material enquanto `compileAsync` roda; o descarte espera `E.compilacao` |
+| Rolagem lateral só no `/mapa` (celular) | canvas mede o contêiner e a grade de coluna `auto` cresce junto: use `grid-cols-1` / `minmax(0,1fr)` |
+| `/api/<rota nova>` 404 logo depois de publicar | 1ª chamada caiu na publicação antiga durante a troca do endereço; repita |
+| Teste Playwright travado por um modal | é o "O que há de novo": intercepte `/api/novidades/vista` e aperte Esc |
+| Instalador Windows: falha ao decifrar / acentos quebrados | PowerShell 5.1 grava UTF-8 **com BOM**: JSON com `UTF8Encoding($false)`, Python com `PYTHONUTF8=1` e `utf-8-sig` |
+| `WinError 10048` no agente Windows | duas varreduras UDP (6666/6667) ao mesmo tempo (reparar + autorreparo). Passa sozinho; se repetir, reiniciar o serviço |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
 
-## 14. Estado atual e pendências (16/11/2026)
+## 14. Estado atual e pendências (16/11/2026, noite)
 
-- **Transmissor "Smart IR"** (`eb3f5451cddd399055p54z`) **offline** desde 15/11 00:10; a varredura do Mac não o encontra.
-  Conferir tomada e Wi-Fi 2,4 GHz no escritório (e se o Mac está na mesma rede).
-- **Nenhum botão IR gravado** no "Ar do escritório": nenhum comando aciona o ar de verdade (as falhas da Atividade são isso).
-- Agente: só o Mac (principal). **PC Windows do escritório** ainda não instalado: agora é pelo código de instalação (Infra → Agentes);
-  o `instalar-agente.ps1` ainda não rodou num Windows de verdade. Transmissor da Sala Bancada fora do ar desde a tarde de 16/11.
-- **Resend**: domínio `zynio.com.br` **verificado** (16/11, São Paulo); remetente `nao-responda@zynio.com.br`; "Esqueci a senha" passa a
-  usar o modelo próprio. Webhook cadastrado e segredo salvo (cifrado); e-mail de teste pelo domínio chegou como "entregue" (16/11).
-  **SMTP do Supabase Auth pelo Resend** ligado em 16/11 (`smtp.resend.com:465`, usuário `resend`, senha = chave de envio, remetente
-  `Clima Escritório <nao-responda@zynio.com.br>`; limite do Auth subiu para 30 e-mails/h). Trocar a chave do Resend = trocar também lá.
-  Falta testar o "Esqueci a senha" de ponta a ponta.
-- **Cloudflare**: Email Routing ativo (contato@, suporte@, financeiro@, seguranca@ e pega-tudo → Gmail do dono). Token
-  `CLOUDFLARE_API_TOKEN` criado em 16/11 ("Clima Escritorio - agente", sem validade, zona zynio.com.br + conta, 9 permissões) e só no
-  `.env` do Mac (o PC Windows, quando instalado, precisa do `.env` novo). Leituras e escritas testadas (TXT de teste criado/editado/apagado,
-  travas recusando). **DNSSEC ativo** desde 16/11 (Cloudflare `active`; DS no Registro.br: keytag 2371, alg 13, digest SHA-256 conferido contra a DNSKEY
-  publicada; publicado no .br em ~5 min; 8.8.8.8 valida com `ad`). Para desligar: tirar o DS no Registro.br, esperar 1 dia, depois desligar na
-  Cloudflare. Saúde do domínio: só o alerta de CAA (opcional).
+- **Ares**: "Ar do escritório" (projeto Escritório) com **301 botões** (Desligar gravado + 300 gerados pelo protocolo Gree),
+  no transmissor "Smart IR · Escritório", na Alexa (Sinric). Ligar, desligar e temperatura testados de verdade em 16/11 à tarde.
+  "Ar dos devs" (projeto Devs, salão ao lado da TV, cor `#18181b`): **sem transmissor e sem botões**.
+- **Transmissores**: "Smart IR · Escritório" (192.168.59.85, visto pela última vez 16/11 19:01) e "Smart IR · Sala Bancada"
+  (`eb3f5451cddd399055p54z`, 192.168.59.14, visto 16/11 18:23). Os dois aparecem offline porque **nenhum agente no escritório**
+  está ligado agora (não necessariamente desligados).
+- **Agentes**: Mac do dono (MacBook-Air, principal agora, mas fora do escritório: enxerga 0 de 2) e **PC do João PMF-182063**
+  (Windows 11, instalado por código em 16/11 ~18:35, **preferido**, enxergou 1 de 2, offline desde 19:02). Enquanto o PC do João
+  estiver desligado e o Mac fora da rede, nenhum comando chega aos ares. Pendente: deixar um PC do escritório sempre ligado.
+- **Painel**: corrigido em 16/11 (abria no "Ar dos devs" sem transmissor e os botões ficavam mudos).
+- **Vários ares por transmissor**, **Gree pela tela** e **novidades por versão** (1.3.0 e 1.3.1) publicados em 16/11. Não testado com
+  ares reais além do Ar do escritório (os outros transmissores ainda vão para o teto: `docs/continuar/2026-11-16-ares-por-sala.md`).
+- **Mapa 3D**: prédio de 11 andares (escritório no 9º), cidade em volta, corredor e hall dos elevadores (`config.mapa.andares = 11`).
+- **Resend**: domínio `zynio.com.br` verificado (16/11, São Paulo); remetente `nao-responda@zynio.com.br`; webhook com segredo
+  cifrado; e-mail de teste entregue. **SMTP do Supabase Auth pelo Resend** (`smtp.resend.com:465`, usuário `resend`, senha = chave de
+  envio; limite do Auth 30 e-mails/h). Trocar a chave do Resend = trocar também lá. Falta testar o "Esqueci a senha" de ponta a ponta.
+- **Cloudflare**: Email Routing (contato@, suporte@, financeiro@, seguranca@ e pega-tudo → Gmail do dono). `CLOUDFLARE_API_TOKEN`
+  ("Clima Escritorio - agente", sem validade, 9 permissões) só no `.env` do agente (o PC do João recebeu o `.env` pelo código).
+  **DNSSEC ativo** (DS no Registro.br: keytag 2371, alg 13). Para desligar: tirar o DS no Registro.br, esperar 1 dia, depois a Cloudflare.
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
-- **Vercel**: ~2,1 GB "Functions Storage"; limpeza de 55 publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
-  `python-docx` saiu (Word gerado por `docx_simples.py`).
+- **Vercel**: ~2,1 GB "Functions Storage"; limpeza de publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
+- **Alexa (Sinric grátis)**: 3 aparelhos; hoje usa 1. Com mais ares, decidir antes: plano pago ou skill própria.
 - Skill própria da Alexa não criada (opcional). Deison (admin) sem 2FA. Equipe no mapa: Cássio e Alexandre (Analista, seg–sex 8h–18h,
   cargo e horário a confirmar).
 
@@ -640,4 +734,51 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   (Windows/Linux), catálogo de voz, Atividade com análise, nave no globo; ar escuro legível no painel; Word sem python-docx.
 - **16/11**: e-mail transacional pelo Resend (modelos, histórico, webhook, domínio verificado, SMTP do Supabase), CLAUDE.md reorganizado;
   e-mails @zynio.com.br pela Cloudflare Email Routing (SPF da raiz trocado); Infra unida com a Cloudflare (DNS, e-mails, DNSSEC, Turnstile,
-  auditoria, saúde do domínio).
+  auditoria, saúde do domínio). Tarde: ar Gree funcionando (300 botões gerados), segundo transmissor (Sala Bancada), projeto Devs,
+  agente no PC Windows por código de uso único (PC do João), quem não enxerga os transmissores não manda. Noite: Painel abre num ar com
+  transmissor; um transmissor para vários ares; Gree e copiar botões pela tela; novidades por versão (1.3.0, 1.3.1); prédio de 11 andares
+  com cidade, corredor e hall no mapa 3D; CLAUDE.md ampliado (glossário, fluxo do comando, versões, roteiros).
+
+---
+
+## 16. Versões e novidades (o que o usuário vê a cada atualização)
+
+- **Fonte única**: `backend/app/novidades.json` → `versoes` (mais nova primeiro): `versao` (semver), `data` (AAAA-MM-DD), `titulo`,
+  `resumo`, `novo[]`, `melhorias[]`, `seguranca[]`, `correcoes[]`. Seção vazia = `[]` (some da tela).
+- **Quando criar entrada**: qualquer publicação que muda o que alguém vê ou usa. Ajuste interno sem efeito visível pode ir junto na
+  próxima. Correção pequena no mesmo dia: versão de patch (1.3.1); recurso novo: menor (1.4.0); quebra de uso: maior.
+- **Como escrever**: frases curtas, em pt-BR, do ponto de vista de quem usa ("Ligar todos no cartão do transmissor"), sem jargão
+  (nada de nome de função), sem número inventado, sem promessa. Segurança: diga o que ficou mais protegido, nunca como atacar.
+- **O que acontece**: depois do `publicar-vercel.sh`, cada pessoa vê o modal uma vez (salvo em `usuarios.novidades_vista`) e a central
+  de notificações ganha "Versão X no ar". O script avisa (sem bloquear) quando há commits em `frontend/src`/`backend/app` depois da
+  data da última versão.
+- **Apps** (Android/desktop) têm processo próprio: `docs/releases/vX.Y.Z.md` + `gh release` + `versao_apps.json` (seção 10). As
+  novidades do sistema web podem citar a versão dos apps quando sair junto.
+
+---
+
+## 17. Roteiros quando algo dá errado
+
+**O ar não obedece (painel, Alexa ou agenda)**
+1. Atividade → filtro "falhas": qual erro? (seção 7.14 diz em que etapa ele nasce.)
+2. Infra → Agentes: existe principal **online** que **enxerga** o transmissor daquele ar? Se não: ligar o PC do escritório (ou levar o
+   Mac para a rede do escritório). O preferido assume sozinho em até ~45 s.
+3. Transmissores: o do ar está online? "Reconectar agora". Pareado de novo no Smart Life → o autorreparo busca a chave nova.
+4. O ar apitou? Se não: posição/visada do transmissor; para Gree, "Conferir" na aba Botões; gravação ruim → gravar o Desligar de novo.
+
+**Botões do painel desativados** → o ar escolhido não tem transmissor: vincular em Aparelho → Ajustes ou escolher outro ar.
+
+**Agente "cego" (enxerga 0 de N)** → computador fora da rede do escritório, Wi-Fi diferente ou transmissor desligado. No Windows,
+`powershell -ExecutionPolicy Bypass -File .\instalar-windows.ps1 status`; log em `data\agente.log`.
+
+**Instalar o agente num PC novo** → Infra → Agentes → Instalar (dono ou admin) → código de 30 min → comando no PowerShell como admin.
+Falhou ao decifrar: gerar código novo (uso único). Ver armadilhas (BOM/UTF-8).
+
+**Portão "Executando verificação" parado** → esperar o vigia (20 s) ou "Tentar de novo"; abrir zynio.com.br também libera o cookie.
+
+**Transmissor pareado de novo / Wi-Fi novo** → parear no Smart Life (2,4 GHz) com o agente na mesma rede; Transmissores → "Reconectar
+agora". ID novo único → o cadastro migra sozinho e os botões continuam.
+
+**Dois ares iguais mudando juntos** → é físico (seção 7.13). Separar = um transmissor para cada, perto e virado só para o seu ar.
+
+**Publicação deu erro** → seção 13 (BLOCKED, 100 MB, import). Nunca `vercel deploy` na pasta com `.git`.
