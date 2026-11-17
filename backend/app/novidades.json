@@ -2,6 +2,32 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.5.0",
+      "data": "2026-11-17",
+      "titulo": "Elevador até o térreo, salas personalizáveis e Novidades nova",
+      "resumo": "No mapa 3D dá para pegar o elevador ao lado da porta e descer até a recepção do prédio. As salas ganharam cores próprias e portas que abrem e fecham, o corredor ficou mais largo e as pessoas andam de um jeito mais natural.",
+      "novo": [
+        "Elevador funcionando: perto da porta dele, aperte R (ou o botão) para descer ao térreo e voltar ao escritório",
+        "Térreo do prédio: recepção com balcão, catracas, sala de espera, recepcionista, segurança e gente circulando",
+        "Cartão da sala no 3D: cor do chão, das cadeiras, das mesas e da porta, e o botão de abrir ou fechar a porta",
+        "Cartão da porta: abrir, fechar e trocar a cor; porta fechada não deixa ninguém passar",
+        "Pilar em frente à porta da Reunião",
+        "Página Novidades com a linha do tempo das versões em 3D, números, filtro por tipo e busca"
+      ],
+      "melhorias": [
+        "Corredor em volta das salas mais largo: o avatar passa sem enroscar",
+        "Escritório e Reunião maiores",
+        "Pessoas mais realistas: rosto com lábios e sobrancelhas, franja, tecido e jeans com textura, cadarço",
+        "Andar mais natural (o pé rola, o quadril balança) e, parados, alguns olham o celular",
+        "Porta do Escritório preta; Cássio e Alexandre trocaram de cadeira"
+      ],
+      "seguranca": [
+        "Trocar e-mail ou senha confere a senha atual no servidor, sem abrir outra sessão no navegador",
+        "Preparado para o CAPTCHA também no login do Supabase (proteção contra robôs que tentam senhas direto lá)"
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.4.2",
       "data": "2026-11-17",
       "titulo": "Segurança reforçada depois da auditoria completa",

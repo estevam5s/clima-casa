@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Blinds, Eye, Footprints, PenLine, Power, Trash2, UserRound, Video, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Blinds, DoorClosed, DoorOpen, Eye, Footprints, PaintBucket, PenLine, Power, Trash2, UserRound, Video, X } from 'lucide-react'
 import { CORES_ITEM, ELETRONICOS, ITEM } from '../catalogoMapa'
 import { DIAS_SEMANA, girarPonto, situacaoExpediente } from '../mapaUtil'
 
@@ -46,6 +46,70 @@ export function CartaoMapa({ mapa, projetos, cartao, fechar, acoes, perm, ocupad
             onPointerUp={() => valor !== null && valor !== atual && mudar(valor)} onKeyUp={() => valor !== null && valor !== atual && mudar(valor)} className="flex-1 accent-[hsl(var(--primary))]" aria-label="Abertura da persiana" />
           <span className="w-9 text-right tabular-nums">{v}%</span>
         </label>
+        {!perm.controlar && <p className="mt-2 text-xs text-muted-foreground">Sua conta não pode mexer nos itens do mapa.</p>}
+      </div>
+    )
+  }
+
+  if (cartao.tipo === 'sala') {
+    const p = projetos.find((x) => String(x.id) === String(cartao.id)), s = mapa.salas[cartao.id]
+    if (!p || !s) return null
+    const portas = mapa.elementos.filter((e) => e.tipo === 'porta' && salaDe(e)?.id === p.id)
+    const aberta = portas.some((e) => (Number.isFinite(+e.aberta) ? +e.aberta : 50) >= 50)
+    const corPorta = portas[0]?.cor || ''
+    const mudar = (x) => executar(() => acoes.aparenciaSala(p.id, x))
+    const linha = (rot, chave, campo, atual) => (
+      <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label={rot}>
+        <span className="w-14 shrink-0 text-xs text-muted-foreground">{rot}</span>
+        <button disabled={ocupado} onClick={() => mudar({ [campo]: '' })} className={`h-6 rounded-full border px-2 text-[11px] ${!atual ? 'ring-2 ring-[hsl(var(--primary))]' : 'border-border'}`}>Padrão</button>
+        {(chave === 'porta' ? [['#111111', 'Preta'], ['#9c6b3f', 'Madeira'], ['#f5f5f4', 'Branca'], ['#64748b', 'Cinza']] : CORES_ITEM.slice(0, 5)).map(([c, n]) => (
+          <button key={c} disabled={ocupado} onClick={() => mudar({ [campo]: c })} title={n} aria-label={n} role="radio" aria-checked={atual === c}
+            className={`h-6 w-6 rounded-full border ${atual === c ? 'ring-2 ring-[hsl(var(--primary))] ring-offset-1 ring-offset-[hsl(var(--card))]' : 'border-border'}`} style={{ background: c }} />
+        ))}
+        <input type="color" disabled={ocupado} defaultValue={atual || '#888888'} onChange={(e) => { clearTimeout(window.__corS); const v = e.target.value; window.__corS = setTimeout(() => mudar({ [campo]: v }), 500) }}
+          className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent" aria-label={`${rot}: qualquer cor`} title="Qualquer cor" />
+      </div>
+    )
+    return (
+      <div className={caixaCls}>
+        <Topo icone={PaintBucket} titulo={p.nome} sub={`Sala · ${portas.length ? `${portas.length} porta(s), ${aberta ? 'aberta' : 'fechada'}` : 'sem porta própria'}`} fechar={fechar} />
+        {portas.length > 0 && (
+          <button disabled={ocupado || !perm.controlar} onClick={() => mudar({ porta_aberta: !aberta })} className={`${aberta ? btn : btnPri} mb-3 w-full`}>
+            {aberta ? <DoorClosed className="h-3.5 w-3.5" /> : <DoorOpen className="h-3.5 w-3.5" />}{aberta ? 'Fechar a porta' : 'Abrir a porta'}
+          </button>
+        )}
+        {perm.editarSala ? (
+          <div className="space-y-2">
+            {linha('Chão', 'piso', 'piso', s.cor_piso || '')}
+            {linha('Cadeiras', 'cadeira', 'cadeira', s.cor_cadeira || '')}
+            {linha('Mesas', 'mesa', 'mesa', s.cor_mesa || '')}
+            {portas.length > 0 && linha('Porta', 'porta', 'porta', corPorta)}
+          </div>
+        ) : <p className="text-xs text-muted-foreground">Sua conta não muda as cores das salas.</p>}
+        <p className="mt-2 text-[11px] text-muted-foreground">Vale só para o desenho 3D. Porta fechada não deixa ninguém passar.</p>
+      </div>
+    )
+  }
+
+  if (cartao.tipo === 'item' && mapa.elementos.find((e) => e.id === cartao.id)?.tipo === 'porta') {
+    const el = mapa.elementos.find((e) => e.id === cartao.id)
+    const aberta = (Number.isFinite(+el.aberta) ? +el.aberta : 50) >= 50
+    return (
+      <div className={caixaCls}>
+        <Topo icone={aberta ? DoorOpen : DoorClosed} titulo="Porta" sub={`${salaDe(el)?.nome || 'escritório'} · ${aberta ? 'aberta' : 'fechada'}`} fechar={fechar} />
+        <button disabled={ocupado || !perm.controlar} onClick={() => executar(() => acoes.persiana(el.id, aberta ? 0 : 100))} className={`${aberta ? btn : btnPri} mb-3 w-full`}>
+          {aberta ? <DoorClosed className="h-3.5 w-3.5" /> : <DoorOpen className="h-3.5 w-3.5" />}{aberta ? 'Fechar a porta' : 'Abrir a porta'}
+        </button>
+        {perm.decorar && (
+          <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Cor da porta">
+            <span className="w-10 text-xs text-muted-foreground">Cor</span>
+            <button disabled={ocupado} onClick={() => executar(() => acoes.decorar(el.id, { cor: '' }))} className={`h-6 rounded-full border px-2 text-[11px] ${!el.cor ? 'ring-2 ring-[hsl(var(--primary))]' : 'border-border'}`}>Madeira</button>
+            {[['#111111', 'Preta'], ['#f5f5f4', 'Branca'], ['#64748b', 'Cinza'], ['#1e3a5f', 'Azul']].map(([c, n]) => (
+              <button key={c} disabled={ocupado} onClick={() => executar(() => acoes.decorar(el.id, { cor: c }))} title={n} aria-label={n} role="radio" aria-checked={el.cor === c}
+                className={`h-6 w-6 rounded-full border ${el.cor === c ? 'ring-2 ring-[hsl(var(--primary))] ring-offset-1 ring-offset-[hsl(var(--card))]' : 'border-border'}`} style={{ background: c }} />
+            ))}
+          </div>
+        )}
         {!perm.controlar && <p className="mt-2 text-xs text-muted-foreground">Sua conta não pode mexer nos itens do mapa.</p>}
       </div>
     )
@@ -173,7 +237,7 @@ export function RascunhoEscrita({ mapa, rascunho, setRascunho, acoes, ocupado, e
 }
 
 // barra do controle: quem está sendo controlado, câmera, dicas e setas na tela para toque
-export function BarraControle({ controle, nome, mudarModo, sair, sentar, tecla }) {
+export function BarraControle({ controle, nome, mudarModo, sair, sentar, tecla, elevador, andar = 9 }) {
   if (!controle) return null
   const toque = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
   const seta = (k, I, rot) => (
@@ -186,11 +250,16 @@ export function BarraControle({ controle, nome, mudarModo, sair, sentar, tecla }
         <span className="flex items-center gap-1.5 px-2 font-medium"><Footprints className="h-3.5 w-3.5 text-primary" />{nome}</span>
         <button onClick={() => mudarModo('1')} className={`h-7 rounded-md px-2 ${controle.modo === '1' ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted'}`}>1ª pessoa</button>
         <button onClick={() => mudarModo('3')} className={`h-7 rounded-md px-2 ${controle.modo === '3' ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted'}`}>3ª pessoa</button>
-        <button onClick={sentar} className="h-7 rounded-md px-2 font-medium text-primary hover:bg-muted">{controle.sentado ? 'Levantar' : 'Sentar'} <kbd className="ml-0.5 text-[10px]">F</kbd></button>
+        {controle.elevador && !controle.sentado && (
+          <button onClick={elevador} className="h-7 rounded-md bg-primary px-2 font-medium text-primary-foreground hover:opacity-90">
+            {controle.elevador === 'terreo' ? `Subir ao ${andar}º andar` : 'Descer ao térreo'} <kbd className="ml-0.5 text-[10px] opacity-80">R</kbd>
+          </button>
+        )}
+        {!controle.viajando && <button onClick={sentar} className="h-7 rounded-md px-2 font-medium text-primary hover:bg-muted">{controle.sentado ? 'Levantar' : 'Sentar'} <kbd className="ml-0.5 text-[10px]">F</kbd></button>}
         <button onClick={sair} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Sair <kbd className="ml-0.5 text-[10px]">Esc</kbd></button>
       </div>
       {controle.aviso && !controle.sentado && <p className="pointer-events-none absolute left-1/2 top-24 z-10 -translate-x-1/2 rounded-md bg-amber-500/90 px-2 py-1 text-[11px] text-white">{controle.aviso}</p>}
-      {!toque && <p className="pointer-events-none absolute left-1/2 top-14 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/45 px-2 py-1 text-[11px] text-white">{controle.sentado ? 'Trabalhando: F levanta · V troca a câmera' : 'W A S D andam · Shift corre · F senta na cadeira perto · V troca a câmera'}</p>}
+      {!toque && <p className="pointer-events-none absolute left-1/2 top-14 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/45 px-2 py-1 text-[11px] text-white">{controle.viajando ? 'Elevador em movimento…' : controle.sentado ? 'Trabalhando: F levanta · V troca a câmera' : controle.elevador ? 'Elevador aqui: R chama e leva ao outro andar · W A S D andam' : 'W A S D andam · Shift corre · F senta · R usa o elevador (perto da porta dele) · V troca a câmera'}</p>}
       {toque && (
         <div className="absolute bottom-14 left-3 z-10 grid grid-cols-3 gap-1">
           <span />{seta('w', ArrowUp, 'Andar para frente')}<span />

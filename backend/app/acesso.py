@@ -70,6 +70,7 @@ REGRAS = [
     # ações rápidas do mapa (a própria rota ainda confere quem pode mudar cor/modelo e escrever no vidro)
     ("POST", r"^/api/mapa/elementos/\{eid\}/estado$", "aparelhos.controlar"),
     ("POST", r"^/api/mapa/ares/\{aid\}/aparencia$", "projetos.gerenciar"),
+    ("POST", r"^/api/mapa/salas/\{pid\}/aparencia$", None),   # a rota confere: cores = projetos.gerenciar; abrir porta = controlar
     ("PUT", r"^/api/mapa/(pessoas|escritas)$", "projetos.gerenciar"),
     # música: tocar/pausar é controle do dia a dia; conta, credenciais e rotinas são integração
     ("POST", r"^/api/musica/comando$", "aparelhos.controlar"),

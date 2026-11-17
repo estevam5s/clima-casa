@@ -274,6 +274,7 @@ export default function Mapa() {
   const acoes3d = useMemo(() => ({
     persiana: async (id, aberta) => { try { setDados(await api.post(`/api/mapa/elementos/${encodeURIComponent(id)}/estado`, { aberta })) } catch (e) { toast(e.message, 'erro') } },
     decorar: async (id, x) => { try { setDados(await api.post(`/api/mapa/elementos/${encodeURIComponent(id)}/estado`, x)) } catch (e) { toast(e.message, 'erro') } },
+    aparenciaSala: async (pid, x) => { try { setDados(await api.post(`/api/mapa/salas/${pid}/aparencia`, x)) } catch (e) { toast(e.message, 'erro') } },
     ligarItem: async (id, ligado) => { try { setDados(await api.post(`/api/mapa/elementos/${encodeURIComponent(id)}/estado`, { ligado })) } catch (e) { toast(e.message, 'erro') } },
     salvarEscritas: async (lista) => { try { setDados(await api.put('/api/mapa/escritas', lista)) } catch (e) { toast(e.message, 'erro'); throw e } },
     editarPessoa: (id, preset) => setEditandoPessoa(id ? pessoasAtuais.find((p) => p.id === id) || null : novaPessoa(preset)),
@@ -508,7 +509,7 @@ export default function Mapa() {
           {!editando && vista === '3d' ? (
             <Suspense fallback={<div className="flex h-[68vh] items-center justify-center text-sm text-muted-foreground">Montando o escritório em 3D…</div>}>
               <Mapa3D mapa={mapa} ares={ares} projetos={projetos} filtro={filtro} selecionado={sel} aoSelecionar={setSel}
-                acoes={acoes3d} perm={{ controlar: !!(dados.pode_controlar || dados.pode_editar), admin: !!dados.admin, decorar: !!(dados.pode_editar && dados.edita_elementos) }}
+                acoes={acoes3d} perm={{ controlar: !!(dados.pode_controlar || dados.pode_editar), admin: !!dados.admin, decorar: !!(dados.pode_editar && dados.edita_elementos), editarSala: !!dados.pode_editar }}
                 extra={editandoPessoa && <EditorPessoa key={editandoPessoa.id} dentro inicial={editandoPessoa} postos={postosDoMapa(mapa, projetos)} projetos={projetos} ocupado={salvandoPessoa}
                   onSalvar={salvarPessoa} onApagar={pessoasAtuais.some((x) => x.id === editandoPessoa.id) ? () => apagarPessoa(editandoPessoa) : null} onFechar={() => setEditandoPessoa(null)} />} />
             </Suspense>

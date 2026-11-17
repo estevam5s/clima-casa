@@ -1363,6 +1363,10 @@ class SalaMapa(BaseModel):
     y: float = Field(ge=0, le=6000)
     w: float = Field(ge=40, le=6000)
     h: float = Field(ge=40, le=6000)
+    # aparência no 3D (vazio = padrão): chão, cadeiras e mesas da sala
+    cor_piso: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    cor_cadeira: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    cor_mesa: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
 
 
 COR_HEX = r"^#[0-9a-fA-F]{6}$"
@@ -1387,7 +1391,7 @@ class ElementoMapa(BaseModel):
     rotulo: str = Field("", max_length=40)
     cor: str = Field("", max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
     modelo: str = Field("", max_length=30)
-    aberta: int = Field(50, ge=0, le=100)     # janela: quanto a persiana está aberta (0 = fechada)
+    aberta: int = Field(50, ge=0, le=100)     # janela: persiana (0 = fechada); porta: 0 = fechada, 50+ = aberta
     ligado: bool = True                       # dispositivo do mapa: aceso ou apagado
 
 
@@ -1530,8 +1534,8 @@ def mexer_item_mapa(eid: str, d: ItemMapaIn, request: Request):
     if not el:
         raise HTTPException(404, "Item não encontrado no mapa.")
     if d.aberta is not None:
-        if el.get("tipo") != "janela":
-            raise HTTPException(422, "Só janelas têm persiana.")
+        if el.get("tipo") not in ("janela", "porta"):
+            raise HTTPException(422, "Só janelas (persiana) e portas abrem e fecham.")
         el["aberta"] = d.aberta
     if d.ligado is not None:
         el["ligado"] = d.ligado
@@ -1542,9 +1546,54 @@ def mexer_item_mapa(eid: str, d: ItemMapaIn, request: Request):
         if d.modelo is not None:
             el["modelo"] = d.modelo
     db.set_cfg("mapa", mapa)
-    acao = (f"persiana {d.aberta}% aberta" if d.aberta is not None else ("ligado" if d.ligado else "desligado") if d.ligado is not None
+    acao = (("porta " + ("aberta" if d.aberta >= 50 else "fechada")) if d.aberta is not None and el.get("tipo") == "porta"
+            else f"persiana {d.aberta}% aberta" if d.aberta is not None else ("ligado" if d.ligado else "desligado") if d.ligado is not None
             else f"cor {d.cor or 'padrão'}" if d.cor is not None else f"modelo {d.modelo}")
     db.registrar("painel", f"Mapa: {el.get('rotulo') or el.get('tipo')} {acao}")
+    return ver_mapa(request)
+
+
+def _sala_do_elemento(mapa: dict, e: dict):
+    """Sala de um item da planta: a menor sala que contém o centro dele (porta na divisa fica com a sala menor, a privativa)."""
+    cx, cy = e["x"] + e["w"] / 2, e["y"] + e["h"] / 2
+    dentro = lambda s, m: s["x"] - m < cx < s["x"] + s["w"] + m and s["y"] - m < cy < s["y"] + s["h"] + m
+    cand = [(k, s) for k, s in mapa["salas"].items() if dentro(s, 12)]
+    return min(cand, key=lambda ks: ks[1]["w"] * ks[1]["h"])[0] if cand else None
+
+
+class AparenciaSalaIn(BaseModel):
+    piso: str | None = Field(None, max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    cadeira: str | None = Field(None, max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    mesa: str | None = Field(None, max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    porta: str | None = Field(None, max_length=7, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    porta_aberta: bool | None = None   # abre/fecha todas as portas da sala
+
+
+@api.post("/mapa/salas/{pid}/aparencia")
+def aparencia_sala_mapa(pid: int, d: AparenciaSalaIn, request: Request):
+    """Cores do chão, cadeiras, mesas e porta de uma sala no 3D, e abrir/fechar a porta, sem entrar na edição da planta."""
+    from .. import acesso
+    acesso.checar_projeto(pid)
+    so_porta = d.porta_aberta is not None and all(v is None for v in (d.piso, d.cadeira, d.mesa, d.porta))
+    if not (acesso.pode("projetos.gerenciar") or (so_porta and acesso.pode("aparelhos.controlar"))):
+        raise HTTPException(403, "Sem permissão para mudar a sala no mapa.")
+    mapa = {**MAPA_PADRAO, **(db.cfg("mapa") or {})}
+    s = mapa["salas"].get(str(pid))
+    if not s:
+        raise HTTPException(404, "Esta sala ainda não está na planta.")
+    for campo, chave in (("piso", "cor_piso"), ("cadeira", "cor_cadeira"), ("mesa", "cor_mesa")):
+        v = getattr(d, campo)
+        if v is not None:
+            s[chave] = v
+    portas = [e for e in mapa["elementos"] if e.get("tipo") == "porta" and _sala_do_elemento(mapa, e) == str(pid)]
+    for e in portas:
+        if d.porta is not None:
+            e["cor"] = d.porta
+        if d.porta_aberta is not None:
+            e["aberta"] = 100 if d.porta_aberta else 0
+    db.set_cfg("mapa", mapa)
+    nome = (db.um("SELECT nome FROM projetos WHERE id = ?", (pid,)) or {}).get("nome", pid)
+    db.registrar("painel", f"Mapa: aparência da sala {nome}", detalhe=", ".join(f"{k} {v or 'padrão'}" for k, v in d.model_dump().items() if v is not None))
     return ver_mapa(request)
 
 
@@ -3148,13 +3197,20 @@ def entrar(d: EntrarIn, request: Request):
     agente = request.headers.get("user-agent", "")
     marca = _hash_email(d.email)
     from .. import turnstile
-    turnstile.exigir(d.turnstile, ip, "/api/auth/entrar")
+    if turnstile.no_supabase():   # o Supabase confere o token (ele só vale uma vez)
+        if not d.turnstile:
+            raise HTTPException(400, "Confirme que você não é um robô (verificação da Cloudflare) e tente de novo.")
+    else:
+        turnstile.exigir(d.turnstile, ip, "/api/auth/entrar")
     limite, janela = c["tentativas_login"], c["janela_min"]
     if firewall.falhas_recentes(ip, ("login_falhou",), janela, marca) >= limite or firewall.falhas_da_conta(marca, janela) >= limite * 3:
         raise HTTPException(429, f"Muitas tentativas para este e-mail. Tente de novo em {janela} minutos.")
     r = httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/token?grant_type=password", timeout=12,
-                   headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}, json={"email": d.email.strip(), "password": d.senha})
+                   headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}, json={"email": d.email.strip(), "password": d.senha, **turnstile.corpo_supabase(d.turnstile)})
     dados = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+    if r.status_code != 200 and turnstile.recusado_pelo_captcha(dados):
+        firewall.registrar(ip, "bot_bloqueado", "/api/auth/entrar", "captcha recusado pelo Supabase")
+        raise HTTPException(400, "A verificação contra robôs falhou ou expirou. Recarregue a página e tente de novo.")
     if r.status_code != 200 or not dados.get("access_token"):
         firewall.registrar(ip, "login_falhou", "/api/auth/entrar", marca, pais, agente)
         falhas_ip = firewall.falhas_recentes(ip, ("login_falhou",), janela)

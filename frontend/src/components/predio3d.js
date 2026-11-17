@@ -549,5 +549,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     matCalcada.color.copy(corCalcada).multiplyScalar(chovendo ? 0.75 : 1); matCalcada.roughness = chovendo ? 0.5 : 0.9
   }
   grupo.position.y = -yA
-  return { grupo, alvos, aplicar, tick, definirTempo, get k() { return k }, yA, altura: base + TH + 4, largura: Math.max(BW, BD) }
+  // podio: interior do térreo (recepção) em coordenadas do grupo; casca/andarG/torre: o térreo esconde o andar e a torre
+  return { grupo, alvos, aplicar, tick, definirTempo, get k() { return k }, yA, altura: base + TH + 4, largura: Math.max(BW, BD),
+    podio: { bx0, bx1, bz0, bz1, HP, entrada: ladoEntrada, centroEntrada }, casca, andarG, torre }
 }

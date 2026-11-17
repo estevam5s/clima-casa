@@ -3,6 +3,7 @@ import { Camera, Link2, Loader2, Trash2, Upload } from 'lucide-react'
 import { api, validarSenhaNova } from '../../api'
 import { supabase } from '../../supabase'
 import { Aviso, Botao, Carregando, Secao, useDados, useToast } from '../ui'
+import Turnstile from '../Turnstile'
 
 export const avisarPerfil = () => window.dispatchEvent(new Event('clima:perfil'))
 const iniciais = (n, e) => ((n || e || 'AD').trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('') || 'AD').toUpperCase()
@@ -72,6 +73,9 @@ export default function Perfil() {
   const [okMail, setOkMail] = useState('')
   const [senha, setSenha] = useState({ atual: '', nova: '', confirma: '' })
   const [erroSenha, setErroSenha] = useState('')
+  // verificação contra robôs para conferir a senha atual (só aparece se a Cloudflare pedir); o token vale uma vez
+  const [roboMail, setRoboMail] = useState(''), [roboSenha, setRoboSenha] = useState('')
+  const refMail = useRef(null), refSenha = useRef(null)
   if (erro) return <Aviso>{erro}</Aviso>
   if (!perfil || !sessao) return <Carregando />
   const form = f || { nome: perfil.nome, cargo: perfil.cargo, telefone: perfil.telefone, bio: perfil.bio }
@@ -82,9 +86,9 @@ export default function Perfil() {
     e.preventDefault(); setSalvando(true)
     try { setDados(await api.put('/api/perfil', form)); setF(null); avisarPerfil(); toast('Perfil salvo.') } catch (err) { toast(err.message, 'erro') } finally { setSalvando(false) }
   }
-  const reautenticar = async (sb, s) => {
-    const { error } = await sb.auth.signInWithPassword({ email, password: s })
-    if (error) throw new Error('Senha atual incorreta.')
+  // confere a senha atual no servidor (não troca a sessão deste navegador; com CAPTCHA no Supabase, o token vai junto)
+  const reautenticar = async (s, token, ref) => {
+    try { await api.post('/api/conta/conferir-senha', { senha: s, turnstile: token || null }) } finally { ref.current?.reiniciar() }
   }
   const trocarEmail = async (e) => {
     e.preventDefault(); setErroMail(''); setOkMail('')
@@ -92,8 +96,8 @@ export default function Perfil() {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novo)) return setErroMail('Digite um e-mail válido.')
     if (novo === email.toLowerCase()) return setErroMail('Esse já é o seu e-mail.')
     try {
+      await reautenticar(mail.senha, roboMail, refMail)
       const sb = await supabase()
-      await reautenticar(sb, mail.senha)
       const { error } = await sb.auth.updateUser({ email: novo }, { emailRedirectTo: `${window.location.origin}/configuracoes?aba=perfil` })
       if (error) throw new Error(error.message)
       setMail({ novo: '', senha: '' })
@@ -105,8 +109,8 @@ export default function Perfil() {
     if (senha.nova !== senha.confirma) return setErroSenha('As senhas novas não conferem.')
     if (senha.nova.length < 10) return setErroSenha('A senha nova precisa ter pelo menos 10 caracteres.')
     try {
+      await reautenticar(senha.atual, roboSenha, refSenha)
       const sb = await supabase()
-      await reautenticar(sb, senha.atual)
       await validarSenhaNova(senha.nova)
       const { error } = await sb.auth.updateUser({ password: senha.nova })
       if (error) throw new Error(error.message)
@@ -144,6 +148,7 @@ export default function Perfil() {
             </div>
             {erroMail && <Aviso>{erroMail}</Aviso>}
             {okMail && <Aviso tipo="ok">{okMail}</Aviso>}
+            <Turnstile ref={refMail} aoMudar={setRoboMail} acao="conta" />
             <div className="flex justify-end"><Botao type="submit">Trocar e-mail</Botao></div>
           </form>
         </Secao>
@@ -156,6 +161,7 @@ export default function Perfil() {
             </div>
             {senha.nova && <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full transition-all ${senha.nova.length >= 14 ? 'w-full bg-emerald-500' : senha.nova.length >= 10 ? 'w-2/3 bg-amber-500' : 'w-1/3 bg-red-500'}`} /></div>}
             {erroSenha && <Aviso>{erroSenha}</Aviso>}
+            <Turnstile ref={refSenha} aoMudar={setRoboSenha} acao="conta" />
             <div className="flex justify-end"><Botao type="submit">Alterar senha</Botao></div>
           </form>
         </Secao>

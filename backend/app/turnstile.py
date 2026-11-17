@@ -13,6 +13,22 @@ def chave_publica() -> str:
     return db.ENV.get("TURNSTILE_SITE_KEY", "")
 
 
+def no_supabase() -> bool:
+    """CAPTCHA ligado também no Supabase Auth (Attack Protection, provedor Turnstile). Aí o token do formulário vai para o
+    Supabase conferir (o token só vale uma vez: se o servidor conferisse antes, o Supabase recusaria)."""
+    return bool((db.cfg("auth_captcha") or {}).get("ativo"))
+
+
+def corpo_supabase(token: str | None) -> dict:
+    """Pedaço do corpo do /auth/v1/token com o token do CAPTCHA, quando o Supabase exige."""
+    return {"gotrue_meta_security": {"captcha_token": token}} if no_supabase() and token else {}
+
+
+def recusado_pelo_captcha(resposta: dict) -> bool:
+    texto = f"{resposta.get('error_code', '')} {resposta.get('msg', '')} {resposta.get('message', '')} {resposta.get('error_description', '')}".lower()
+    return "captcha" in texto
+
+
 def exigir(token: str | None, ip: str = "", acao: str = ""):
     segredo = db.ENV.get("TURNSTILE_SECRET_KEY")
     if not segredo:

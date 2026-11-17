@@ -360,6 +360,39 @@ def encerrar_sessoes_usuario(uid: str, request: Request):
     return {"encerradas": n}
 
 
+class ConferirSenhaIn(BaseModel):
+    senha: str = Field(min_length=1, max_length=200)
+    turnstile: str | None = Field(None, max_length=4096)
+
+
+@contas.post("/conta/conferir-senha")
+def conferir_senha(d: ConferirSenhaIn, request: Request):
+    """Confere a senha atual (antes de trocar e-mail ou senha) sem trocar a sessão do navegador. A sessão que o Supabase
+    abre para conferir é encerrada na hora. Com o CAPTCHA ligado no Supabase, o token do formulário vai junto."""
+    import httpx
+    from .. import firewall, turnstile
+    u = request.state.u
+    ip = firewall.ip_do_pedido(request)
+    if firewall.falhas_recentes(ip, ("senha_atual_errada",), 15) >= 5:
+        raise HTTPException(429, "Muitas tentativas. Espere 15 minutos.")
+    if turnstile.no_supabase() and not d.turnstile:
+        raise HTTPException(400, "Confirme que você não é um robô (verificação da Cloudflare) e tente de novo.")
+    r = httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/token?grant_type=password", timeout=12,
+                   headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}, json={"email": u["email"], "password": d.senha, **turnstile.corpo_supabase(d.turnstile)})
+    dados = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+    if r.status_code != 200 and turnstile.recusado_pelo_captcha(dados):
+        raise HTTPException(400, "A verificação contra robôs falhou ou expirou. Tente de novo.")
+    if r.status_code != 200 or not dados.get("access_token"):
+        firewall.registrar(ip, "senha_atual_errada", "/api/conta/conferir-senha", u["email"][:3] + "…")
+        raise HTTPException(400, "Senha atual incorreta.")
+    try:   # a sessão aberta só para conferir não fica viva
+        httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/logout?scope=local", timeout=8,
+                   headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"], "Authorization": f"Bearer {dados['access_token']}"})
+    except httpx.HTTPError:
+        pass
+    return {"ok": True}
+
+
 @contas.post("/conta/senha-trocada")
 def senha_trocada(request: Request):
     u = request.state.u

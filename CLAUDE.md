@@ -48,6 +48,8 @@ caminhos de serviço e o projeto da Vercel).
 | Música (Spotify) | `backend/app/musica.py`, `rotas/musica.py`, `pages/Musica.jsx` |
 | Vercel pelo painel | `backend/app/infra.py`, `rotas/infra.py`, `pages/Infra.jsx`, `components/infra/Vercel.jsx` |
 | Cloudflare pelo painel (DNS, e-mails, DNSSEC, Turnstile) | `backend/app/cloudflare.py`, `rotas/infra.py` (`/infra/cf/*`), `components/infra/Cloudflare.jsx`, `Visao.jsx` |
+| Elevador e térreo (recepção) do mapa, cores das salas, portas abrir/fechar | `components/elevador3d.js` (`montarElevador`, `montarTerreo`), `Mapa3D.jsx` (`E.irElevador`, `passoViagem`, `E.trocarNivel`), `CartoesMapa3D.jsx` (cartão `sala` e de porta), `rotas/api.py` (`/mapa/salas/{pid}/aparencia`) |
+| Página Novidades (linha do tempo 3D) | `pages/Novidades.jsx`, `components/LinhaVersoes3D.jsx` |
 | Mapa 2D/3D do escritório | `pages/Mapa.jsx`, `components/Mapa3D.jsx`, `mapaUtil.js`, `predio3d.js` (prédio, ruas, grade A*), `cidade3d.js` (cidade em volta), `dispositivos3d.js`, `CartoesMapa3D.jsx`, `EquipeMapa.jsx`, `catalogoMapa.js` |
 | Globo da Segurança | `components/Globo3D.jsx`, `universo.js`, `satelites3d.js`, `nave3d.js` |
 | Relatórios e exportação | `relatorio.py`, `exportar.py`, `docx_simples.py` |
@@ -520,7 +522,7 @@ rota) abre uma vez por pessoa quando `atual > vista`, em qualquer aparelho. A pr
 | `/configuracoes?aba=` | perfil, geral, aparência, marca (white label), segurança, contas, sistema |
 | `/apps` | downloads, PWA, código-fonte (dono/admin) |
 | `/guia` | **passo a passo** (19 capítulos: Smart Life, transmissores, botões, desligar de longe, agente no Windows, **um transmissor para vários ares**, Sinric, outra Alexa, Google, mapa, música, domínio e e-mails, problemas). `/guia#<id>` abre no capítulo |
-| `/novidades` | histórico de versões (novo, melhorias, segurança, correções); o modal "O que há de novo" aparece sozinho uma vez por versão |
+| `/novidades` | linha do tempo das versões em 3D (Three.js, clicar leva à versão), versão atual com a proporção por tipo, números, filtro por tipo, busca, índice lateral e cada versão por inteiro; o modal "O que há de novo" aparece sozinho uma vez por versão |
 | `/oauth/autorizar`, `/redefinir-senha`, `/login` | fluxos de conta |
 
 ### 8.2 Mapa (2D/3D)
@@ -534,8 +536,22 @@ rota) abre uma vez por pessoa quando `atual > vista`, em qualquer aparelho. A pr
   automático `sala-<id>`. Pessoa fora do expediente (Brasília) não aparece e o posto fica vazio.
 - Prédio (`predio3d.js`): `andares` no total (térreo e 1º no pódio, 2º ao último na torre), escritório no `andar`. Torre com pele de
   vidro (`texturaCortina`), faixas brancas de sacada e colunas azuis (inspirado no prédio real), cobertura com platibanda, caixas
-  d'água e condensadoras. O andar tem **corredor de 2,5 m** (`MARGEM` no `Mapa3D`) em volta das salas, guarda-corpo de vidro e
-  **hall dos elevadores** em frente à porta de entrada; a grade A* vai até a fachada (`E.limitesAndar`): ninguém sai da laje.
+  d'água e condensadoras. O andar tem **corredor de 4,2 m** (`MARGEM` no `Mapa3D`; era 2,5 e o avatar enroscava) em volta das salas,
+  guarda-corpo de vidro e a grade A* até a fachada (`E.limitesAndar`): ninguém sai da laje.
+- **Elevador e térreo** (`elevador3d.js`, 17/11): núcleo com 2 carros encostado na parede de fora **ao lado da porta de entrada**,
+  saindo para o corredor, portas viradas para o mesmo lado da porta. Cabine de verdade, folhas que correm, mostrador do andar.
+  Controlando um avatar perto da porta do elevador: **R** (ou o botão) → abre, entra, fecha, tela "indo para" com a contagem, troca de
+  nível, abre e sai (`E.viagem`, fases abrir/entrar/fechar/viajar/abrir2/sair; câmera de cinema). **Térreo** = recepção dentro do pódio
+  (`predio.podio`, y = -yA): piso de pedra, balcão com recepcionista, painel de ripas com o nome, catracas (uma livre), sala de espera,
+  colunas, vasos, placa de andares, segurança e 2 pessoas andando, com **grade própria** (`E.gradeAtiva`). `E.trocarNivel` esconde o
+  andar inteiro (e os rótulos) no térreo; Esc no térreo devolve a pessoa ao andar, na frente do elevador. Inox com metal 0,45 (metal
+  alto sem mapa de ambiente sai preto). Teste no Playwright: esperar as fases (`E.viagem.fase`), não tempo fixo (headless é lento).
+- **Salas e portas**: `mapa.salas[pid]` tem `cor_piso`, `cor_cadeira`, `cor_mesa` (vazio = padrão; cadeiras/tampos recoloridos por sala
+  depois de montar). Porta: `aberta >= 50` aberta (folha quase encostada na parede), `< 50` fechada (no vão, **bloqueia** a grade).
+  Cartão da sala (clicar no chão) e cartão da porta. `POST /api/mapa/salas/{pid}/aparencia {piso, cadeira, mesa, porta, porta_aberta}`
+  (cores = `projetos.gerenciar`; só abrir/fechar = `aparelhos.controlar`). Porta "da sala" = a menor sala que contém o centro dela.
+  Tipo `coluna` = pilar redondo de concreto (o pilar-reuniao fica em frente à porta da Reunião). Planta ampliada em 17/11: Escritório
+  1880×740, Reunião 870×340, fileira de baixo em y=1120 (cópia de antes: pedir ao dono, não versionada).
 - Cidade (`cidade3d.js`): lotes de 24 m a cada 34 m (±170 m) fora do quarteirão e das avenidas, 7 estilos de prédio, praças, árvores
   e postes; skyline ao fundo. Tudo mesclado por material (`mergeGeometries`) e instâncias: ~20 chamadas de desenho. Na direção da
   câmera e perto do prédio, só prédios baixos. Nada de prédio real ou marca.
@@ -715,8 +731,13 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
     código/refresh com `DELETE … RETURNING`; diretiva só age em ar com `alexa = 1`.
   - Agente sem `proxy_headers` (só com `CLIMA_CONFIAR_PROXY=1`); instalador Windows tira a herança de permissão da pasta (`Proteger-Pasta`).
   - Planilhas: todo texto passa por `exportar.celula` (= + - @ viram texto). Login: limite por conta além do por IP (`firewall.falhas_da_conta`).
-  - Pendências do lado do dono (fora do código): CAPTCHA/limites no Supabase Auth (Authentication → Attack Protection) e
-    "Secure password change". Apps: Android com PKCE e desktop com filtro de esquema **só valem no próximo build/release**.
+  - **CAPTCHA no Supabase Auth** (Attack Protection, provedor Turnstile, mesmo segredo `TURNSTILE_SECRET_KEY`): o código está pronto
+    (`turnstile.no_supabase()` lê `config.auth_captcha.ativo`; com ele, `/api/auth/entrar` e `/api/conta/conferir-senha` mandam o token
+    para o Supabase em `gotrue_meta_security.captcha_token` em vez de conferir antes). Ligar = PATCH na Management API
+    (`security_captcha_enabled/provider/secret`) **e** `config.auth_captcha = {"ativo": true}` juntos. Efeito colateral: o **login por
+    senha do app Android** para (ele chama o Supabase direto, sem Turnstile; Google continua) e o reserva do "esqueci a senha"
+    (`/auth/v1/recover`) também; o caminho principal pelo Resend segue. Perfil confere a senha atual pelo servidor (`/api/conta/conferir-senha`).
+  - Apps: Android com PKCE e desktop com filtro de esquema **só valem no próximo build/release**.
 
 ---
 

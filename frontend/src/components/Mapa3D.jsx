@@ -11,6 +11,7 @@ import { horaBR, noExpediente } from '../mapaUtil'
 import { salasPrivativas } from '../mapaUtil'
 import { useMarca } from '../marca'
 import { caminho, criarGrade, celulaLivre, livreProxima, montarPredio, visaoLivre } from './predio3d'
+import { ELEV, montarElevador, montarTerreo } from './elevador3d'
 import { ROTULO_PAPEL, desenharTela, papelDaSala, sementeDe } from './telas3d'
 
 // Escritório em 3D montado a partir da mesma planta do mapa 2D (config.mapa):
@@ -79,6 +80,24 @@ function paredes(salas, elementos) {
 // Pessoa com articulações (ombros, cotovelos, quadris, joelhos, pescoço) para animar. Corpo moldado (tronco torneado,
 // mãos, rosto com olhos, sobrancelhas, nariz, orelhas e boca), vários cortes de cabelo, barba, óculos e fone de ouvido.
 const CABELO_ESTILOS = ['curto', 'longo', 'coque', 'cacheado', 'raspado', 'lateral', 'careca', 'rabo']
+// texturas em tons de cinza (multiplicam a cor do material): trama de tecido, sarja do jeans e fios de cabelo
+const TEX = {}
+function texTrama(tipo) {
+  if (TEX[tipo]) return TEX[tipo]
+  const c = document.createElement('canvas'); c.width = c.height = 128
+  const g = c.getContext('2d'), rr = aleatorio(tipo.length * 131)
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 128)
+  if (tipo === 'cabelo') {
+    for (let i = 0; i < 900; i++) { const x = rr() * 128, y = rr() * 128, l = 10 + rr() * 30, v = 170 + Math.floor(rr() * 85); g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 0.8; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + (rr() - 0.5) * 6, y + l / 2, x + (rr() - 0.5) * 4, y + l); g.stroke() }
+  } else if (tipo === 'jeans') {
+    for (let y = 0; y < 128; y += 2) for (let x = 0; x < 128; x += 2) { const v = ((x + y) % 8 < 4 ? 222 : 196) + Math.floor(rr() * 26); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 2, 2) }
+  } else {
+    for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x += 1) { if ((x + y) % 2) continue; const v = 228 + Math.floor(rr() * 27) - ((x % 4 === 0 || y % 4 === 0) ? 12 : 0); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 1, 1) }
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(tipo === 'cabelo' ? 2 : 3, tipo === 'cabelo' ? 2 : 3)
+  TEX[tipo] = t
+  return t
+}
 // ap (opcional) = aparência cadastrada: pele, cabelo, cor_cabelo, roupa, calca, sapato, traje, corpo, oculos, barba, cracha.
 // Sem ap, sorteia tudo pelo r() da cena (o mesmo escritório sempre com as mesmas pessoas).
 function pessoa(r, sentada, ap = null) {
@@ -91,11 +110,12 @@ function pessoa(r, sentada, ap = null) {
   const corRoupa = hex(ap?.roupa, ROUPAS)
   const traje = ap?.traje || ['camisa', 'camiseta', 'social', 'blusa', 'camisa'][Math.floor(r() * 5)]
   const corpoB = ap ? ap.corpo === 'b' : sorte(0.5)
-  const roupa = new THREE.MeshPhysicalMaterial({ color: corRoupa, roughness: 0.92, sheen: 0.6, sheenColor: new THREE.Color(corRoupa).offsetHSL(0, 0, 0.2), sheenRoughness: 0.8 })
-  const corCalca = ap?.calca ? new THREE.Color(ap.calca).getHex() : (r() > 0.6 ? 0x1f2937 : r() > 0.5 ? 0x334155 : 0x3b4252)
-  const calca = mat(corCalca, 0.85)
+  const roupa = new THREE.MeshPhysicalMaterial({ color: corRoupa, map: texTrama('tecido'), roughness: 0.92, sheen: 0.6, sheenColor: new THREE.Color(corRoupa).offsetHSL(0, 0, 0.2), sheenRoughness: 0.8 })
+  const corCalca = ap?.calca ? new THREE.Color(ap.calca).getHex() : (r() > 0.6 ? 0x1f2937 : r() > 0.5 ? 0x334155 : r() > 0.4 ? 0x2c4a6e : 0x3b4252)
+  const jeans = new THREE.Color(corCalca).getHSL({}).h > 0.55 && new THREE.Color(corCalca).getHSL({}).h < 0.7   // azulado: jeans
+  const calca = new THREE.MeshStandardMaterial({ color: corCalca, map: texTrama(jeans ? 'jeans' : 'tecido'), roughness: 0.88 })
   const corCabelo = hex(ap?.cor_cabelo, CABELOS)
-  const cabelo = mat(corCabelo, 0.75)
+  const cabelo = new THREE.MeshStandardMaterial({ color: corCabelo, map: texTrama('cabelo'), roughness: 0.62, metalness: 0.02 })
   const sapato = mat(ap?.sapato ? new THREE.Color(ap.sapato).getHex() : (r() > 0.5 ? 0x111111 : 0x3f2a1d), 0.45)
   const escuro = mat(0x111111, 0.3)
   const malha = (geo, m, pai, x = 0, y = 0, z = 0, sombra = true) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = sombra; pai.add(o); return o }
@@ -136,8 +156,9 @@ function pessoa(r, sentada, ap = null) {
     const c = malha(new THREE.BoxGeometry(0.055, 0.075, 0.004), mat(0xffffff, 0.5), quadril, 0, 0.41, 0.112, false)
     malha(new THREE.BoxGeometry(0.045, 0.012, 0.002), mat(0x0f766a, 0.5), c, 0, 0.026, 0.003, false)
   }
-  // pescoço e cabeça
-  malha(new THREE.CylinderGeometry(0.042, 0.048, 0.09, 14), pele, quadril, 0, 0.63, 0)
+  // pescoço e cabeça (com o trapézio descendo do pescoço para os ombros, por baixo da roupa)
+  malha(new THREE.CylinderGeometry(0.042, 0.05, 0.09, 16), pele, quadril, 0, 0.63, 0)
+  const trap = malha(new THREE.SphereGeometry(0.1, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), traje === 'social' ? new THREE.MeshPhysicalMaterial({ color: corRoupa, roughness: 0.75 }) : roupa, quadril, 0, 0.545, -0.005); trap.scale.set(corpoB ? 1.45 : 1.65, 0.5, 0.75)
   const pescoco = new THREE.Group(); pescoco.position.y = 0.66; quadril.add(pescoco)
   const cabeca = malha(new THREE.SphereGeometry(0.1, 32, 24), pele, pescoco, 0, 0.1, 0.005); cabeca.scale.set(corpoB ? 0.86 : 0.9, 1.1, 0.98)
   malha(new THREE.SphereGeometry(0.06, 16, 12), pele, pescoco, 0, 0.045, 0.03).scale.set(corpoB ? 0.9 : 1, 0.8, 0.9)   // queixo e mandíbula
@@ -149,19 +170,24 @@ function pessoa(r, sentada, ap = null) {
     malha(new THREE.SphereGeometry(0.0035, 8, 6), mat(0x050505, 0.1), pescoco, lado * 0.033, 0.112, 0.1035, false)   // pupila
     const palp = malha(new THREE.SphereGeometry(0.0128, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.42), pele, pescoco, lado * 0.033, 0.1125, 0.088, false); palp.rotation.x = 0.35
     olhos.push(palp, o)
-    const sob = malha(new THREE.BoxGeometry(0.03, 0.006, 0.008), cabelo, pescoco, lado * 0.034, 0.135, 0.094, false); sob.rotation.z = -lado * 0.12
+    const sob = malha(new THREE.CapsuleGeometry(0.0045, 0.026, 4, 8), mat(corCabelo, 0.9), pescoco, lado * 0.035, 0.136, 0.094, false); sob.rotation.z = Math.PI / 2 - lado * 0.16; sob.scale.set(1, 1, 0.6)
     malha(new THREE.SphereGeometry(0.018, 10, 8), mat(new THREE.Color(corPele).offsetHSL(0, 0.08, -0.03).getHex(), 0.6), pescoco, lado * 0.05, 0.075, 0.08, false).scale.set(1, 0.6, 0.3)   // bochecha
   }
   malha(new THREE.ConeGeometry(0.012, 0.032, 10), pele, pescoco, 0, 0.09, 0.103).rotation.x = Math.PI / 2   // nariz
-  malha(new THREE.BoxGeometry(0.03, 0.005, 0.006), mat(corpoB ? 0xb4535b : 0x9f4a4a, 0.5), pescoco, 0, 0.058, 0.093, false)    // boca
+  // boca: lábio de cima e de baixo, e o sulco entre o nariz e a boca
+  const corLabio = mat(corpoB ? 0xb4535b : new THREE.Color(corPele).offsetHSL(-0.02, 0.1, -0.12).getHex(), 0.45)
+  const lab1 = malha(new THREE.CapsuleGeometry(0.0055, 0.022, 4, 8), corLabio, pescoco, 0, 0.061, 0.093, false); lab1.rotation.z = Math.PI / 2; lab1.scale.set(1, 1, 0.55)
+  const lab2 = malha(new THREE.CapsuleGeometry(0.0062, 0.018, 4, 8), corLabio, pescoco, 0, 0.0535, 0.091, false); lab2.rotation.z = Math.PI / 2; lab2.scale.set(1, 1, 0.6)
+  malha(new THREE.BoxGeometry(0.008, 0.012, 0.004), mat(new THREE.Color(corPele).offsetHSL(0, 0, -0.04).getHex(), 0.6), pescoco, 0, 0.074, 0.098, false)
   // cabelo
   const estilo = ap?.cabelo && CABELO_ESTILOS.includes(ap.cabelo) ? ap.cabelo : CABELO_ESTILOS[Math.floor(r() * 6)]
   const calota = (abertura, raio = 0.108) => { const c = malha(new THREE.SphereGeometry(raio, 32, 20, 0, Math.PI * 2, 0, Math.PI * abertura), cabelo, pescoco, 0, 0.112, -0.004); c.scale.set(0.95, 1.08, 1.02); c.rotation.x = -0.32; return c }
-  if (estilo === 'curto') calota(0.5)
-  else if (estilo === 'lateral') { const c = calota(0.52); c.rotation.z = 0.12; malha(new THREE.SphereGeometry(0.05, 14, 10), cabelo, pescoco, 0.04, 0.19, 0.05).scale.set(1.4, 0.5, 0.8) }
+  const franja = (lado = 0) => { const f = malha(new THREE.SphereGeometry(0.06, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), cabelo, pescoco, lado * 0.02, 0.19, 0.06); f.scale.set(1.5, 0.35, 0.7); f.rotation.x = 0.55; f.rotation.z = lado * 0.25 }
+  if (estilo === 'curto') { calota(0.5); franja() }
+  else if (estilo === 'lateral') { const c = calota(0.52); c.rotation.z = 0.12; franja(1); malha(new THREE.SphereGeometry(0.05, 14, 10), cabelo, pescoco, 0.04, 0.19, 0.05).scale.set(1.4, 0.5, 0.8) }
   else if (estilo === 'raspado') { const c = calota(0.48, 0.103); c.material = mat(corCabelo, 0.95); c.material.transparent = true; c.material.opacity = 0.7 }
   else if (estilo === 'cacheado') { const c = malha(new THREE.IcosahedronGeometry(0.128, 2), cabelo, pescoco, 0, 0.14, -0.012); c.scale.set(1, 0.92, 1); c.material.flatShading = true }
-  else if (estilo === 'longo') { calota(0.56); const t = malha(new THREE.CapsuleGeometry(0.085, 0.16, 6, 14), cabelo, pescoco, 0, 0.02, -0.05); t.scale.set(1.1, 1, 0.55) }
+  else if (estilo === 'longo') { calota(0.56); franja(-1); const t = malha(new THREE.CapsuleGeometry(0.085, 0.16, 6, 14), cabelo, pescoco, 0, 0.02, -0.05); t.scale.set(1.1, 1, 0.55) }
   else if (estilo === 'rabo') { calota(0.55); const t = malha(new THREE.CapsuleGeometry(0.03, 0.14, 6, 10), cabelo, pescoco, 0, 0.08, -0.12); t.rotation.x = 0.4; malha(new THREE.TorusGeometry(0.03, 0.008, 6, 12), escuro, pescoco, 0, 0.16, -0.1) }
   else if (estilo === 'coque') { calota(0.54); malha(new THREE.SphereGeometry(0.045, 16, 12), cabelo, pescoco, 0, 0.21, -0.07) }
   if (ap ? ap.barba : (estilo === 'curto' || estilo === 'raspado' || estilo === 'lateral' || estilo === 'careca') && sorte(0.6)) {   // barba
@@ -193,14 +219,19 @@ function pessoa(r, sentada, ap = null) {
     const mao = malha(new THREE.SphereGeometry(0.038, 14, 10), pele, cotovelo, 0, -0.285, 0.004); mao.scale.set(0.8, 1.15, 0.55)
     for (let k = 0; k < 4; k++) malha(new THREE.CapsuleGeometry(0.0075, 0.03, 3, 6), pele, cotovelo, -0.018 + k * 0.012, -0.325, 0.006, false)   // dedos
     malha(new THREE.CapsuleGeometry(0.011, 0.025, 4, 8), pele, cotovelo, lado * -0.024, -0.27, 0.018).rotation.z = lado * 0.6   // polegar
-    bracos.push({ ombro, cotovelo })
+    let celular = null
+    if (lado > 0) { celular = malha(new THREE.BoxGeometry(0.038, 0.075, 0.008), mat(0x111827, 0.3, 0.3), cotovelo, 0, -0.31, 0.03, false); celular.rotation.x = -1.1; celular.visible = false
+      malha(new THREE.PlaneGeometry(0.032, 0.066), new THREE.MeshStandardMaterial({ color: 0x0b1220, emissive: 0x3b82f6, emissiveIntensity: 0.6 }), celular, 0, 0, 0.0045, false) }
+    bracos.push({ ombro, cotovelo, celular })
     const quad = new THREE.Group(); quad.position.set(lado * 0.085, -0.02, 0); quadril.add(quad)
     const coxa = capsula(corpoB ? 0.066 : 0.07, 0.3, saia ? pele : calca); coxa.position.y = -0.2; coxa.scale.set(1, 1, 1.05); quad.add(coxa)
     const joelho = new THREE.Group(); joelho.position.y = -0.42; quad.add(joelho)
     const canela = capsula(corpoB ? 0.05 : 0.058, 0.3, saia ? pele : calca); canela.position.y = -0.2; joelho.add(canela)
-    const pe = new THREE.Mesh(new RoundedBoxGeometry(corpoB ? 0.085 : 0.095, 0.07, corpoB ? 0.22 : 0.24, 3, 0.03), sapato); pe.position.set(0, -0.405, 0.055); pe.castShadow = true; joelho.add(pe)
-    malha(new THREE.BoxGeometry(corpoB ? 0.09 : 0.1, 0.012, corpoB ? 0.225 : 0.245), mat(0xe7e5e4, 0.6), joelho, 0, -0.44, 0.055, false)   // sola
-    pernas.push({ quad, joelho })
+    const tornozelo = new THREE.Group(); tornozelo.position.y = -0.39; joelho.add(tornozelo)
+    const pe = new THREE.Mesh(new RoundedBoxGeometry(corpoB ? 0.085 : 0.095, 0.07, corpoB ? 0.22 : 0.24, 3, 0.03), sapato); pe.position.set(0, -0.015, 0.055); pe.castShadow = true; tornozelo.add(pe)
+    malha(new THREE.BoxGeometry(corpoB ? 0.09 : 0.1, 0.012, corpoB ? 0.225 : 0.245), mat(0xe7e5e4, 0.6), tornozelo, 0, -0.05, 0.055, false)   // sola
+    malha(new THREE.BoxGeometry(0.05, 0.004, 0.06), mat(0xf5f5f4, 0.7), tornozelo, 0, 0.022, 0.09, false)   // cadarço
+    pernas.push({ quad, joelho, tornozelo })
   }
   if (sentada) {
     pernas.forEach((p) => { p.quad.rotation.x = -Math.PI / 2; p.joelho.rotation.x = Math.PI / 2 })
@@ -214,9 +245,9 @@ function pessoa(r, sentada, ap = null) {
 function sentarPose(p) {
   const u = p.userData
   u.sentada = true
-  u.pernas.forEach((q) => { q.quad.rotation.x = -Math.PI / 2; q.joelho.rotation.x = Math.PI / 2 })
-  u.bracos.forEach((b) => { b.ombro.rotation.x = -0.55; b.cotovelo.rotation.x = -0.9 })
-  u.quadril.position.y = 0.47
+  u.pernas.forEach((q) => { q.quad.rotation.x = -Math.PI / 2; q.joelho.rotation.x = Math.PI / 2; q.quad.rotation.z = 0; if (q.tornozelo) q.tornozelo.rotation.x = 0 })
+  u.bracos.forEach((b) => { b.ombro.rotation.x = -0.55; b.cotovelo.rotation.x = -0.9; if (b.celular) b.celular.visible = false })
+  u.quadril.position.y = 0.47; u.quadril.rotation.z = 0
 }
 
 // levanta quem estava sentado (para andar no controle)
@@ -225,7 +256,7 @@ function levantar(p) {
   u.sentada = false
   u.pernas.forEach((q) => { q.quad.rotation.x = 0; q.joelho.rotation.x = 0 })
   u.bracos.forEach((b) => { b.ombro.rotation.x = 0; b.cotovelo.rotation.x = -0.2 })
-  u.quadril.position.y = 0.92
+  u.quadril.position.y = 0.92; u.quadril.rotation.x = 0
 }
 
 function piscar(p, t) {
@@ -238,7 +269,9 @@ function animarPessoa(p, t) {
   const { pescoco, bracos, pernas, fase, sentada, quadril } = p.userData
   if (sentada) {
     // digitando: antebraços batem, cabeça olha a tela e às vezes vira
-    bracos.forEach((b, i) => { b.cotovelo.rotation.x = -0.9 + Math.sin(t * 9 + fase + i * 1.7) * 0.07 })
+    const encosta = Math.max(0, Math.sin(t * 0.13 + fase) - 0.85) * 4   // de vez em quando encosta e respira fundo
+    bracos.forEach((b, i) => { b.cotovelo.rotation.x = -0.9 + Math.sin(t * 9 + fase + i * 1.7) * 0.07 * (1 - encosta) + (i && Math.sin(t * 0.6 + fase) > 0.6 ? Math.sin(t * 3 + fase) * 0.05 : 0) })
+    quadril.rotation.x = -encosta * 0.12
     pescoco.rotation.y = Math.sin(t * 0.35 + fase) > 0.93 ? Math.sin(t * 2 + fase) * 0.5 : 0
     pescoco.rotation.x = 0.12 + Math.sin(t * 0.8 + fase) * 0.03
     quadril.position.y = 0.47 + Math.sin(t * 1.6 + fase) * 0.004   // respiração
@@ -252,22 +285,35 @@ function animarPessoa(p, t) {
   }
 }
 
-// andar com a fase presa à distância percorrida (o pé não escorrega); k = 0 parado (respira, olha em volta), 1 andando
-function animarAndar(p, passo, k, t) {
+// andar com a fase presa à distância percorrida (o pé não escorrega); k = 0 parado, 1 andando.
+// Andando: o pé rola do calcanhar à ponta, o quadril sobe e balança, o tronco gira ao contrário das pernas e a
+// cabeça fica firme. Parado: respira, troca o peso de perna, olha em volta; com celular, olha a tela.
+function animarAndar(p, passo, k, t, celular = false) {
   piscar(p, t)
   const { pescoco, bracos, pernas, quadril, fase } = p.userData
-  const c = Math.sin(passo)
+  const c = Math.sin(passo), j = 1 - k
   pernas[0].quad.rotation.x = c * 0.42 * k; pernas[1].quad.rotation.x = -c * 0.42 * k
   pernas[0].joelho.rotation.x = Math.max(0, Math.sin(passo + 1.3)) * 0.75 * k
   pernas[1].joelho.rotation.x = Math.max(0, -Math.sin(passo + 1.3)) * 0.75 * k
-  bracos[0].ombro.rotation.x = -c * 0.38 * k + Math.sin(t * 0.9 + fase) * 0.03 * (1 - k)
-  bracos[1].ombro.rotation.x = c * 0.38 * k + Math.sin(t * 0.9 + fase + 1) * 0.03 * (1 - k)
+  pernas.forEach((pp, i) => { if (pp.tornozelo) pp.tornozelo.rotation.x = (i ? -1 : 1) * Math.sin(passo - 0.6) * 0.28 * k - (pp.joelho.rotation.x * 0.25) })
+  // peso de uma perna para a outra quando parado (bem devagar)
+  const peso = Math.sin(t * 0.45 + fase) * j
+  pernas[0].quad.rotation.z = peso * 0.035; pernas[1].quad.rotation.z = peso * 0.035
+  bracos[0].ombro.rotation.x = -c * 0.38 * k + Math.sin(t * 0.9 + fase) * 0.03 * j
+  bracos[1].ombro.rotation.x = c * 0.38 * k + Math.sin(t * 0.9 + fase + 1) * 0.03 * j
   bracos[0].ombro.rotation.z = -0.07; bracos[1].ombro.rotation.z = 0.07
-  bracos.forEach((b) => { b.cotovelo.rotation.x = -0.18 - 0.2 * k })
-  quadril.position.y = 0.92 + Math.abs(Math.cos(passo)) * 0.03 * k + Math.sin(t * 1.6 + fase) * 0.004 * (1 - k)
-  quadril.rotation.y = c * 0.07 * k
-  pescoco.rotation.y = (1 - k) * Math.sin(t * 0.35 + fase) * 0.55 - quadril.rotation.y
-  pescoco.rotation.x = 0.05
+  bracos.forEach((b, i) => { b.cotovelo.rotation.x = -0.18 - 0.22 * k - (i ? Math.max(0, c) : Math.max(0, -c)) * 0.18 * k })
+  quadril.position.y = 0.92 + Math.abs(Math.cos(passo)) * 0.032 * k + Math.sin(t * 1.6 + fase) * 0.004 * j
+  quadril.rotation.y = c * 0.08 * k
+  quadril.rotation.z = Math.sin(passo) * 0.035 * k - peso * 0.02
+  pescoco.rotation.y = j * Math.sin(t * 0.35 + fase) * 0.5 - quadril.rotation.y * 0.9
+  pescoco.rotation.x = 0.05 + Math.abs(Math.cos(passo)) * 0.015 * k
+  const cel = bracos[1]?.celular
+  if (cel) {
+    const usa = celular && k < 0.05
+    cel.visible = usa
+    if (usa) { bracos[1].ombro.rotation.x = -0.55; bracos[1].cotovelo.rotation.x = -1.35; bracos[1].ombro.rotation.z = 0.2; pescoco.rotation.x = 0.42; pescoco.rotation.y *= 0.2 }
+  }
 }
 
 // ---- luz do dia: hora de Brasília → posição do sol, cor do céu e se é noite ----
@@ -385,6 +431,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   // cartões do 3D (janela, item, pessoa, escrita), modo de escrever no vidro e controle de avatar
   const [cartao, setCartao] = useState(null)
   const [controle, setControle] = useState(null)
+  const [nivel, setNivel] = useState('andar')       // 'andar' (escritório) ou 'terreo' (recepção, pelo elevador)
+  const [viagem, setViagem] = useState(null)        // elevador andando: { andar, seta, destino }
   const [escrevendo, setEscrevendo] = useState(false)
   const [rascunhoEsc, setRascunhoEsc] = useState(null)
   const [ocupado, setOcupado] = useState(false)
@@ -396,6 +444,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       setRascunhoEsc(null); setCartao(u)
     }
     E.setControle = setControle
+    E.setNivel = setNivel
+    E.setViagem = setViagem
     E.escrevendo = escrevendo
   }, [acoes, escrevendo])
   // teclado do controle (não rouba teclas de campos de texto)
@@ -410,6 +460,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (k === 'escape') { estado.current.pararControle?.(); return }
       if (k === 'v') { estado.current.mudarModo?.(c.modo === '1' ? '3' : '1'); return }
       if (k === 'f') { e.preventDefault(); estado.current.sentar?.(); return }
+      if (k === 'r') { e.preventDefault(); estado.current.irElevador?.(); return }
       if (['w', 'a', 's', 'd', 'q', 'e', 'shift', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { e.preventDefault(); c.teclas.add(k) }
     }
     const cima = (e) => { estado.current.ctrl?.teclas.delete(nome(e)) }
@@ -565,7 +616,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const tipoPiso = /reuni|diret/i.test(s.p.nome) ? 'carpete' : s.w * s.h > 300000 ? 'porcelanato' : 'madeira'
       const baseCor = tipoPiso === 'madeira' ? 0xb08a62 : tipoPiso === 'carpete' ? 0x6b7280 : 0xe7e5e4
       const tex = texturaPiso(tipoPiso, baseCor); tex.repeat.set((s.w * S) / (tipoPiso === 'porcelanato' ? 1.6 : 2.2), (s.h * S) / (tipoPiso === 'porcelanato' ? 1.6 : 2.2))
-      const cor = new THREE.Color(0xffffff).lerp(new THREE.Color(s.p.cor || '#0f766a'), 0.12)
+      const cor = s.cor_piso ? new THREE.Color(s.cor_piso) : new THREE.Color(0xffffff).lerp(new THREE.Color(s.p.cor || '#0f766a'), 0.12)   // cor do chão escolhida no cartão da sala
       if (escuro) cor.multiplyScalar(0.8)
       const piso = new THREE.Mesh(new THREE.PlaneGeometry(s.w * S, s.h * S), new THREE.MeshStandardMaterial({ color: cor, map: tex, roughness: tipoPiso === 'porcelanato' ? 0.35 : 0.8, metalness: tipoPiso === 'porcelanato' ? 0.05 : 0 }))
       piso.rotation.x = -Math.PI / 2; piso.position.set(W(s.x + s.w / 2), 0, Z(s.y + s.h / 2)); piso.receiveShadow = true
@@ -725,9 +776,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // entrada) até a fachada de vidro. A grade das pessoas vai até a fachada: ninguém sai da laje.
     const andar = Number.isFinite(+mapa.andar) ? +mapa.andar : 9
     const andares = Number.isFinite(+mapa.andares) ? +mapa.andares : 11
-    const MARGEM = comPredio ? 2.5 : 0
+    const MARGEM = comPredio ? 4.2 : 0   // corredor largo dos lados (antes 2,5 m: o avatar enroscava)
     const fx0 = W(x0) - 0.35 - MARGEM, fx1 = W(x1) + 0.35 + MARGEM, fz0 = Z(y0) - 0.35 - MARGEM, fz1 = Z(y1) + 0.35 + MARGEM
     E.limitesAndar = comPredio ? [fx0 + 0.32, fz0 + 0.32, fx1 - 0.32, fz1 - 0.32] : null
+    E.elevAndar = null; E.elevInfo = null; E.elevTerreo = null; E.trocarNivel = null   // a cena é refeita: nada da anterior
     const predio = comPredio ? montarPredio({ bx0: fx0, bx1: fx1, bz0: fz0, bz1: fz1, entrada, nome: marca?.nome || '', noite: ceu.noite, r, andar, andares }) : null
     if (predio) {
       mundo.add(predio.grupo); predio.aplicar(E.aberto ? 1 : 0); predio.tick(0, 0)
@@ -751,28 +803,24 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       }
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, altF, 0.06), matM, montantes.length)
       const m4 = new THREE.Matrix4(); montantes.forEach(([x, z], i) => { m4.makeTranslation(x, altF / 2, z); im.setMatrixAt(i, m4) }); fachada.add(im)
-      // hall dos elevadores: núcleo encostado na fachada, de frente para a porta de entrada
-      if (entrada) {
+      // elevadores: núcleo encostado na parede de fora, ao lado da porta de entrada e saindo para o corredor, com as
+      // portas viradas para o mesmo lado da porta. Funciona: chama, entra, escolhe o andar (térreo ou o escritório).
+      if (entrada && !compacto) {
         const n = { sul: [0, 1], norte: [0, -1], leste: [1, 0], oeste: [-1, 0] }[entrada.lado]
-        const horiz = n[0] === 0
-        const distF = horiz ? (n[1] > 0 ? fz1 - entrada.z : entrada.z - fz0) : (n[0] > 0 ? fx1 - entrada.x : entrada.x - fx0)
-        const prof = 0.9, larg = 5.2, hN = Math.max(ALT, 2.4)
-        const c = [entrada.x + n[0] * (distF - prof / 2 - 0.12), entrada.z + n[1] * (distF - prof / 2 - 0.12)]
-        const nucleo = new THREE.Mesh(new THREE.BoxGeometry(horiz ? larg : prof, hN, horiz ? prof : larg), new THREE.MeshStandardMaterial({ color: escuro ? 0x57534e : 0xd6d3d1, roughness: 0.7 }))
-        nucleo.position.set(c[0], hN / 2, c[1]); nucleo.castShadow = nucleo.receiveShadow = true; mundo.add(nucleo)
-        bloquear(c[0], c[1], horiz ? larg : prof, horiz ? prof : larg)
-        const aco = new THREE.MeshStandardMaterial({ color: 0xb8bec6, roughness: 0.25, metalness: 0.85 })
-        const frente = (u, w, h, y, cor) => {   // peça colada na face do núcleo que olha para a porta
-          const o = new THREE.Mesh(new THREE.BoxGeometry(horiz ? w : 0.04, h, horiz ? 0.04 : w), cor)
-          const off = prof / 2 + 0.02
-          o.position.set(c[0] + (horiz ? u : -n[0] * off), y, c[1] + (horiz ? -n[1] * off : u)); mundo.add(o); return o
-        }
-        for (const u of [-1.35, 1.35]) { frente(u, 1.05, 2.15, 1.075, aco); frente(u, 0.02, 2.15, 1.075, new THREE.MeshStandardMaterial({ color: 0x1f2937 })) }
-        frente(0, 0.12, 0.22, 1.15, new THREE.MeshStandardMaterial({ color: 0x334155, emissive: 0x38bdf8, emissiveIntensity: 0.5 }))   // botões de chamada
-        const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64; const g = cv.getContext('2d')
-        g.fillStyle = '#0b1220'; g.fillRect(0, 0, 128, 64); g.fillStyle = '#fbbf24'; g.font = '700 40px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`${andar}º`, 64, 34)
-        const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace
-        for (const u of [-1.35, 1.35]) frente(u, 0.36, 0.18, 2.32, new THREE.MeshStandardMaterial({ map: tx, emissiveMap: tx, emissive: 0xffffff, emissiveIntensity: 0.6 }))
+        const t = [Math.abs(n[1]), Math.abs(n[0])]   // ao longo da parede
+        const sobra = (s) => s > 0 ? (n[0] ? fz1 - entrada.z : fx1 - entrada.x) : (n[0] ? entrada.z - fz0 : entrada.x - fx0)
+        const lado = sobra(1) >= sobra(-1) ? 1 : -1
+        const al = 0.55 + 0.4 + ELEV.larg / 2   // da porta até o meio do núcleo
+        const ox = entrada.x + t[0] * lado * al + n[0] * (ESP / 2 + 0.02), oz = entrada.z + t[1] * lado * al + n[1] * (ESP / 2 + 0.02)
+        const el = montarElevador({ rotuloAndar: String(andar), escuro })
+        el.grupo.position.set(ox, 0, oz); el.grupo.rotation.y = Math.atan2(n[0], n[1]); mundo.add(el.grupo)
+        const fr = ELEV.prof
+        bloquear(ox + n[0] * fr / 2, oz + n[1] * fr / 2, n[0] ? fr : ELEV.larg, n[0] ? ELEV.larg : fr)
+        // pontos de cada carro no mundo: frente (onde se chama) e meio da cabine
+        const mundoDe = (u, v) => { const vv = new THREE.Vector3(u, 0, v); el.grupo.updateMatrixWorld(true); el.grupo.localToWorld(vv); return [vv.x, vv.z] }
+        E.elevAndar = { el, nivel: 'andar', yBase: 0, frenteYaw: Math.atan2(n[0], n[1]),
+          carros: el.carros.map((c) => ({ c, frente: mundoDe(c.cx, fr + 0.75), cabine: mundoDe(c.cx, 0.85), porta: mundoDe(c.cx, fr + 0.2) })) }
+        E.elevInfo = { ox, oz, n, lado, andar }
       }
       // placa do andar do escritório, visível com o prédio fechado
       const pl = etiqueta(`${marca?.nome || 'Escritório'} · ${andar}º andar`, '#ffffff', 'rgba(15,118,106,0.92)')
@@ -981,7 +1029,15 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       } else if (e.tipo === 'sofa') {
         bloquear(x, z, w, d, ry)
         const mSofa = e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.8 }) : matCadeira; caixa(w, 0.42, d, mSofa, x, 0.21, z, ry); caixa(w, 0.4, 0.18, mSofa, x, 0.6, z, ry); alvoItem(e.id, x, z, w, d, 0.8, ry)
-      } else if (e.tipo === 'coluna' || e.tipo === 'parede') {
+      } else if (e.tipo === 'coluna') {
+        // pilar de concreto redondo, com base e capitel (vai do chão ao teto)
+        const rr = Math.max(0.12, Math.min(w, d) / 2)
+        bloquear(x, z, rr * 2, rr * 2)
+        const matCol = e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.75 }) : new THREE.MeshStandardMaterial({ color: escuro ? 0xa8a29e : 0xe7e5e4, roughness: 0.8 })
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, ALT, 32), matCol); col.position.set(x, ALT / 2, z); col.castShadow = col.receiveShadow = true; mundo.add(col)
+        for (const [yy, hh] of [[0.05, 0.1], [ALT - 0.05, 0.1]]) { const anel = new THREE.Mesh(new THREE.CylinderGeometry(rr + 0.035, rr + 0.035, hh, 32), matCol); anel.position.set(x, yy, z); anel.castShadow = true; mundo.add(anel) }
+        alvoItem(e.id, x, z, rr * 2, rr * 2, ALT, 0)
+      } else if (e.tipo === 'parede') {
         bloquear(x, z, w, d, ry)
         caixa(w, ALT, d, matParede, x, ALT / 2, z, ry)
       } else if (e.tipo === 'parede') {
@@ -1001,12 +1057,20 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         tela.position.set(0, 1.55, 0.0135); g.add(tela)
         const led = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), new THREE.MeshBasicMaterial({ color: 0x22c55e })); led.position.set(larg * 0.45, 1.55 - alt * 0.49, 0.015); g.add(led)
       } else if (e.tipo === 'porta') {
-        // folha aberta a ~70° a partir da dobradiça (canto local 0,h)
+        // folha presa na dobradiça (canto local 0,h): aberta fica quase encostada na parede; fechada fica no vão e
+        // ninguém passa (aberta >= 50 = aberta; o cartão da porta e o da sala abrem e fecham)
         const [hx, hy] = girar(e, 0, e.h), [fx, fy] = girar(e, e.w, e.h)
         const ang = Math.atan2(fy - hy, fx - hx)
-        const folha = new THREE.Group(); folha.position.set(W(hx), 0, Z(hy)); folha.rotation.y = -ang + 1.45; mundo.add(folha)
-        caixa(e.w * S * 0.95, 2.05, 0.04, e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.55 }) : matMadeira, e.w * S * 0.475, 1.025, 0, 0, folha)
-        const maca = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), matPerfil); maca.position.set(e.w * S * 0.85, 1.0, 0.04); folha.add(maca)
+        const abertaP = (Number.isFinite(+e.aberta) ? +e.aberta : 50) >= 50
+        const folha = new THREE.Group(); folha.position.set(W(hx), 0, Z(hy)); folha.rotation.y = -ang + (abertaP ? 1.5 : 0); mundo.add(folha)
+        const matFolha = e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.45 }) : matMadeira
+        caixa(e.w * S * 0.95, 2.05, 0.04, matFolha, e.w * S * 0.475, 1.025, 0, 0, folha)
+        // almofadas da folha (relevo) e maçaneta de alavanca dos dois lados
+        for (const lz of [-0.022, 0.022]) for (const [py, ph] of [[0.62, 0.9], [1.55, 0.7]]) caixa(e.w * S * 0.7, ph, 0.006, matFolha, e.w * S * 0.475, py, lz, 0, folha)
+        for (const lz of [-0.035, 0.035]) {
+          const maca = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.03, 12), matPerfil); maca.rotation.x = Math.PI / 2; maca.position.set(e.w * S * 0.85, 1.0, lz); folha.add(maca)
+          const alav = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.02), matPerfil); alav.position.set(e.w * S * 0.8, 1.0, lz * 1.4); folha.add(alav)
+        }
         alvoItem(e.id, e.w * S * 0.475, 0, e.w * S * 0.95, 0.12, 2.05, 0, folha)
         const L = e.w * S * 0.95, fr = folha.rotation.y
         bloquear(W(hx) + Math.cos(fr) * L / 2, Z(hy) - Math.sin(fr) * L / 2, L, 0.05, fr)
@@ -1031,6 +1095,24 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const ex = W(s.x + s.w * (vertical ? 0.5 : 0.62)), ez = Z(s.y + s.h * 0.42)
       estacao(mundo, ex, ez, Math.PI, true, pessoaNome, false, `sala-${s.p.id}`)
       bloquear(ex, ez - 0.2, 1.36, 1.25)
+    }
+
+    // cores da sala (cartão da sala no 3D): cadeiras e tampos de mesa ganham a cor da sala onde estão; item com cor
+    // própria (escolhida no cartão do item) continua com a dele
+    if (salas.some((s) => s.cor_cadeira || s.cor_mesa)) {
+      const porSala = new Map()
+      const matCor = (base, cor) => { const k = `${base.uuid}${cor}`; if (!porSala.has(k)) { const m = base.clone(); m.color = new THREE.Color(cor); porSala.set(k, m) } return porSala.get(k) }
+      const vw = new THREE.Vector3()
+      mundo.updateMatrixWorld(true)
+      mundo.traverse((o) => {
+        if (!o.isMesh) return
+        const campo = o.material === matCadeira ? 'cor_cadeira' : (o.material === matTampo || o.material === matMesa) ? 'cor_mesa' : null
+        if (!campo) return
+        o.getWorldPosition(vw)
+        const px = vw.x / S + cx, py = vw.z / S + cy
+        const sl = salas.filter((x) => px > x.x && px < x.x + x.w && py > x.y && py < x.y + x.h).sort((a, b) => a.w * a.h - b.w * b.h)[0]
+        if (sl?.[campo]) o.material = matCor(o.material, sl[campo])
+      })
     }
 
     // pessoas nos lugares: primeiro a equipe cadastrada que está no expediente agora (no posto dela, ou num lugar
@@ -1099,6 +1181,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     }
     const andarilhos = []
     const novoDestino = (a) => {
+      if (a.G) {   // térreo: ponto livre qualquer da recepção
+        const alvo = a.ponto(), rota = alvo && caminho(a.G, [a.p.position.x, a.p.position.z], alvo)
+        if (rota && rota.length > 1) { a.rota = rota; a.i = 1; a.estado = 'andando'; a.preso = 0 } else { a.estado = 'parado'; a.espera = 2 }
+        return
+      }
       for (let k = 0; k < 8; k++) {
         const s = Math.random() < 0.55 ? salao : salas[Math.floor(Math.random() * salas.length)]
         const alvo = pontoLivre(s)
@@ -1113,7 +1200,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const ini = pontoLivre(salao)
       if (!ini) break
       const p = pessoa(r, false); p.position.set(ini[0], 0, ini[1]); p.rotation.y = r() * Math.PI * 2; mundo.add(p)
-      andarilhos.push({ p, vel: 0.95 + r() * 0.35, estado: 'parado', espera: 0.4 + i * 0.8, rota: null, i: 0, passo: r() * 6, preso: 0 })
+      andarilhos.push({ p, vel: 0.95 + r() * 0.35, estado: 'parado', espera: 0.4 + i * 0.8, rota: null, i: 0, passo: r() * 6, preso: 0, celular: r() > 0.55 })
       const info = { tipo: 'generico', posto: '', sala: '', ap: p.userData.ap }
       alvoPessoa(p, info, false); avatares.push({ av: p, info, label: null })
     }
@@ -1128,6 +1215,57 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       alvoPessoa(p, info, false); avatares.push({ av: p, info, label })
     }
     E.avatares = avatares
+
+    // térreo (recepção do prédio): montado escondido dentro do pódio, no chão da rua (y = -yA). O elevador leva o
+    // avatar controlado até lá e de volta. Tem grade de colisão própria, recepcionista, segurança e gente andando.
+    E.gradeAtiva = grade; E.nivel = 'andar'; E.yBase = 0; E.elevTerreo = null; E.viagem = null
+    E.setNivel?.('andar')
+    const genteT = { recep: null, guarda: null, andam: [] }
+    if (predio && E.elevAndar && E.elevInfo) {
+      const P0 = predio.podio, yT = -predio.yA
+      const { ox, oz, n } = E.elevInfo
+      const horizE = P0.entrada === 'norte' || P0.entrada === 'sul'
+      const portaP = horizE ? [P0.centroEntrada, P0.entrada === 'norte' ? P0.bz0 : P0.bz1] : [P0.entrada === 'oeste' ? P0.bx0 : P0.bx1, P0.centroEntrada]
+      const frenteEl = [ox + n[0] * ELEV.prof, oz + n[1] * ELEV.prof]
+      const u = horizE ? frenteEl[0] - portaP[0] : frenteEl[1] - portaP[1]
+      const v = horizE ? Math.abs(frenteEl[1] - portaP[1]) : Math.abs(frenteEl[0] - portaP[0])
+      const T = montarTerreo({ podio: P0, yT, elev: { u, v, andar }, marca: marca?.nome || '', noite: ceu.noite, pisoTex: texturaPiso('porcelanato', 0xe7e5e4), r })
+      mundo.add(T.grupo)
+      const elT = montarElevador({ rotuloAndar: 'T', escuro })
+      elT.grupo.position.set(ox, 0, oz); elT.grupo.rotation.y = Math.atan2(n[0], n[1]); T.grupo.add(elT.grupo)
+      const obT = [...T.obst, { x: ox + n[0] * ELEV.prof / 2, z: oz + n[1] * ELEV.prof / 2, w: n[0] ? ELEV.prof : ELEV.larg, d: n[0] ? ELEV.larg : ELEV.prof, ry: 0 }]
+      const L = T.limites
+      const gradeT = criarGrade(L[0], L[1], L[2], L[3], obT, () => true, 0.22, 0.1)
+      E.elevTerreo = { el: elT, nivel: 'terreo', yBase: yT, carros: elT.carros.map((c, i) => ({ c, frente: E.elevAndar.carros[i].frente, cabine: E.elevAndar.carros[i].cabine, porta: E.elevAndar.carros[i].porta })) }
+      // recepcionista sentada atrás do balcão, segurança em pé perto das catracas, duas pessoas andando
+      const rec = pessoa(r, true); cadeira(T.grupo, T.posRecep.x, T.posRecep.z, T.ryFrente + Math.PI)
+      rec.position.set(T.posRecep.x, 0, T.posRecep.z); rec.rotation.y = T.ryFrente; T.grupo.add(rec); genteT.recep = rec
+      const [gx, gz] = T.em(u + (u > 0 ? -1 : 1) * 3.2, Math.max(3.2, v - 2.6) - 0.9)
+      const guarda = pessoa(r, false, { pele: '', cabelo: 'raspado', cor_cabelo: '#111111', roupa: '#111827', calca: '#111827', sapato: '#0a0a0a', traje: 'social', corpo: 'a', oculos: false, barba: false, cracha: true })
+      guarda.position.set(gx, 0, gz); guarda.rotation.y = T.ryFrente; T.grupo.add(guarda); genteT.guarda = guarda
+      const pontoT = () => { for (let k = 0; k < 30; k++) { const x = L[0] + 1 + Math.random() * (L[2] - L[0] - 2), z = L[1] + 1 + Math.random() * (L[3] - L[1] - 2); if (celulaLivre(gradeT, x, z)) return [x, z] } return null }
+      for (let i = 0; i < 2; i++) {
+        const ini = pontoT(); if (!ini) break
+        const p2 = pessoa(r, false); p2.position.set(ini[0], 0, ini[1]); T.grupo.add(p2)
+        genteT.andam.push({ p: p2, vel: 1.0 + r() * 0.3, estado: 'parado', espera: 1 + i * 2, rota: null, i: 0, passo: 0, preso: 0, G: gradeT, ponto: pontoT, lista: genteT.andam, celular: r() > 0.4 })
+      }
+      // trocar de nível: o térreo esconde o andar (móveis, pessoas, rótulos) e o andar volta ao subir
+      const ocultos = []
+      E.trocarNivel = (nivel) => {
+        const c = E.ctrl
+        if (nivel === 'terreo' && E.nivel !== 'terreo') {
+          for (const o of mundo.children) if (o !== predio.grupo && o !== T.grupo && o !== c?.av && o.visible) { o.visible = false; ocultos.push(o) }
+          T.grupo.visible = true
+          E.gradeAtiva = gradeT; E.nivel = 'terreo'; E.yBase = yT
+        } else if (nivel === 'andar' && E.nivel !== 'andar') {
+          ocultos.forEach((o) => { o.visible = true }); ocultos.length = 0
+          T.grupo.visible = false
+          E.gradeAtiva = grade; E.nivel = 'andar'; E.yBase = 0
+        }
+        if (c) c.av.position.y = E.yBase
+        E.setNivel?.(E.nivel)
+      }
+    }
     telas.forEach((x) => { desenharTela(x.g, x.a.ocupante ? x.a.papel : 'bloqueio', x.sem, 0); x.tx.needsUpdate = true })   // primeiro desenho de todas
 
     // escritas de caneta nos vidros (texto à mão, legível do lado de quem escreveu)
@@ -1151,14 +1289,14 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     }
     const moverAndarilho = (a, dt, t) => {
       const P = a.p.position
-      if (a.estado === 'parado') { a.espera -= dt; if (a.espera <= 0) novoDestino(a); animarAndar(a.p, a.passo, 0, t); return }
+      if (a.estado === 'parado') { a.espera -= dt; if (a.espera <= 0) novoDestino(a); animarAndar(a.p, a.passo, 0, t, a.celular); return }
       const [tx, tz] = a.rota[a.i]
       let dx = tx - P.x, dz = tz - P.z
       const dist = Math.hypot(dx, dz)
       if (dist < 0.12) { a.i++; if (a.i >= a.rota.length) { a.estado = 'parado'; a.espera = 2 + Math.random() * 6 } animarAndar(a.p, a.passo, 0.5, t); return }
       dx /= dist; dz /= dist
       let fator = 1, sx = 0, sz = 0
-      for (const o of andarilhos) {
+      for (const o of a.lista || andarilhos) {
         if (o === a) continue
         const ox = o.p.position.x - P.x, oz = o.p.position.z - P.z, d = Math.hypot(ox, oz)
         if (d > 0.9 || d < 1e-4) continue
@@ -1169,7 +1307,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const n = Math.hypot(vx, vz) || 1; vx /= n; vz /= n
       const passo = a.vel * fator * dt
       let nx = P.x + vx * passo, nz = P.z + vz * passo
-      if (!celulaLivre(grade, nx, nz)) { if (celulaLivre(grade, nx, P.z)) nz = P.z; else if (celulaLivre(grade, P.x, nz)) nx = P.x; else { nx = P.x; nz = P.z } }
+      const G = a.G || grade
+      if (!celulaLivre(G, nx, nz)) { if (celulaLivre(G, nx, P.z)) nz = P.z; else if (celulaLivre(G, P.x, nz)) nx = P.x; else { nx = P.x; nz = P.z } }
       const andou = Math.hypot(nx - P.x, nz - P.z)
       P.x = nx; P.z = nz
       a.preso = andou < passo * 0.25 ? a.preso + dt : 0
@@ -1290,6 +1429,12 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const pararControle = () => {
       const c = E.ctrl
       if (!c) return
+      if (E.viagem) { E.viagem = null; E.setViagem?.(null) }
+      if (E.nivel === 'terreo') {   // largou no térreo: a pessoa sobe e fica na frente do elevador do andar
+        E.trocarNivel?.('andar')
+        const k = E.elevAndar?.carros[0]; if (k) c.av.position.set(k.frente[0], 0, k.frente[1])
+        E.elevAndar?.carros.forEach((x) => { x.c.alvo = 0 }); E.elevTerreo?.carros.forEach((x) => { x.c.alvo = 0 })
+      }
       E.ctrl = null
       c.av.userData.pescoco.visible = true
       if (c.label) c.label.visible = true
@@ -1348,6 +1493,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         return
       }
       const P = av.position
+      if (E.nivel === 'terreo') { E.setControle?.({ modo: c.modo, info: c.info, sentado: false, elevador: c.pertoElev ? E.nivel : null, aviso: 'No térreo não há mesa de trabalho: suba ao escritório pelo elevador.' }); return }
       let melhor = null, dm = 1.4
       for (const a of assentos) { if (a.ocupante) continue; const d = Math.hypot(a.wx - P.x, a.wz - P.z); if (d < dm) { dm = d; melhor = a } }
       if (!melhor) { E.setControle?.({ modo: c.modo, info: c.info, sentado: false, aviso: 'Chegue perto de uma cadeira livre (até 1,4 m) para sentar.' }); return }
@@ -1358,8 +1504,75 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       E.setControle?.({ modo: c.modo, info: c.info, sentado: true })
     }
     const vSent = new THREE.Vector3()
+    const nivelElev = () => (E.nivel === 'terreo' ? E.elevTerreo : E.elevAndar)
+    const ROT_ANDAR = (v) => (v === 0 ? 'T' : String(v))
+    // vai de elevador para o outro nível (térreo ⇄ andar do escritório), pelo carro mais perto
+    E.irElevador = () => {
+      const c = E.ctrl, lv = nivelElev()
+      if (!c || !lv || E.viagem || c.assento) return
+      const P = c.av.position
+      let i = 0, dm = Infinity
+      lv.carros.forEach((k, j) => { const d = Math.hypot(k.frente[0] - P.x, k.frente[1] - P.z); if (d < dm) { dm = d; i = j } })
+      const destino = E.nivel === 'terreo' ? 'andar' : 'terreo'
+      lv.el.chamar(true)
+      E.viagem = { fase: 'abrir', t: 0, i, lv, destino, de: null, trocou: false, andares: destino === 'terreo' ? Array.from({ length: andar + 1 }, (_, k) => andar - k) : Array.from({ length: andar + 1 }, (_, k) => k) }
+      E.setControle?.({ modo: c.modo, info: c.info, sentado: false, elevador: null, viajando: true })
+    }
+    const angSuave = (a, b, k) => { let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d)); return a + d * k }
+    const passoViagem = (dt, t) => {
+      const v = E.viagem, c = E.ctrl, av = c.av, P = av.position
+      v.t += dt
+      const car = v.lv.carros[v.i], frenteYaw = E.elevAndar.frenteYaw
+      if (v.fase === 'abrir') {
+        car.c.alvo = 1; animarAndar(av, c.passo, 0, t)
+        if (car.c.aberto > 0.97) { v.fase = 'entrar'; v.t = 0; v.de = [P.x, P.z]; v.lv.el.chamar(false) }
+      } else if (v.fase === 'entrar' || v.fase === 'sair') {
+        const [a, b] = v.fase === 'entrar' ? [v.de, car.cabine] : [car.cabine, car.frente]
+        const dur = Math.max(0.6, Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.2), k = Math.min(1, v.t / dur)
+        const nx = a[0] + (b[0] - a[0]) * k, nz = a[1] + (b[1] - a[1]) * k
+        const andou = Math.hypot(nx - P.x, nz - P.z); P.x = nx; P.z = nz
+        const rumo = Math.atan2(b[0] - a[0], b[1] - a[1])
+        c.yaw = v.fase === 'entrar' ? (k < 0.75 ? rumo : angSuave(rumo, frenteYaw, (k - 0.75) / 0.25)) : frenteYaw
+        av.rotation.y = c.yaw; c.passo += (andou / 0.68) * Math.PI
+        animarAndar(av, c.passo, k < 1 ? 1 : 0, t)
+        if (k >= 1) {
+          if (v.fase === 'entrar') { v.fase = 'fechar'; v.t = 0 }
+          else { const fim = car; setTimeout(() => { fim.c.alvo = 0 }, 1200); E.viagem = null; E.setControle?.({ modo: c.modo, info: c.info, sentado: false, elevador: E.nivel }); c.pertoElev = true; return }
+        }
+      } else if (v.fase === 'fechar') {
+        car.c.alvo = 0; animarAndar(av, c.passo, 0, t)
+        if (car.c.aberto < 0.03) { v.fase = 'viajar'; v.t = 0 }
+      } else if (v.fase === 'viajar') {
+        const DUR = 2.8, k = Math.min(1, v.t / DUR)
+        const idx = Math.min(v.andares.length - 1, Math.floor(k * v.andares.length)), at = v.andares[idx]
+        const seta = v.destino === 'terreo' ? '↓' : '↑'
+        v.lv.carros[v.i].c.display.desenhar(ROT_ANDAR(at), seta)
+        E.setViagem?.({ andar: ROT_ANDAR(at), seta, destino: v.destino === 'terreo' ? 'Térreo' : `${andar}º andar` })
+        if (k > 0.5 && !v.trocou) {
+          v.trocou = true
+          E.trocarNivel?.(v.destino)
+          v.lv = nivelElev()
+          P.set(v.lv.carros[v.i].cabine[0], E.yBase, v.lv.carros[v.i].cabine[1])
+        }
+        animarAndar(av, c.passo, 0, t)
+        if (k >= 1) {
+          E.setViagem?.(null)
+          E.elevAndar.carros[v.i].c.display.desenhar(String(andar)); E.elevTerreo.carros[v.i].c.display.desenhar('T')
+          v.fase = 'abrir2'; v.t = 0
+        }
+      } else if (v.fase === 'abrir2') {
+        car.c.alvo = 1; animarAndar(av, c.passo, 0, t)
+        if (car.c.aberto > 0.97) { v.fase = 'sair'; v.t = 0 }
+      }
+      // câmera de cinema durante a viagem: do corredor, olhando para dentro da cabine
+      const yB = E.yBase || 0, cab = v.lv.carros[v.i].cabine, fr = v.lv.carros[v.i].frente
+      const ex = fr[0] + (fr[0] - cab[0]) * 1.4, ez = fr[1] + (fr[1] - cab[1]) * 1.4
+      camera.position.lerp(new THREE.Vector3(ex, yB + 1.75, ez), Math.min(1, dt * 4))
+      camera.lookAt(cab[0], yB + 1.2, cab[1])
+    }
     const moverControle = (dt, t) => {
       const c = E.ctrl, av = c.av, P = av.position, k = c.teclas
+      if (E.viagem) { passoViagem(dt, t); return }
       if (c.assento) {   // sentado trabalhando: digita; câmera da cabeça (1ª) ou por cima do ombro (3ª), olhando o monitor
         animarPessoa(av, t)
         av.getWorldPosition(vSent)
@@ -1390,25 +1603,32 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         mx /= n; mz /= n
         const passo = vel * (f < 0 && !lat ? 0.6 : 1) * dt
         let nx = P.x + mx * passo, nz = P.z + mz * passo
-        if (!celulaLivre(grade, nx, nz)) { if (celulaLivre(grade, nx, P.z)) nz = P.z; else if (celulaLivre(grade, P.x, nz)) nx = P.x; else { nx = P.x; nz = P.z } }
+        const G = E.gradeAtiva || grade
+        if (!celulaLivre(G, nx, nz)) { if (celulaLivre(G, nx, P.z)) nz = P.z; else if (celulaLivre(G, P.x, nz)) nx = P.x; else { nx = P.x; nz = P.z } }
         andou = Math.hypot(nx - P.x, nz - P.z); P.x = nx; P.z = nz
+      }
+      // perto da porta de um elevador: a barra mostra o botão para descer/subir
+      const lv = nivelElev()
+      if (lv) {
+        const perto = lv.carros.some((x) => Math.hypot(x.frente[0] - P.x, x.frente[1] - P.z) < 1.5)
+        if (perto !== !!c.pertoElev) { c.pertoElev = perto; E.setControle?.({ modo: c.modo, info: c.info, sentado: false, elevador: perto ? E.nivel : null }) }
       }
       av.rotation.y = c.yaw
       c.passo += (andou / 0.68) * Math.PI * (f < 0 ? -1 : 1)
       animarAndar(av, c.passo, Math.min(1, andou / Math.max(1e-4, 1.35 * dt)), t)
-      const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch)
+      const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), yB = E.yBase || 0
       if (c.modo === '1') {
         av.userData.pescoco.visible = false
         if (c.label) c.label.visible = false
-        camera.position.set(P.x + fx * 0.1, 1.63, P.z + fz * 0.1)
-        camera.lookAt(camera.position.x + fx * cp, 1.63 + sp, camera.position.z + fz * cp)
+        camera.position.set(P.x + fx * 0.1, yB + 1.63, P.z + fz * 0.1)
+        camera.lookAt(camera.position.x + fx * cp, yB + 1.63 + sp, camera.position.z + fz * cp)
       } else {
         av.userData.pescoco.visible = true
         if (c.label) c.label.visible = true
         const dist = 2.4, alt = 1.75 - sp * 1.6
-        const desejo = new THREE.Vector3(P.x - fx * dist * cp, Math.max(0.5, alt), P.z - fz * dist * cp)
+        const desejo = new THREE.Vector3(P.x - fx * dist * cp, yB + Math.max(0.5, alt), P.z - fz * dist * cp)
         camera.position.lerp(desejo, Math.min(1, dt * 8))
-        camera.lookAt(P.x + fx * 0.6, 1.35, P.z + fz * 0.6)
+        camera.lookAt(P.x + fx * 0.6, yB + 1.35, P.z + fz * 0.6)
       }
     }
     E.iniciarControle = iniciarControle; E.pararControle = pararControle
@@ -1436,6 +1656,12 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       andarilhos.forEach((a) => moverAndarilho(a, dt, t))
       animarDispositivos(dispositivos, dt, t)
       if (E.ctrl) moverControle(dt, t)
+      E.elevAndar?.el.tick(dt); E.elevTerreo?.el.tick(dt)
+      if (E.nivel === 'terreo') {
+        if (genteT.recep) animarPessoa(genteT.recep, t)
+        if (genteT.guarda) animarAndar(genteT.guarda, 0, 0, t)
+        genteT.andam.forEach((a) => moverAndarilho(a, dt, t))
+      }
       predio?.tick(dt, t)
       if (predio) {
         const alvoK = E.aberto ? 1 : 0
@@ -1529,7 +1755,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           u.tela = assento ? ROTULO_PAPEL[assento.papel] || '' : ''
         }
         if (['janela', 'item', 'pessoa', 'generico', 'escrita', 'vidro'].includes(u?.tipo)) { E.abrirCartao?.(u); baixo = null; return }
-        E.abrirCartao?.(null)
+        E.abrirCartao?.(u?.tipo === 'sala' ? { tipo: 'sala', id: u.id } : null)   // sala: cartão com cores e porta
         E.aoSelecionar?.(u?.tipo ? u : null)
         if (u?.tipo === 'sala') { const pz = pisos.find((x) => x.userData.id === u.id); if (pz) voar(pz.position.clone(), Math.max(pz.geometry.parameters.width, pz.geometry.parameters.height) * 0.9 + 2) }
         else if (u?.tipo === 'ar') { const un = unidades.find((x) => x.a?.id === u.id); if (un) voar(un.g.position.clone().setY(0.8), 4.5) }
@@ -1570,7 +1796,16 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   return (
     <div ref={caixaRef} className={`w-full overflow-hidden bg-background ${cheia === 'janela' ? 'fixed inset-0 z-[60] h-[100dvh]' : `relative ${cheia ? 'h-full' : compacto ? 'h-full' : 'h-[68vh] min-h-[440px]'}`}`}>
       <div ref={ref} className="h-full w-full touch-none [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label="Escritório em 3D com as salas, os ares e as pessoas; arraste para girar, role para aproximar" />
-      <div ref={rotulosRef} className="pointer-events-none absolute inset-0" />
+      <div ref={rotulosRef} className={`pointer-events-none absolute inset-0 ${nivel === 'terreo' ? 'hidden' : ''}`} />
+      {viagem && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/80" role="status" aria-live="polite">
+          <div className="text-center text-white">
+            <p className="text-xs uppercase tracking-widest text-white/60">Elevador · indo para {viagem.destino}</p>
+            <p className="mt-2 font-mono text-6xl font-semibold tabular-nums text-amber-300"><span className="mr-3 text-4xl">{viagem.seta}</span>{viagem.andar}</p>
+          </div>
+        </div>
+      )}
+      {nivel === 'terreo' && !viagem && <p className="pointer-events-none absolute right-3 top-14 z-10 rounded-md bg-black/55 px-2.5 py-1 text-xs text-white">Térreo · recepção do prédio</p>}
       <button onClick={alternarCheia} className={`absolute left-3 top-3 flex overflow-hidden rounded-lg border border-border bg-card/90 font-medium backdrop-blur ${botao}`}
         title={cheia ? 'Sair da tela cheia (Esc)' : 'Expandir o escritório para a tela inteira'} aria-pressed={!!cheia}>
         {cheia ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{cheia ? 'Reduzir' : 'Expandir'}
@@ -1624,7 +1859,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         controlar={(info, modo) => { setCartao(null); setEscrevendo(false); estado.current.iniciarControle?.(info, modo) }} />}
       {acoes && <RascunhoEscrita mapa={mapa} rascunho={rascunhoEsc} setRascunho={setRascunhoEsc} acoes={acoes} ocupado={ocupado} executar={executar} />}
       <BarraControle controle={controle} nome={controle?.info?.tipo === 'pessoa' ? ((mapa.pessoas || []).find((p) => p.id === controle.info.id)?.nome || 'Pessoa') : 'Pessoa sem cadastro'}
-        mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} sentar={() => estado.current.sentar?.()} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />
+        mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} sentar={() => estado.current.sentar?.()}
+        elevador={() => estado.current.irElevador?.()} andar={Number.isFinite(+mapa.andar) ? +mapa.andar : 9} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />
       {extra}
       <p className={`pointer-events-none absolute bottom-3 left-4 text-[11px] text-muted-foreground ${compacto || controle ? 'hidden' : ''}`}>{comPredio && !aberto ? 'Clique no prédio para abrir o andar do escritório' : 'Arraste para girar · role para aproximar · clique numa sala ou num ar para ir até ele'}</p>
     </div>
