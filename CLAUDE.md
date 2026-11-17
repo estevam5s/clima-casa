@@ -41,7 +41,7 @@ caminhos de serviço e o projeto da Vercel).
 | Cidade viva (pedestres, animais, semáforos, TICEN), monitores e sentar/trabalhar | `components/vida3d.js`, `predio3d.js` (semáforo, carros), `cidade3d.js`, `telas3d.js`, `Mapa3D.jsx` (`E.sentar`, `E.telas`) |
 | Gerar botões Gree / copiar botões de outro ar | `backend/app/gree.py`, `rotas/api.py` (`/aparelhos/{id}/gree`, `/copiar-botoes`), `pages/Aparelho.jsx` (`AtalhosBotoes`), `scripts/gree_gerar.py` |
 | "O que há de novo" (versões) | `backend/app/novidades.json`, `rotas/api.py` (`/novidades`), `components/Novidades.jsx`, `pages/Novidades.jsx` |
-| Painel abre em qual ar / aviso "sem transmissor" | `pages/Painel.jsx` (`Destaque`), `components/ArCartao.jsx` |
+| Painel abre em qual ar / aviso "sem transmissor" / ares da sala lado a lado | `pages/Painel.jsx` (`Destaque`, `ControleAr`, `AresDaSala`: projeto com 2+ ares; `atualizar` aplica `juntos`), `components/ArCartao.jsx` |
 | Gravação de botões IR | `transmissor.py` (`aprender`), tela `pages/Aparelho.jsx` |
 | Quem é o computador principal do agente | `backend/app/coordenador.py`, tela Infra → Agentes |
 | Alexa/Google (Sinric) | `backend/app/sinric.py`, tela `pages/Integracoes.jsx` |
@@ -796,7 +796,7 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 ## 14. Estado atual e pendências (16/11/2026, noite)
 
 - **Ares cadastrados (17/11)**: no transmissor "Smart IR · Escritório", 6 Gree iguais com 301 botões cada (copiados do Ar do escritório):
-  #1 Ar do escritório, #7 Ar dos analistas, #8 Ar do diretor, #9 Ar da bancada 1, #10 Ar da bancada 2, #11 Ar do Deison → **zona
+  #1 Ar do escritório, #7 Ar dos analistas, #8 Ar do diretor, #9 Ar servidor, #10 Ar Guilherme (os dois da Sala Bancada), #11 Ar do Deison → **zona
   automática** "Zona Smart IR · Escritório" (um sinal muda os 6). **Os 6 estão na Alexa** (decisão do dono, 17/11: um dispositivo por ar),
   cada um numa **sala do Sinric com o nome do projeto** (`sinric._sala_do_projeto`, cria a sala com o `homeId` da casa padrão; renomear
   ou mudar o projeto move a sala). O diagnóstico avisa "6 ares da zona na Alexa": é esperado; falar com um muda os 6 de verdade e o

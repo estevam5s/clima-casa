@@ -2,6 +2,22 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.5.3",
+      "data": "2026-11-17",
+      "titulo": "Painel mostra todos os ares da sala",
+      "resumo": "Com uma sala escolhida que tem mais de um ar, o painel mostra todos lado a lado, cada um com o 3D e os próprios controles.",
+      "novo": [
+        "Painel: ares da mesma sala lado a lado (ex.: Sala Bancada com o Ar servidor e o Ar Guilherme), cada um com temperatura, modos e ligar/desligar",
+        "Com “Todos os projetos”, o destaque tem o atalho “Ver os ares da sala lado a lado”"
+      ],
+      "melhorias": [
+        "Quando um comando muda também os ares que obedecem juntos ao mesmo transmissor, todos os cartões mudam na tela, com a animação",
+        "Ares da Sala Bancada renomeados: Ar servidor e Ar Guilherme (também na Alexa)"
+      ],
+      "seguranca": [],
+      "correcoes": []
+    },
+    {
       "versao": "1.5.2",
       "data": "2026-11-17",
       "titulo": "Alexa por sala e troca de conta guiada",

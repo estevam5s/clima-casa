@@ -77,83 +77,134 @@ function QuandoVisivel({ children, fallback }) {
   return <div ref={ref} className="h-full">{ver ? children : fallback}</div>
 }
 
-function Destaque({ aparelhos, aoMudar, aparencia = {} }) {
+// Temperatura de fora (Open-Meteo) do lugar do projeto, atualizada a cada 5 min
+function useFora(projetoId) {
+  const [fora, setFora] = useState(null)
+  useEffect(() => {
+    const buscar = () => api.get(`/api/clima-externo${projetoId ? `?projeto_id=${projetoId}` : ''}`).then(setFora).catch(() => {})
+    buscar()
+    const t = setInterval(buscar, 5 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [projetoId])
+  return fora
+}
+
+// Um ar: 3D animado (ar saindo, cor do modo) + mostrador, modos e ligar/desligar. "compacto" = 3D em cima e controles
+// embaixo (vários ares lado a lado); senão, 3D à esquerda e controles à direita.
+function ControleAr({ ar, aoMudar, aparencia = {}, fora, compacto = false, cabecalho = null, extra = null }) {
   const { escuro } = useTema()
-  // abre num ar que dá para comandar (com transmissor): ligado primeiro. Um ar recém-cadastrado sem transmissor
-  // não pode virar o padrão (deixava os botões desativados sem aviso).
-  const padrao = () => (aparelhos.find((a) => a.ligado && a.hub_id) || aparelhos.find((a) => a.hub_id) || aparelhos[0])?.id
-  const [id, setId] = useState(padrao)
   const [ocupado, setOcupado] = useState(false)
   const toast = useToast()
-  const ar = aparelhos.find((a) => a.id === id) || aparelhos[0]
-  const [fora, setFora] = useState(null)
-  useEffect(() => { if (!aparelhos.some((a) => a.id === id)) setId(padrao()) }, [aparelhos, id]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!ar) return undefined
-    const buscar = () => api.get(`/api/clima-externo${ar.projeto_id ? `?projeto_id=${ar.projeto_id}` : ''}`).then(setFora).catch(() => {})
-    buscar()
-    const t = setInterval(buscar, 5 * 60 * 1000) // a temperatura de fora atualiza a cada 5 min
-    return () => clearInterval(t)
-  }, [ar?.projeto_id])
-  if (!ar) return null
   const mudar = async (e) => {
     setOcupado(true)
     try { aoMudar(await api.post(`/api/aparelhos/${ar.id}/estado`, e)) } catch (err) { toast(err.message, 'erro') } finally { setOcupado(false) }
   }
   const corTemp = !ar.ligado ? 'text-muted-foreground/50' : ar.modo === 'quente' ? 'text-quente' : 'text-frio dark:text-sky-400'
   return (
-    <motion.div custom={4} variants={entrar} initial="hidden" animate="show" className="cartao overflow-hidden lg:col-span-2">
-      <div className="grid md:grid-cols-[1.25fr_1fr]">
-        <div className="relative h-64 border-b border-border md:h-auto md:min-h-[320px] md:border-b-0 md:border-r">
-          <Suspense fallback={<div className="h-full animate-pulse bg-muted" />}>
-            <Cena3D key={escuro ? 'escuro' : 'claro'} estado={{ ...ar, cor: aparencia[ar.id]?.cor || '', externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
-          </Suspense>
-          <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs backdrop-blur">
-            <Ponto ativo={ar.ligado} /> {ar.ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador].toLowerCase()}` : 'Desligado'}
-          </div>
-          {fora?.disponivel && (
-            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} title={`Fonte: ${fora.fonte} · atualizado ${fora.atualizado?.slice(11, 16) || ''}`}
-              className="pointer-events-none absolute bottom-4 left-4 rounded-xl border border-border bg-card/80 px-3 py-2 text-xs backdrop-blur">
-              <p className="text-muted-foreground">Lá fora{fora.cidade ? ` · ${fora.cidade}` : ''}</p>
-              <p className="mt-0.5 flex items-baseline gap-2"><span className="text-lg font-semibold tabular">{Math.round(fora.temperatura)}°</span>
-                <span className="text-muted-foreground">sensação {Math.round(fora.sensacao)}° · {fora.umidade}% · {fora.condicao}</span></p>
-              {!!ar.ligado && <p className="mt-0.5 text-muted-foreground">Diferença para o ajuste: <span className="tabular text-foreground">{Math.round(fora.temperatura - ar.temperatura)}°</span></p>}
-            </motion.div>
-          )}
+    <div className={compacto ? 'flex h-full flex-col' : 'grid md:grid-cols-[1.25fr_1fr]'}>
+      <div className={`relative border-b border-border ${compacto ? 'h-56' : 'h-64 md:h-auto md:min-h-[320px] md:border-b-0 md:border-r'}`}>
+        <Suspense fallback={<div className="h-full animate-pulse bg-muted" />}>
+          <Cena3D key={escuro ? 'escuro' : 'claro'} estado={{ ...ar, cor: aparencia[ar.id]?.cor || '', externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
+        </Suspense>
+        <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs backdrop-blur">
+          <Ponto ativo={ar.ligado} /> {ar.ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador].toLowerCase()}` : 'Desligado'}
         </div>
-        <div className="flex flex-col p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <select value={ar.id} onChange={(e) => setId(Number(e.target.value))} aria-label="Escolher aparelho"
-                className="-ml-1 w-full truncate rounded-md bg-transparent px-1 text-base font-semibold hover:bg-muted">
-                {aparelhos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-              </select>
-              <p className="truncate text-xs text-muted-foreground">{[ar.projeto_nome, ar.comodo].filter(Boolean).join(' · ') || 'Sem cômodo'}</p>
-            </div>
-            <Link to={`/aparelhos/${ar.id}`} className="text-xs text-muted-foreground hover:text-foreground">Detalhes</Link>
-          </div>
-          <div className="my-6 flex items-center justify-center gap-5">
-            <button onClick={() => mudar({ ligado: true, temperatura: ar.temperatura - 1 })} disabled={ocupado || ar.temperatura <= ar.temp_min || !ar.hub_id}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-border hover:bg-muted disabled:opacity-30" aria-label="Diminuir"><Minus className="h-4 w-4" /></button>
-            <motion.p key={`${ar.temperatura}-${ar.ligado}`} initial={{ scale: 0.92, opacity: 0.4 }} animate={{ scale: 1, opacity: 1 }}
-              className={`text-6xl font-semibold tracking-tight tabular ${corTemp}`}>{ar.temperatura}<span className="align-top text-2xl">°</span></motion.p>
-            <button onClick={() => mudar({ ligado: true, temperatura: ar.temperatura + 1 })} disabled={ocupado || ar.temperatura >= ar.temp_max || !ar.hub_id}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-border hover:bg-muted disabled:opacity-30" aria-label="Aumentar"><Plus className="h-4 w-4" /></button>
-          </div>
-          <div className="mb-4 flex flex-wrap gap-1.5">
-            {ar.modos.split(',').map((m) => (
-              <button key={m} disabled={ocupado || !ar.hub_id} onClick={() => mudar({ ligado: true, modo: m })}
-                className={`rounded-md border px-2.5 py-1 text-xs transition-colors disabled:opacity-40 ${ar.ligado && ar.modo === m ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'}`}>{MODOS[m]}</button>
-            ))}
-          </div>
-          {ar.zona && <p className="mt-3 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">Este ar está na <b>{ar.zona.nome}</b>: o transmissor manda o mesmo sinal para {ar.zona.outros.join(', ')}. O comando muda os {ar.zona.total} ares juntos.</p>}
-          {!ar.hub_id && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Este ar ainda não tem transmissor: os comandos não têm por onde sair. Vincule um em <Link to={`/aparelhos/${ar.id}`} className="underline">Detalhes</Link> ou escolha outro ar na lista acima.</p>}
-          <Botao className="mt-auto w-full" variante={ar.ligado ? 'secundario' : 'primario'} icone={Power} carregando={ocupado} disabled={!ar.hub_id}
-            onClick={() => mudar({ ligado: !ar.ligado })}>{ar.ligado ? 'Desligar' : 'Ligar'}</Botao>
-          {!ar.total_codigos && <p className="ajuda mt-2 text-center">Grave os botões do controle original na tela do aparelho.</p>}
-        </div>
+        {fora?.disponivel && !compacto && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} title={`Fonte: ${fora.fonte} · atualizado ${fora.atualizado?.slice(11, 16) || ''}`}
+            className="pointer-events-none absolute bottom-4 left-4 rounded-xl border border-border bg-card/80 px-3 py-2 text-xs backdrop-blur">
+            <p className="text-muted-foreground">Lá fora{fora.cidade ? ` · ${fora.cidade}` : ''}</p>
+            <p className="mt-0.5 flex items-baseline gap-2"><span className="text-lg font-semibold tabular">{Math.round(fora.temperatura)}°</span>
+              <span className="text-muted-foreground">sensação {Math.round(fora.sensacao)}° · {fora.umidade}% · {fora.condicao}</span></p>
+            {!!ar.ligado && <p className="mt-0.5 text-muted-foreground">Diferença para o ajuste: <span className="tabular text-foreground">{Math.round(fora.temperatura - ar.temperatura)}°</span></p>}
+          </motion.div>
+        )}
       </div>
+      <div className={`flex flex-1 flex-col ${compacto ? 'p-4' : 'p-5'}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {cabecalho || <p className="truncate text-base font-semibold">{ar.nome}</p>}
+            <p className="truncate text-xs text-muted-foreground">{[ar.projeto_nome, ar.comodo && ar.comodo !== ar.projeto_nome ? ar.comodo : ''].filter(Boolean).join(' · ') || 'Sem cômodo'}</p>
+          </div>
+          <Link to={`/aparelhos/${ar.id}`} className="text-xs text-muted-foreground hover:text-foreground">Detalhes</Link>
+        </div>
+        <div className={`flex items-center justify-center gap-5 ${compacto ? 'my-4' : 'my-6'}`}>
+          <button onClick={() => mudar({ ligado: true, temperatura: ar.temperatura - 1 })} disabled={ocupado || ar.temperatura <= ar.temp_min || !ar.hub_id}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border hover:bg-muted disabled:opacity-30" aria-label={`Diminuir a temperatura do ${ar.nome}`}><Minus className="h-4 w-4" /></button>
+          <motion.p key={`${ar.temperatura}-${ar.ligado}`} initial={{ scale: 0.92, opacity: 0.4 }} animate={{ scale: 1, opacity: 1 }}
+            className={`${compacto ? 'text-5xl' : 'text-6xl'} font-semibold tracking-tight tabular ${corTemp}`}>{ar.temperatura}<span className="align-top text-2xl">°</span></motion.p>
+          <button onClick={() => mudar({ ligado: true, temperatura: ar.temperatura + 1 })} disabled={ocupado || ar.temperatura >= ar.temp_max || !ar.hub_id}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border hover:bg-muted disabled:opacity-30" aria-label={`Aumentar a temperatura do ${ar.nome}`}><Plus className="h-4 w-4" /></button>
+        </div>
+        <div className="mb-4 flex flex-wrap justify-center gap-1.5">
+          {ar.modos.split(',').map((m) => (
+            <button key={m} disabled={ocupado || !ar.hub_id} onClick={() => mudar({ ligado: true, modo: m })}
+              className={`rounded-md border px-2.5 py-1 text-xs transition-colors disabled:opacity-40 ${ar.ligado && ar.modo === m ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'}`}>{MODOS[m]}</button>
+          ))}
+        </div>
+        {extra}
+        {ar.zona && <p className="mb-3 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">Na <b>{ar.zona.nome}</b>: o transmissor manda o mesmo sinal para {ar.zona.outros.join(', ')}. O comando muda os {ar.zona.total} ares juntos.</p>}
+        {!ar.hub_id && <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Este ar ainda não tem transmissor: os comandos não têm por onde sair. Vincule um em <Link to={`/aparelhos/${ar.id}`} className="underline">Detalhes</Link>.</p>}
+        <Botao className="mt-auto w-full" variante={ar.ligado ? 'secundario' : 'primario'} icone={Power} carregando={ocupado} disabled={!ar.hub_id}
+          onClick={() => mudar({ ligado: !ar.ligado })}>{ar.ligado ? `Desligar` : `Ligar`}</Botao>
+        {!ar.total_codigos && <p className="ajuda mt-2 text-center">Grave os botões do controle original na tela do aparelho.</p>}
+      </div>
+    </div>
+  )
+}
+
+function Destaque({ aparelhos, aoMudar, aparencia = {}, verSala }) {
+  // abre num ar que dá para comandar (com transmissor): ligado primeiro. Um ar recém-cadastrado sem transmissor
+  // não pode virar o padrão (deixava os botões desativados sem aviso).
+  const padrao = () => (aparelhos.find((a) => a.ligado && a.hub_id) || aparelhos.find((a) => a.hub_id) || aparelhos[0])?.id
+  const [id, setId] = useState(padrao)
+  const ar = aparelhos.find((a) => a.id === id) || aparelhos[0]
+  const fora = useFora(ar?.projeto_id)
+  useEffect(() => { if (!aparelhos.some((a) => a.id === id)) setId(padrao()) }, [aparelhos, id]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!ar) return null
+  const daSala = aparelhos.filter((a) => a.projeto_id && a.projeto_id === ar.projeto_id)
+  return (
+    <motion.div custom={4} variants={entrar} initial="hidden" animate="show" className="cartao overflow-hidden lg:col-span-2">
+      <ControleAr ar={ar} aoMudar={aoMudar} aparencia={aparencia} fora={fora}
+        cabecalho={
+          <select value={ar.id} onChange={(e) => setId(Number(e.target.value))} aria-label="Escolher aparelho"
+            className="-ml-1 w-full truncate rounded-md bg-transparent px-1 text-base font-semibold hover:bg-muted">
+            {aparelhos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+          </select>
+        }
+        extra={daSala.length > 1 && verSala ? (
+          <button onClick={() => verSala(ar.projeto_id)} className="mb-3 inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+            Ver os {daSala.length} ares de {ar.projeto_nome} lado a lado<ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        ) : null} />
     </motion.div>
+  )
+}
+
+// Vários ares de uma sala (projeto) lado a lado, cada um com o próprio 3D e os próprios controles. Quando um comando
+// muda os ares que respondem juntos (mesmo transmissor e modelo), todos os cartões mudam juntos, com a animação.
+function AresDaSala({ ares, aoMudar, aparencia = {}, titulo, fechar }) {
+  const fora = useFora(ares[0]?.projeto_id)
+  const ligados = ares.filter((a) => a.ligado).length
+  return (
+    <motion.section custom={4} variants={entrar} initial="hidden" animate="show" className="lg:col-span-3" aria-label={`Ares de ${titulo}`}>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold">{titulo}: {ares.length} ares</h2>
+          <p className="text-xs text-muted-foreground">
+            {ligados} ligado{ligados === 1 ? '' : 's'}
+            {fora?.disponivel ? ` · lá fora ${Math.round(fora.temperatura)}° (${fora.condicao})` : ''}
+          </p>
+        </div>
+        {fechar && <button onClick={fechar} className="text-xs text-muted-foreground hover:text-foreground">Ver um por vez</button>}
+      </div>
+      <div className={`grid grid-cols-1 gap-4 ${ares.length >= 3 ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-2'}`}>
+        {ares.map((ar, i) => (
+          <motion.div key={ar.id} className="cartao overflow-hidden" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 * i, duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}>
+            <ControleAr ar={ar} aoMudar={aoMudar} aparencia={aparencia} fora={fora} compacto />
+          </motion.div>
+        ))}
+      </div>
+    </motion.section>
   )
 }
 
@@ -165,6 +216,8 @@ export default function Painel() {
   const [analise, setAnalise] = useState(null)
   const [planta, setPlanta] = useState(null)
   const [erro, setErro] = useState('')
+  const [salaLado, setSalaLado] = useState(null)   // projeto cujos ares aparecem lado a lado (pedido no destaque)
+  useEffect(() => { setSalaLado(null) }, [filtro])
 
   useEffect(() => {
     setDados(null)
@@ -182,8 +235,11 @@ export default function Painel() {
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const { totais, aparelhos, atividade } = dados
+  // o ar comandado e os que responderam junto (mesmo transmissor e modelo) mudam na tela, cada um com a animação dele
   const atualizar = (novo) => setDados((d) => {
-    const lista = d.aparelhos.map((a) => (a.id === novo.id ? { ...a, ...novo } : a))
+    const estado = { ligado: novo.ligado, modo: novo.modo, temperatura: novo.temperatura, ventilador: novo.ventilador, ligado_desde: novo.ligado_desde }
+    const juntos = new Set(novo.juntos || [])
+    const lista = d.aparelhos.map((a) => (a.id === novo.id ? { ...a, ...novo } : juntos.has(a.id) ? { ...a, ...estado } : a))
     return { ...d, aparelhos: lista, totais: { ...d.totais, ligados: lista.filter((a) => a.ligado).length } }
   })
   const serie = metricas.map((m) => ({ dia: m.dia.slice(8, 10) + '/' + m.dia.slice(5, 7), comandos: m.comandos, falhas: m.falhas }))
@@ -243,7 +299,14 @@ export default function Painel() {
       </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {aparelhos.length > 0 ? <Destaque aparelhos={aparelhos} aoMudar={atualizar} aparencia={planta?.mapa?.ares || {}} /> : (
+        {(() => {
+          // projeto escolhido com 2 ou mais ares (ou "ver lado a lado" no destaque): todos os ares da sala juntos
+          const pid = salaLado || (projeto && aparelhos.filter((a) => a.projeto_id === projeto.id).length > 1 ? projeto.id : null)
+          const daSala = pid ? aparelhos.filter((a) => a.projeto_id === pid) : []
+          if (daSala.length > 1) return <AresDaSala ares={daSala} aoMudar={atualizar} aparencia={planta?.mapa?.ares || {}} titulo={daSala[0].projeto_nome || 'Sala'} fechar={salaLado ? () => setSalaLado(null) : null} />
+          return null
+        })()}
+        {aparelhos.length > 0 && !(salaLado || (projeto && aparelhos.filter((a) => a.projeto_id === projeto.id).length > 1)) ? <Destaque aparelhos={aparelhos} aoMudar={atualizar} aparencia={planta?.mapa?.ares || {}} verSala={setSalaLado} /> : aparelhos.length > 0 ? null : (
           <div className="cartao flex flex-col items-center justify-center p-10 text-center lg:col-span-2">
             <AirVent className="mb-3 h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
             <p className="font-medium">Nenhum aparelho neste projeto</p>
