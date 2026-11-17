@@ -1872,6 +1872,8 @@ def sinric_diagnostico():
     Sinric, aparelhos existentes no Sinric, limite do plano, nomes que a Alexa entende e botões IR gravados."""
     from .. import sinric
     c = sinric.config()
+    # aparelhos que a conta do Sinric comporta: 3 no grátis; depois de comprar, ajuste config.sinric.limite_aparelhos
+    limite = int(c.get("limite_aparelhos") or 3)
     st = db.cfg("sinric_status") or {}
     ap = db.consultar("""SELECT a.id, a.nome, a.sinric_device_id, a.alexa,
                          (SELECT COUNT(*) FROM codigos k WHERE k.aparelho_id = a.id) AS botoes FROM aparelhos a ORDER BY a.nome""")
@@ -1905,8 +1907,8 @@ def sinric_diagnostico():
          (f"{len(vinc)} de {len(ap)} aparelho(s) vinculado(s)." + (f" Não existem mais no Sinric: {', '.join(sumidos)}." if sumidos else ""))
          if vinc else "Nenhum aparelho vinculado: a Alexa não vai encontrar nada.")
     if remotos:
-        item("plano", "Limite do plano gratuito (3)", "ok" if len(remotos) <= 3 else "aviso",
-             f"{len(remotos)} dispositivo(s) no Sinric." + (" Acima de 3 só no plano pago." if len(remotos) > 3 else ""))
+        item("plano", f"Limite do plano do Sinric ({limite})", "ok" if len(remotos) <= limite else "aviso",
+             f"{len(remotos)} de {limite} dispositivo(s) no Sinric." + (f" Acima de {limite}: comprar mais aparelhos no portal e ajustar o limite." if len(remotos) > limite else ""))
     nomes = [a["nome"].strip().lower() for a in vinc]
     repetidos = sorted({n for n in nomes if nomes.count(n) > 1})
     curtos = [a["nome"] for a in vinc if len(a["nome"].strip()) < 3]
@@ -1931,9 +1933,9 @@ def sinric_diagnostico():
     em_zona = {i for z in zs for i in z["aparelhos"]}
     soltos = [a for a in ap if a["id"] not in em_zona and a["botoes"]]
     precisa = len(zs) + len(soltos)
-    item("capacidade", "Cabe no plano gratuito do Sinric (3)?", "ok" if precisa <= 3 else "aviso",
+    item("capacidade", f"Cabe no plano do Sinric ({limite} aparelhos)?", "ok" if precisa <= limite else "aviso",
          f"Precisa de {precisa} aparelho(s) no Sinric: {len(zs)} zona(s) + {len(soltos)} ar(es) independente(s) com botões."
-         + ("" if precisa <= 3 else " Acima de 3: plano pago do Sinric ou juntar ares em zonas."))
+         + ("" if precisa <= limite else f" Acima de {limite}: comprar mais aparelhos no Sinric ou juntar ares em zonas."))
     lider = (db.cfg("agente_lider") or {}).get("id")
     maq = db.cfg(f"agente_maquina:{lider}") if lider else None
     if maq and maq.get("total_transmissores"):
