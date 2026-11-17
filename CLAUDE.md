@@ -574,6 +574,10 @@ condições se resolvem sozinhas; eventos via `notificacoes.notificar()` (que ta
 Turnstile no login, esqueci a senha e formulários do site. Portão "Executando verificação de segurança": cookie `zv` (12 h,
 `.zynio.com.br`, `SameSite=Lax`) — `middleware.js` (sistema, código inline) e `site/proxy.js`. Passam direto: `/api`, `/alexa`,
 `/oauth`, estáticos e robôs de busca/prévia. O portão preserva a query (`?code=` do Spotify chega intacto).
+**Verificação alternativa** (`verificacao.js`, igual em `frontend/public` e `site/public`): se o Turnstile não resolver em 7 s, der
+erro ou nem carregar, o navegador resolve uma prova de trabalho (`GET /api/verificacao/desafio`: SHA-256 com 16 bits zero, HMAC com
+`VERIFICACAO_SEGREDO`, 5 min) e manda `{prova}` no mesmo `POST /api/verificacao` (FastAPI `_prova_ok`; site `app/api/verificacao/pow.js`).
+O login continua com Turnstile + firewall. Mudou o script? Suba o `?v=` em `middleware.js` e `site/lib/portao.mjs`.
 
 ### 8.6 Site institucional (`site/`)
 Next.js 16 + GSAP; conteúdo em `lib/dados.js` só com fatos reais; capturas sem dados pessoais; formulários → `POST /api/site/contato`
@@ -743,6 +747,8 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | Cintilação (listras) no asfalto do cruzamento | planos a 2 mm de distância brigam no depth buffer à distância: afaste ≥ 3 cm |
 | Avatar sentado: trocar câmera volta "Sentar" | `mudarModo` precisa repassar `sentado` ao `setControle` |
 | Dois ares Gree ligam juntos | é físico (zona). Não é bug: ver seção 7.13 |
+| Portão do app volta para si mesmo / "Verificando…" para sempre | (1) `db.carregar_env` só lê do ambiente da Vercel os prefixos `SUPABASE_`, `TUYA_`, `CLIMA_`, `TURNSTILE_`, `VERIFICACAO_`: variável nova com outro prefixo NÃO chega à nuvem (até 17/11 o `VERIFICACAO_SEGREDO` não chegava e o app nunca gravava o passe). (2) Turnstile emperrado (Brave, bloqueadores): a verificação alternativa assume em 7 s |
+| Checagem de segredos "passou" mas o commit seguiu | encadeie com `&&` (`test "$(git diff --cached \| grep -c …)" = 0 && git commit`); `;` ignora o resultado |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
