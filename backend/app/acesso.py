@@ -125,6 +125,7 @@ def carregar(auth_user: dict) -> dict:
     u["id"] = str(u["id"])
     u["permissoes"] = TODAS if u["papel"] in ("dono", "admin") else _json(u["permissoes"], [])
     u["projetos"] = "*" if u["papel"] in ("dono", "admin") else _json(u["projetos"], "*")
+    u["aparelhos"] = "*" if u["papel"] in ("dono", "admin") else _json(u.get("aparelhos"), "*")   # ares sob responsabilidade
     if u["email"] != auth_user.get("email") and auth_user.get("email"):
         db.executar("UPDATE usuarios SET email = ? WHERE id = ?", (auth_user["email"], uid))
         u["email"] = auth_user["email"]
@@ -157,6 +158,30 @@ def projetos_permitidos() -> list[int] | None:
     return [int(p) for p in u["projetos"]]
 
 
+def aparelhos_permitidos() -> set[int] | None:
+    """Ares sob responsabilidade: None = todos os ares dos projetos do usuário; conjunto = só esses ares."""
+    u = atual.get()
+    if not u or u.get("aparelhos", "*") == "*":
+        return None
+    return {int(i) for i in u["aparelhos"]}
+
+
+def filtro_aparelhos(coluna: str = "a.id") -> tuple[str, tuple]:
+    """Trecho " AND coluna IN (...)" para quem cuida só de alguns ares; vazio para os outros."""
+    p = aparelhos_permitidos()
+    if p is None:
+        return "", ()
+    if not p:
+        return " AND false", ()
+    return f" AND {coluna} IN ({','.join('?' * len(p))})", tuple(sorted(p))
+
+
+def checar_aparelho(aid):
+    p = aparelhos_permitidos()
+    if p is not None and (aid is None or int(aid) not in p):
+        raise HTTPException(403, "Este ar não está sob sua responsabilidade.")
+
+
 def checar_projeto(pid):
     p = projetos_permitidos()
     if p is not None and (pid is None or int(pid) not in p):
@@ -183,6 +208,11 @@ _DONO_DO_ID = {
 
 
 def checar_escopo(rota: str, params: dict, query: dict):
+    if "aid" in params and re.search(r"^/api/aparelhos/", rota):   # quem cuida só de alguns ares
+        try:
+            checar_aparelho(int(params["aid"]))
+        except (TypeError, ValueError):
+            pass
     if projetos_permitidos() is None:
         return
     if query.get("projeto_id"):
@@ -197,4 +227,4 @@ def checar_escopo(rota: str, params: dict, query: dict):
 def resumo(u: dict) -> dict:
     return {"id": u["id"], "email": u["email"], "nome": u["nome"], "cargo": u["cargo"], "papel": u["papel"],
             "papel_rotulo": PAPEIS.get(u["papel"], {}).get("rotulo", u["papel"]), "permissoes": u["permissoes"],
-            "projetos": u["projetos"], "exige_troca_senha": u["exige_troca_senha"]}
+            "projetos": u["projetos"], "aparelhos": u.get("aparelhos", "*"), "exige_troca_senha": u["exige_troca_senha"]}

@@ -112,18 +112,25 @@ def _dar_acesso_projeto(pid):
 
 
 def _escopo(coluna):
+    """Filtro de escopo. Em "a.projeto_id" (tabela de ares) também limita aos ares de quem cuida só de alguns."""
     from .. import acesso
-    return acesso.filtro_sql(coluna)
+    f, p = acesso.filtro_sql(coluna)
+    if coluna == "a.projeto_id":
+        fa, pa = acesso.filtro_aparelhos("a.id")
+        f, p = f + fa, tuple(p) + pa
+    return f, p
 
 
 def _filtro_projeto(projeto_id, alias="a"):
     """Filtro por projeto; sem projeto escolhido, limita aos projetos que o usuário pode ver."""
     from .. import acesso
+    # na tabela de ares (alias "a"), quem cuida só de alguns ares vê só esses
+    fa, pa = acesso.filtro_aparelhos(f"{alias}.id") if alias == "a" else ("", ())
     if projeto_id:
         acesso.checar_projeto(projeto_id) if acesso.projetos_permitidos() is not None else None
-        return (f" WHERE {alias}.projeto_id = ?", (projeto_id,))
+        return (f" WHERE {alias}.projeto_id = ?{fa}", (projeto_id,) + pa)
     f, pp = acesso.filtro_sql(f"{alias}.projeto_id")
-    return (f" WHERE true{f}", pp) if f else ("", ())
+    return (f" WHERE true{f}{fa}", pp + pa) if (f or fa) else ("", ())
 
 
 def _filtro_hubs(projeto_id=None, alias="h"):
@@ -368,7 +375,10 @@ def ver_aparelho(aid: int):
     for c in cods:
         c["descricao"] = c["rotulo"] or clima.rotulo_chave(c["chave"])
     hub = db.um("SELECT id, nome, online, ip, control_type FROM hubs WHERE id = ?", (a["hub_id"],)) if a["hub_id"] else None
-    return {**a, "codigos": cods, "hub": hub, "atividade": _atividade(15, aid)}
+    # quem cuida deste ar (contas com "só estes ares" que incluem ele)
+    resp = [r["nome"] or r["email"] for r in db.consultar(
+        "SELECT nome, email FROM usuarios WHERE ativo AND jsonb_typeof(aparelhos) = 'array' AND aparelhos @> CAST(? AS jsonb) ORDER BY nome", (json.dumps([aid]),))]
+    return {**a, "codigos": cods, "hub": hub, "atividade": _atividade(15, aid), "responsaveis": resp}
 
 
 @api.put("/aparelhos/{aid}")
@@ -1530,6 +1540,8 @@ def ver_mapa(request: Request):
     fp, pp = acesso.filtro_sql("p.id")
     projetos = db.consultar(f"SELECT p.id, p.nome, p.cor, p.descricao FROM projetos p WHERE true{fp} ORDER BY p.nome", pp)
     fa, pa = acesso.filtro_sql("a.projeto_id")
+    fx, px = acesso.filtro_aparelhos("a.id")
+    fa, pa = fa + fx, pa + px
     ares = db.consultar(f"""
         SELECT a.id, a.nome, a.comodo, a.marca, a.projeto_id, a.hub_id, a.ligado, a.modo, a.temperatura, a.ventilador,
                a.temp_min, a.temp_max, a.modos, a.potencia_w, a.ligado_desde, a.atualizado_em,
@@ -2225,11 +2237,14 @@ def _validar_auto(d: AutomacaoIn):
 
 
 def _ids_aparelhos_permitidos():
+    """Ares que o usuário vê e comanda: os dos projetos dele e, se ele cuida só de alguns ares, só esses (None = todos)."""
     from .. import acesso
-    if acesso.projetos_permitidos() is None:
+    so_estes = acesso.aparelhos_permitidos()
+    if acesso.projetos_permitidos() is None and so_estes is None:
         return None
     f, pp = acesso.filtro_sql("projeto_id")
-    return {a["id"] for a in db.consultar(f"SELECT id FROM aparelhos WHERE true{f}", pp)}
+    fa, pa = acesso.filtro_aparelhos("id")
+    return {a["id"] for a in db.consultar(f"SELECT id FROM aparelhos WHERE true{f}{fa}", pp + pa)}
 
 
 def _aparelhos_da_automacao(a) -> set:
@@ -2465,6 +2480,8 @@ def listar_notificacoes(filtro: str = "todas"):
                          "seguranca": sum(1 for n in r["itens"] if n["tipo"] == "seguranca")}
         r["total"] = nao_lidas
     fa, pa = _escopo("projeto_id")
+    fx, px = acesso.filtro_aparelhos("id")
+    fa, pa = fa + fx, tuple(pa) + px
     ligados = db.um(f"SELECT count(*) FILTER (WHERE ligado = 1) AS ligados, count(*) AS total FROM aparelhos WHERE true{fa}", pa)
     wh, ph = _filtro_hubs(None, "hubs")
     hubs = db.um(f"SELECT count(*) FILTER (WHERE online = 1) AS online, count(*) AS total FROM hubs{wh}", ph)

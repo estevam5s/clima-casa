@@ -76,6 +76,9 @@ def _pode_mexer_em(ator: dict, alvo: dict) -> bool:
     pa = acesso._json(alvo.get("projetos"), "*")
     if ator["projetos"] != "*" and (pa == "*" or not set(pa) <= set(ator["projetos"])):
         return False
+    aa = acesso._json(alvo.get("aparelhos"), "*")
+    if ator.get("aparelhos", "*") != "*" and (aa == "*" or not set(aa) <= set(ator["aparelhos"])):
+        return False
     return True
 
 
@@ -95,6 +98,27 @@ def _validar_permissoes(ator: dict, perms: list[str]) -> list[str]:
     if sobrando:
         raise HTTPException(403, "Você não pode dar permissões que você mesmo não tem.")
     return perms
+
+
+def _resolver_aparelhos(ator: dict, modo: str, ids: list[int], projetos):
+    """Ares sob responsabilidade: "todos" (os ares dos projetos da pessoa) ou "escolher" (só estes ares). Com ares escolhidos,
+    os projetos da pessoa passam a ser os desses ares (ela vê só as salas deles). Ninguém dá um ar que não vê."""
+    if modo != "escolher":
+        if ator.get("aparelhos", "*") != "*":
+            raise HTTPException(403, "Você só pode dar acesso aos ares sob sua responsabilidade.")
+        return "*", projetos
+    ids = sorted({int(i) for i in ids})
+    if not ids:
+        raise HTTPException(400, "Escolha ao menos um ar, ou marque todos os ares.")
+    linhas = db.consultar(f"SELECT id, projeto_id FROM aparelhos WHERE id IN ({','.join('?' * len(ids))})", ids)
+    if len(linhas) != len(ids):
+        raise HTTPException(400, "Algum ar escolhido não existe mais.")
+    if ator.get("aparelhos", "*") != "*" and not set(ids) <= set(ator["aparelhos"]):
+        raise HTTPException(403, "Você só pode dar acesso aos ares sob sua responsabilidade.")
+    pids = sorted({l["projeto_id"] for l in linhas if l["projeto_id"]})
+    if ator["projetos"] != "*" and not set(pids) <= set(ator["projetos"]):
+        raise HTTPException(403, "Algum ar escolhido é de um projeto que você não vê.")
+    return ids, pids
 
 
 def _resolver_projetos(ator: dict, modo: str, ids: list[int], nome_novo: str):
@@ -124,6 +148,7 @@ def _publico(u: dict, auth: dict | None = None, passkeys: int = 0) -> dict:
     return {**{k: u.get(k) for k in ("id", "email", "nome", "cargo", "papel", "ativo", "exige_troca_senha", "criado_em", "ultimo_acesso", "avatar")},
             "permissoes": acesso.TODAS if u["papel"] in ("dono", "admin") else acesso._json(u["permissoes"], []),
             "projetos": "*" if u["papel"] in ("dono", "admin") else acesso._json(u["projetos"], "*"),
+            "aparelhos": "*" if u["papel"] in ("dono", "admin") else acesso._json(u.get("aparelhos"), "*"),
             "papel_rotulo": acesso.PAPEIS.get(u["papel"], {}).get("rotulo", u["papel"]),
             "totp": bool(auth and tem_totp(auth)), "ultimo_login": (auth or {}).get("last_sign_in_at"),
             "email_confirmado": bool((auth or {}).get("email_confirmed_at")), "passkeys": passkeys,
@@ -154,7 +179,10 @@ def listar_usuarios(request: Request):
     return {"itens": itens, "papeis": [{"id": k, **v} for k, v in acesso.PAPEIS.items()],
             "permissoes": [{"id": k, "grupo": g, "descricao": d} for k, (g, d) in acesso.PERMISSOES.items()],
             "projetos": db.consultar("SELECT id, nome FROM projetos ORDER BY nome"),
-            "eu": {"id": ator["id"], "papel": ator["papel"], "permissoes": ator["permissoes"], "projetos": ator["projetos"]},
+            "ares": [r for r in db.consultar("SELECT a.id, a.nome, a.projeto_id, p.nome AS projeto_nome FROM aparelhos a LEFT JOIN projetos p ON p.id = a.projeto_id ORDER BY p.nome, a.nome")
+                     if (ator.get("aparelhos", "*") == "*" or r["id"] in ator["aparelhos"])
+                     and (ator["projetos"] == "*" or r["projeto_id"] in ator["projetos"])],
+            "eu": {"id": ator["id"], "papel": ator["papel"], "permissoes": ator["permissoes"], "projetos": ator["projetos"], "aparelhos": ator.get("aparelhos", "*")},
             "papeis_permitidos": [k for k in acesso.PAPEIS if _pode_atribuir_papel(ator, k)]}
 
 
@@ -167,6 +195,8 @@ class UsuarioIn(BaseModel):
     acesso: str = Field("escolher", pattern="^(todos|escolher|zero)$")
     projetos: list[int] = Field(default_factory=list, max_length=200)
     projeto_novo: str = Field("", max_length=60)
+    ares_modo: str = Field("todos", pattern="^(todos|escolher)$")   # ares sob responsabilidade
+    ares: list[int] = Field(default_factory=list, max_length=200)
     senha: str | None = Field(None, max_length=200)
     gerar_senha: bool = True
     convite: bool = False
@@ -203,10 +233,16 @@ def criar_usuario(d: UsuarioIn, request: Request):
                                                      "user_metadata": {"nome": d.nome.strip()}, "app_metadata": {"papel": d.papel}})
     uid = auth.get("id") or (auth.get("user") or {}).get("id")
     try:
-        projetos = "*" if d.papel in ("dono", "admin") else _resolver_projetos(ator, d.acesso, d.projetos, d.projeto_novo or f"Projeto de {d.nome.strip()}")
-        db.executar("INSERT INTO usuarios (id, email, nome, cargo, papel, permissoes, projetos, ativo, exige_troca_senha, criado_em, criado_por) "
-                    "VALUES (?,?,?,?,?,CAST(? AS jsonb),CAST(? AS jsonb),true,?,?,?)",
-                    (uid, email, d.nome.strip(), d.cargo.strip(), d.papel, json.dumps(perms), json.dumps(projetos),
+        if d.papel in ("dono", "admin"):
+            projetos, ares = "*", "*"
+        elif d.ares_modo == "escolher":
+            ares, projetos = _resolver_aparelhos(ator, "escolher", d.ares, None)
+        else:
+            projetos = _resolver_projetos(ator, d.acesso, d.projetos, d.projeto_novo or f"Projeto de {d.nome.strip()}")
+            ares, projetos = _resolver_aparelhos(ator, "todos", [], projetos)
+        db.executar("INSERT INTO usuarios (id, email, nome, cargo, papel, permissoes, projetos, aparelhos, ativo, exige_troca_senha, criado_em, criado_por) "
+                    "VALUES (?,?,?,?,?,CAST(? AS jsonb),CAST(? AS jsonb),CAST(? AS jsonb),true,?,?,?)",
+                    (uid, email, d.nome.strip(), d.cargo.strip(), d.papel, json.dumps(perms), json.dumps(projetos), json.dumps(ares),
                      bool(d.exige_troca_senha and not d.convite), db.agora(), ator["id"]))
     except Exception:
         _admin("DELETE", f"/admin/users/{uid}")   # não deixa conta órfã no Supabase
@@ -230,6 +266,8 @@ class UsuarioEdit(BaseModel):
     acesso: str = Field("escolher", pattern="^(todos|escolher|zero)$")
     projetos: list[int] = Field(default_factory=list, max_length=200)
     projeto_novo: str = Field("", max_length=60)
+    ares_modo: str = Field("todos", pattern="^(todos|escolher)$")
+    ares: list[int] = Field(default_factory=list, max_length=200)
     ativo: bool = True
     exige_troca_senha: bool = False
 
@@ -250,13 +288,19 @@ def editar_usuario(uid: str, d: UsuarioEdit, request: Request):
     if d.papel != alvo["papel"] and not _pode_atribuir_papel(ator, d.papel):
         raise HTTPException(403, "Você não pode dar esse papel.")
     if eu or alvo["papel"] == "dono":
-        perms, projetos = alvo["permissoes"], alvo["projetos"]
+        perms, projetos, ares = alvo["permissoes"], alvo["projetos"], acesso._json(alvo.get("aparelhos"), "*")
     else:
         perms = acesso.TODAS if d.papel in ("dono", "admin") else _validar_permissoes(ator, d.permissoes)
-        projetos = "*" if d.papel in ("dono", "admin") else _resolver_projetos(ator, d.acesso, d.projetos, d.projeto_novo or f"Projeto de {d.nome.strip()}")
-    db.executar("UPDATE usuarios SET nome = ?, cargo = ?, papel = ?, permissoes = CAST(? AS jsonb), projetos = CAST(? AS jsonb), ativo = ?, "
+        if d.papel in ("dono", "admin"):
+            projetos, ares = "*", "*"
+        elif d.ares_modo == "escolher":
+            ares, projetos = _resolver_aparelhos(ator, "escolher", d.ares, None)
+        else:
+            projetos = _resolver_projetos(ator, d.acesso, d.projetos, d.projeto_novo or f"Projeto de {d.nome.strip()}")
+            ares, projetos = _resolver_aparelhos(ator, "todos", [], projetos)
+    db.executar("UPDATE usuarios SET nome = ?, cargo = ?, papel = ?, permissoes = CAST(? AS jsonb), projetos = CAST(? AS jsonb), aparelhos = CAST(? AS jsonb), ativo = ?, "
                 "exige_troca_senha = ? WHERE id = ?",
-                (d.nome.strip(), d.cargo.strip(), d.papel, json.dumps(perms), json.dumps(projetos), d.ativo, d.exige_troca_senha, uid))
+                (d.nome.strip(), d.cargo.strip(), d.papel, json.dumps(perms), json.dumps(projetos), json.dumps(ares), d.ativo, d.exige_troca_senha, uid))
     if not d.ativo:
         from .. import seguranca
         seguranca._cache.clear()

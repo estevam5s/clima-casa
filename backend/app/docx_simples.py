@@ -101,7 +101,8 @@ class Documento:
         larg, alt = (A4[1], A4[0]) if deitado else A4
         m = self.margem
         rod = '<w:footerReference w:type="default" r:id="rIdRodape"/>' if self.rodape else ""
-        return (f'<w:sectPr>{rod}<w:pgSz w:w="{larg}" w:h="{alt}"{" w:orient=\"landscape\"" if deitado else ""}/>'
+        orient = ' w:orient="landscape"' if deitado else ""   # fora da f-string: barra dentro da expressão só vale no Python 3.12+
+        return (f'<w:sectPr>{rod}<w:pgSz w:w="{larg}" w:h="{alt}"{orient}/>'
                 f'<w:pgMar w:top="{int(m * 0.9)}" w:right="{m}" w:bottom="{int(m * 0.9)}" w:left="{m}" w:header="500" w:footer="500" w:gutter="0"/></w:sectPr>')
 
     def nova_secao(self, deitado=True):

@@ -2,6 +2,29 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.6.0",
+      "data": "2026-11-17",
+      "titulo": "Responsável por ar, ares do Fabio, dos Devs e da Reunião, e agente no Raspberry Pi",
+      "resumo": "Cada pessoa pode cuidar só dos ares que você escolher. Os ares que faltavam foram cadastrados e o agente agora instala num Raspberry Pi ou Linux com o mesmo código de instalação.",
+      "novo": [
+        "Ao criar ou editar um usuário, escolha \"Só estes ares\": a pessoa vê e comanda só os ares marcados, em qualquer tela (painel, mapa, relatórios, atividade e frases da Alexa)",
+        "A página de cada ar mostra quem é o responsável por ele",
+        "Ar do Fabio e Ar da reunião cadastrados; o Ar dos devs ganhou os botões do controle Gree",
+        "Instalar o agente num Raspberry Pi 3B, 4 ou 5 (sistema de 64 bits) ou num Linux com o mesmo código de uso único, em Infra → Agentes"
+      ],
+      "melhorias": [
+        "A lista de usuários mostra os ares de quem cuida só de alguns",
+        "O instalador tenta de novo sozinho quando a internet do escritório oscila"
+      ],
+      "seguranca": [
+        "Quem cuida só de alguns ares não consegue dar a outra pessoa um ar que não é dele, nem mexer em contas com mais acesso",
+        "O bloqueio por ar vale no servidor, não só na tela"
+      ],
+      "correcoes": [
+        "Exportar em Word não quebra mais em computadores com Python 3.11"
+      ]
+    },
+    {
       "versao": "1.5.4",
       "data": "2026-11-17",
       "titulo": "Procurar na rede de volta, estado pelo controle remoto e zonas por sala",

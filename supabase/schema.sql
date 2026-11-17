@@ -455,3 +455,6 @@ alter table public.usuarios add column if not exists novidades_vista text;
 -- auditoria 17/11: token da Alexa preso a quem aprovou o vínculo (desativou ou rebaixou: a Alexa perde o acesso)
 alter table public.oauth_codigos add column if not exists usuario_id uuid;
 alter table public.oauth_tokens add column if not exists usuario_id uuid;
+
+-- 17/11: ares sob responsabilidade do usuário ("*" = todos os ares dos projetos dele; lista = só esses ares)
+alter table public.usuarios add column if not exists aparelhos jsonb not null default '"*"'::jsonb;

@@ -295,6 +295,7 @@ export default function Aparelho() {
         {ar.ligado ? <Selo cor="verde">Ligado</Selo> : <Selo>Desligado</Selo>}
         <p className="w-full text-sm text-muted-foreground">
           {[ar.comodo, ar.marca].filter(Boolean).join(' · ') || 'Sem cômodo'} · atualizado {haQuanto(ar.atualizado_em)}
+          {ar.responsaveis?.length > 0 && <> · responsável: <span className="text-foreground">{ar.responsaveis.join(', ')}</span></>}
         </p>
         {ar.zona && (
           <div className="w-full text-sm text-amber-800 dark:text-amber-300">

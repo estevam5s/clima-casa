@@ -35,6 +35,7 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
     permissoes: usuario?.permissoes || dados.papeis.find((p) => p.id === 'operador').permissoes,
     acesso: usuario ? (usuario.projetos === '*' ? 'todos' : 'escolher') : (dados.eu.projetos === '*' ? 'todos' : 'escolher'),
     projetos: usuario && usuario.projetos !== '*' ? usuario.projetos : [], projeto_novo: '',
+    ares_modo: usuario && Array.isArray(usuario.aparelhos) ? 'escolher' : 'todos', ares: usuario && Array.isArray(usuario.aparelhos) ? usuario.aparelhos : [],
     senhaModo: 'gerar', senha: '', convite: false, exige_troca_senha: usuario ? usuario.exige_troca_senha : true, ativo: usuario ? usuario.ativo : true,
   }))
   const [salvando, setSalvando] = useState(false)
@@ -48,14 +49,17 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
     setF({ ...f, papel, permissoes: base.permissoes.filter((p) => minhas.includes(p)), acesso: ['admin', 'dono'].includes(papel) ? 'todos' : f.acesso })
   }
   const alternarPerm = (id) => setF({ ...f, papel: f.papel === 'personalizado' || total ? f.papel : 'personalizado', permissoes: f.permissoes.includes(id) ? f.permissoes.filter((p) => p !== id) : [...f.permissoes, id] })
+  const alternarAr = (id) => setF({ ...f, ares: f.ares.includes(id) ? f.ares.filter((a) => a !== id) : [...f.ares, id] })
+  const aresPorSala = (dados.ares || []).reduce((g, a) => ({ ...g, [a.projeto_nome || 'Sem projeto']: [...(g[a.projeto_nome || 'Sem projeto'] || []), a] }), {})
   const alternarProj = (id) => setF({ ...f, projetos: f.projetos.includes(id) ? f.projetos.filter((p) => p !== id) : [...f.projetos, id] })
 
   const salvar = async (e) => {
     e.preventDefault(); setErro('')
-    if (f.acesso === 'escolher' && !total && !f.projetos.length) return setErro('Escolha ao menos um projeto ou comece do zero.')
+    if (!total && f.ares_modo === 'escolher' && !f.ares.length) return setErro('Escolha ao menos um ar, ou marque "Todos os ares".')
+    if (f.acesso === 'escolher' && !total && f.ares_modo !== 'escolher' && !f.projetos.length) return setErro('Escolha ao menos um projeto ou comece do zero.')
     setSalvando(true)
     try {
-      const corpo = { nome: f.nome, cargo: f.cargo, papel: f.papel, permissoes: f.permissoes, acesso: total ? 'todos' : f.acesso, projetos: f.projetos, projeto_novo: f.projeto_novo, exige_troca_senha: f.exige_troca_senha }
+      const corpo = { nome: f.nome, cargo: f.cargo, papel: f.papel, permissoes: f.permissoes, acesso: total ? 'todos' : f.acesso, projetos: f.projetos, projeto_novo: f.projeto_novo, exige_troca_senha: f.exige_troca_senha, ares_modo: total ? 'todos' : f.ares_modo, ares: f.ares }
       if (novo) {
         const r = await api.post('/api/usuarios', { ...corpo, email: f.email, convite: f.convite, gerar_senha: f.senhaModo === 'gerar', senha: f.senhaModo === 'definir' ? f.senha : null })
         toast(f.convite ? 'Convite enviado por e-mail.' : 'Usuário criado.')
@@ -115,6 +119,7 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
         {!total && (
           <div>
             <p className="rotulo">Dados de ar-condicionado</p>
+            {f.ares_modo === 'escolher' ? <p className="ajuda">As salas desta pessoa são as dos ares marcados em “Ares sob responsabilidade”.</p> : <>
             <div className="grid gap-2 sm:grid-cols-3">
               {[['todos', 'Todos os projetos', 'Usa os mesmos ares, transmissores e rotinas que já existem', dados.eu.projetos === '*'],
                 ['escolher', 'Escolher projetos', 'Só os lugares que você marcar abaixo', true],
@@ -137,6 +142,38 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
               <div className="mt-3"><label className="rotulo" htmlFor="pz"><FolderPlus className="mr-1 inline h-4 w-4" />Nome do projeto novo</label>
                 <input id="pz" className="campo" maxLength={60} placeholder={`Projeto de ${f.nome || 'novo usuário'}`} value={f.projeto_novo} onChange={(e) => setF({ ...f, projeto_novo: e.target.value })} />
                 <p className="ajuda">Ele começa sem aparelhos. Transmissores, Smart Life e Alexa são do sistema todo e ficam com o administrador.</p></div>
+            )}
+            </>}
+          </div>
+        )}
+
+        {!total && (
+          <div>
+            <p className="rotulo">Ares sob responsabilidade</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[['todos', 'Todos os ares', 'Todos os ares dos projetos escolhidos acima', dados.eu.aparelhos === '*'],
+                ['escolher', 'Só estes ares', 'A pessoa vê e comanda só os ares marcados (ex.: o ar da mesa dela). As salas dela passam a ser as desses ares', true]].filter((o) => o[3]).map(([k, r, d]) => (
+                <button key={k} type="button" onClick={() => setF({ ...f, ares_modo: k })}
+                  className={`rounded-lg border p-3 text-left ${f.ares_modo === k ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border hover:bg-muted/50'}`}>
+                  <span className="text-sm font-medium">{r}</span><span className="mt-1 block text-xs text-muted-foreground">{d}</span>
+                </button>
+              ))}
+            </div>
+            {f.ares_modo === 'escolher' && (
+              <div className="mt-3 space-y-2">
+                {Object.entries(aresPorSala).map(([sala, lista]) => (
+                  <div key={sala}>
+                    <p className="text-xs text-muted-foreground">{sala}</p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {lista.map((a) => (
+                        <button key={a.id} type="button" onClick={() => alternarAr(a.id)} aria-pressed={f.ares.includes(a.id)}
+                          className={`rounded-full border px-3 py-1 text-sm ${f.ares.includes(a.id) ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'}`}>{a.nome}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {!(dados.ares || []).length && <p className="ajuda">Nenhum ar cadastrado ainda.</p>}
+              </div>
             )}
           </div>
         )}
@@ -218,7 +255,9 @@ export default function Usuarios() {
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const lista = dados.itens.filter((u) => !busca || `${u.nome} ${u.email} ${u.cargo}`.toLowerCase().includes(busca.toLowerCase()))
-  const nomeProjetos = (u) => (u.projetos === '*' ? 'Todos os projetos' : u.projetos.map((id) => dados.projetos.find((p) => p.id === id)?.nome || `#${id}`).join(', ') || 'Nenhum')
+  const nomeProjetos = (u) => (Array.isArray(u.aparelhos)
+    ? `Ares: ${u.aparelhos.map((id) => (dados.ares || []).find((a) => a.id === id)?.nome || `#${id}`).join(', ')}`
+    : u.projetos === '*' ? 'Todos os projetos' : u.projetos.map((id) => dados.projetos.find((p) => p.id === id)?.nome || `#${id}`).join(', ') || 'Nenhum')
   const novaSenha = async (u) => {
     const r = await api.post(`/api/usuarios/${u.id}/senha`, { gerar: true, exige_troca_senha: true })
     setSenha({ senha: r.senha, email: u.email })
@@ -243,7 +282,7 @@ export default function Usuarios() {
         {lista.length === 0 ? <div className="p-6"><Vazio icone={Users} titulo="Ninguém encontrado" texto="Crie contas para quem também usa os ares." /></div> : (
           <div className="overflow-x-auto">
             <table className="tabela w-full min-w-[820px]">
-              <thead><tr><th>Usuário</th><th>Nível</th><th>Projetos</th><th>Segurança</th><th>Último acesso</th><th /></tr></thead>
+              <thead><tr><th>Usuário</th><th>Nível</th><th>Projetos e ares</th><th>Segurança</th><th>Último acesso</th><th /></tr></thead>
               <tbody>
                 {lista.map((u) => (
                   <tr key={u.id} className={u.ativo ? '' : 'opacity-50'}>

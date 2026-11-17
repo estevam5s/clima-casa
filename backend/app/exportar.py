@@ -151,11 +151,13 @@ def docx_(doc):
         return f'<w:r>{f"<w:rPr>{props}</w:rPr>" if props else ""}<w:t xml:space="preserve">{escape(_s(texto))}</w:t></w:r>'
 
     def par(texto="", estilo=None, **kw):
-        return f'<w:p>{f"<w:pPr><w:pStyle w:val=\"{estilo}\"/></w:pPr>" if estilo else ""}{run(texto, **kw) if texto else ""}</w:p>'
+        ppr = f'<w:pPr><w:pStyle w:val="{estilo}"/></w:pPr>' if estilo else ""   # sem barra na expressão (Python 3.11)
+        return f'<w:p>{ppr}{run(texto, **kw) if texto else ""}</w:p>'
 
     def tabela(cab, linhas):
         bordas = "".join(f'<w:{b} w:val="single" w:sz="4" w:space="0" w:color="BFC5CC"/>' for b in ("top", "left", "bottom", "right", "insideH", "insideV"))
-        cel = lambda t, cabeca=False: (f'<w:tc><w:tcPr>{f"<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"{cor}\"/>" if cabeca else ""}</w:tcPr>'  # noqa: E731
+        sombra = f'<w:shd w:val="clear" w:color="auto" w:fill="{cor}"/>'   # fora da f-string de baixo (Python 3.11)
+        cel = lambda t, cabeca=False: (f'<w:tc><w:tcPr>{sombra if cabeca else ""}</w:tcPr>'  # noqa: E731
                                        f'<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>{run(t, negrito=cabeca, cor_txt="FFFFFF" if cabeca else None, tam=18)}</w:p></w:tc>')
         linhas_xml = "".join("<w:tr>" + "".join(cel(v) for v in l) + "</w:tr>" for l in linhas[:500])
         return (f'<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>{bordas}</w:tblBorders></w:tblPr>'

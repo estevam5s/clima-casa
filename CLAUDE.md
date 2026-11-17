@@ -58,7 +58,8 @@ caminhos de serviço e o projeto da Vercel).
 | Permissões de rota | `backend/app/acesso.py` (`REGRAS`) |
 | Firewall / anti-robô | `firewall.py`, `turnstile.py`, `middleware.js` |
 | Passo a passo para o usuário | `pages/Guia.jsx` (e `docs/MANUAL.md`) |
-| Instalar o agente em outro PC (código de uso único) | `backend/app/convite.py`, `backend/convite_env.py`, `frontend/public/instalar-agente.ps1`, `components/infra/Agentes.jsx` |
+| Instalar o agente em outro PC (código de uso único) | `backend/app/convite.py`, `backend/convite_env.py`, `frontend/public/instalar-agente.ps1` (Windows) e `instalar-agente.sh` (Linux/Raspberry Pi 64 bits), `components/infra/Agentes.jsx` |
+| Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
 
@@ -231,7 +232,13 @@ O serviço já ocupa a 8090: para testar, use outra porta (`CLIMA_PAPEL=nuvem CL
 |---|---|---|---|
 | macOS | `./instalar-servico.sh` (o macOS não deixa serviço ler ~/Documents: roda de uma cópia) | `./instalar-servico.sh status` | `~/Library/Logs/ClimaCasa.log` |
 | Windows | PowerShell admin: `powershell -ExecutionPolicy Bypass -File .\instalar-windows.ps1` | `… status` | `data\agente.log` |
-| Linux | `sudo ./instalar-linux.sh` | `sudo ./instalar-linux.sh status` | `journalctl -u clima-escritorio-agente` |
+| Linux / Raspberry Pi | `sudo ./instalar-linux.sh` (ou por código: `curl -fsSL https://app.zynio.com.br/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh <código>`) | `sudo ./instalar-linux.sh status` | `journalctl -u clima-escritorio-agente` |
+
+**Raspberry Pi / placas** (testado 17/11 em Debian 12 ARM64 no Docker, a base do Raspberry Pi OS; não testado num Pi de verdade): Pi 3B, 4 e 5
+com **Raspberry Pi OS 64-bit** rodam o agente (o instalador por código põe o Python 3.13 à parte pelo uv em `/opt/clima-escritorio/python`;
+todas as dependências têm pacote pronto para aarch64). **32 bits (armv7) não**: falta pacote pronto (cryptography, pillow…), o instalador
+recusa. **Arduino, ESP32 e ESP8266 não rodam o agente** (é Python com Postgres/TLS/WebSocket); um ESP32 só serviria como transmissor IR
+próprio no futuro (exigiria integração nova; não existe hoje). O código do backend compila no Python 3.11, 3.12 e 3.13.
 
 Depois de qualquer mudança no backend ou frontend: reinstalar o agente. O `.env` vai do Mac ao PC por pendrive/rede local.
 
@@ -367,6 +374,12 @@ Gatilhos `ligou`/`desligou` (filtro de origem), `ligado_ha`, `horario`; condiç�
 - `acesso.py`: papéis dono > admin > subadmin > operador > visualizador (ou personalizado), 14 permissões, `REGRAS` por rota.
   **Rota nova que muda dados precisa cair numa regra** (não listada e não GET → exige `configuracoes.gerenciar`). Escopo de
   projetos (`"*"` ou lista) com `filtro_sql`/`_escopo`/`checar_projeto`.
+- **Responsável por ar** (17/11, 1.6.0): `usuarios.aparelhos` = `"*"` (todos os ares dos projetos) ou lista de ids ("Só estes ares" no
+  formulário; os projetos da pessoa passam a ser os desses ares). Valem no servidor: `_escopo("a.projeto_id")` soma
+  `acesso.filtro_aparelhos("a.id")` (listas, painel, mapa, catálogo da Alexa, relatórios, atividade), `checar_escopo` recusa `aid` fora
+  (403 "Este ar não está sob sua responsabilidade") e `_ids_aparelhos_permitidos` limita comandos. Consulta nova sobre a tabela de ares
+  com outro alias: somar `acesso.filtro_aparelhos(...)` na mão. Dono/admin sempre `"*"`. Ninguém dá ar que não tem (`_resolver_aparelhos`).
+  A Alexa (Sinric) é da conta do sistema, não por pessoa; e um ar de zona muda junto com os outros mesmo para quem cuida só dele (físico).
 - Contas (`rotas/contas.py`) pela API admin do Supabase. Senha provisória → `exige_troca_senha`. Ninguém dá o que não tem.
 - 2FA: TOTP nativo do Supabase (token `aal2` exigido quando há fator; 401 `X-Clima-2FA`). Biometria: passkeys WebAuthn
   (RP ID `zynio.com.br`), login abre sessão por link mágico e grava em `sessoes_fortes`.
@@ -751,7 +764,7 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | `File size limit exceeded (100 MB)` | binários de `apps/` no envio; `.vercelignore` exclui `/apps`, `/docs`, `/site` (com âncora: sem ela some `frontend/src/components/apps`) |
 | `fila_comandos_tipo_check` violada | tipo novo na fila sem ampliar a constraint |
 | 500 só em produção num import | dependência removida ainda usada em outro arquivo: `grep -rnE "^\s*(from X\|import X)" backend/app` **sem cortar a saída** antes de tirar do requirements |
-| f-string com `\` dentro da expressão | só funciona do Python 3.12 em diante: evite |
+| f-string com `\` dentro da expressão | só funciona do Python 3.12 em diante: evite (quebrava `exportar.py`/`docx_simples.py` no 3.11, corrigido 17/11). Conferir: `uv run --python 3.11 --no-project python -m py_compile …` |
 | Prévia de e-mail sem logo | iframe `srcdoc` sandbox não carrega imagem por URL: embutir como data URI só na prévia |
 | Tela pisca "Só o dono…" | decisão por papel antes de `sessao` carregar |
 | Câmera volta à vista inicial a cada mudança no mapa | `enquadrar()` só na primeira montagem |
@@ -797,6 +810,12 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 ---
 
 ## 14. Estado atual e pendências (16/11/2026, noite)
+
+- **17/11, fim da tarde (1.6.0)**: #12 **Ar do Fabio** (projeto 8, transmissor "Smart IR · Fabio e Devs"), #13 **Ar da reunião** (projeto 5,
+  **sem transmissor** até o C ser comprado) e #4 **Ar dos devs** com 301 botões copiados do #1 (marca Gree). No mapa não sobram vagas.
+  Sinric **9 de 9**: os 3 novos nas salas "Sala Fabio", "Devs" e "Reunião" (offline até um agente enxergar o transmissor B; Reunião só com
+  transmissor). Ar do Fabio e Ar dos devs no mesmo transmissor B e iguais = zona automática de 2 (teste de interferência pendente).
+  Usuário responsável por ares específicos e instalador do agente para Raspberry/Linux publicados.
 
 - **Ares cadastrados (17/11)**: no transmissor "Smart IR · Escritório", 6 Gree iguais com 301 botões cada (copiados do Ar do escritório):
   #1 Ar do escritório, #7 Ar dos analistas, #8 Ar do diretor, #9 Ar servidor, #10 Ar Guilherme (os dois da Sala Bancada), #11 Ar do Deison → **zona

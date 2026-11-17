@@ -6,6 +6,7 @@ import { Aviso, Botao, Esqueleto, Selo, useToast } from '../ui'
 // Computadores com o agente: quem fica no comando (preferido + regra "quem não enxerga os transmissores não manda")
 // e a instalação de um PC Windows com código de uso único (o .env vai cifrado; só o código decifra, no PC).
 const SERVIDOR = 'https://app.zynio.com.br'
+const comandoLinux = (codigo) => `curl -fsSL ${SERVIDOR}/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh ${codigo}`
 const comando = (codigo) => `powershell -ExecutionPolicy Bypass -Command "irm ${SERVIDOR}/instalar-agente.ps1 -OutFile $env:TEMP\\ia.ps1; & $env:TEMP\\ia.ps1 -Codigo ${codigo}"`
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
@@ -36,8 +37,8 @@ function Instalar({ maquinas, aoConectar }) {
   const resta = convite ? convite.expira - agora : 0
   return (
     <section className="cartao p-5">
-      <h2 className="titulo-secao flex items-center gap-2"><Monitor className="h-4 w-4" />Instalar em um PC Windows</h2>
-      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Um PC que fica ligado no escritório (mesmo Wi-Fi dos transmissores) mantém tudo funcionando quando o Mac vai embora. O comando abaixo baixa o sistema, recebe as chaves cifradas e instala o serviço. As chaves só são decifradas no PC, com o código.</p>
+      <h2 className="titulo-secao flex items-center gap-2"><Monitor className="h-4 w-4" />Instalar em um PC Windows ou Raspberry Pi</h2>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Um computador que fica ligado no escritório (mesmo Wi-Fi dos transmissores) mantém tudo funcionando quando o Mac vai embora: um PC Windows, um Linux ou um Raspberry Pi 3B, 4 ou 5 com o sistema de 64 bits. O comando baixa o sistema, recebe as chaves cifradas e instala o serviço. As chaves só são decifradas no computador, com o código.</p>
       {!convite ? (
         <div className="mt-4"><Botao icone={KeyRound} carregando={ocupado} onClick={gerar}>Gerar código de instalação</Botao></div>
       ) : novo ? (
@@ -58,10 +59,19 @@ function Instalar({ maquinas, aoConectar }) {
             <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>3.</b><span>Se o Windows perguntar, deixe a rede como <b>Privada</b> (Configurações → Rede → Wi-Fi → Perfil de rede). Em rede Pública ele não acha os transmissores.</span></li>
             <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>4.</b><span>Pronto: esta tela avisa quando o PC conectar. Não precisa deixar ninguém logado; o PC só tem que ficar ligado.</span></li>
           </ol>
+          <details className="rounded-md border border-border p-3 text-sm">
+            <summary className="cursor-pointer font-medium">É um Raspberry Pi ou um Linux?</summary>
+            <div className="mt-3 space-y-2">
+              <p className="text-muted-foreground">Use o mesmo código. No Raspberry, grave antes o <b className="text-foreground">Raspberry Pi OS (64-bit)</b> pelo Raspberry Pi Imager e ligue no Wi-Fi 2,4 GHz do escritório. Abra o Terminal (ou entre por SSH) e cole (leva de 10 a 20 minutos no Pi 3B):</p>
+              <pre className="overflow-x-auto rounded-md bg-zinc-950 p-3 text-[11px] leading-relaxed text-zinc-100">{comandoLinux(convite.codigo)}</pre>
+              <Copiar texto={comandoLinux(convite.codigo)} rotulo="Copiar comando do Linux" />
+              <p className="text-xs text-muted-foreground">O sistema de 32 bits não serve (faltam bibliotecas prontas). Arduino, ESP32 e ESP8266 não rodam o agente: ele precisa de um Linux, Windows ou macOS.</p>
+            </div>
+          </details>
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><span className="h-2 w-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />Esperando o PC se conectar…</p>
         </div>
       )}
-      <p className="mt-4 text-xs text-muted-foreground">O mesmo comando, com um código novo, também atualiza o PC depois. Sem internet no PC? Copie a pasta e o .env por pendrive e rode o instalar-windows.ps1 (Guia → “Ir para casa com o Mac”).</p>
+      <p className="mt-4 text-xs text-muted-foreground">O mesmo comando, com um código novo, também atualiza o PC depois. Sem internet no PC? Copie a pasta e o .env por pendrive e rode o instalar-windows.ps1 (no Linux, sudo ./instalar-linux.sh).</p>
     </section>
   )
 }
