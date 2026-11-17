@@ -794,7 +794,12 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 
 ## 14. Estado atual e pendências (16/11/2026, noite)
 
-- **Ares**: "Ar do escritório" (projeto Escritório) com **301 botões** (Desligar gravado + 300 gerados pelo protocolo Gree),
+- **Ares cadastrados (17/11)**: no transmissor "Smart IR · Escritório", 6 Gree iguais com 301 botões cada (copiados do Ar do escritório):
+  #1 Ar do escritório, #7 Ar dos analistas, #8 Ar do diretor, #9 Ar da bancada 1, #10 Ar da bancada 2, #11 Ar do Deison → **zona
+  automática** "Zona Smart IR · Escritório" (um sinal muda os 6). Só o #1 está na Alexa (Sinric); os outros com `alexa = 0` até o dono
+  decidir (zona = 1 aparelho na Alexa). Teste físico pendente (precisa de agente no escritório e alguém no salão: teste de interferência).
+  No mapa, as vagas viraram ares; sobram `ar-reuniao` e `ar-semnome` (Sala Fabio).
+- **Ares (histórico)**: "Ar do escritório" (projeto Escritório) com **301 botões** (Desligar gravado + 300 gerados pelo protocolo Gree),
   no transmissor "Smart IR · Escritório", na Alexa (Sinric). Ligar, desligar e temperatura testados de verdade em 16/11 à tarde.
   "Ar dos devs" (projeto Devs, salão ao lado da TV, cor `#18181b`): **sem transmissor e sem botões**.
 - **Transmissores**: "Smart IR · Escritório" (192.168.59.85, visto pela última vez 16/11 19:01) e "Smart IR · Sala Bancada"
