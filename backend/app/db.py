@@ -35,7 +35,9 @@ def carregar_env() -> dict:
             if "=" in linha and not linha.lstrip().startswith("#"):
                 k, v = linha.split("=", 1)
                 env[k.strip()] = v.strip()
-    env.update({k: v for k, v in os.environ.items() if k.startswith(("SUPABASE_", "TUYA_", "CLIMA_", "TURNSTILE_"))})
+    # variáveis do ambiente (Vercel) que o backend usa; prefixo fora desta lista NÃO chega ao código na nuvem
+    # (VERIFICACAO_ ficou de fora até 17/11: o portão do app nunca gravava o passe e travava quando o cookie do site vencia)
+    env.update({k: v for k, v in os.environ.items() if k.startswith(("SUPABASE_", "TUYA_", "CLIMA_", "TURNSTILE_", "VERIFICACAO_"))})
     return env
 
 
