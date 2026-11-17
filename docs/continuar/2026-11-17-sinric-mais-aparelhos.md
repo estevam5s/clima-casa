@@ -3,6 +3,12 @@
 > Depois de pagar no portal do Sinric Pro (plano por aparelho, 5 aparelhos, 1 ano), abra o Claude Code em `ar-controle/`
 > e cole o **prompt do fim**. O pagamento é do dono, no portal (Stripe); o Claude não paga nada.
 
+## Situação depois da compra (17/11/2026)
+
+- Total na conta: **9 aparelhos** (grátis 3 + 5 com cobrança automática + 1 com pagamento manual e lembrete, vencendo em 17/11/2027).
+  `config.sinric.limite_aparelhos = 9`. Em uso: 1 ("Ar do escritório"). Os outros 8 ares ainda não estão cadastrados no sistema ou
+  não têm botões; cada um entra na Alexa depois de ter transmissor e botões (copiar do Ar do escritório se for Gree igual).
+
 ## Situação antes da compra
 
 - Conta do Sinric: a mesma de hoje (credenciais cifradas em `config.sinric`; o agente usa App Key/Secret do `.env`).

@@ -820,8 +820,9 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   **DNSSEC ativo** (DS no Registro.br: keytag 2371, alg 13). Para desligar: tirar o DS no Registro.br, esperar 1 dia, depois a Cloudflare.
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
 - **Vercel**: ~2,1 GB "Functions Storage"; limpeza de publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
-- **Alexa (Sinric)**: plano grátis (3) + plano por aparelho (5, comprado em 17/11/2026, vence 17/11/2027) = **8 aparelhos**,
-  gravado em `config.sinric.limite_aparelhos = 8`. Em uso: 1 ("Ar do escritório", online). "Ar dos devs" sem botões: só vai para a
+- **Alexa (Sinric)**: plano grátis (3) + plano por aparelho de 5 (cobrança automática) + plano por aparelho de 1 (**pagamento manual
+  com lembrete**: renovar à mão até 17/11/2027), comprados em 17/11/2026 = **9 aparelhos**, um para cada um dos 9 ares; gravado em
+  `config.sinric.limite_aparelhos = 9`. Em uso: 1 ("Ar do escritório", online). "Ar dos devs" sem botões: só vai para a
   Alexa depois de gravar/copiar os botões (a rota recusa). Roteiro: `docs/continuar/2026-11-17-sinric-mais-aparelhos.md`.
 - Skill própria da Alexa não criada (opcional). Deison (admin) sem 2FA. Equipe no mapa: Cássio e Alexandre (Analista, seg–sex 8h–18h,
   cargo e horário a confirmar).
