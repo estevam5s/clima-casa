@@ -33,6 +33,7 @@ caminhos de serviço e o projeto da Vercel).
 | Quero mudar… | Arquivo(s) |
 |---|---|
 | Ligar/desligar/temperatura de um ar | `backend/app/clima.py` (`aplicar`, `responderam_juntos`) → `transmissor.py` |
+| Instalar ar por ar com o mesmo transmissor (sem interferir no anterior) | `pages/Transmissores.jsx` (`LevarParaOutroAr`: PUT `/hubs/{id}/ares` com só o ar escolhido + projeto dele → copiar botões → teste sem mudar estado) |
 | Vários ares num transmissor, **zonas** (ares iguais que obedecem juntos), teste de interferência, mover transmissor | `backend/app/zonas.py`, `rotas/api.py` (`_hub_publico`, `/zonas`, `/hubs/{id}/todos|ares|teste-interferencia`), `clima.aplicar`, `pages/Transmissores.jsx` (`ZonaControle`, `TesteInterferencia`, `EditarAres`) |
 | Alexa por zona, diagnóstico da Alexa, ritmo dos eventos do Sinric | `backend/app/sinric.py` (`organizar_zona`, `notificar_estado`/`_esvaziar`), `rotas/api.py` (`/sinric/zona/{id}`, `/sinric/diagnostico`), `pages/Integracoes.jsx` (`ZonasAlexa`, `NovaAlexa`) |
 | Previsão do tempo (painel e 3D) | `backend/app/clima_externo.py` (`agora`, `tipo_tempo`), `components/tempo3d.js`, cartão no `Mapa3D.jsx` |

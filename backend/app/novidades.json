@@ -2,6 +2,22 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.5.1",
+      "data": "2026-11-17",
+      "titulo": "Instalar ar por ar com um transmissor só",
+      "resumo": "Para instalar sala por sala usando o mesmo transmissor: ele passa a atender só o ar da sala onde está, e o ar anterior não recebe mais nenhum comando por engano.",
+      "novo": [
+        "No cartão do transmissor, “Levar para o próximo ar”: escolhe (ou cadastra) o ar, leva o transmissor, copia os botões de um ar igual e testa, num passo a passo"
+      ],
+      "melhorias": [
+        "O ar que ficou para trás aparece como “sem transmissor”, com os botões guardados",
+        "Passo a passo (Guia) explica a instalação sala por sala",
+        "A Alexa (Sinric) agora comporta 9 aparelhos, um para cada ar"
+      ],
+      "seguranca": [],
+      "correcoes": []
+    },
+    {
       "versao": "1.5.0",
       "data": "2026-11-17",
       "titulo": "Elevador até o térreo, salas personalizáveis e Novidades nova",

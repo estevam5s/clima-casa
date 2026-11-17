@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, CloudDownload, Pencil, Plus, Power, Radio, RefreshCw, Search, Trash2, Wand2, Wifi } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, CloudDownload, Pencil, Plus, Power, Radio, RefreshCw, Search, Trash2, Truck, Wand2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Ponto, Selo, Vazio, useDados, useToast } from '../components/ui'
@@ -321,6 +321,116 @@ function EditarAres({ hub, onFechar, aoSalvar }) {
   )
 }
 
+// Instalar ar por ar com o MESMO transmissor: leva o transmissor para um ar (ele passa a atender só esse ar; o anterior
+// fica "sem transmissor", com os botões guardados, e nenhum comando sai para ele por engano), põe os botões (copiando de
+// um ar igual que já funciona, ou gravando) e testa sem mexer no estado salvo. Depois, "Próximo ar".
+function LevarParaOutroAr({ hub, onFechar, aoMudar }) {
+  const { dados: lista, recarregar } = useDados(() => api.get('/api/aparelhos'))
+  const { projetos } = useProjeto()
+  const toast = useToast()
+  const [passo, setPasso] = useState(1)
+  const [arId, setArId] = useState('')
+  const [novo, setNovo] = useState(null)            // { nome, projeto_id } quando o ar ainda não existe
+  const [deixados, setDeixados] = useState([])      // ares que ficaram sem transmissor nesta troca
+  const [ocupado, setOcupado] = useState(null)
+  const [teste, setTeste] = useState(null)          // { comando, ok }
+  if (!lista) return <Carregando />
+  const ar = lista.find((a) => a.id === +arId)
+  const comBotoes = lista.filter((a) => a.total_codigos > 0)
+  const levar = async () => {
+    setOcupado('levar')
+    try {
+      let alvo = ar
+      if (!alvo) {
+        if (!novo?.nome?.trim() || !novo?.projeto_id) throw new Error('Dê um nome ao ar e escolha a sala (projeto).')
+        const r = await api.post('/api/aparelhos', { nome: novo.nome.trim(), projeto_id: +novo.projeto_id, alexa: false })
+        alvo = { id: r.id, nome: novo.nome.trim(), projeto_id: +novo.projeto_id }
+      }
+      const antes = (hub.ares || []).filter((a) => a.id !== alvo.id)
+      await api.put(`/api/hubs/${hub.id}/ares`, { aparelhos: [alvo.id], projeto_id: alvo.projeto_id || null })
+      setDeixados(antes); setArId(String(alvo.id)); setNovo(null)
+      await recarregar(); aoMudar()
+      setPasso(2)
+    } catch (e) { toast(e.message, 'erro') } finally { setOcupado(null) }
+  }
+  const copiar = async (de) => {
+    setOcupado('copiar')
+    try { const r = await api.post(`/api/aparelhos/${arId}/copiar-botoes`, { de: +de }); toast(`${r.copiados} botões copiados.`); await recarregar(); aoMudar(); setPasso(3) }
+    catch (e) { toast(e.message, 'erro') } finally { setOcupado(null) }
+  }
+  const testar = async (comando) => {
+    setOcupado(comando); setTeste(null)
+    try { await api.post(`/api/hubs/${hub.id}/teste-interferencia`, { acao: 'enviar', aparelho_id: +arId, comando }); setTeste({ comando, enviado: true }) }
+    catch (e) { setTeste({ comando, erro: e.message }) } finally { setOcupado(null) }
+  }
+  const proximo = () => { setPasso(1); setArId(''); setNovo(null); setDeixados([]); setTeste(null) }
+  const Passo = ({ n, titulo }) => (
+    <div className={`flex items-center gap-2 text-xs ${passo === n ? 'font-semibold text-foreground' : passo > n ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+      <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] ${passo > n ? 'border-emerald-600 bg-emerald-600 text-white' : passo === n ? 'border-primary' : 'border-border'}`}>{passo > n ? <Check className="h-3 w-3" /> : n}</span>{titulo}
+    </div>
+  )
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><Passo n={1} titulo="Escolher o ar" /><ArrowRight className="h-3 w-3 text-muted-foreground" /><Passo n={2} titulo="Botões" /><ArrowRight className="h-3 w-3 text-muted-foreground" /><Passo n={3} titulo="Testar" /></div>
+
+      {passo === 1 && <>
+        <p className="text-muted-foreground">Leve o transmissor até a sala e aponte para o ar (até 8 m, sem parede no caminho). Aqui ele passa a atender <b>só este ar</b>: o que ele atendia antes fica sem transmissor, com os botões guardados, e nenhum comando sai para ele por engano.</p>
+        <label className="rotulo block">Qual ar agora?
+          <select className="campo mt-1" value={novo ? 'novo' : arId} onChange={(e) => { if (e.target.value === 'novo') { setNovo({ nome: '', projeto_id: '' }); setArId('') } else { setNovo(null); setArId(e.target.value) } }}>
+            <option value="">Escolha…</option>
+            {lista.map((a) => <option key={a.id} value={a.id}>{a.nome} · {a.projeto_nome || 'sem projeto'}{a.hub_id === hub.id ? ' (já neste transmissor)' : a.hub_id ? ` (hoje em ${a.hub_nome})` : ''}</option>)}
+            <option value="novo">+ Ar que ainda não está no sistema</option>
+          </select>
+        </label>
+        {novo && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="rotulo block">Nome falado (ex.: Ar do diretor)<input className="campo mt-1" value={novo.nome} maxLength={60} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} /></label>
+            <label className="rotulo block">Sala (projeto)
+              <select className="campo mt-1" value={novo.projeto_id} onChange={(e) => setNovo({ ...novo, projeto_id: e.target.value })}>
+                <option value="">Escolha…</option>{projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+        {(hub.ares || []).filter((a) => a.id !== +arId).length > 0 && (arId || novo) && (
+          <Aviso tipo="alerta">Vão ficar sem transmissor: {(hub.ares || []).filter((a) => a.id !== +arId).map((a) => a.nome).join(', ')}. Só obedecem de novo quando um transmissor voltar para a sala deles.</Aviso>
+        )}
+        <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={onFechar}>Cancelar</Botao><Botao icone={Truck} carregando={ocupado === 'levar'} disabled={!arId && !novo} onClick={levar}>Levar o transmissor para este ar</Botao></div>
+      </>}
+
+      {passo === 2 && ar && <>
+        <Aviso tipo="ok">{hub.nome} agora atende só <b>{ar.nome}</b>.{deixados.length ? ` Ficaram sem transmissor (botões guardados): ${deixados.map((a) => a.nome).join(', ')}.` : ''}</Aviso>
+        {ar.total_codigos > 0 ? (
+          <p className="text-muted-foreground">{ar.nome} já tem {ar.total_codigos} botões gravados.</p>
+        ) : <>
+          <p className="text-muted-foreground">{ar.nome} ainda não tem botões. Se for do <b>mesmo modelo</b> de um ar que já funciona (os Gree do escritório são iguais), copie os botões dele. Se for de outro modelo, grave o Desligar na tela do ar.</p>
+          <div className="space-y-1.5">
+            {comBotoes.filter((a) => a.id !== ar.id).map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+                <span className="min-w-0 truncate">{a.nome} <span className="text-muted-foreground">· {a.total_codigos} botões</span></span>
+                <Botao tamanho="sm" carregando={ocupado === 'copiar'} disabled={!!ocupado} onClick={() => copiar(a.id)}>Copiar destes</Botao>
+              </div>
+            ))}
+          </div>
+          <Link to={`/aparelhos/${ar.id}`} className="inline-block text-xs text-primary hover:underline">Outro modelo: gravar os botões na tela do ar</Link>
+        </>}
+        <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={proximo}>Escolher outro ar</Botao><Botao disabled={!(ar.total_codigos > 0)} onClick={() => setPasso(3)}>Testar</Botao></div>
+      </>}
+
+      {passo === 3 && ar && <>
+        <p className="text-muted-foreground">Fique perto do <b>{ar.nome}</b> e mande um sinal. O teste não muda o estado salvo do ar. Ele tem que apitar; se outro ar apitar junto, os dois estão à vista do transmissor e vão obedecer juntos.</p>
+        <div className="flex flex-wrap gap-2">
+          <Botao variante="secundario" icone={Power} carregando={ocupado === 'ligar'} disabled={!!ocupado} onClick={() => testar('ligar')}>Ligar (Frio 24°)</Botao>
+          <Botao variante="secundario" icone={Power} carregando={ocupado === 'desligar'} disabled={!!ocupado} onClick={() => testar('desligar')}>Desligar</Botao>
+        </div>
+        {teste?.erro && <Aviso tipo="erro">{teste.erro} {/agente|offline|tempo/i.test(teste.erro) ? 'O sinal sai pelo computador do escritório: ele precisa estar ligado e na mesma rede do transmissor.' : ''}</Aviso>}
+        {teste?.enviado && <Aviso tipo="ok">Sinal enviado. O ar apitou? Se não, aproxime o transmissor e aponte para o ar (o LED do transmissor pisca a cada sinal).</Aviso>}
+        <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={onFechar}>Concluir</Botao><Botao icone={ArrowRight} onClick={proximo}>Próximo ar</Botao></div>
+      </>}
+    </div>
+  )
+}
+
 // Ares que este transmissor atende (até ~6 à vista num salão aberto) e as zonas (ares iguais que obedecem juntos).
 function AresDoTransmissor({ hub, aoMudar, abrir }) {
   const [ocupado, setOcupado] = useState(null)
@@ -360,6 +470,7 @@ function AresDoTransmissor({ hub, aoMudar, abrir }) {
           <Botao tamanho="sm" variante="secundario" icone={Power} carregando={ocupado === 'desligar'} disabled={!!ocupado} onClick={() => todos(false)}>Desligar todos</Botao>
         </>}
         {ares.length > 1 && !(hub.zonas || []).length && <button className="text-xs text-primary hover:underline" onClick={() => abrir('teste')}>Testar interferência</button>}
+        <Botao tamanho="sm" icone={Truck} onClick={() => abrir('levar')}>Levar para o próximo ar</Botao>
         <button className="text-xs text-primary hover:underline" onClick={() => abrir('ares')}>Ares deste transmissor (planejar ou mover)</button>
         <Link to={novo} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-primary hover:bg-muted"><Plus className="h-3.5 w-3.5" />Adicionar ar novo</Link>
       </div>
@@ -473,6 +584,9 @@ export default function Transmissores() {
       </Modal>
       <Modal aberto={modal?.tipo === 'teste'} titulo={`Teste de interferência · ${modal?.hub?.nome || ''}`} onFechar={() => setModal(null)}>
         {modal?.tipo === 'teste' && <TesteInterferencia hub={modal.hub} onFechar={() => setModal(null)} aoGravar={recarregar} />}
+      </Modal>
+      <Modal aberto={modal?.tipo === 'levar'} titulo={`Instalar ar por ar · ${modal?.hub?.nome || ''}`} onFechar={() => setModal(null)} largura="max-w-xl">
+        {modal?.tipo === 'levar' && <LevarParaOutroAr hub={modal.hub} onFechar={() => setModal(null)} aoMudar={recarregar} />}
       </Modal>
       <Modal aberto={modal?.tipo === 'ares'} titulo={`Ares de ${modal?.hub?.nome || ''}`} onFechar={() => setModal(null)}>
         {modal?.tipo === 'ares' && <EditarAres hub={modal.hub} onFechar={() => setModal(null)} aoSalvar={recarregar} />}
