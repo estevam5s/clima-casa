@@ -58,7 +58,23 @@ Invoke-WebRequest -UseBasicParsing -Uri $r.pacote.url -OutFile $zip
 Expand-Archive -Path $zip -DestinationPath (Join-Path $tmp "x") -Force
 $origem = Join-Path (Join-Path $tmp "x") $r.pacote.pasta
 if (-not (Test-Path (Join-Path $origem "backend\app\main.py"))) { Falha "O pacote baixado não tem o sistema completo." }
-New-Item -ItemType Directory -Force -Path $Pasta | Out-Null
+# A pasta roda como SYSTEM: só Administradores e SYSTEM podem mexer nela (senão um usuário comum do PC trocaria o código
+# ou o Python e o agente rodaria isso como SYSTEM). Pasta que já existia e é de outra pessoa: recusa.
+function Proteger-Pasta([string]$d) {
+  if (-not $d -or $d.Length -le 3) { return }   # nunca mexe na raiz do disco
+  $permitidos = @("S-1-5-32-544", "S-1-5-18", [Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
+  try { $permitidos += @(Get-LocalGroupMember -SID "S-1-5-32-544" -ErrorAction Stop | ForEach-Object { $_.SID.Value }) } catch {}
+  if (Test-Path $d) {
+    $dono = (Get-Acl $d).GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+    if ($permitidos -notcontains $dono) { return $false }
+  } else { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+  icacls $d /setowner "*S-1-5-32-544" | Out-Null
+  icacls $d /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
+  return $true
+}
+foreach ($d in @((Split-Path $Pasta -Parent), $Pasta)) {
+  if ((Proteger-Pasta $d) -eq $false) { Falha "A pasta $d já existe e não é de um administrador. Apague-a como administrador e rode de novo." }
+}
 # atualiza os arquivos e guarda o que é deste PC (.venv, data, .env antigo é substituído logo abaixo)
 robocopy $origem $Pasta /E /XD .venv data /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { Falha "Não deu para copiar os arquivos para $Pasta (robocopy $LASTEXITCODE)." }

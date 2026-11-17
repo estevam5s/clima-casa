@@ -2,6 +2,32 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.4.2",
+      "data": "2026-11-17",
+      "titulo": "Segurança reforçada depois da auditoria completa",
+      "resumo": "O sistema passou por uma auditoria de segurança completa. As correções valem principalmente para contas com acesso a só alguns projetos, e a Alexa agora conhece os 8 aparelhos do plano do Sinric.",
+      "novo": [
+        "Integrações mostra quantos aparelhos a sua conta do Sinric comporta (agora 8)"
+      ],
+      "melhorias": [
+        "Ar sem botões gravados não vai mais para a Alexa: a tela pede para gravar os botões antes",
+        "Diagnóstico da Alexa avisa quando o último comando de voz falhou"
+      ],
+      "seguranca": [
+        "Quem tem acesso a só alguns projetos não vê nem comanda ares, zonas, automações, cenas e transmissores de outros projetos",
+        "Notificações: cada pessoa só vê e arquiva o que é dela; desbloquear um IP pela notificação exige a permissão de segurança",
+        "Gerenciar usuários: ninguém troca a senha ou tira o 2FA de uma conta com mais permissões ou projetos do que ele",
+        "Backup e tabelas do banco só para quem tem acesso a todos os projetos; o código de instalação do agente não fica mais guardado na fila",
+        "Alexa (skill própria): só dono e administrador vinculam, e o vínculo cai se a conta for desativada",
+        "Login: limite de tentativas por conta mesmo trocando de IP; trocar a senha encerra as outras sessões",
+        "Planilhas exportadas não executam fórmulas vindas de nomes ou mensagens",
+        "Agente: o instalador do Windows protege a pasta do sistema e o agente não aceita IP informado pelo próprio computador"
+      ],
+      "correcoes": [
+        "Configurações → Contas sem rolagem lateral no celular"
+      ]
+    },
+    {
       "versao": "1.4.1",
       "data": "2026-11-17",
       "titulo": "Verificação de segurança não trava mais",

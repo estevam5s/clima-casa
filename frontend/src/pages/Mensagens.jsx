@@ -406,7 +406,7 @@ export default function Mensagens() {
     try {
       if (!nota) {
         const assunto = `Re: ${conversa.contato.assunto || 'sua mensagem pelo site'}`
-        window.open(`mailto:${conversa.contato.email}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(final)}`, '_blank')
+        window.open(`mailto:${encodeURIComponent(conversa.contato.email)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(final)}`, '_blank')
       }
       await api.post(`/api/site/conversa/responder?email=${encodeURIComponent(conversa.contato.email)}`, { texto: final, nota })
       setTexto(''); setEmoji(false); setCitar(null); gravar(chaveRascunho(conversa.contato.email), null)

@@ -67,7 +67,16 @@ def _pode_mexer_em(ator: dict, alvo: dict) -> bool:
         return ator["id"] == alvo["id"]
     if ator["papel"] in ("dono", "admin"):
         return True
-    return _nivel(alvo["papel"]) < _nivel(ator["papel"])
+    if _nivel(alvo["papel"]) >= _nivel(ator["papel"]):
+        return False
+    # Quem não é admin só mexe em conta que não tem nada além do que ele tem: senão, trocando a senha ou tirando o 2FA,
+    # ele entraria como a outra pessoa e ganharia permissões ou projetos que não tem (a mesma regra de quem dá permissão).
+    if not set(acesso._json(alvo.get("permissoes"), [])) <= set(ator["permissoes"]):
+        return False
+    pa = acesso._json(alvo.get("projetos"), "*")
+    if ator["projetos"] != "*" and (pa == "*" or not set(pa) <= set(ator["projetos"])):
+        return False
+    return True
 
 
 def _carregar_alvo(uid: str) -> dict:
@@ -140,7 +149,7 @@ def listar_usuarios(request: Request):
                 if u["id"] != ator["id"]:
                     continue
         p = _publico(u, auth.get(u["id"]), pk.get(u["id"], 0))
-        p["pode_editar"] = _pode_mexer_em(ator, {**u, "permissoes": [], "projetos": "*"}) and str(u["id"]) != ator["id"]
+        p["pode_editar"] = _pode_mexer_em(ator, u) and str(u["id"]) != ator["id"]
         itens.append(p)
     return {"itens": itens, "papeis": [{"id": k, **v} for k, v in acesso.PAPEIS.items()],
             "permissoes": [{"id": k, "grupo": g, "descricao": d} for k, (g, d) in acesso.PERMISSOES.items()],
@@ -236,6 +245,8 @@ def editar_usuario(uid: str, d: UsuarioEdit, request: Request):
         raise HTTPException(400, "Você não pode mudar o próprio papel nem se desativar.")
     if alvo["papel"] == "dono" and (d.papel != "dono" or not d.ativo):
         raise HTTPException(400, "O dono não pode ser rebaixado nem desativado.")
+    if d.papel not in acesso.PAPEIS:
+        raise HTTPException(400, "Papel desconhecido.")
     if d.papel != alvo["papel"] and not _pode_atribuir_papel(ator, d.papel):
         raise HTTPException(403, "Você não pode dar esse papel.")
     if eu or alvo["papel"] == "dono":
@@ -353,6 +364,16 @@ def encerrar_sessoes_usuario(uid: str, request: Request):
 def senha_trocada(request: Request):
     u = request.state.u
     db.executar("UPDATE usuarios SET exige_troca_senha = false WHERE id = ?", (u["id"],))
+    try:   # senha nova derruba as outras sessões (quem tinha a senha antiga não continua dentro)
+        from .. import sessoes
+        from ..seguranca import _claims
+        atual = _claims(request.headers.get("authorization", "")[7:]).get("session_id", "")
+        if atual:
+            n = sessoes.revogar(u["id"], exceto=atual)
+            if n:
+                db.registrar("painel", "Outras sessões encerradas após troca de senha", detalhe=f"{u['email']}: {n}")
+    except Exception:  # noqa: BLE001
+        pass
     try:   # aviso de segurança para o dono da conta
         from .. import correio
         correio.enviar_quieto(u["email"], "senha_alterada", {**correio.contexto(request), "nome": u.get("nome"), "email": u["email"]})
@@ -509,7 +530,10 @@ def entrar_com_passkey(d: LoginPasskeyIn, request: Request):
         raise HTTPException(502, "O Supabase não abriu a sessão. Tente de novo.")
     sessao = r.json()
     from ..seguranca import _claims
-    sid = _claims(sessao["access_token"]).get("session_id", "")
+    cl = _claims(sessao["access_token"])
+    if str(cl.get("sub", "")) != str(u["id"]):   # e-mail desatualizado em usuarios nunca abre a conta de outra pessoa
+        raise HTTPException(409, "A conta desta biometria mudou de e-mail. Entre com a senha e cadastre a biometria de novo.")
+    sid = cl.get("session_id", "")
     db.executar("INSERT INTO sessoes_fortes (session_id, usuario_id, criado_em, expira_em) VALUES (?,?,?,?) ON CONFLICT (session_id) DO NOTHING",
                 (sid, u["id"], db.agora(), db.agora() + 30 * 86400))
     db.executar("UPDATE passkeys SET contador = ?, ultimo_uso = ? WHERE id = ?", (v.new_sign_count, db.agora(), pk["id"]))

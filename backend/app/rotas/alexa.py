@@ -37,6 +37,9 @@ def ver(request: Request):
     vinculos = db.um("SELECT COUNT(*) n, MAX(criado_em) ultimo FROM oauth_tokens WHERE tipo = 'refresh' AND expira > ?",
                      (db.agora(),))
     ultima = db.um("SELECT quando, acao, ok FROM atividade WHERE origem = 'alexa' ORDER BY id DESC LIMIT 1")
+    u = getattr(request.state, "u", None) or {}
+    if u.get("papel") not in ("dono", "admin"):   # as chaves da skill abrem o controle de todos os ares: só dono e admin veem
+        c = {**c, "client_secret": "••••••", "chave_lambda": "••••••"}
     return {
         **c,
         "vinculada": vinculos["n"] > 0, "vinculada_em": vinculos["ultimo"], "ultima_diretiva": ultima,
@@ -98,21 +101,27 @@ class Aprovar(BaseModel):
 
 
 @roteador.post("/api/oauth/aprovar", dependencies=[Depends(exigir_login)])
-def aprovar(d: Aprovar):
+def aprovar(d: Aprovar, request: Request):
+    u = getattr(request.state, "u", None) or {}
+    # o vínculo dá à Alexa o controle de TODOS os ares da Alexa: só dono e admin aprovam, e o token fica preso a quem aprovou
+    if u.get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só o dono ou um administrador pode vincular a Alexa.")
     validar(d.client_id, d.redirect_uri)
     codigo = secrets.token_urlsafe(24)
-    db.executar("INSERT INTO oauth_codigos (codigo, redirect_uri, expira) VALUES (?,?,?)",
-                (hash_token(codigo), d.redirect_uri, db.agora() + 300))
+    db.executar("INSERT INTO oauth_codigos (codigo, redirect_uri, expira, usuario_id) VALUES (?,?,?,CAST(? AS uuid))",
+                (hash_token(codigo), d.redirect_uri, db.agora() + 300, u["id"]))
     db.registrar("alexa", "Vinculação de conta autorizada")
     sep = "&" if "?" in d.redirect_uri else "?"
     return {"redirect": f"{d.redirect_uri}{sep}{urlencode({'code': codigo, 'state': d.state})}"}
 
 
-def _emitir():
+def _emitir(usuario_id=None):
     access, refresh = secrets.token_urlsafe(32), secrets.token_urlsafe(40)
     agora = db.agora()
-    db.executar("INSERT INTO oauth_tokens VALUES (?,?,?,?)", (hash_token(access), "access", agora + DURACAO_ACCESS, agora))
-    db.executar("INSERT INTO oauth_tokens VALUES (?,?,?,?)", (hash_token(refresh), "refresh", agora + DURACAO_REFRESH, agora))
+    sql = "INSERT INTO oauth_tokens (hash, tipo, expira, criado_em, usuario_id) VALUES (?,?,?,?,CAST(? AS uuid))"
+    uid = str(usuario_id) if usuario_id else None
+    db.executar(sql, (hash_token(access), "access", agora + DURACAO_ACCESS, agora, uid))
+    db.executar(sql, (hash_token(refresh), "refresh", agora + DURACAO_REFRESH, agora, uid))
     db.executar("DELETE FROM oauth_tokens WHERE expira < ?", (agora,))
     return {"access_token": access, "refresh_token": refresh, "token_type": "Bearer", "expires_in": DURACAO_ACCESS}
 
@@ -137,7 +146,8 @@ def _limite_token(ip: str):
 @roteador.post("/oauth/token")
 def token(request: Request, grant_type: str = Form(...), code: str = Form(None), refresh_token: str = Form(None),
           redirect_uri: str = Form(None), client_id: str = Form(None), client_secret: str = Form(None)):
-    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")).split(",")[0].strip()
+    from .. import firewall
+    ip = firewall.ip_do_pedido(request)
     if not _limite_token(ip):
         return _oauth_erro("slow_down", 429)
     auth = request.headers.get("authorization", "")
@@ -151,18 +161,18 @@ def token(request: Request, grant_type: str = Form(...), code: str = Form(None),
         return _oauth_erro("invalid_client", 401)
 
     if grant_type == "authorization_code":
-        linha = db.um("SELECT * FROM oauth_codigos WHERE codigo = ?", (hash_token(code or ""),))
-        db.executar("DELETE FROM oauth_codigos WHERE codigo = ? OR expira < ?", (hash_token(code or ""), db.agora()))
-        if not linha or linha["expira"] < db.agora() or (redirect_uri and redirect_uri != linha["redirect_uri"]):
+        # DELETE ... RETURNING: o código só pode ser trocado uma vez, mesmo com dois pedidos ao mesmo tempo
+        linha = db.um("DELETE FROM oauth_codigos WHERE codigo = ? RETURNING *", (hash_token(code or ""),))
+        db.executar("DELETE FROM oauth_codigos WHERE expira < ?", (db.agora(),))
+        if not linha or linha["expira"] < db.agora() or redirect_uri != linha["redirect_uri"] or not alexa.dono_valido(linha.get("usuario_id")):
             return _oauth_erro("invalid_grant")
-        return JSONResponse(_emitir(), headers={"Cache-Control": "no-store"})
+        return JSONResponse(_emitir(linha.get("usuario_id")), headers={"Cache-Control": "no-store"})
     if grant_type == "refresh_token":
         h = hash_token(refresh_token or "")
-        linha = db.um("SELECT * FROM oauth_tokens WHERE hash = ? AND tipo = 'refresh'", (h,))
-        if not linha or linha["expira"] < db.agora():
+        linha = db.um("DELETE FROM oauth_tokens WHERE hash = ? AND tipo = 'refresh' RETURNING *", (h,))
+        if not linha or linha["expira"] < db.agora() or not alexa.dono_valido(linha.get("usuario_id")):
             return _oauth_erro("invalid_grant")
-        db.executar("DELETE FROM oauth_tokens WHERE hash = ?", (h,))
-        return JSONResponse(_emitir(), headers={"Cache-Control": "no-store"})
+        return JSONResponse(_emitir(linha.get("usuario_id")), headers={"Cache-Control": "no-store"})
     return _oauth_erro("unsupported_grant_type")
 
 

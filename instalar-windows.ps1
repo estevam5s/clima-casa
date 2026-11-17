@@ -50,8 +50,24 @@ if ($acao -eq "remover") {
   Ok "Agente removido (a pasta e o .env continuam aqui)."; exit 0
 }
 
+# A pasta roda como SYSTEM: só Administradores e SYSTEM podem mexer nela (senão um usuário comum do PC trocaria o código
+# ou o Python e o agente rodaria isso como SYSTEM). Pasta que já existia e é de outra pessoa: recusa.
+function Proteger-Pasta([string]$d) {
+  if (-not $d -or $d.Length -le 3) { return }   # nunca mexe na raiz do disco
+  $permitidos = @("S-1-5-32-544", "S-1-5-18", [Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
+  try { $permitidos += @(Get-LocalGroupMember -SID "S-1-5-32-544" -ErrorAction Stop | ForEach-Object { $_.SID.Value }) } catch {}
+  if (Test-Path $d) {
+    $dono = (Get-Acl $d).GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+    if ($permitidos -notcontains $dono) { return $false }
+  } else { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+  icacls $d /setowner "*S-1-5-32-544" | Out-Null
+  icacls $d /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" | Out-Null
+  return $true
+}
+
 Admin
 Titulo "1/6 Conferindo os arquivos"
+if ((Proteger-Pasta $Raiz) -eq $false) { Write-Host "A pasta $Raiz não é de um administrador: mova o sistema para uma pasta criada como administrador (ex.: C:\ClimaEscritorio\ar-controle)." -ForegroundColor Red; exit 1 }
 if (-not (Test-Path (Join-Path $Raiz "backend\app\main.py"))) { Write-Host "Rode este script dentro da pasta ar-controle." -ForegroundColor Red; exit 1 }
 if (-not (Test-Path (Join-Path $Raiz ".env"))) {
   Write-Host "Falta o arquivo .env. Copie o .env do Mac (pasta ar-controle) para $Raiz e rode de novo." -ForegroundColor Red

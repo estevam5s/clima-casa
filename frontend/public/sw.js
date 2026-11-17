@@ -1,5 +1,5 @@
 // Service worker do Clima Escritório: guarda a interface para abrir sem rede. A API nunca vai para o cache.
-const VERSAO = 'clima-escritorio-v4'
+const VERSAO = 'clima-escritorio-v5'
 const BASICO = ['/', '/manifest.webmanifest', '/icone-192.png', '/icone-512.png', '/icone.svg']
 
 self.addEventListener('install', (e) => {
@@ -17,7 +17,8 @@ self.addEventListener('fetch', (e) => {
   if (/^\/(api|alexa|oauth|saude)/.test(url.pathname)) return // dados sempre ao vivo
   if (req.mode === 'navigate') {
     // páginas: rede primeiro, cópia guardada se estiver offline
-    e.respondWith(fetch(req).then((r) => { caches.open(VERSAO).then((c) => c.put('/', r.clone())); return r }).catch(() => caches.match('/')))
+    // só guarda a página que abriu certinho (erro, manutenção e portão não viram a cópia offline)
+    e.respondWith(fetch(req).then((r) => { if (r.ok && r.type === 'basic') { const copia = r.clone(); caches.open(VERSAO).then((c) => c.put('/', copia)) } return r }).catch(() => caches.match('/')))
     return
   }
   if (url.pathname.startsWith('/assets/')) {

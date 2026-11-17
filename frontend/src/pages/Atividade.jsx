@@ -82,7 +82,7 @@ function Analise({ filtro }) {
           </section>
           <section className="cartao p-5">
             <h2 className="titulo-secao mb-3">Por aparelho e ações</h2>
-            <ul className="mb-4 space-y-1.5 text-sm">{d.por_aparelho.map((a) => <li key={a.nome} className="flex justify-between"><span className="truncate">{a.nome}</span><span className="tabular text-muted-foreground">{a.total}{a.falhas ? ` · ${a.falhas} ✕` : ''}</span></li>)}</ul>
+            <ul className="mb-4 space-y-1.5 text-sm">{d.por_aparelho.map((a) => <li key={a.nome} className="flex justify-between"><span className="truncate">{a.nome}</span><span className="tabular text-muted-foreground">{a.total}{a.falhas ? ` · ${a.falhas} falha${a.falhas > 1 ? 's' : ''}` : ''}</span></li>)}</ul>
             <p className="mb-1.5 text-xs font-medium text-muted-foreground">Ações mais comuns</p>
             <ul className="space-y-1 text-sm">{d.acoes.map((a) => <li key={a.acao} className="flex justify-between gap-2"><span className="truncate">{a.acao}</span><span className="tabular text-muted-foreground">{a.total}</span></li>)}</ul>
           </section>
@@ -201,7 +201,7 @@ export default function Atividade() {
 
       {aberto && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={(e) => { if (e.target === e.currentTarget) setAberto(null) }}>
-          <aside className="h-full w-full max-w-md overflow-auto border-l border-border bg-card p-5 shadow-xl">
+          <aside className="h-full w-full max-w-md overflow-auto border-l border-border bg-card p-5 shadow-xl"> {/* marca: painel lateral flutua */}
             <div className="mb-4 flex items-start justify-between gap-2"><div><p className="text-xs text-muted-foreground">Registro #{aberto.id}</p><h2 className="text-base font-semibold">{aberto.acao}</h2></div><button onClick={() => setAberto(null)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Fechar"><X className="h-4 w-4" /></button></div>
             <dl className="space-y-3 text-sm">
               {[['Quando', new Date(aberto.quando * 1000).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'medium' })], ['Resultado', aberto.ok ? 'Deu certo' : 'Falhou'], ['Origem', `${rotuloOrigem(aberto.origem)} (${aberto.origem})`], ['Aparelho', aberto.aparelho_nome || '—'], ['Detalhe', aberto.detalhe || '—']].map(([k, v]) => <div key={k}><dt className="text-xs text-muted-foreground">{k}</dt><dd className="mt-0.5 whitespace-pre-wrap break-words">{v}</dd></div>)}

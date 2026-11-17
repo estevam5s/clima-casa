@@ -702,6 +702,21 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 - **Permissões de rota**: `rotas_sem_regra()` (rotas/api.py) lista rotas que mudam dados sem regra em `acesso.REGRAS` (fora
   `/api/infra/`, `/api/email/`, `/api/agentes/`, que exigem `configuracoes.gerenciar` + papel de propósito). Aparece no checklist da
   tela Segurança; meta: vazio. As rotas públicas (sem login) são 23, todas com proteção própria (Turnstile, Svix, `state`, prova).
+- **Auditoria completa (17/11, skill `cloudflare/security-audit-skill`)**: relatório em `~/security-audit-skill/clima-casa/run-1/`
+  (`REPORT.md`, `NEEDS-VALIDATION.md`, `findings.json`). 18 pistas, todas corrigidas na 1.4.2. **Regras que ficaram** (não desfazer):
+  - **Escopo de projetos não é só `checar_escopo`** (ele só olha `aid` em /aparelhos, `hub_id`, `cid`, `pid`, `gid`). Rota nova com
+    outro nome de parâmetro (`hid`, `zid`, `/automacoes/{aid}`) ou que lista várias tabelas precisa checar na mão: `_exigir_aparelhos`,
+    `_exigir_projeto`, `_ids_aparelhos_permitidos`, `_exigir_hub_inteiro` (zonas/teste: todos os ares do transmissor), `_exigir_hub_usavel`
+    (vincular ar a transmissor), `_exigir_automacao` (gatilho sem ar = todos os ares), `_visibilidade_notificacoes` (notificações).
+  - `/api/backup` e `/api/supabase/*` exigem acesso a **todos** os projetos (`acesso._SO_ACESSO_TOTAL`), além da permissão.
+  - `contas._pode_mexer_em`: quem não é dono/admin só mexe em conta cujas permissões e projetos cabem nos dele.
+  - `fila_comandos.resultado` de `infra` é apagado assim que a nuvem lê (`rotas/infra._via_agente`): resposta de agente pode ter segredo.
+  - Alexa (skill própria): só dono/admin aprova; `oauth_*.usuario_id` prende o token a quem aprovou (`alexa.dono_valido`); troca de
+    código/refresh com `DELETE … RETURNING`; diretiva só age em ar com `alexa = 1`.
+  - Agente sem `proxy_headers` (só com `CLIMA_CONFIAR_PROXY=1`); instalador Windows tira a herança de permissão da pasta (`Proteger-Pasta`).
+  - Planilhas: todo texto passa por `exportar.celula` (= + - @ viram texto). Login: limite por conta além do por IP (`firewall.falhas_da_conta`).
+  - Pendências do lado do dono (fora do código): CAPTCHA/limites no Supabase Auth (Authentication → Attack Protection) e
+    "Secure password change". Apps: Android com PKCE e desktop com filtro de esquema **só valem no próximo build/release**.
 
 ---
 
@@ -784,7 +799,9 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
   **DNSSEC ativo** (DS no Registro.br: keytag 2371, alg 13). Para desligar: tirar o DS no Registro.br, esperar 1 dia, depois a Cloudflare.
 - **Spotify** conectado (Premium); Echo Show 5 aparece; nenhuma rotina criada.
 - **Vercel**: ~2,1 GB "Functions Storage"; limpeza de publicações antigas e retenção de 7 dias **aguardando confirmação do dono**.
-- **Alexa (Sinric grátis)**: 3 aparelhos; hoje usa 1. Com mais ares, decidir antes: plano pago ou skill própria.
+- **Alexa (Sinric)**: plano grátis (3) + plano por aparelho (5, comprado em 17/11/2026, vence 17/11/2027) = **8 aparelhos**,
+  gravado em `config.sinric.limite_aparelhos = 8`. Em uso: 1 ("Ar do escritório", online). "Ar dos devs" sem botões: só vai para a
+  Alexa depois de gravar/copiar os botões (a rota recusa). Roteiro: `docs/continuar/2026-11-17-sinric-mais-aparelhos.md`.
 - Skill própria da Alexa não criada (opcional). Deison (admin) sem 2FA. Equipe no mapa: Cássio e Alexandre (Analista, seg–sex 8h–18h,
   cargo e horário a confirmar).
 

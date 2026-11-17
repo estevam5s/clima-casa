@@ -67,7 +67,7 @@ export function EditorPessoa({ inicial, postos, projetos, ocupado, onSalvar, onA
   return (
     <div className={dentro ? 'absolute inset-0 z-20 flex items-start justify-center overflow-auto bg-black/30 p-3 backdrop-blur-[1px]' : 'fixed inset-0 z-[70] flex items-start justify-center overflow-auto bg-black/40 p-4'}
       onClick={(e) => { if (e.target === e.currentTarget) onFechar() }}>
-      <form className="my-auto w-full max-w-xl rounded-xl border border-border bg-card p-5 text-sm shadow-xl" onSubmit={(e) => { e.preventDefault(); if (valido) onSalvar({ ...p, nome: p.nome.trim(), cargo: p.cargo.trim() }) }}>
+      <form className="my-auto w-full max-w-xl rounded-xl border border-border bg-card p-5 text-sm shadow-xl" onSubmit={(e) => { e.preventDefault(); if (valido) onSalvar({ ...p, nome: p.nome.trim(), cargo: p.cargo.trim() }) }}> {/* marca: janela flutua */}
         <div className="mb-4 flex items-start justify-between gap-2">
           <div><h2 className="text-base font-semibold">{inicial.nome ? `Editar ${inicial.nome}` : 'Nova pessoa da equipe'}</h2><p className="text-xs text-muted-foreground">Aparece no 3D com nome e cargo, no posto dela, durante o expediente.</p></div>
           <button type="button" onClick={onFechar} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Fechar"><X className="h-4 w-4" /></button>

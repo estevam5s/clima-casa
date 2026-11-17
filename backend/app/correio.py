@@ -425,7 +425,8 @@ def webhook_valido(corpo: bytes, cab: dict) -> bool:
     except (ValueError, TypeError):
         return False
     esperado = base64.b64encode(hmac.new(chave, f"{sid}.{ts}.".encode() + corpo, hashlib.sha256).digest()).decode()
-    return any(hmac.compare_digest(esperado, s.split(",", 1)[1]) for s in assinaturas.split() if "," in s)
+    # bytes: cabeçalho com caractere fora do ASCII não derruba a rota (compare_digest de str exige ASCII)
+    return any(hmac.compare_digest(esperado.encode(), s.split(",", 1)[1].encode("utf-8", "replace")) for s in assinaturas.split() if "," in s)
 
 
 def registrar_evento(ev: dict):

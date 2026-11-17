@@ -43,6 +43,7 @@ def config_publica() -> dict:
     mascara = lambda v: (v[:6] + "…" + v[-4:]) if v and len(v) > 12 else ("…" if v else "")
     return {"ativo": bool(c.get("ativo")), "automatico": c.get("automatico", True), "api_key": mascara(c.get("api_key", "")),
             "app_key": mascara(c.get("app_key", "")), "tem_secret": bool(c.get("app_secret")),
+            "limite_aparelhos": int(c.get("limite_aparelhos") or 3),   # quantos dispositivos a conta do Sinric comporta
             "agente": db.cfg("sinric_status") or {}}
 
 

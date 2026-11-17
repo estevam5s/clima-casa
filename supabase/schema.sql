@@ -451,3 +451,7 @@ alter table public.email_envios enable row level security;
 
 -- "O que há de novo": última versão que cada usuário já viu (o modal aparece uma vez por pessoa, em qualquer aparelho)
 alter table public.usuarios add column if not exists novidades_vista text;
+
+-- auditoria 17/11: token da Alexa preso a quem aprovou o vínculo (desativou ou rebaixou: a Alexa perde o acesso)
+alter table public.oauth_codigos add column if not exists usuario_id uuid;
+alter table public.oauth_tokens add column if not exists usuario_id uuid;

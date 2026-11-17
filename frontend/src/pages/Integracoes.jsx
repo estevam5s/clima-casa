@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowLeftRight, CheckCircle2, ExternalLink, Link2, Plus, QrCode, RefreshCw, Smartphone, XCircle } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Modal, Ponto, Selo, useDados, useToast } from '../components/ui'
@@ -118,7 +119,9 @@ export default function Integracoes() {
                 {semSinric.map((a) => (
                   <div key={a.id} className="flex items-center justify-between gap-3 px-5 py-3">
                     <div className="min-w-0"><p className="truncate text-sm font-medium">{a.nome}</p><p className="truncate text-xs text-muted-foreground">{[a.projeto_nome, a.comodo].filter(Boolean).join(' · ')}</p></div>
-                    <Botao tamanho="sm" icone={Plus} carregando={criando === a.id} onClick={() => criar(a)}>Criar no Sinric</Botao>
+                    {a.total_codigos > 0
+                      ? <Botao tamanho="sm" icone={Plus} carregando={criando === a.id} onClick={() => criar(a)}>Criar no Sinric</Botao>
+                      : <Link to={`/aparelhos/${a.id}`} className="shrink-0 text-xs text-muted-foreground underline">Grave os botões antes</Link>}
                   </div>
                 ))}
               </div>
@@ -154,7 +157,7 @@ export default function Integracoes() {
               </div>
             )}
             <div className="border-t border-border p-5 text-sm text-muted-foreground">
-              Precisa de outro ar-condicionado? Crie em <a href="https://portal.sinric.pro/device/add" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-foreground underline">portal.sinric.pro <ExternalLink className="h-3 w-3" /></a> com o tipo "Window AC Unit" e a mesma App Key, depois clique em Atualizar. O plano gratuito do Sinric permite 3 dispositivos.
+              Precisa de outro ar-condicionado? Crie em <a href="https://portal.sinric.pro/device/add" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-foreground underline">portal.sinric.pro <ExternalLink className="h-3 w-3" /></a> com o tipo "Window AC Unit" e a mesma App Key, depois clique em Atualizar. Sua conta do Sinric comporta {cfg?.limite_aparelhos ?? 3} dispositivo(s).
             </div>
           </motion.div>
         </div>
@@ -305,7 +308,7 @@ function ZonasAlexa() {
   return (
     <div className="cartao p-5">
       <h2 className="titulo-secao">Zonas na Alexa</h2>
-      <p className="mt-2 text-sm text-muted-foreground">Ares do mesmo modelo no mesmo transmissor obedecem juntos. Na Alexa, cada zona deve ser <b>um</b> aparelho com um nome só (ex.: "Ar do salão"): assim a fala corresponde ao que acontece e cabe no plano gratuito do Sinric (3 aparelhos).</p>
+      <p className="mt-2 text-sm text-muted-foreground">Ares do mesmo modelo no mesmo transmissor obedecem juntos. Na Alexa, cada zona deve ser <b>um</b> aparelho com um nome só (ex.: "Ar do salão"): assim a fala corresponde ao que acontece e gasta só um dispositivo do Sinric por zona.</p>
       {zonas.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhuma zona ainda. Elas aparecem quando dois ou mais ares iguais estão no mesmo transmissor (ou depois do teste de interferência em Transmissores).</p> : (
         <ul className="mt-3 divide-y divide-border">
           {zonas.map((z) => {

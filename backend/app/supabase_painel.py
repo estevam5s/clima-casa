@@ -16,7 +16,7 @@ import uuid
 from . import db
 
 SENSIVEL = re.compile(r"(^|_)(key|secret|segredo|token|hash|senha|password|credencial|credential|desafio|challenge|otp|recovery|"
-                      r"sign_count)(_|$)|^chave_|_chave$|token|secret", re.I)
+                      r"sign_count)(_|$)|^chave_|_chave$|token|secret|^codigo$|^prova$|^cifrado$", re.I)
 MASCARA = "••••••"
 LIMITE_TEXTO = 400
 

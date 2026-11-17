@@ -167,7 +167,11 @@ def rodar():
     import uvicorn
     host = os.environ.get("CLIMA_HOST", "127.0.0.1")
     porta = int(os.environ.get("CLIMA_PORTA", "8090"))
-    uvicorn.run("app.main:app", host=host, port=porta, proxy_headers=True, forwarded_allow_ips="127.0.0.1")
+    # Sem proxy na frente do agente: X-Forwarded-For de quem fala pelo 127.0.0.1 NÃO vale (senão um programa local
+    # forjaria o IP e bloquearia IPs reais no firewall que a produção também usa). Atrás de um proxy de verdade,
+    # use CLIMA_CONFIAR_PROXY=1 (o firewall então lê o cabeçalho da borda).
+    proxy = bool(os.environ.get("CLIMA_CONFIAR_PROXY"))
+    uvicorn.run("app.main:app", host=host, port=porta, proxy_headers=proxy, forwarded_allow_ips="127.0.0.1" if proxy else "")
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ esac
 [ "$(id -u)" = 0 ] || { echo "Rode com sudo."; exit 1; }
 [ -f "$RAIZ/backend/app/main.py" ] || { echo "Rode dentro da pasta ar-controle."; exit 1; }
 [ -f "$RAIZ/.env" ] || { echo "Falta o .env: copie o do Mac para $RAIZ."; exit 1; }
+chmod 600 "$RAIZ/.env"   # só o dono do arquivo lê as chaves
 echo "== Python e dependências"
 if ! command -v python3 >/dev/null; then apt-get update -qq && apt-get install -y -qq python3 python3-venv python3-pip; fi
 python3 -c 'import sys; assert sys.version_info >= (3, 11), "precisa de Python 3.11 ou mais novo"'

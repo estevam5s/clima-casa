@@ -50,7 +50,7 @@ function ContaSmartLife({ conta, aoMudar }) {
   if (conta.conectada) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm"><Ponto ativo /> Conectada{conta.usuario ? ` como ${conta.usuario}` : ''} (código {conta.user_code})</p>
+        <p className="flex min-w-0 items-center gap-2 text-sm"><Ponto ativo /><span className="min-w-0 break-all">Conectada{conta.usuario ? ` como ${conta.usuario}` : ''}{conta.user_code ? ` (código ${conta.user_code})` : ''}</span></p>
         <Botao variante="secundario" tamanho="sm" icone={LogOut} onClick={async () => { await api.del('/api/tuya'); aoMudar() }}>Desconectar</Botao>
       </div>
     )
@@ -132,9 +132,9 @@ export default function Configuracoes() {
   const pedida = params.get('aba')
   const aba = ABAS.some((a) => a[0] === pedida) ? pedida : (pode('configuracoes.gerenciar') ? 'geral' : 'perfil')
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0">
       <Cabecalho titulo="Configurações" descricao="Perfil, usuários e permissões, segurança da conta, aparência e o sistema." />
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
+      <div className="mb-6 flex max-w-full gap-1 overflow-x-auto border-b border-border">
         {ABAS.map(([k, r, I]) => (
           <button key={k} onClick={() => setParams({ aba: k })}
             className={`relative -mb-px flex shrink-0 items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${aba === k ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
@@ -179,8 +179,8 @@ export default function Configuracoes() {
         </div>
       )}
       {aba === 'contas' && (
-        <div className="grid gap-6 xl:grid-cols-2">
-        <section id="smartlife" className="cartao p-5">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <section id="smartlife" className="cartao min-w-0 p-5">
           <h2 className="text-sm font-semibold">Conta Smart Life</h2>
           <p className="mb-4 mt-1 text-sm text-muted-foreground">Traz a Local Key dos transmissores e permite enviar comandos pela nuvem quando você está fora.</p>
           <ContaSmartLife conta={dados.tuya} aoMudar={recarregar} />

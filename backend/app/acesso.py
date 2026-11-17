@@ -87,6 +87,8 @@ REGRAS = [
     ("PUT", r"^/api/(config|marca)$", "configuracoes.gerenciar"),
 ]
 _REGRAS = [(set(m.split("|")) if m != "*" else None, re.compile(p), perm) for m, p, perm in REGRAS]
+# rotas que mostram dados de TODOS os projetos de uma vez (backup, tabelas do banco): só para quem vê todos os projetos
+_SO_ACESSO_TOTAL = re.compile(r"^/api/(backup|supabase/)")
 
 atual = contextvars.ContextVar("clima_usuario", default=None)   # usuário da requisição (dict de usuarios + "perm")
 
@@ -137,6 +139,8 @@ def checar_rota(metodo: str, rota: str, u: dict):
         if (metodos is None or metodo in metodos) and padrao.search(rota):
             if not pode(perm, u):
                 raise HTTPException(403, f"Seu usuário não tem permissão para isto ({PERMISSOES[perm][1].lower()}).")
+            if _SO_ACESSO_TOTAL.search(rota) and u.get("projetos") != "*":
+                raise HTTPException(403, "Isto mostra os dados de todos os projetos: só para quem tem acesso a todos.")
             return
     if metodo != "GET" and not pode("configuracoes.gerenciar", u):
         raise HTTPException(403, "Seu usuário não tem permissão para alterar isto.")

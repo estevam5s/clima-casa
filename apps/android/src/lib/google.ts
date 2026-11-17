@@ -4,8 +4,8 @@ import { supabase } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Entrar com Google: abre a tela do Google numa aba segura do navegador e volta para o app (climacasa://auth)
-// com os tokens da sessão no endereço. Só entra quem já tem conta no sistema (o cadastro público é desligado).
+// Entrar com Google: abre a tela do Google numa aba segura do navegador e volta para o app (climacasa://auth?code=…).
+// PKCE: o código só vira sessão junto com o verificador guardado neste aparelho. Só entra quem já tem conta.
 export async function entrarComGoogle(): Promise<'ok' | 'cancelado'> {
   const volta = Linking.createURL('auth');
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -17,9 +17,9 @@ export async function entrarComGoogle(): Promise<'ok' | 'cancelado'> {
   const partes = new URLSearchParams((r.url.split('#')[1] || r.url.split('?')[1] || ''));
   const erro = partes.get('error_description');
   if (erro) throw new Error(/signups not allowed|not allowed/i.test(erro) ? 'Esta conta Google não está cadastrada no sistema. Peça acesso ao administrador.' : erro);
-  const access_token = partes.get('access_token'), refresh_token = partes.get('refresh_token');
-  if (!access_token || !refresh_token) throw new Error('O Google não devolveu a sessão. Tente de novo.');
-  const { error: e2 } = await supabase.auth.setSession({ access_token, refresh_token });
+  const codigo = partes.get('code');
+  if (!codigo) throw new Error('O Google não devolveu a sessão. Tente de novo.');
+  const { error: e2 } = await supabase.auth.exchangeCodeForSession(codigo);
   if (e2) throw new Error(e2.message);
   return 'ok';
 }

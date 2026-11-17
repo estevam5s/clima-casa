@@ -280,6 +280,22 @@ def _validar_aparelho(d: AparelhoIn):
         raise HTTPException(400, "Transmissor não encontrado.")
 
 
+def _exigir_hub_usavel(hub_id: str | None):
+    """Com acesso limitado, só dá para pôr o ar num transmissor do seu projeto ou que já atende um ar seu
+    (salão aberto: um transmissor no teto serve salas de projetos diferentes)."""
+    from .. import acesso
+    perm = acesso.projetos_permitidos()
+    if perm is None or not hub_id:
+        return
+    h = db.um("SELECT projeto_id FROM hubs WHERE id = ?", (hub_id,))
+    if h and h["projeto_id"] in perm:
+        return
+    ids = _ids_aparelhos_permitidos() or set()
+    if any(r["id"] in ids for r in db.consultar("SELECT id FROM aparelhos WHERE hub_id = ?", (hub_id,))):
+        return
+    raise HTTPException(403, "Esse transmissor é de outro projeto.")
+
+
 @api.get("/aparelhos")
 def listar_aparelhos(projeto_id: int | None = None):
     w, p = _filtro_projeto(projeto_id)
@@ -296,6 +312,7 @@ def criar_aparelho(d: AparelhoIn):
     temp = max(d.temp_min, min(d.temp_max, 23))
     projeto = d.projeto_id or (db.um("SELECT projeto_id FROM hubs WHERE id = ?", (d.hub_id,)) or {}).get("projeto_id")
     _exigir_projeto(projeto)
+    _exigir_hub_usavel(d.hub_id)
     novo = db.executar(
         "INSERT INTO aparelhos (nome, comodo, marca, hub_id, temp_min, temp_max, modos, alexa, temperatura, modo, "
         "projeto_id, criado_em, potencia_w) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -343,6 +360,8 @@ def editar_aparelho(aid: int, d: AparelhoIn):
         a = clima.aparelho(aid)
     except KeyError as e:
         _erro(e)
+    if d.hub_id != a["hub_id"]:
+        _exigir_hub_usavel(d.hub_id)
     temp = max(d.temp_min, min(d.temp_max, a["temperatura"]))
     modo = a["modo"] if a["modo"] in d.modos else d.modos[0]
     db.executar("UPDATE aparelhos SET nome=?, comodo=?, marca=?, hub_id=?, temp_min=?, temp_max=?, modos=?, alexa=?, "
@@ -468,7 +487,30 @@ class TodosIn(BaseModel):
 def listar_zonas():
     from .. import zonas
     perm = _ids_aparelhos_permitidos()
-    return [z for z in zonas.listar() if perm is None or set(z["aparelhos"]) & perm]
+    if perm is None:
+        return zonas.listar()
+    # acesso limitado: a zona aparece se tem um ar seu, mas os ares de outros projetos viram só uma contagem
+    return [{**z, "aparelhos": [i for i in z["aparelhos"] if i in perm], "ares": [a for a in z["ares"] if a["id"] in perm],
+             "total": len(z["aparelhos"]), "outros_projetos": len([i for i in z["aparelhos"] if i not in perm])}
+            for z in zonas.listar() if set(z["aparelhos"]) & perm]
+
+
+def _hubs_inteiros_permitidos() -> set | None:
+    """Transmissores em que TODOS os ares são do usuário (None = acesso total). Só nesses dá para mexer nas zonas e testar
+    interferência: o sinal e as zonas de um transmissor atingem todos os ares dele."""
+    perm = _ids_aparelhos_permitidos()
+    if perm is None:
+        return None
+    por_hub: dict[str, set] = {}
+    for r in db.consultar("SELECT id, hub_id FROM aparelhos WHERE hub_id IS NOT NULL"):
+        por_hub.setdefault(r["hub_id"], set()).add(r["id"])
+    return {h for h, ids in por_hub.items() if ids <= perm}
+
+
+def _exigir_hub_inteiro(hid: str):
+    ok = _hubs_inteiros_permitidos()
+    if ok is not None and hid not in ok:
+        raise HTTPException(403, "Este transmissor também atende ares de outro projeto: peça a quem tem acesso a todos.")
 
 
 class ZonaIn(BaseModel):
@@ -486,10 +528,18 @@ def salvar_zonas(d: list[ZonaIn]):
     if len(d) > 30:
         raise HTTPException(422, "Zonas demais.")
     for z in d:
-        transmissor.hub(z.hub_id)
+        try:
+            transmissor.hub(z.hub_id)
+        except KeyError as e:
+            _erro(e)
+        _exigir_hub_inteiro(z.hub_id)
         if z.alexa_aparelho_id and z.alexa_aparelho_id not in z.aparelhos:
             raise HTTPException(422, f"O ar da Alexa da zona '{z.nome}' precisa estar na zona.")
-    r = zonas.salvar([{**z.model_dump(), "origem": "manual"} for z in d])
+    novas = [{**z.model_dump(), "origem": "manual"} for z in d]
+    editaveis = _hubs_inteiros_permitidos()
+    if editaveis is not None:   # acesso limitado: as zonas dos outros transmissores continuam como estão
+        novas = [z for z in zonas._salvas() if z["hub_id"] not in editaveis] + novas
+    r = zonas.salvar(novas)
     db.registrar("painel", "Zonas de ar atualizadas", detalhe=", ".join(f"{z['nome']} ({len(z['aparelhos'])})" for z in r))
     return zonas.listar()
 
@@ -533,7 +583,11 @@ def teste_interferencia(hid: str, d: TesteInterferenciaIn):
     """Assistente: manda o sinal de UM ar (Ligar Frio 24° ou Desligar) sem mexer no estado salvo; a pessoa no salão diz quem
     apitou. No fim ('gravar'), os grupos viram as zonas deste transmissor (o resultado real vence o palpite por código)."""
     from .. import zonas
-    transmissor.hub(hid)
+    try:
+        transmissor.hub(hid)
+    except KeyError as e:
+        _erro(e)
+    _exigir_hub_inteiro(hid)
     if d.acao == "gravar":
         ids = {r["id"] for r in db.consultar("SELECT id FROM aparelhos WHERE hub_id = ?", (hid,))}
         respostas = {a: [b for b in lst if b in ids] for a, lst in d.respostas.items() if a in ids}
@@ -721,11 +775,14 @@ def _hub_publico(h):
                         "(SELECT COUNT(*) FROM codigos c WHERE c.aparelho_id = a.id) AS botoes "
                         "FROM aparelhos a LEFT JOIN projetos p ON p.id = a.projeto_id WHERE a.hub_id = ? ORDER BY a.nome", (h["id"],))
     h["aparelhos"] = len(ares)
-    h["ares"] = [dict(a) for a in ares]
+    perm = _ids_aparelhos_permitidos()   # acesso limitado: ares de outros projetos viram só uma contagem
+    h["ares"] = [dict(a) for a in ares if perm is None or a["id"] in perm]
+    h["outros_projetos"] = len(ares) - len(h["ares"])
     from .. import zonas
     zs = [z for z in zonas.listar() if z["hub_id"] == h["id"]]
-    h["zonas"] = [{k: z[k] for k in ("id", "nome", "aparelhos", "alexa_aparelho_id", "origem")} for z in zs]
-    h["juntos"] = [z["aparelhos"] for z in zs]
+    vis = (lambda ids: ids) if perm is None else (lambda ids: [i for i in ids if i in perm])
+    h["zonas"] = [{**{k: z[k] for k in ("id", "nome", "alexa_aparelho_id", "origem")}, "aparelhos": vis(z["aparelhos"])} for z in zs]
+    h["juntos"] = [vis(z["aparelhos"]) for z in zs]
     h["testado"] = h["id"] in (db.cfg(zonas.TESTADOS) or [])
     h["limite_recomendado"] = LIMITE_ARES_POR_TRANSMISSOR
     return h
@@ -803,6 +860,8 @@ def editar_hub(hub_id: str, d: HubEdit):
         transmissor.hub(hub_id)
     except KeyError as e:
         _erro(e)
+    if d.projeto_id:   # com acesso limitado, não dá para mover o transmissor para um projeto que não é seu
+        _exigir_projeto(d.projeto_id)
     db.executar("UPDATE hubs SET nome = ?, ip = ?, versao = ?, projeto_id = ? WHERE id = ?",
                 (d.nome.strip(), d.ip.strip(), d.versao, d.projeto_id, hub_id))
     if d.local_key:
@@ -889,7 +948,9 @@ class ConfigIn(BaseModel):
 
 @api.get("/config")
 def ver_config():
-    conta = db.cfg("tuya_conta")
+    from .. import acesso
+    # a conta do Smart Life só aparece para quem cuida das integrações
+    conta = db.cfg("tuya_conta") if acesso.pode("integracoes.gerenciar") else ({"usuario": ""} if db.cfg("tuya_conta") else None)
     return {
         "modo_envio": db.cfg("modo_envio", "auto"),
         "nome_casa": db.cfg("nome_casa", "Minha casa"),
@@ -1133,6 +1194,12 @@ def alertas(abertos: bool = True):
 
 @api.post("/alertas/{aid}/resolver")
 def resolver_alerta(aid: int):
+    from .. import acesso
+    if acesso.projetos_permitidos() is not None:
+        al = db.um("SELECT a.projeto_id FROM alertas l LEFT JOIN aparelhos a ON a.id = l.aparelho_id WHERE l.id = ?", (aid,))
+        if not al:
+            raise HTTPException(404, "Alerta não encontrado.")
+        acesso.checar_projeto(al["projeto_id"])
     db.executar("UPDATE alertas SET resolvido = true WHERE id = ?", (aid,))
     return {"ok": True}
 
@@ -1607,6 +1674,7 @@ def executar_cena(cid: int):
     cena = db.um("SELECT * FROM cenas WHERE id = ?", (cid,))
     if not cena:
         raise HTTPException(404, "Cena não encontrada.")
+    _exigir_aparelhos([a.get("aparelho_id") for a in cena["acoes"]])   # cena pode ter ar de outro projeto
     resultados = []
     for a in cena["acoes"]:
         try:
@@ -1858,6 +1926,9 @@ def criar_no_sinric(aid: int):
         a = clima.aparelho(aid)
         if a["sinric_device_id"]:
             raise ValueError("Este aparelho já está no Sinric Pro.")
+        if not db.um("SELECT 1 FROM codigos WHERE aparelho_id = ? LIMIT 1", (aid,)):
+            # sem botões, a Alexa responderia "ok" e o ar não receberia nada (e gastaria um dispositivo do plano)
+            raise ValueError("Grave os botões deste ar antes de pôr na Alexa (Aparelho → Botões, ou Controle Gree).")
         dev = sinric.criar_dispositivo(a)
     except Exception as e:  # noqa: BLE001
         _erro(e if isinstance(e, (KeyError, ValueError)) else RuntimeError(str(e)))
@@ -1889,8 +1960,8 @@ def sinric_diagnostico():
          "Ligada." if c.get("ativo") else "Desligada: a Alexa vai achar os aparelhos, mas os comandos não chegam.")
     visto = int(db.cfg("agente_visto_em") or 0)
     agente_on = db.agora() - visto < 90
-    item("agente", "Agente do Mac ligado", "ok" if agente_on else "erro",
-         "Respondendo." if agente_on else "Sem sinal do agente: os comandos da Alexa passam pelo Mac, ligue-o.")
+    item("agente", "Agente ligado", "ok" if agente_on else "erro",
+         "Respondendo." if agente_on else "Sem sinal do agente: os comandos da Alexa passam por ele, ligue o computador do escritório.")
     item("websocket", "Agente conectado ao Sinric", "ok" if st.get("conectado") else "erro",
          "Conectado desde " + time.strftime("%d/%m %H:%M", time.gmtime((st.get("desde") or 0) - 3 * 3600)) + "." if st.get("conectado")
          else f"Não conectado{': ' + st['erro'] if st.get('erro') else ''}.")
@@ -1918,7 +1989,7 @@ def sinric_diagnostico():
     item("ir", "Botões do controle gravados", "ok" if vinc and not sem_ir else "aviso",
          "Todos têm sinais IR gravados." if not sem_ir else f"Sem botões gravados: {', '.join(sem_ir)}. A Alexa responde \"ok\", mas o ar não recebe nada.")
     ult = db.um("SELECT quando, origem, acao, ok FROM atividade WHERE origem IN ('alexa', 'sinric') ORDER BY quando DESC LIMIT 1")
-    item("ultimo", "Último comando de voz recebido", "ok" if ult else "aviso",
+    item("ultimo", "Último comando de voz recebido", "ok" if ult and ult["ok"] else "aviso",
          (time.strftime("%d/%m %H:%M", time.gmtime(ult["quando"] - 3 * 3600)) + f" · {ult['acao']} ({'ok' if ult['ok'] else 'falhou'})") if ult
          else "Nenhum ainda. Depois de conectar a nova Alexa, fale um comando e clique em Verificar de novo.")
     # zonas: ares iguais no mesmo transmissor mudam juntos; na Alexa cada zona deve ser UM aparelho
@@ -2041,6 +2112,39 @@ def _aparelhos_da_automacao(a) -> set:
     return ids
 
 
+def _exigir_automacao(a: dict):
+    """Quem vê só alguns projetos não pode criar automação que atinja ar de outro projeto: gatilho de ar sem ar escolhido
+    vale para TODOS os ares (o alvo é quem disparou), e a cena pode ser de outro projeto."""
+    perm = _ids_aparelhos_permitidos()
+    if perm is None:
+        return
+    ids = set(_aparelhos_da_automacao(a))
+    g = a.get("gatilho") or {}
+    if g.get("tipo") in ("ligou", "desligou", "ligado_ha") and not g.get("aparelho_id"):
+        raise HTTPException(403, "Com acesso a alguns projetos, escolha o ar do gatilho (sem ar escolhido, a automação vale para todos os ares).")
+    for acao in a.get("acoes") or []:
+        if isinstance(acao, dict) and acao.get("tipo") == "cena" and acao.get("cena_id"):
+            c = db.um("SELECT projeto_id, acoes FROM cenas WHERE id = ?", (int(acao["cena_id"]),))
+            if not c:
+                raise HTTPException(404, "Cena da ação não encontrada.")
+            _exigir_projeto(c["projeto_id"])
+            ids |= {int(x["aparelho_id"]) for x in (c["acoes"] or []) if x.get("aparelho_id")}
+    if not ids <= perm:
+        raise HTTPException(403, "Você não tem acesso a um dos aparelhos desta automação.")
+
+
+def _automacao_permitida(aid: int) -> dict:
+    auto = db.um("SELECT * FROM automacoes WHERE id = ?", (aid,))
+    if not auto:
+        raise HTTPException(404, "Automação não encontrada.")
+    if _ids_aparelhos_permitidos() is not None:
+        try:
+            _exigir_automacao(auto)
+        except HTTPException:
+            raise HTTPException(403, "Você não tem acesso a essa automação.") from None
+    return auto
+
+
 def listar_automacoes():
     lista = db.consultar("SELECT * FROM automacoes ORDER BY nome")
     permitidos = _ids_aparelhos_permitidos()
@@ -2054,7 +2158,7 @@ api.get("/automacoes")(listar_automacoes)
 
 @api.post("/automacoes")
 def criar_automacao(d: AutomacaoIn):
-    _exigir_aparelhos(_aparelhos_da_automacao(d.model_dump()))
+    _exigir_automacao(d.model_dump())
     g, c, a = _validar_auto(d)
     novo = db.executar("INSERT INTO automacoes (nome, ativo, gatilho, condicoes, acoes, criado_em) "
                        "VALUES (?, ?, CAST(? AS jsonb), CAST(? AS jsonb), CAST(? AS jsonb), ?)",
@@ -2065,11 +2169,8 @@ def criar_automacao(d: AutomacaoIn):
 
 @api.put("/automacoes/{aid}")
 def editar_automacao(aid: int, d: AutomacaoIn):
-    _exigir_aparelhos(_aparelhos_da_automacao(d.model_dump()))
-    if (perm := _ids_aparelhos_permitidos()) is not None:
-        atual_auto = db.um("SELECT * FROM automacoes WHERE id = ?", (aid,))
-        if atual_auto and not _aparelhos_da_automacao(atual_auto) <= perm:
-            raise HTTPException(403, "Você não tem acesso a essa automação.")
+    _exigir_automacao(d.model_dump())
+    _automacao_permitida(aid)
     g, c, a = _validar_auto(d)
     db.executar("UPDATE automacoes SET nome=?, ativo=?, gatilho=CAST(? AS jsonb), condicoes=CAST(? AS jsonb), acoes=CAST(? AS jsonb) WHERE id=?",
                 (d.nome.strip(), int(d.ativo), g, c, a, aid))
@@ -2078,6 +2179,7 @@ def editar_automacao(aid: int, d: AutomacaoIn):
 
 @api.delete("/automacoes/{aid}")
 def apagar_automacao(aid: int):
+    _automacao_permitida(aid)
     db.executar("DELETE FROM automacoes WHERE id = ?", (aid,))
     return {"ok": True}
 
@@ -2085,9 +2187,7 @@ def apagar_automacao(aid: int):
 @api.post("/automacoes/{aid}/executar")
 def executar_automacao(aid: int):
     from .. import automacao
-    auto = db.um("SELECT * FROM automacoes WHERE id = ?", (aid,))
-    if not auto:
-        raise HTTPException(404, "Automação não encontrada.")
+    auto = _automacao_permitida(aid)
     automacao.executar_acoes(auto, auto["gatilho"].get("aparelho_id"))
     return {"ok": True}
 
@@ -2121,9 +2221,11 @@ def cancelar_temporizador(aid: int):
 # ---------------- comandos de voz da Alexa (gerados para cada aparelho) ----------------
 @api.get("/alexa/comandos")
 def comandos_alexa():
+    fa, pa = _escopo("a.projeto_id")
     aparelhos = db.consultar("SELECT a.*, pr.nome AS projeto_nome FROM aparelhos a LEFT JOIN projetos pr ON pr.id = a.projeto_id "
-                             "WHERE a.alexa = 1 ORDER BY a.nome")
-    cenas = db.consultar("SELECT id, nome FROM cenas ORDER BY nome")
+                             f"WHERE a.alexa = 1{fa} ORDER BY a.nome", pa)
+    fc, pc = _escopo("projeto_id")
+    cenas = db.consultar(f"SELECT id, nome FROM cenas WHERE true{fc} ORDER BY nome", pc)
     saida = []
     for a in aparelhos:
         n = a["nome"]
@@ -2185,24 +2287,49 @@ def reparar_hubs():
 
 
 # ---------------- notificações (tudo o que pede atenção, de todas as telas) ----------------
+def _visibilidade_notificacoes():
+    """None = vê todas; senão, função que diz se a pessoa pode ver (e mexer em) uma notificação.
+    A tabela é uma só para todos: quem tem acesso limitado só enxerga e mexe no que é dele."""
+    from .. import acesso
+    if acesso.projetos_permitidos() is None and acesso.pode("configuracoes.gerenciar"):
+        return None
+    permitidos = _ids_aparelhos_permitidos()
+
+    def visivel(n):
+        m = re.search(r"/aparelhos/(\d+)", n.get("link") or "")
+        if m:
+            return permitidos is None or int(m.group(1)) in permitidos
+        if n["tipo"] == "seguranca":
+            return acesso.pode("seguranca.gerenciar")
+        if (n.get("chave") or "").startswith("site-"):
+            return acesso.pode("mensagens.ver")
+        return acesso.pode("configuracoes.gerenciar") or n["tipo"] in ("transmissor", "agente")
+    return visivel
+
+
+def _notificacao_minha(nid: int) -> dict:
+    n = db.um("SELECT * FROM notificacoes WHERE id = ?", (nid,))
+    vis = _visibilidade_notificacoes()
+    if not n or (vis is not None and not vis(n)):
+        raise HTTPException(404, "Notificação não encontrada.")
+    return n
+
+
+def _ids_notificacoes_visiveis(extra_sql: str = "") -> list[int] | None:
+    vis = _visibilidade_notificacoes()
+    if vis is None:
+        return None
+    return [n["id"] for n in db.consultar(f"SELECT id, tipo, chave, link FROM notificacoes WHERE true{extra_sql}") if vis(n)]
+
+
 @api.get("/notificacoes")
 def listar_notificacoes(filtro: str = "todas"):
     from .. import notificacoes
     from .. import acesso
     r = notificacoes.listar(filtro)
-    restrito = acesso.projetos_permitidos() is not None
-    if restrito or not acesso.pode("configuracoes.gerenciar"):
+    visivel = _visibilidade_notificacoes()
+    if visivel is not None:
         # só avisos dos aparelhos que o usuário vê; segurança e sistema só para quem gerencia isso
-        permitidos = _ids_aparelhos_permitidos()
-        def visivel(n):
-            m = re.search(r"/aparelhos/(\d+)", n.get("link") or "")
-            if m:
-                return permitidos is None or int(m.group(1)) in permitidos
-            if n["tipo"] == "seguranca":
-                return acesso.pode("seguranca.gerenciar")
-            if (n.get("chave") or "").startswith("site-"):
-                return acesso.pode("mensagens.ver")
-            return acesso.pode("configuracoes.gerenciar") or n["tipo"] in ("transmissor", "agente")
         r["itens"] = [n for n in r["itens"] if visivel(n)]
         nao_lidas = sum(1 for n in r["itens"] if not n["lida"])
         r["contagem"] = {**r["contagem"], "todas": len(r["itens"]), "nao_lidas": nao_lidas,
@@ -2220,18 +2347,24 @@ def listar_notificacoes(filtro: str = "todas"):
 
 @api.post("/notificacoes/{nid}/lida")
 def marcar_notificacao(nid: int, lida: bool = True):
+    _notificacao_minha(nid)
     db.executar("UPDATE notificacoes SET lida = ? WHERE id = ?", (lida, nid))
     return {"ok": True}
 
 
 @api.post("/notificacoes/ler-todas")
 def ler_todas_notificacoes():
-    db.executar("UPDATE notificacoes SET lida = true WHERE NOT lida AND NOT arquivada")
+    ids = _ids_notificacoes_visiveis(" AND NOT lida AND NOT arquivada")
+    if ids is None:
+        db.executar("UPDATE notificacoes SET lida = true WHERE NOT lida AND NOT arquivada")
+    elif ids:
+        db.executar(f"UPDATE notificacoes SET lida = true WHERE id IN ({','.join('?' * len(ids))})", tuple(ids))
     return {"ok": True}
 
 
 @api.delete("/notificacoes/{nid}")
 def arquivar_notificacao(nid: int):
+    _notificacao_minha(nid)
     db.executar("UPDATE notificacoes SET arquivada = true, lida = true WHERE id = ?", (nid,))
     return {"ok": True}
 
@@ -2240,14 +2373,27 @@ def arquivar_notificacao(nid: int):
 def limpar_notificacoes(somente: str = "todas"):
     """Arquiva (limpa da lista): todas, só as lidas ou só as resolvidas. Condições ainda ativas voltam se mudarem de estado."""
     filtro = {"lidas": " AND lida", "resolvidas": " AND resolvida"}.get(somente, "")
-    db.executar(f"UPDATE notificacoes SET arquivada = true, lida = true WHERE NOT arquivada{filtro}")
+    ids = _ids_notificacoes_visiveis(f" AND NOT arquivada{filtro}")
+    if ids is None:
+        db.executar(f"UPDATE notificacoes SET arquivada = true, lida = true WHERE NOT arquivada{filtro}")
+    elif ids:
+        db.executar(f"UPDATE notificacoes SET arquivada = true, lida = true WHERE id IN ({','.join('?' * len(ids))})", tuple(ids))
     db.registrar("painel", "Notificações limpas", detalhe=somente)
     return {"ok": True}
 
 
 @api.post("/notificacoes/{nid}/acao")
 def acao_notificacao(nid: int):
-    from .. import notificacoes
+    from .. import acesso, notificacoes
+    n = _notificacao_minha(nid)
+    acao = n["acao"] if isinstance(n["acao"], dict) else json.loads(n["acao"] or "null")
+    # a ação vale o mesmo que a tela própria dela: desbloquear IP é do firewall, reparar é dos transmissores
+    perm = {"desbloquear_ip": "seguranca.gerenciar", "resolver_alerta": "aparelhos.controlar",
+            "reparar_hub": "transmissores.gerenciar"}.get((acao or {}).get("tipo"))
+    if perm and not acesso.pode(perm):
+        raise HTTPException(403, f"Seu usuário não tem permissão para isto ({acesso.PERMISSOES[perm][1].lower()}).")
+    if (acao or {}).get("tipo") == "resolver_alerta" and acesso.projetos_permitidos() is not None:
+        resolver_alerta(int(acao["alerta_id"]))
     try:
         return {"mensagem": notificacoes.executar_acao(nid)}
     except ValueError as e:
@@ -2272,7 +2418,9 @@ class PrefNotificacoesIn(BaseModel):
 
 @api.get("/notificacoes/historico")
 def historico_notificacoes(limite: int = 200):
-    return db.consultar("SELECT * FROM notificacoes ORDER BY atualizado_em DESC LIMIT ?", (min(limite, 500),))
+    vis = _visibilidade_notificacoes()
+    itens = db.consultar("SELECT * FROM notificacoes ORDER BY atualizado_em DESC LIMIT ?", (min(limite, 500) if vis is None else 2000,))
+    return itens if vis is None else [n for n in itens if vis(n)][:min(limite, 500)]
 
 
 @api.put("/notificacoes/preferencias")
@@ -2379,6 +2527,7 @@ def apagar_mensagem_site(mid: int):
 
 @api.get("/site/mensagens/exportar")
 def exportar_mensagens_site(tipo: str = "todas"):
+    from ..exportar import celula
     import csv
     import io
     from fastapi.responses import Response
@@ -2388,8 +2537,8 @@ def exportar_mensagens_site(tipo: str = "todas"):
     c.writerow(["data", "tipo", "nome", "email", "assunto", "mensagem", "lida", "respondida", "arquivada", "pais", "cidade", "notas"])
     import datetime as _dt
     for m in linhas:
-        c.writerow([_dt.datetime.fromtimestamp(m["quando"]).strftime("%d/%m/%Y %H:%M"), m["tipo"], m["nome"], m["email"], m["assunto"], m["mensagem"],
-                    "sim" if m["lida"] else "não", "sim" if m["respondida"] else "não", "sim" if m["arquivada"] else "não", m["pais"], m["cidade"], m["notas"]])
+        c.writerow([celula(x) for x in (_dt.datetime.fromtimestamp(m["quando"]).strftime("%d/%m/%Y %H:%M"), m["tipo"], m["nome"], m["email"], m["assunto"], m["mensagem"],
+                    "sim" if m["lida"] else "não", "sim" if m["respondida"] else "não", "sim" if m["arquivada"] else "não", m["pais"], m["cidade"], m["notas"])])
     return Response("\ufeff" + s.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="mensagens-do-site-%s.csv"' % time.strftime("%Y%m%d")})
 
@@ -2959,7 +3108,11 @@ def esqueci_senha(d: EsqueciIn, request: Request):
         raise HTTPException(429, "Muitos pedidos. Tente de novo em uma hora.")
     firewall.registrar(ip, "esqueci_senha", "/api/auth/esqueci", "")
     host = urlparse(d.voltar_para).hostname or ""
-    destino = d.voltar_para if host in ("app.zynio.com.br", "clima-casa-lac.vercel.app", "localhost", "127.0.0.1") else "https://app.zynio.com.br/redefinir-senha"
+    import os
+    # em produção o link só volta para os endereços oficiais, por https; localhost só no agente/desenvolvimento
+    hosts = ("app.zynio.com.br", "clima-casa-lac.vercel.app") + (() if os.environ.get("VERCEL") else ("localhost", "127.0.0.1"))
+    ok = host in hosts and (d.voltar_para.startswith("https://") or host in ("localhost", "127.0.0.1"))
+    destino = d.voltar_para if ok else "https://app.zynio.com.br/redefinir-senha"
     from .. import correio
     try:   # e-mail próprio pelo Resend (com a marca); se não der, o Supabase manda o dele
         if correio.recuperar_senha(d.email.strip().lower(), destino, correio.contexto(request)):
@@ -2997,7 +3150,7 @@ def entrar(d: EntrarIn, request: Request):
     from .. import turnstile
     turnstile.exigir(d.turnstile, ip, "/api/auth/entrar")
     limite, janela = c["tentativas_login"], c["janela_min"]
-    if firewall.falhas_recentes(ip, ("login_falhou",), janela, marca) >= limite:
+    if firewall.falhas_recentes(ip, ("login_falhou",), janela, marca) >= limite or firewall.falhas_da_conta(marca, janela) >= limite * 3:
         raise HTTPException(429, f"Muitas tentativas para este e-mail. Tente de novo em {janela} minutos.")
     r = httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/token?grant_type=password", timeout=12,
                    headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}, json={"email": d.email.strip(), "password": d.senha})
@@ -3631,6 +3784,9 @@ def _validar_marca(m: dict) -> dict:
     for k in ("link_privacidade", "link_termos"):
         if limpo[k] and not re.match(r"^https://[\w.-]+(/[\w./#?=&%-]*)?$", limpo[k]):
             raise HTTPException(400, "Os links de privacidade e termos precisam começar com https://.")
+    # o site vira link no menu Ajuda: só https (javascript:, data:, smb: e afins abririam outra coisa no computador)
+    if limpo.get("site") and not re.match(r"^https://[\w.-]+(/[\w./#?=&%-]*)?$", str(limpo["site"])):
+        raise HTTPException(400, "O site precisa começar com https://.")
     for k in ("banner_inicio", "banner_fim"):
         if limpo[k] and not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$", limpo[k]):
             limpo[k] = ""

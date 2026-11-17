@@ -37,3 +37,7 @@ backend/app/repositorio.json
 
 # gerado pelo instalar-windows.ps1
 agente-windows.cmd
+
+# senhas em texto puro: nunca versionar (auditoria 17/11)
+docs/contas.md
+uso.md

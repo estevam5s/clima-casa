@@ -8,6 +8,8 @@ const fs = require('fs')
 const URL_APP = process.env.CLIMA_URL || 'https://app.zynio.com.br'
 const ORIGEM = new URL(URL_APP).origin
 // login com Google e verificação anti-robô acontecem dentro da janela (o retorno precisa voltar para o app)
+// compara a origem inteira (startsWith deixaria passar https://app.zynio.com.br.outro-site.com)
+const mesmaOrigem = (url) => { try { return new URL(url).origin === ORIGEM } catch { return false } }
 const LOGIN_EXTERNO = [/^https:\/\/accounts\.google\.com\//, /^https:\/\/[\w-]+\.supabase\.co\/auth\//, /^https:\/\/challenges\.cloudflare\.com\//]
 const ARQ_ESTADO = path.join(app.getPath('userData'), 'janela.json')
 const ARQ_PREF = path.join(app.getPath('userData'), 'preferencias.json')
@@ -58,7 +60,10 @@ function criarJanela() {
     return { action: 'deny' }
   })
   janela.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(ORIGEM) && !url.startsWith('file://') && !LOGIN_EXTERNO.some((r) => r.test(url))) { e.preventDefault(); shell.openExternal(url) }
+    if (mesmaOrigem(url) || url.startsWith('file://') || LOGIN_EXTERNO.some((r) => r.test(url))) return
+    e.preventDefault()
+    // fora do app: só abre no navegador o que é página ou e-mail; outros esquemas (smb:, search-ms:…) abririam programas
+    if (/^(https?|mailto):/i.test(url)) shell.openExternal(url)
   })
   janela.webContents.on('did-fail-load', (_e, codigo, _d, url) => {
     if (codigo !== -3 && url.startsWith(ORIGEM)) janela.loadFile(path.join(__dirname, 'offline.html'))

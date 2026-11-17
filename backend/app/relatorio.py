@@ -376,7 +376,8 @@ def exportar_csv(d):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for i, (nome, linhas) in enumerate(_tabelas_planas(d), start=1):
-            s = io.StringIO(); csv.writer(s, delimiter=";").writerows(linhas)
+            from .exportar import celula
+            s = io.StringIO(); csv.writer(s, delimiter=";").writerows([[celula(c) for c in l] for l in linhas])
             z.writestr(f"{i:02d}_{nome}.csv", "﻿" + s.getvalue())
         z.writestr("LEIA-ME.txt", f"{d['titulo']}\nPeríodo {_periodo(d)}\nGerado em {_data(d['gerado_em']):%d/%m/%Y %H:%M}\n\n"
                    "Arquivos separados por ponto e vírgula, em UTF-8.\n\n" + "\n".join(f"{a}: {b}" for a, b in METODOLOGIA))
@@ -538,8 +539,9 @@ def exportar_xlsx(d):
         for c in ws[1]:
             c.font, c.fill = cab_estilo; c.alignment = Alignment(vertical="center", wrap_text=True)
         ws.row_dimensions[1].height = 28
+        from .exportar import celula
         for l in linhas:
-            ws.append(list(l))
+            ws.append([celula(c) for c in l])
         for row in ws.iter_rows(min_row=2):
             for c in row:
                 c.border = fino

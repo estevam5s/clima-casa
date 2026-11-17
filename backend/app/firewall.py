@@ -284,6 +284,12 @@ def falhas_recentes(ip: str, tipos: tuple[str, ...], minutos: int, detalhe_conte
     return db.um(f"SELECT count(*) n FROM seguranca_eventos WHERE ip = ? AND quando > ? AND tipo IN ({marcas}){filtro}", params)["n"]
 
 
+def falhas_da_conta(marca: str, minutos: int) -> int:
+    """Falhas de login de um e-mail (pelo hash) vindas de QUALQUER IP: barra quem tenta a mesma conta trocando de IP."""
+    return db.um("SELECT count(*) n FROM seguranca_eventos WHERE tipo = 'login_falhou' AND detalhe = ? AND quando > ?",
+                 (marca, db.agora() - minutos * 60))["n"]
+
+
 def verificar(request) -> tuple[int, str] | None:
     """Antes de atender: devolve (status, motivo) para barrar, ou None para seguir."""
     c = config()

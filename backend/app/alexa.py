@@ -18,11 +18,20 @@ def _aparelho_id(endpoint_id: str) -> int:
     return int(endpoint_id[3:])
 
 
+def dono_valido(usuario_id) -> bool:
+    """O token vale enquanto quem aprovou o vínculo continuar ativo e dono/admin (desativou ou rebaixou: a Alexa perde o acesso).
+    Tokens antigos, de antes desta regra, não têm usuário e continuam valendo até expirar ou serem revogados."""
+    if not usuario_id:
+        return True
+    u = db.um("SELECT ativo, papel FROM usuarios WHERE id = CAST(? AS uuid)", (str(usuario_id),))
+    return bool(u and u["ativo"] and u["papel"] in ("dono", "admin"))
+
+
 def token_valido(token: str | None) -> bool:
     if not token:
         return False
-    t = db.um("SELECT expira FROM oauth_tokens WHERE hash = ? AND tipo = 'access'", (hash_token(token),))
-    return bool(t and t["expira"] > db.agora())
+    t = db.um("SELECT expira, usuario_id FROM oauth_tokens WHERE hash = ? AND tipo = 'access'", (hash_token(token),))
+    return bool(t and t["expira"] > db.agora() and dono_valido(t.get("usuario_id")))
 
 
 def _header(namespace, nome, correlation=None):
@@ -132,7 +141,10 @@ def tratar(evento: dict) -> dict:
         return resp
 
     if ns == "Alexa.SceneController" and nome == "Activate":
-        cena_id = int(diretiva["endpoint"]["endpointId"].removeprefix("cena-"))
+        try:
+            cena_id = int(diretiva["endpoint"]["endpointId"].removeprefix("cena-"))
+        except ValueError:
+            return _erro(diretiva, "NO_SUCH_ENDPOINT", "Cena não existe.")
         cena = db.um("SELECT * FROM cenas WHERE id = ?", (cena_id,))
         if not cena:
             return _erro(diretiva, "NO_SUCH_ENDPOINT", "Cena não existe mais.")
@@ -154,6 +166,8 @@ def tratar(evento: dict) -> dict:
         a = clima.aparelho(aparelho_id)
     except (KeyError, ValueError):
         return _erro(diretiva, "NO_SUCH_ENDPOINT", "Aparelho não existe mais.")
+    if not a.get("alexa"):   # só o que foi liberado para a Alexa (o mesmo que a descoberta mostra)
+        return _erro(diretiva, "NO_SUCH_ENDPOINT", "Este aparelho não está disponível na Alexa.")
 
     if ns == "Alexa" and nome == "ReportState":
         return _resposta(diretiva, a, "StateReport")

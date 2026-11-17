@@ -21,6 +21,17 @@ def _s(v):
     return "" if v is None else str(v)
 
 
+_NUMERO = re.compile(r"[+-]?\d+([.,]\d+)?")
+
+
+def celula(v):
+    """Valor para planilha (CSV/XLSX): texto que começa com = + - @ vira texto, nunca fórmula. Nome de ar, User-Agent de
+    robô e mensagem do site são escritos por terceiros; aberto no Excel, '=HYPERLINK(...)' rodaria como fórmula."""
+    if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") and not _NUMERO.fullmatch(v):
+        return "'" + v
+    return v
+
+
 def _slug(t):
     return re.sub(r"[^a-z0-9]+", "_", t.lower().encode("ascii", "ignore").decode()).strip("_") or "secao"
 
@@ -34,7 +45,7 @@ def csv_(doc):
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         partes = [("resumo", ["indicador", "valor"], doc["resumo"])] + [(_slug(s["titulo"]), s["cabecalho"], s["linhas"]) for s in doc["secoes"]]
         for nome, cab, linhas in partes:
-            t = io.StringIO(); w = csv.writer(t, delimiter=";"); w.writerow(cab); w.writerows([[_s(c) for c in l] for l in linhas])
+            t = io.StringIO(); w = csv.writer(t, delimiter=";"); w.writerow(cab); w.writerows([[celula(_s(c)) for c in l] for l in linhas])
             z.writestr(f"{nome}.csv", "﻿" + t.getvalue())
     return buf.getvalue(), "application/zip", "zip"
 
@@ -119,7 +130,7 @@ def xlsx_(doc):
         for c in w[1]:
             c.font, c.fill = fonte, fundo
         for l in s["linhas"]:
-            w.append([c if isinstance(c, (int, float)) else _s(c) for c in l])
+            w.append([c if isinstance(c, (int, float)) else celula(_s(c)) for c in l])
         w.freeze_panes = "A2"
         for i, c in enumerate(s["cabecalho"], start=1):
             maior = max([len(_s(c))] + [len(_s(l[i - 1])) for l in s["linhas"][:200]])

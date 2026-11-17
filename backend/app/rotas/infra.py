@@ -4,6 +4,7 @@ A Vercel é operada pelo agente (o token não vai para a nuvem): a nuvem enfilei
 Ver: dono e administradores. Alterar (colocar no ar, apagar, limpar, retenção, computador preferido): só o dono.
 """
 import os
+import re
 import time
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,10 +33,15 @@ def _via_agente(op: str, args: dict, espera: float = 40):
             raise HTTPException(400, str(e)) from e
     if not transmissor.agente_online():
         raise HTTPException(503, "O agente do escritório está offline. A Infra da Vercel passa por ele (o token não fica na nuvem).")
-    f = transmissor.aguardar(transmissor.enfileirar("infra", None, {"op": op, "args": args}), espera)
+    fid = transmissor.enfileirar("infra", None, {"op": op, "args": args})
+    f = transmissor.aguardar(fid, espera)
     if f.get("estado") != "ok":
         raise HTTPException(502, f.get("erro") or "O agente não conseguiu falar com a Vercel.")
     r = f.get("resultado")
+    try:   # a resposta pode ter coisa sensível (código de instalação, e-mails recebidos): não fica guardada na fila
+        db.executar("UPDATE fila_comandos SET resultado = NULL WHERE id = ?", (fid,))
+    except Exception:  # noqa: BLE001
+        pass
     return r if isinstance(r, (dict, list)) else {}
 
 
@@ -72,6 +78,8 @@ def publicacoes(projeto: str = "clima-casa", limite: int = 50):
 @rotas_infra.get("/infra/publicacoes/{dep}/log")
 def log_publicacao(dep: str, projeto: str = "clima-casa"):
     _papel("dono", "admin")
+    if not re.fullmatch(r"[A-Za-z0-9_]{1,64}", dep):
+        raise HTTPException(400, "Publicação inválida.")
     return _via_agente("eventos", {"projeto": projeto, "id": dep})
 
 

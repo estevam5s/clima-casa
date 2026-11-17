@@ -106,10 +106,13 @@ def _validar(request: Request) -> dict:
     cfg = firewall.config()
     sessoes.registrar_uso(claims, u, request, cfg)   # inatividade, duração máxima e sessões encerradas
     # política: administradores precisam de 2 etapas (autenticador ou biometria) para usar o sistema
+    # Vale a SESSÃO atual: entrar só com senha (ou Google) não passa só porque a conta tem biometria cadastrada.
     if cfg.get("exigir_2fa_admin") and u["papel"] in ("dono", "admin", "subadmin") and not tem_totp(usuario) \
-            and not sessao_forte(claims.get("session_id", "")) and not _tem_passkey(u["id"]) \
+            and not sessao_forte(claims.get("session_id", "")) \
             and not rota.startswith(("/api/sessao", "/api/conta", "/api/perfil", "/api/notificacoes", "/api/marca", "/api/supabase-config")):
-        raise HTTPException(403, "Ative a verificação em duas etapas (Configurações → Segurança) para continuar.", headers={"X-Clima-Exige-2FA": "1"})
+        msg = ("Esta conta usa biometria: saia e entre com a biometria (ou ative o autenticador) para continuar." if _tem_passkey(u["id"])
+               else "Ative a verificação em duas etapas (Configurações → Segurança) para continuar.")
+        raise HTTPException(403, msg, headers={"X-Clima-Exige-2FA": "1"})
     # modo manutenção (white label): só dono e admin usam; os outros veem a tela de manutenção
     if u["papel"] not in ("dono", "admin") and not rota.startswith(("/api/sessao", "/api/perfil", "/api/marca", "/api/supabase-config", "/api/conta")):
         marca = db.cfg("white_label") or {}
