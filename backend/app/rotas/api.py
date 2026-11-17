@@ -369,10 +369,10 @@ def editar_aparelho(aid: int, d: AparelhoIn):
                 (d.nome.strip(), d.comodo.strip(), d.marca.strip(), d.hub_id, d.temp_min, d.temp_max,
                  ",".join(d.modos), int(d.alexa), temp, modo, d.projeto_id, d.potencia_w, aid))
     db.registrar("painel", "Aparelho editado", aparelho_id=aid)
-    if a.get("sinric_device_id") and (a["nome"] != d.nome.strip() or (a.get("comodo") or "") != d.comodo.strip()):
+    if a.get("sinric_device_id") and (a["nome"] != d.nome.strip() or (a.get("comodo") or "") != d.comodo.strip() or a.get("projeto_id") != d.projeto_id):
         from .. import sinric
-        try:
-            sinric.renomear_dispositivo(a["sinric_device_id"], d.nome.strip(), d.comodo.strip())
+        try:   # nome falado e sala (projeto) mudam também no Sinric
+            sinric.renomear_dispositivo(a["sinric_device_id"], d.nome.strip(), d.comodo.strip(), {**a, "projeto_id": d.projeto_id})
             db.registrar("painel", "Nome atualizado no Sinric Pro (Alexa/Google)", aparelho_id=aid, detalhe=d.nome.strip())
         except Exception as e:  # noqa: BLE001  (a edição vale mesmo se o Sinric falhar)
             db.registrar("painel", "Não foi possível renomear no Sinric Pro", ok=False, aparelho_id=aid, detalhe=str(e))

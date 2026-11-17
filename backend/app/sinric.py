@@ -272,28 +272,57 @@ def _descobrir_ids(h) -> dict:
     return c
 
 
+def _sala_do_projeto(h, aparelho: dict, padrao: str) -> tuple[str, str]:
+    """Sala do Sinric com o nome do projeto do ar (cria se não existir): assim cada ar aparece na sala dele no Sinric e o
+    nome da sala vai junto na descrição que a Alexa mostra. Sem projeto, usa a sala padrão."""
+    p = db.um("SELECT nome FROM projetos WHERE id = ?", (aparelho.get("projeto_id"),)) if aparelho.get("projeto_id") else None
+    if not p:
+        return padrao, ""
+    nome = p["nome"].strip()[:40]
+    salas = httpx.get(f"{API}/rooms", headers=h, timeout=15).json().get("rooms", [])
+    achada = next((x for x in salas if (x.get("name") or "").strip().lower() == nome.lower()), None)
+    if achada:
+        return achada["id"], nome
+    casa = next((x.get("home") or {} for x in salas if (x.get("home") or {}).get("id")), {}).get("id")
+    if not casa:   # a sala precisa da casa (homeId): usa a casa padrão da conta
+        casas = httpx.get(f"{API}/homes", headers=h, timeout=15).json().get("homes", [])
+        casa = next((x["id"] for x in casas if x.get("isDefaultHome")), casas[0]["id"] if casas else None)
+    r = httpx.post(f"{API}/rooms", headers=h, json={"name": nome, "description": f"Projeto {nome} (Clima Escritório)", "homeId": casa}, timeout=15)
+    dados = r.json() if "json" in r.headers.get("content-type", "") else {}
+    sala = dados.get("room") or {}
+    if not (dados.get("success") and sala.get("id")):
+        return padrao, ""   # sem sala nova: o ar entra na padrão (o nome dele já diz a sala)
+    return sala["id"], nome
+
+
+def _descricao(aparelho: dict, sala: str) -> str:
+    return f"Ar-condicionado por infravermelho · {'Sala: ' + sala if sala else 'Clima Escritório'}"[:200]
+
+
 def criar_dispositivo(aparelho: dict) -> str:
     h = _cabecalho()
     ids = _descobrir_ids(h)
-    corpo = {"name": aparelho["nome"][:60],
-             "description": f"Ar-condicionado por infravermelho via Clima Casa{(' · ' + aparelho['comodo']) if aparelho.get('comodo') else ''}"[:200],
-             "productId": ids["product_id"], "roomId": ids["room_id"], "accessKeyId": ids["access_key_id"]}
+    sala_id, sala = _sala_do_projeto(h, aparelho, ids["room_id"])
+    corpo = {"name": aparelho["nome"][:60], "description": _descricao(aparelho, sala),
+             "productId": ids["product_id"], "roomId": sala_id, "accessKeyId": ids["access_key_id"]}
     r = httpx.post(f"{API}/devices", headers=h, json=corpo, timeout=20)
     dados = r.json() if "json" in r.headers.get("content-type", "") else {}
     if not dados.get("success"):
         msg = dados.get("message") or f"HTTP {r.status_code}"
         if "limit" in msg.lower() or "subscription" in msg.lower():
-            msg = "Limite de dispositivos do plano do Sinric Pro atingido (gratuito: 3)."
+            msg = "Limite de dispositivos do plano do Sinric Pro atingido: compre mais no portal e ajuste o limite em Integrações."
         raise RuntimeError(f"Sinric Pro recusou: {msg}")
     return dados["device"]["id"]
 
 
-def renomear_dispositivo(device_id: str, nome: str, comodo: str = ""):
-    """Troca o nome no Sinric Pro (é o nome que a Alexa e o Google usam). A Alexa atualiza na próxima descoberta."""
+def renomear_dispositivo(device_id: str, nome: str, comodo: str = "", aparelho: dict | None = None):
+    """Troca o nome no Sinric Pro (é o nome que a Alexa e o Google usam) e põe o dispositivo na sala do projeto do ar.
+    A Alexa atualiza na próxima descoberta."""
     h = _cabecalho()
     ids = _descobrir_ids(h)
-    corpo = {"name": nome[:60], "description": f"Ar-condicionado por infravermelho via Clima Escritório{(' · ' + comodo) if comodo else ''}"[:200],
-             "productId": ids["product_id"], "roomId": ids["room_id"], "accessKeyId": ids["access_key_id"], "id": device_id}
+    sala_id, sala = _sala_do_projeto(h, aparelho or {}, ids["room_id"])
+    corpo = {"name": nome[:60], "description": _descricao({**(aparelho or {}), "comodo": comodo}, sala),
+             "productId": ids["product_id"], "roomId": sala_id, "accessKeyId": ids["access_key_id"], "id": device_id}
     r = httpx.put(f"{API}/devices", headers=h, json=corpo, timeout=20)  # a API do Sinric atualiza por PUT /devices com o id no corpo
     dados = r.json() if "json" in r.headers.get("content-type", "") else {}
     if not dados.get("success"):
@@ -338,7 +367,7 @@ def organizar_zona(zona: dict, nome_alexa: str, executar: bool) -> dict:
     for ps in passos:
         a = ares[ps["aparelho_id"]]
         if ps["tipo"] == "renomear":
-            renomear_dispositivo(a["sinric_device_id"], nome_alexa, a.get("comodo") or "")
+            renomear_dispositivo(a["sinric_device_id"], nome_alexa, a.get("comodo") or "", a)
         elif ps["tipo"] == "criar":
             dev = criar_dispositivo({**a, "nome": nome_alexa})
             db.executar("UPDATE aparelhos SET sinric_device_id = ?, alexa = 1 WHERE id = ?", (dev, a["id"]))

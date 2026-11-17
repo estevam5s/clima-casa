@@ -796,8 +796,10 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 
 - **Ares cadastrados (17/11)**: no transmissor "Smart IR · Escritório", 6 Gree iguais com 301 botões cada (copiados do Ar do escritório):
   #1 Ar do escritório, #7 Ar dos analistas, #8 Ar do diretor, #9 Ar da bancada 1, #10 Ar da bancada 2, #11 Ar do Deison → **zona
-  automática** "Zona Smart IR · Escritório" (um sinal muda os 6). Só o #1 está na Alexa (Sinric); os outros com `alexa = 0` até o dono
-  decidir (zona = 1 aparelho na Alexa). Teste físico pendente (precisa de agente no escritório e alguém no salão: teste de interferência).
+  automática** "Zona Smart IR · Escritório" (um sinal muda os 6). **Os 6 estão na Alexa** (decisão do dono, 17/11: um dispositivo por ar),
+  cada um numa **sala do Sinric com o nome do projeto** (`sinric._sala_do_projeto`, cria a sala com o `homeId` da casa padrão; renomear
+  ou mudar o projeto move a sala). O diagnóstico avisa "6 ares da zona na Alexa": é esperado; falar com um muda os 6 de verdade e o
+  agente avisa o Sinric de todos (`contexto.juntos`). Teste físico pendente (precisa de agente no escritório e alguém no salão: teste de interferência).
   No mapa, as vagas viraram ares; sobram `ar-reuniao` e `ar-semnome` (Sala Fabio).
 - **Ares (histórico)**: "Ar do escritório" (projeto Escritório) com **301 botões** (Desligar gravado + 300 gerados pelo protocolo Gree),
   no transmissor "Smart IR · Escritório", na Alexa (Sinric). Ligar, desligar e temperatura testados de verdade em 16/11 à tarde.
