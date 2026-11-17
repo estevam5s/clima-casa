@@ -126,6 +126,25 @@ def _filtro_projeto(projeto_id, alias="a"):
     return (f" WHERE true{f}", pp) if f else ("", ())
 
 
+def _filtro_hubs(projeto_id=None, alias="h"):
+    """Transmissores de um projeto: os do projeto E os que atendem algum ar dele (o transmissor do salão aparece em
+    Analistas, Diretor, Bancada e Deison). Sem projeto escolhido, limita ao escopo do usuário do mesmo jeito."""
+    from .. import acesso
+    if projeto_id:
+        if acesso.projetos_permitidos() is not None:
+            acesso.checar_projeto(projeto_id)
+        return (f" WHERE ({alias}.projeto_id = ? OR {alias}.id IN (SELECT hub_id FROM aparelhos WHERE projeto_id = ? AND hub_id IS NOT NULL))",
+                (projeto_id, projeto_id))
+    perm = acesso.projetos_permitidos()
+    if perm is None:
+        return "", ()
+    if not perm:
+        return " WHERE false", ()
+    marcas = ",".join("?" * len(perm))
+    return (f" WHERE ({alias}.projeto_id IN ({marcas}) OR {alias}.id IN (SELECT hub_id FROM aparelhos WHERE projeto_id IN ({marcas}) AND hub_id IS NOT NULL))",
+            tuple(perm) + tuple(perm))
+
+
 def _com_zona(lista):
     """Marca em cada ar a zona dele (ares que obedecem juntos): a tela avisa que o comando muda a zona inteira."""
     from .. import zonas
@@ -146,7 +165,7 @@ def painel(projeto_id: int | None = None):
                (SELECT COUNT(*) FROM codigos c WHERE c.aparelho_id = a.id) AS total_codigos
         FROM aparelhos a LEFT JOIN hubs h ON h.id = a.hub_id LEFT JOIN projetos pr ON pr.id = a.projeto_id
         {w} ORDER BY a.comodo, a.nome""", p)
-    wh, ph = _filtro_projeto(projeto_id, "h")
+    wh, ph = _filtro_hubs(projeto_id, "h")
     hubs = db.consultar(f"SELECT h.id, h.nome, h.online FROM hubs h{wh}", ph)
     hoje = int(time.time()) - 86400
     return {
@@ -476,6 +495,57 @@ def copiar_botoes(aid: int, d: CopiarIn):
     return {"ok": True, "copiados": n}
 
 
+class JuntoIn(BaseModel):
+    junto: bool
+
+
+@api.post("/aparelhos/{aid}/zona")
+def ar_na_zona(aid: int, d: JuntoIn):
+    """Este ar muda (ou não) junto com os outros do mesmo transmissor. Para quem conhece a sala sem fazer o teste inteiro."""
+    from .. import zonas
+    a = clima.aparelho(aid)
+    _exigir_hub_inteiro(a["hub_id"]) if a.get("hub_id") else None
+    try:
+        zonas.mudar_junto(aid, d.junto)
+    except ValueError as e:
+        _erro(e)
+    db.registrar("painel", f"{a['nome']}: {'obedece junto com os outros do transmissor' if d.junto else 'não obedece junto (sala separada)'}", aparelho_id=aid)
+    return {"zona": next((z for z in zonas.listar() if aid in z["aparelhos"]), None)}
+
+
+class EstadoRealIn(BaseModel):
+    ligado: bool
+    modo: str | None = Field(None, pattern=r"^(auto|frio|seco|ventilar|quente)$")
+    temperatura: int | None = Field(None, ge=16, le=30)
+    ventilador: str | None = Field(None, pattern=r"^(auto|baixa|media|alta)$")
+    zona: bool = False   # aplicar também aos ares da zona (o controle remoto também atinge os iguais à vista)
+
+
+@api.post("/aparelhos/{aid}/estado-real")
+def estado_real(aid: int, d: EstadoRealIn):
+    """Ligaram (ou mudaram) pelo controle remoto: o ar não avisa ninguém (infravermelho só vai num sentido e o SRW-004 não
+    tem sensor). Aqui a pessoa conta o que o ar está fazendo e o sistema atualiza o estado SEM mandar sinal."""
+    from .. import zonas
+    a = clima.aparelho(aid)
+    ids = [aid]
+    if d.zona:
+        z = zonas.de_aparelho(aid)
+        ids += [i for i in (z["aparelhos"] if z else []) if i != aid]
+    _exigir_aparelhos(ids)
+    agora = db.agora()
+    modo = d.modo or a["modo"]
+    temp = max(a["temp_min"], min(a["temp_max"], d.temperatura or a["temperatura"]))
+    vent = d.ventilador or a["ventilador"]
+    for i in ids:
+        atual = clima.aparelho(i)
+        desde = (atual["ligado_desde"] if atual["ligado"] else agora) if d.ligado else None
+        db.executar("UPDATE aparelhos SET ligado = ?, modo = ?, temperatura = ?, ventilador = ?, ligado_desde = ?, atualizado_em = ? WHERE id = ?",
+                    (int(d.ligado), modo, temp, vent, desde, agora, i))
+        db.registrar("controle", f"Estado corrigido: {'ligado ' + clima.MODOS.get(modo, modo) + f' {temp}°' if d.ligado else 'desligado'} pelo controle remoto",
+                     aparelho_id=i, detalhe="informado no painel (sem mandar sinal)")
+    return {**clima.aparelho(aid), "juntos": [i for i in ids if i != aid]}
+
+
 class TodosIn(BaseModel):
     ligado: bool
     modo: str | None = Field(None, pattern=r"^(auto|frio|seco|ventilar|quente)$")
@@ -790,7 +860,7 @@ def _hub_publico(h):
 
 @api.get("/hubs")
 def listar_hubs(projeto_id: int | None = None):
-    w, p = _filtro_projeto(projeto_id, "h")
+    w, p = _filtro_hubs(projeto_id, "h")
     return [_hub_publico(h) for h in db.consultar(
         f"SELECT h.*, pr.nome AS projeto_nome FROM hubs h LEFT JOIN projetos pr ON pr.id = h.projeto_id{w} ORDER BY h.nome", p)]
 
@@ -2396,7 +2466,8 @@ def listar_notificacoes(filtro: str = "todas"):
         r["total"] = nao_lidas
     fa, pa = _escopo("projeto_id")
     ligados = db.um(f"SELECT count(*) FILTER (WHERE ligado = 1) AS ligados, count(*) AS total FROM aparelhos WHERE true{fa}", pa)
-    hubs = db.um(f"SELECT count(*) FILTER (WHERE online = 1) AS online, count(*) AS total FROM hubs WHERE true{fa}", pa)
+    wh, ph = _filtro_hubs(None, "hubs")
+    hubs = db.um(f"SELECT count(*) FILTER (WHERE online = 1) AS online, count(*) AS total FROM hubs{wh}", ph)
     msgs = db.um("SELECT count(*) AS n FROM site_mensagens WHERE NOT lida AND NOT arquivada") if acesso.pode("mensagens.ver") else {"n": 0}
     r["status"] = {"agente_online": transmissor.agente_online(), "ligados": ligados["ligados"], "aparelhos": ligados["total"],
                    "hubs_online": hubs["online"], "hubs": hubs["total"], "mensagens_nao_lidas": msgs["n"]}

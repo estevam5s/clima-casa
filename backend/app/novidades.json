@@ -2,6 +2,26 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.5.4",
+      "data": "2026-11-17",
+      "titulo": "Procurar na rede de volta, estado pelo controle remoto e zonas por sala",
+      "resumo": "A busca de transmissores voltou a funcionar, o painel se atualiza sozinho e dá para corrigir o estado quando alguém usa o controle remoto.",
+      "novo": [
+        "“Ligaram ou mudaram pelo controle?” no painel: conta como o ar está e o sistema atualiza sem mandar sinal (o ar não avisa quando usam o controle)",
+        "Na tela do ar: “marque que ele não muda junto” para um ar de sala fechada que não recebe o sinal do salão (e o contrário)"
+      ],
+      "melhorias": [
+        "O painel se atualiza sozinho a cada 15 segundos com o que mudou pela Alexa, celular, agenda ou outra pessoa",
+        "O transmissor do salão aparece também nos projetos das salas que ele atende (Analistas, Diretor, Sala Bancada, Sala Deison)",
+        "Avatar da Sala Fabio agora é o Fabio (masculino), aparece no expediente"
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "“Procurar na rede” em Transmissores dava erro (name 'tinytuya' is not defined)",
+        "Placa com o nome no pódio do prédio piscava ao mexer a câmera no mapa 3D"
+      ]
+    },
+    {
       "versao": "1.5.3",
       "data": "2026-11-17",
       "titulo": "Painel mostra todos os ares da sala",

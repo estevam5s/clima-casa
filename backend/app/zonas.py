@@ -108,3 +108,34 @@ def quem_responde(aparelho_id: int, hub_id: str, chave: str, codigo: str) -> lis
     return [r["aparelho_id"] for r in db.consultar(
         "SELECT c.aparelho_id FROM codigos c JOIN aparelhos a ON a.id = c.aparelho_id "
         "WHERE a.hub_id = ? AND c.aparelho_id <> ? AND c.chave = ? AND c.codigo = ?", (hub_id, aparelho_id, chave, codigo))]
+
+
+def mudar_junto(aparelho_id: int, junto: bool) -> list[dict]:
+    """Tira um ar da zona do transmissor dele (sala fechada, não recebe o sinal do salão) ou põe de volta. Vira zona salva
+    (manual) do transmissor: a automática não volta a juntá-lo. O teste de interferência continua sendo o jeito certo."""
+    a = db.um("SELECT id, hub_id FROM aparelhos WHERE id = ?", (aparelho_id,))
+    if not a or not a["hub_id"]:
+        raise ValueError("Este ar não tem transmissor.")
+    hub = a["hub_id"]
+    todas = listar()
+    do_hub = [z for z in todas if z["hub_id"] == hub]
+    outras = [z for z in _salvas() if z["hub_id"] != hub]
+    if junto:
+        if do_hub:
+            alvo = do_hub[0]
+            if aparelho_id not in alvo["aparelhos"]:
+                alvo = {**alvo, "aparelhos": sorted(alvo["aparelhos"] + [aparelho_id])}
+            do_hub = [alvo] + do_hub[1:]
+        else:   # sem zona no transmissor: junta com os ares do mesmo modelo dele (mesmo Desligar)
+            from . import clima
+            grupo = next((g for g in clima.grupos_juntos(hub) if aparelho_id in g), [aparelho_id])
+            do_hub = [{"id": "", "nome": "Zona", "hub_id": hub, "aparelhos": sorted(set(grupo) | {aparelho_id}), "alexa_aparelho_id": None}]
+    else:
+        do_hub = [{**z, "aparelhos": [i for i in z["aparelhos"] if i != aparelho_id]} for z in do_hub]
+    novas = [{k: z.get(k) for k in ("id", "nome", "hub_id", "aparelhos", "alexa_aparelho_id")} | {"origem": "manual"} for z in do_hub]
+    # transmissor sem nenhuma zona salva voltaria à automática: guarda uma zona vazia de marcador (listar ignora zona com < 2 ares)
+    if not novas:
+        novas = [{"id": "", "nome": "Zona", "hub_id": hub, "aparelhos": [], "alexa_aparelho_id": None, "origem": "manual"}]
+    # quem conhece a sala decidiu: vale a zona salva (sem o palpite por "mesmo código" do quem_responde)
+    db.set_cfg(TESTADOS, sorted(set(db.cfg(TESTADOS) or []) | {hub}))
+    return salvar(outras + novas)

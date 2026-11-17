@@ -48,12 +48,13 @@ PAPEIS = {
 # Rotas não listadas: GET liberado para qualquer usuário logado; o resto exige "configuracoes.gerenciar".
 REGRAS = [
     ("*", r"^/api/(sessao|perfil|notificacoes|conta|clima-externo|apps/qr|novidades)", None),
-    ("POST", r"^/api/aparelhos/\{aid\}/(estado|botoes/\{chave\}/enviar|temporizador)$", "aparelhos.controlar"),
+    ("POST", r"^/api/aparelhos/\{aid\}/(estado|estado-real|botoes/\{chave\}/enviar|temporizador)$", "aparelhos.controlar"),
     ("DELETE", r"^/api/aparelhos/\{aid\}/temporizador$", "aparelhos.controlar"),
     ("POST", r"^/api/(cenas|automacoes)/\{\w+\}/executar$", "aparelhos.controlar"),
     ("POST", r"^/api/alertas/", "aparelhos.controlar"),
     ("GET", r"^/api/gravacoes/", "aparelhos.gerenciar"),
     ("*", r"^/api/aparelhos/\{aid\}/sinric", "integracoes.gerenciar"),
+    ("POST", r"^/api/aparelhos/\{aid\}/zona$", "transmissores.gerenciar"),   # este ar muda (ou não) junto com a zona
     ("POST|PUT|DELETE", r"^/api/aparelhos", "aparelhos.gerenciar"),
     ("POST|PUT|DELETE", r"^/api/cenas", "cenas.gerenciar"),
     ("POST|PUT|DELETE", r"^/api/agendamentos", "agenda.gerenciar"),

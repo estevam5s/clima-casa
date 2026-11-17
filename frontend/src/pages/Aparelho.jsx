@@ -296,7 +296,17 @@ export default function Aparelho() {
         <p className="w-full text-sm text-muted-foreground">
           {[ar.comodo, ar.marca].filter(Boolean).join(' · ') || 'Sem cômodo'} · atualizado {haQuanto(ar.atualizado_em)}
         </p>
-        {ar.zona && <p className="w-full text-sm text-amber-800 dark:text-amber-300">Na <b>{ar.zona.nome}</b>: obedece junto com {ar.zona.outros.join(', ')} (mesmo modelo, mesmo transmissor). <Link to="/transmissores" className="underline">Ver a zona</Link></p>}
+        {ar.zona && (
+          <div className="w-full text-sm text-amber-800 dark:text-amber-300">
+            <p>Na <b>{ar.zona.nome}</b>: obedece junto com {ar.zona.outros.join(', ')} (mesmo modelo, mesmo transmissor). <Link to="/transmissores" className="underline">Ver a zona e testar</Link></p>
+            <p className="mt-1 text-xs text-muted-foreground">Gravar os botões de novo não separa: controle igual manda o mesmo sinal. Se este ar fica numa sala fechada e não recebe o sinal do salão (não apitou no teste),
+              {' '}<button className="font-medium text-primary underline" onClick={async () => { try { await api.post(`/api/aparelhos/${ar.id}/zona`, { junto: false }); toast(`${ar.nome} agora muda sozinho.`); recarregar() } catch (e) { toast(e.message, 'erro') } }}>marque que ele não muda junto</button>.</p>
+          </div>
+        )}
+        {!ar.zona && ar.hub_id && (hubs || []).find((h) => h.id === ar.hub_id)?.ares?.length > 1 && (
+          <p className="w-full text-xs text-muted-foreground">Este ar muda sozinho. Se ele apita junto com os outros do mesmo transmissor,
+            {' '}<button className="font-medium text-primary underline" onClick={async () => { try { await api.post(`/api/aparelhos/${ar.id}/zona`, { junto: true }); toast(`${ar.nome} voltou para a zona.`); recarregar() } catch (e) { toast(e.message, 'erro') } }}>marque que ele muda junto</button>.</p>
+        )}
       </div>
 
       <div className="mb-5">

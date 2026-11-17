@@ -1656,6 +1656,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       andarilhos.forEach((a) => moverAndarilho(a, dt, t))
       animarDispositivos(dispositivos, dt, t)
       if (E.ctrl) moverControle(dt, t)
+      // plano de corte perto da câmera: 10 cm de perto (avatar, dentro do andar); 60 cm com a câmera longe (prédio de
+      // fora), o que dá ~6x mais precisão de profundidade e acaba com o pisca-pisca de superfícies próximas
+      const nearAlvo = E.ctrl || camera.position.distanceTo(controles.target) < 35 ? 0.1 : 0.6
+      if (camera.near !== nearAlvo) { camera.near = nearAlvo; camera.updateProjectionMatrix() }
       E.elevAndar?.el.tick(dt); E.elevTerreo?.el.tick(dt)
       if (E.nivel === 'terreo') {
         if (genteT.recep) animarPessoa(genteT.recep, t)

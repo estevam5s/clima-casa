@@ -24,6 +24,7 @@ _varredura = threading.Lock()
 
 
 def _varrer(segundos: int) -> dict:
+    import tinytuya   # import local: o módulo não importa tinytuya no topo (a nuvem não precisa dele)
     with _varredura:
         return tinytuya.deviceScan(False, segundos)
 

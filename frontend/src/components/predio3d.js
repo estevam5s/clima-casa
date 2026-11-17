@@ -268,7 +268,9 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       const { t, prop } = placa(nome.toUpperCase())
       const alt = 0.95, larg = Math.min(alt * prop, comp * 0.8)
       const pl = new THREE.Mesh(new THREE.PlaneGeometry(larg, larg / prop), M({ map: t, transparent: true, depthWrite: false, roughness: 0.6 }))
-      const off = L.k + L.n * (ESPF + 0.52)
+      // 8 cm à frente da faixa azul (a 2 cm, de longe, os dois planos brigavam no buffer de profundidade e a placa piscava)
+      const off = L.k + L.n * (ESPF + 0.58)
+      pl.material.polygonOffset = true; pl.material.polygonOffsetFactor = -2; pl.material.polygonOffsetUnits = -2
       pl.position.set(L.horiz ? cxp : off, HP - 0.7, L.horiz ? off : czp)
       pl.rotation.y = L.horiz ? (L.n > 0 ? 0 : Math.PI) : (L.n > 0 ? Math.PI / 2 : -Math.PI / 2)
       casca.add(pl)

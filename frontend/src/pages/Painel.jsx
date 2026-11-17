@@ -89,11 +89,41 @@ function useFora(projetoId) {
   return fora
 }
 
+// Ligaram ou mudaram pelo controle remoto: o ar não avisa (infravermelho só vai num sentido e o transmissor não tem
+// sensor). A pessoa conta o que o ar está fazendo e o sistema atualiza SEM mandar sinal (rota /estado-real).
+function EstadoPeloControle({ ar, aoMudar, fechar }) {
+  const [f, setF] = useState({ ligado: true, modo: ar.modo || 'frio', temperatura: ar.temperatura, zona: false })
+  const [ocupado, setOcupado] = useState(false)
+  const toast = useToast()
+  const salvar = async () => {
+    setOcupado(true)
+    try { aoMudar(await api.post(`/api/aparelhos/${ar.id}/estado-real`, f)); toast('Estado atualizado (nenhum sinal enviado).'); fechar() }
+    catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  return (
+    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-3 overflow-hidden rounded-md border border-border p-3 text-xs">
+      <p className="mb-2 font-medium">Como o {ar.nome} está agora?</p>
+      <div className="mb-2 flex gap-1" role="group" aria-label="Ligado ou desligado">
+        {[[true, 'Ligado'], [false, 'Desligado']].map(([v, r]) => <button key={r} onClick={() => setF({ ...f, ligado: v })} className={`flex-1 rounded-md border px-2 py-1 ${f.ligado === v ? 'border-primary bg-primary/10 font-medium' : 'border-border'}`}>{r}</button>)}
+      </div>
+      {f.ligado && (
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          <select value={f.modo} onChange={(e) => setF({ ...f, modo: e.target.value })} className="campo h-8 text-xs" aria-label="Modo">{ar.modos.split(',').map((m) => <option key={m} value={m}>{MODOS[m]}</option>)}</select>
+          <label className="flex items-center gap-1"><input type="number" min={ar.temp_min} max={ar.temp_max} value={f.temperatura} onChange={(e) => setF({ ...f, temperatura: +e.target.value })} className="campo h-8 text-xs" aria-label="Temperatura" />°</label>
+        </div>
+      )}
+      {ar.zona && <label className="mb-2 flex items-start gap-1.5 text-muted-foreground"><input type="checkbox" checked={f.zona} onChange={(e) => setF({ ...f, zona: e.target.checked })} className="mt-0.5" />Os outros {ar.zona.total - 1} da {ar.zona.nome} também mudaram (o controle atinge os iguais à vista)</label>}
+      <div className="flex justify-end gap-2"><button onClick={fechar} className="rounded-md px-2 py-1 text-muted-foreground hover:bg-muted">Cancelar</button><Botao tamanho="sm" carregando={ocupado} onClick={salvar}>Atualizar sem mandar sinal</Botao></div>
+    </motion.div>
+  )
+}
+
 // Um ar: 3D animado (ar saindo, cor do modo) + mostrador, modos e ligar/desligar. "compacto" = 3D em cima e controles
 // embaixo (vários ares lado a lado); senão, 3D à esquerda e controles à direita.
 function ControleAr({ ar, aoMudar, aparencia = {}, fora, compacto = false, cabecalho = null, extra = null }) {
   const { escuro } = useTema()
   const [ocupado, setOcupado] = useState(false)
+  const [real, setReal] = useState(false)
   const toast = useToast()
   const mudar = async (e) => {
     setOcupado(true)
@@ -142,10 +172,12 @@ function ControleAr({ ar, aoMudar, aparencia = {}, fora, compacto = false, cabec
           ))}
         </div>
         {extra}
+        {real && <EstadoPeloControle ar={ar} aoMudar={aoMudar} fechar={() => setReal(false)} />}
         {ar.zona && <p className="mb-3 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">Na <b>{ar.zona.nome}</b>: o transmissor manda o mesmo sinal para {ar.zona.outros.join(', ')}. O comando muda os {ar.zona.total} ares juntos.</p>}
         {!ar.hub_id && <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Este ar ainda não tem transmissor: os comandos não têm por onde sair. Vincule um em <Link to={`/aparelhos/${ar.id}`} className="underline">Detalhes</Link>.</p>}
         <Botao className="mt-auto w-full" variante={ar.ligado ? 'secundario' : 'primario'} icone={Power} carregando={ocupado} disabled={!ar.hub_id}
           onClick={() => mudar({ ligado: !ar.ligado })}>{ar.ligado ? `Desligar` : `Ligar`}</Botao>
+        {!real && <button onClick={() => setReal(true)} className="mt-2 text-center text-xs text-muted-foreground hover:text-foreground">Ligaram ou mudaram pelo controle? Atualizar o estado</button>}
         {!ar.total_codigos && <p className="ajuda mt-2 text-center">Grave os botões do controle original na tela do aparelho.</p>}
       </div>
     </div>
@@ -225,6 +257,14 @@ export default function Painel() {
     api.get('/api/metricas?dias=14').then(setMetricas).catch(() => {})
     setAnalise(null)
     api.get(comFiltro('/api/painel/analise', filtro)).then(setAnalise).catch(() => setAnalise(false))
+  }, [filtro])
+  // estado ao vivo: o que mudou pela Alexa, pelo celular, pela agenda ou por outra pessoa aparece sozinho (a cada 15 s,
+  // só com a aba visível; volta a buscar na hora quando a aba volta)
+  useEffect(() => {
+    const buscar = () => { if (!document.hidden) api.get(comFiltro('/api/painel', filtro)).then(setDados).catch(() => {}) }
+    const t = setInterval(buscar, 15000)
+    document.addEventListener('visibilitychange', buscar)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', buscar) }
   }, [filtro])
   useEffect(() => {
     const buscar = () => { if (!document.hidden) api.get('/api/mapa').then(setPlanta).catch(() => {}) }
