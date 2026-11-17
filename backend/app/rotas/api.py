@@ -1238,6 +1238,7 @@ class MapaIn(BaseModel):
     # ids de móveis/janelas criados sozinhos uma vez (mesa de cada sala, janela em frente à porta): apagar não os recria
     auto: list[Annotated[str, Field(max_length=40)]] = Field(default_factory=list, max_length=400)
     andar: int = Field(9, ge=0, le=200)   # andar do prédio onde fica o escritório (3D)
+    andares: int = Field(11, ge=1, le=200)   # total de andares do prédio (3D): o escritório fica abaixo ou no último
     pessoas: list[PessoaMapa] = Field(default_factory=list, max_length=200)
     escritas: list[EscritaMapa] = Field(default_factory=list, max_length=300)
 
@@ -1267,7 +1268,7 @@ def ver_mapa(request: Request):
                  "salas": {k: v for k, v in mapa["salas"].items() if k in ids_p},
                  "ares": {k: v for k, v in mapa["ares"].items() if k in ids_a},
                  "elementos": mapa["elementos"], "atualizado_em": mapa.get("atualizado_em"),
-                 "auto": mapa.get("auto", []), "andar": mapa.get("andar", 9),
+                 "auto": mapa.get("auto", []), "andar": mapa.get("andar", 9), "andares": mapa.get("andares", 11),
                  "pessoas": mapa.get("pessoas", []), "escritas": mapa.get("escritas", [])},
         "projetos": projetos, "ares": ares, "pode_editar": acesso.pode("projetos.gerenciar"),
         "edita_elementos": tudo, "pode_controlar": acesso.pode("aparelhos.controlar"),
@@ -1293,7 +1294,7 @@ def salvar_mapa(d: MapaIn, request: Request):
         salas.update({k: v.model_dump() for k, v in d.salas.items() if k.isdigit() and int(k) in permitidos})
         ares = {k: v for k, v in antigo["ares"].items() if k not in meus_ares}
         ares.update({k: v.model_dump() for k, v in d.ares.items() if k in meus_ares})
-        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"], "auto": antigo.get("auto", []), "andar": antigo.get("andar", 9),
+        novo = {"largura": antigo["largura"], "altura": antigo["altura"], "salas": salas, "ares": ares, "elementos": antigo["elementos"], "auto": antigo.get("auto", []), "andar": antigo.get("andar", 9), "andares": antigo.get("andares", 11),
                 "pessoas": antigo.get("pessoas", []), "escritas": antigo.get("escritas", [])}
     novo["atualizado_em"] = db.agora()
     db.set_cfg("mapa", novo)

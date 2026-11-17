@@ -449,8 +449,12 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const io = new IntersectionObserver(([en]) => { estado.current.foraDaTela = !en.isIntersecting }, { rootMargin: '80px' }); io.observe(el)
     return () => {
       cancelAnimationFrame(quadro); ro.disconnect(); io.disconnect(); controles.dispose()
-      cena.traverse((o) => { o.geometry?.dispose?.(); if (o.material) [].concat(o.material).forEach((m) => { m.map?.dispose?.(); m.dispose?.() }) })
-      renderer.dispose(); el.removeChild(renderer.domElement)
+      el.removeChild(renderer.domElement)
+      // espera a compilação assíncrona terminar antes de descartar (senão: "reading 'isReady'" do three.js)
+      Promise.resolve(estado.current.compilacao).then(() => {
+        cena.traverse((o) => { o.geometry?.dispose?.(); if (o.material) [].concat(o.material).forEach((m) => { m.map?.dispose?.(); m.dispose?.() }) })
+        renderer.dispose()
+      })
     }
   }, [])
 
@@ -460,7 +464,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     if (!E.cena) return undefined
     const { cena, camera, controles, renderer } = E
     const escuro = document.documentElement.classList.contains('dark')
-    E.mundo && (cena.remove(E.mundo), E.mundo.traverse((o) => { o.geometry?.dispose?.(); if (o.material) [].concat(o.material).forEach((m) => { m.map?.dispose?.(); m.dispose?.() }) }))
+    if (E.mundo) {
+      const velho = E.mundo; cena.remove(velho)
+      Promise.resolve(E.compilacao).then(() => velho.traverse((o) => { o.geometry?.dispose?.(); if (o.material) [].concat(o.material).forEach((m) => { m.map?.dispose?.(); m.dispose?.() }) }))
+    }
     const mundo = new THREE.Group(); E.mundo = mundo; cena.add(mundo)
     const salas = projetos.filter((p) => mapa.salas[p.id]).map((p) => ({ ...mapa.salas[p.id], p }))
     if (!salas.length) return undefined
@@ -680,14 +687,62 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     }
 
     // prédio em volta (fecha o andar; clicar abre)
+    // O andar é maior que as salas: MARGEM metros de corredor em volta (com o hall dos elevadores em frente à porta de
+    // entrada) até a fachada de vidro. A grade das pessoas vai até a fachada: ninguém sai da laje.
     const andar = Number.isFinite(+mapa.andar) ? +mapa.andar : 9
-    const predio = comPredio ? montarPredio({ bx0: W(x0) - 0.35, bx1: W(x1) + 0.35, bz0: Z(y0) - 0.35, bz1: Z(y1) + 0.35, entrada, nome: marca?.nome || '', noite: ceu.noite, r, andar }) : null
+    const andares = Number.isFinite(+mapa.andares) ? +mapa.andares : 11
+    const MARGEM = comPredio ? 2.5 : 0
+    const fx0 = W(x0) - 0.35 - MARGEM, fx1 = W(x1) + 0.35 + MARGEM, fz0 = Z(y0) - 0.35 - MARGEM, fz1 = Z(y1) + 0.35 + MARGEM
+    E.limitesAndar = comPredio ? [fx0 + 0.32, fz0 + 0.32, fx1 - 0.32, fz1 - 0.32] : null
+    const predio = comPredio ? montarPredio({ bx0: fx0, bx1: fx1, bz0: fz0, bz1: fz1, entrada, nome: marca?.nome || '', noite: ceu.noite, r, andar, andares }) : null
     if (predio) {
       mundo.add(predio.grupo); predio.aplicar(E.aberto ? 1 : 0); predio.tick(0, 0)
       chao.position.y = -predio.yA - 0.02; calcada.visible = false
+      // piso do corredor (porcelanato) por baixo das salas
+      const texC = texturaPiso('porcelanato', 0xd6d3d1); texC.repeat.set((fx1 - fx0) / 1.2, (fz1 - fz0) / 1.2)
+      const corredor = new THREE.Mesh(new THREE.PlaneGeometry(fx1 - fx0, fz1 - fz0), new THREE.MeshStandardMaterial({ color: escuro ? 0xa8a29e : 0xeeece9, map: texC, roughness: 0.35 }))
+      corredor.rotation.x = -Math.PI / 2; corredor.position.set((fx0 + fx1) / 2, -0.004, (fz0 + fz1) / 2); corredor.receiveShadow = true; mundo.add(corredor)
+      // fachada do andar: guarda-corpo de vidro com montantes (aparece com o andar aberto; fechado, a torre já cobre)
+      const fachada = new THREE.Group(); mundo.add(fachada); E.fachadaAndar = fachada
+      const altF = 1.1   // guarda-corpo de vidro: mostra o limite sem tapar a vista de cima (quem segura as pessoas é a grade)
+      const matF = new THREE.MeshStandardMaterial({ color: 0x9cc3e0, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide })
+      const matM = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.5 })
+      const ladosF = [[true, fz0 + 0.06, fx0, fx1], [true, fz1 - 0.06, fx0, fx1], [false, fx0 + 0.06, fz0, fz1], [false, fx1 - 0.06, fz0, fz1]]
+      const montantes = []
+      for (const [horiz, k, a, b] of ladosF) {
+        const v = new THREE.Mesh(new THREE.PlaneGeometry(b - a, altF), matF); v.position.set(horiz ? (a + b) / 2 : k, altF / 2, horiz ? k : (a + b) / 2); if (!horiz) v.rotation.y = Math.PI / 2; fachada.add(v)
+        for (const y of [0.05, altF - 0.04]) { const t = new THREE.Mesh(new THREE.BoxGeometry(horiz ? b - a : 0.08, 0.08, horiz ? 0.08 : b - a), matM); t.position.set(horiz ? (a + b) / 2 : k, y, horiz ? k : (a + b) / 2); fachada.add(t) }
+        const n = Math.max(1, Math.round((b - a) / 1.5))
+        for (let i = 0; i <= n; i++) montantes.push(horiz ? [a + (i * (b - a)) / n, k] : [k, a + (i * (b - a)) / n])
+      }
+      const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, altF, 0.06), matM, montantes.length)
+      const m4 = new THREE.Matrix4(); montantes.forEach(([x, z], i) => { m4.makeTranslation(x, altF / 2, z); im.setMatrixAt(i, m4) }); fachada.add(im)
+      // hall dos elevadores: núcleo encostado na fachada, de frente para a porta de entrada
+      if (entrada) {
+        const n = { sul: [0, 1], norte: [0, -1], leste: [1, 0], oeste: [-1, 0] }[entrada.lado]
+        const horiz = n[0] === 0
+        const distF = horiz ? (n[1] > 0 ? fz1 - entrada.z : entrada.z - fz0) : (n[0] > 0 ? fx1 - entrada.x : entrada.x - fx0)
+        const prof = 0.9, larg = 5.2, hN = Math.max(ALT, 2.4)
+        const c = [entrada.x + n[0] * (distF - prof / 2 - 0.12), entrada.z + n[1] * (distF - prof / 2 - 0.12)]
+        const nucleo = new THREE.Mesh(new THREE.BoxGeometry(horiz ? larg : prof, hN, horiz ? prof : larg), new THREE.MeshStandardMaterial({ color: escuro ? 0x57534e : 0xd6d3d1, roughness: 0.7 }))
+        nucleo.position.set(c[0], hN / 2, c[1]); nucleo.castShadow = nucleo.receiveShadow = true; mundo.add(nucleo)
+        bloquear(c[0], c[1], horiz ? larg : prof, horiz ? prof : larg)
+        const aco = new THREE.MeshStandardMaterial({ color: 0xb8bec6, roughness: 0.25, metalness: 0.85 })
+        const frente = (u, w, h, y, cor) => {   // peça colada na face do núcleo que olha para a porta
+          const o = new THREE.Mesh(new THREE.BoxGeometry(horiz ? w : 0.04, h, horiz ? 0.04 : w), cor)
+          const off = prof / 2 + 0.02
+          o.position.set(c[0] + (horiz ? u : -n[0] * off), y, c[1] + (horiz ? -n[1] * off : u)); mundo.add(o); return o
+        }
+        for (const u of [-1.35, 1.35]) { frente(u, 1.05, 2.15, 1.075, aco); frente(u, 0.02, 2.15, 1.075, new THREE.MeshStandardMaterial({ color: 0x1f2937 })) }
+        frente(0, 0.12, 0.22, 1.15, new THREE.MeshStandardMaterial({ color: 0x334155, emissive: 0x38bdf8, emissiveIntensity: 0.5 }))   // botões de chamada
+        const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64; const g = cv.getContext('2d')
+        g.fillStyle = '#0b1220'; g.fillRect(0, 0, 128, 64); g.fillStyle = '#fbbf24'; g.font = '700 40px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`${andar}º`, 64, 34)
+        const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace
+        for (const u of [-1.35, 1.35]) frente(u, 0.36, 0.18, 2.32, new THREE.MeshStandardMaterial({ map: tx, emissiveMap: tx, emissive: 0xffffff, emissiveIntensity: 0.6 }))
+      }
       // placa do andar do escritório, visível com o prédio fechado
       const pl = etiqueta(`${marca?.nome || 'Escritório'} · ${andar}º andar`, '#ffffff', 'rgba(15,118,106,0.92)')
-      pl.position.set(W(x1) + 3, 2, Z(y1) + 3); pl.scale.multiplyScalar(7); mundo.add(pl); E.placaAndar = pl
+      pl.position.set(fx1 + 2.5, 2, fz1 + 2.5); pl.scale.multiplyScalar(7); mundo.add(pl); E.placaAndar = pl
     }
     E.predio = predio
     // luz de teto: painéis acesos (fortes à noite) e uma luz por sala
@@ -979,7 +1034,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // gente andando: rota por A* numa grade de 10 cm (paredes, mesas, cadeiras e portas viram obstáculo), desviando
     // umas das outras pela direita, parando um pouco em cada destino e voltando a andar
     const dentroDeSala = (x, z) => salas.some((s) => x > W(s.x) - 0.12 && x < W(s.x + s.w) + 0.12 && z > Z(s.y) - 0.12 && z < Z(s.y + s.h) + 0.12)
-    const grade = criarGrade(W(x0) - 0.3, Z(y0) - 0.3, W(x1) + 0.3, Z(y1) + 0.3, obstaculos, dentroDeSala, 0.22, compacto ? 0.2 : 0.1)   // no painel, grade mais grossa (monta 4x mais rápido)
+    const LA = E.limitesAndar   // com o prédio: o corredor também é chão (até a fachada de vidro)
+    const livreAndar = LA ? (x, z) => dentroDeSala(x, z) || (x > LA[0] && x < LA[2] && z > LA[1] && z < LA[3]) : dentroDeSala
+    const grade = LA ? criarGrade(LA[0], LA[1], LA[2], LA[3], obstaculos, livreAndar, 0.22, compacto ? 0.2 : 0.1)
+      : criarGrade(W(x0) - 0.3, Z(y0) - 0.3, W(x1) + 0.3, Z(y1) + 0.3, obstaculos, dentroDeSala, 0.22, compacto ? 0.2 : 0.1)   // no painel, grade mais grossa (monta 4x mais rápido)
     E.grade = grade
     const salao = [...salas].sort((a, b) => b.w * b.h - a.w * a.h)[0]
     const pontoLivre = (s) => {
@@ -1266,6 +1324,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const alvoK = E.aberto ? 1 : 0
         if (Math.abs(predio.k - alvoK) > 0.001) predio.aplicar(THREE.MathUtils.clamp(predio.k + Math.sign(alvoK - predio.k) * dt / 1.4, 0, 1))
         if (E.placaAndar) E.placaAndar.visible = predio.k < 0.05
+        if (E.fachadaAndar) E.fachadaAndar.visible = predio.k > 0.6
       }
       unidades.forEach((u) => {
         if (u.fluxo) {
@@ -1311,7 +1370,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // compila os shaders em paralelo (extensão KHR_parallel_shader_compile) antes do primeiro quadro: sem isso a
     // primeira renderização trava a página enquanto o WebGL compila dezenas de materiais
     E.compilando = true
-    renderer.compileAsync(cena, camera).catch(() => {}).finally(() => { E.compilando = false })
+    E.compilacao = renderer.compileAsync(cena, camera).catch(() => {}).finally(() => { E.compilando = false })
 
     // clique e cursor
     const ray = new THREE.Raycaster(), mouse = new THREE.Vector2()

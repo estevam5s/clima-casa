@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { montarCidade } from './cidade3d'
 
 // ---------------------------------------------------------------------------------------------------------------
 // Física simples das pessoas: uma grade de 10 cm sobre o andar marca o que é ocupado (paredes, mesas, cadeiras,
@@ -121,6 +122,31 @@ function texturaJanelas(cols, linhas, base, vidro, acesas, semente) {
   return [t, te]
 }
 
+// pele de vidro da torre: um andar por repetição, montantes finos, laje opaca embaixo, reflexo do céu e persianas
+function texturaCortina(cols, noite, semente) {
+  const W = 1024, H = 128, cw = W / cols
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H
+  const g = cv.getContext('2d')
+  const em = document.createElement('canvas'); em.width = W; em.height = H
+  const ge = em.getContext('2d'); ge.fillStyle = '#000'; ge.fillRect(0, 0, W, H)
+  let s = semente >>> 0
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296 }
+  const ceu = g.createLinearGradient(0, 0, W, H); ceu.addColorStop(0, '#5f7f9c'); ceu.addColorStop(0.5, '#2c4560'); ceu.addColorStop(1, '#1a2a3d')
+  g.fillStyle = ceu; g.fillRect(0, 0, W, H)
+  for (let i = 0; i < cols; i++) {
+    const x = i * cw
+    g.fillStyle = `rgba(255,255,255,${0.05 + rnd() * 0.12})`; g.fillRect(x, 0, cw, H * 0.45)          // reflexo
+    if (rnd() < 0.3) { g.fillStyle = 'rgba(226,232,240,0.35)'; g.fillRect(x + 2, 8, cw - 4, H * (0.15 + rnd() * 0.4)) }   // persiana
+    if (noite && rnd() < 0.5) { ge.fillStyle = rnd() > 0.3 ? '#ffe2a8' : '#d4e4ff'; ge.globalAlpha = 0.5 + rnd() * 0.5; ge.fillRect(x + 2, 6, cw - 4, H * 0.72); ge.globalAlpha = 1 }
+    g.fillStyle = '#c9d2db'; g.fillRect(x, 0, 3, H)                                                          // montante
+  }
+  g.fillStyle = '#1c2633'; g.fillRect(0, H * 0.8, W, H * 0.2)                                              // laje (peitoril opaco)
+  g.fillStyle = '#c9d2db'; g.fillRect(0, H * 0.8, W, 2); g.fillRect(0, H * 0.4, W, 1.5)                    // travessas
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4
+  const te = new THREE.CanvasTexture(em); te.colorSpace = THREE.SRGBColorSpace; te.wrapS = te.wrapT = THREE.RepeatWrapping
+  return [t, te]
+}
+
 function placa(texto) {
   const c = document.createElement('canvas'); const g = c.getContext('2d')
   g.font = '700 120px system-ui, -apple-system, sans-serif'
@@ -176,9 +202,11 @@ function carro(cor) {
   return { g, rodas }
 }
 
-// O escritório fica num andar da torre (padrão: 9º). O grupo inteiro desce para que esse andar fique na altura 0
-// do mundo: aberto, os andares de cima sobem e somem, a fachada do andar some, e o resto do prédio fica embaixo.
-export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, nome, noite, r, andar = 9 }) {
+// O prédio tem `andares` andares (padrão 11: térreo e 1º no pódio, 2º ao 11º na torre) e o escritório fica no `andar`
+// (padrão 9º). O grupo inteiro desce para que esse andar fique na altura 0 do mundo: aberto, os andares de cima sobem
+// e somem, a fachada do andar some, e o resto do prédio fica embaixo. Os limites (bx0…bz1) já incluem o corredor em
+// volta das salas (Mapa3D: MARGEM), então a torre é mais larga que as salas e ninguém fica na beira da laje.
+export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, nome, noite, r, andar = 9, andares = 11, cidade = true }) {
   const bx0 = ox0 - 5, bx1 = ox1 + 5, bz0 = oz0 - 3, bz1 = oz1 + 8   // pódio maior que a torre
   const grupo = new THREE.Group()
   const casca = new THREE.Group(); grupo.add(casca)     // o que fica: pódio, torre até o andar de baixo do escritório
@@ -194,8 +222,8 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   const matBase = M({ color: 0x475569, roughness: 0.8 })
   const [texJ, texJE] = texturaJanelas(2, 2, '#1e293b', ['#24344d', '#0f172a'], noite ? 0.55 : 0, 11)
   const matVidroPodio = M({ color: 0xffffff, map: texJ, emissiveMap: texJE, emissive: 0xffffff, emissiveIntensity: noite ? 1 : 0, roughness: 0.18, metalness: 0.45 })
-  const [texT, texTE] = texturaJanelas(10, 1, '#cbd5e1', ['#2b3d57', '#111827'], noite ? 0.45 : 0, 29)
-  const matVidroTorre = M({ color: 0xffffff, map: texT, emissiveMap: texTE, emissive: 0xffffff, emissiveIntensity: noite ? 1 : 0, roughness: 0.2, metalness: 0.4 })
+  const [texT, texTE] = texturaCortina(Math.max(8, Math.round(Math.max(ox1 - ox0, oz1 - oz0) / 1.5)), noite, 29)
+  const matVidroTorre = M({ color: 0xffffff, map: texT, emissiveMap: texTE, emissive: 0xffffff, emissiveIntensity: noite ? 1 : 0, roughness: 0.12, metalness: 0.5 })
   const matCond = M({ color: 0xe5e7eb, roughness: 0.5 })
   const BW = bx1 - bx0, BD = bz1 - bz0, cxp = (bx0 + bx1) / 2, czp = (bz0 + bz1) / 2
   const HP = 7.4, ESPF = 0.3
@@ -265,8 +293,8 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   caixa(casca, BW + 2 * ESPF + 0.1, 0.3, BD + 2 * ESPF + 0.1, matBranco, cxp, HP + 0.1, czp)
   // torre
   const TW = ox1 - ox0 + 0.25, TD = oz1 - oz0 + 0.25, tx = (ox0 + ox1) / 2, tz = (oz0 + oz1) / 2   // torre = planta do escritório
-  // andares da torre: 2º ao 16º; o do escritório (andar) fica em yA
-  const PRIMEIRO = 2, ULTIMO = Math.max(16, andar + 4), FH = 3.1, base = HP + 0.25
+  // andares da torre: 2º ao último (padrão 11º); o do escritório (andar) fica em yA
+  const PRIMEIRO = 2, ULTIMO = Math.max(andares, andar, PRIMEIRO), FH = 3.1, base = HP + 0.25
   const NF = ULTIMO - PRIMEIRO + 1, TH = NF * FH
   const nA = Math.min(Math.max(andar, PRIMEIRO), ULTIMO) - PRIMEIRO     // índice do andar do escritório
   const yA = base + nA * FH
@@ -303,9 +331,14 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     const topo = base + TH + 1.6
     caixa(torre, w, topo - yA - FH, d, fAzul, x, yA + FH + (topo - yA - FH) / 2, z)
   }
-  // casa de máquinas, caixa d'água e antenas no topo
-  caixa(torre, TW * 0.4, 2.6, TD * 0.4, fBranco, tx, base + TH + 2.5, tz)
-  caixa(torre, TW * 0.22, 1.6, TD * 0.25, fAzulEsc, tx + TW * 0.25, base + TH + 2.0, tz - TD * 0.15)
+  // cobertura: platibanda, casa de máquinas recuada com vidro, caixas d'água, condensadoras em fileira e antenas
+  const yT = base + TH + 1.2
+  for (const [w, d, x, z] of [[TW + 0.9, 0.2, tx, tz - TD / 2 - 0.35], [TW + 0.9, 0.2, tx, tz + TD / 2 + 0.35], [0.2, TD + 0.9, tx - TW / 2 - 0.35, tz], [0.2, TD + 0.9, tx + TW / 2 + 0.35, tz]]) caixa(torre, w, 1.1, d, fBranco, x, yT + 0.55, z, false)
+  caixa(torre, TW * 0.4, 2.6, TD * 0.4, fBranco, tx, yT + 1.3, tz)
+  caixa(torre, TW * 0.4 - 0.4, 1.4, TD * 0.4 + 0.02, fVidro, tx, yT + 1.4, tz, false)
+  caixa(torre, TW * 0.22, 1.6, TD * 0.25, fAzulEsc, tx + TW * 0.25, yT + 0.8, tz - TD * 0.15)
+  for (let i = 0; i < 2; i++) { const cx = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.2, 16), fBranco); cx.position.set(tx - TW * 0.28 + i * 2.1, yT + 1.1, tz + TD * 0.22); cx.castShadow = true; torre.add(cx) }
+  for (let i = 0; i < Math.max(3, Math.floor(TW / 2.4)); i++) caixa(torre, 1.1, 0.9, 0.8, fCond, tx - TW / 2 + 1.4 + i * 2.2, yT + 0.45, tz - TD / 2 + 1.6, false)
   for (let i = 0; i < 3; i++) { const an = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 3 + i, 6), fBase); an.position.set(tx - TW * 0.1 + i * 0.6, base + TH + 3.8 + i / 2, tz + 0.3); torre.add(an) }
   // mastros com bandeiras na laje do pódio
   const bandeiras = []
@@ -341,14 +374,14 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   const ladoRua1 = ladoEntrada, ladoRua2 = ['oeste', 'leste'].includes(ladoEntrada) ? 'sul' : 'oeste'
   for (const lado of [ladoRua1, ladoRua2]) {
     const L = LADOS[lado], horiz = L.horiz
-    const meio = L.k + L.n * (CAL + 3 + RUA / 2), comp = 220
+    const meio = L.k + L.n * (CAL + 3 + RUA / 2), comp = 380
     plano(horiz ? comp : RUA, horiz ? RUA : comp, matAsfalto, horiz ? cxp : meio, horiz ? meio : czp, 0.006)
     // canteiro central com grama e palmeiras (como na foto), faixas tracejadas
     const can = meio + L.n * (RUA / 2 + MED / 2)
     plano(horiz ? comp : MED, horiz ? MED : comp, matGrama, horiz ? cxp : can, horiz ? can : czp, 0.01)
     const meio2 = can + L.n * (MED / 2 + RUA / 2)
     plano(horiz ? comp : RUA, horiz ? RUA : comp, matAsfalto, horiz ? cxp : meio2, horiz ? meio2 : czp, 0.006)
-    for (let k = -100; k < 100; k += 4.5) {
+    for (let k = -185; k < 185; k += 4.5) {
       plano(horiz ? 2.2 : 0.14, horiz ? 0.14 : 2.2, matFaixa, horiz ? cxp + k : meio, horiz ? meio : czp + k, 0.012)
       plano(horiz ? 2.2 : 0.14, horiz ? 0.14 : 2.2, matFaixa, horiz ? cxp + k : meio2, horiz ? meio2 : czp + k, 0.012)
     }
@@ -396,18 +429,17 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       carros.push({ ...c, rua, lin, sentido, u: -90 + r() * 180 + i * 60 + ir * 13, vel: 7 + r() * 5 })
     }
   }))
-  // prédios vizinhos (fundo da cidade)
-  const viz = []
-  for (let i = 0; i < 9; i++) {
-    const ang = (i / 9) * Math.PI * 2 + r() * 0.3, dist = 60 + r() * 30
-    if (Math.cos(ang) < -0.2 && Math.sin(ang) > 0.2) continue   // não tapa a câmera (que olha de sudoeste)
-    const w = 9 + r() * 8, d = 9 + r() * 7, h = 12 + r() * 30
-    const [tv, tve] = texturaJanelas(5, 4, ['#e7dccb', '#f1f5f9', '#d6d3d1'][i % 3], ['#5b6b7f', '#334155'], noite ? 0.4 : 0, 100 + i)
-    tv.repeat.set(Math.round(w / 3.5) / 5, Math.round(h / 3) / 4); tve.repeat.copy(tv.repeat)
-    const m = new THREE.MeshStandardMaterial({ map: tv, emissiveMap: tve, emissive: 0xffffff, emissiveIntensity: noite ? 0.9 : 0, roughness: 0.8 })
-    const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [m, m, new THREE.MeshStandardMaterial({ color: 0x9ca3af }), m, m, m])
-    o.position.set(cxp + Math.cos(ang) * dist, h / 2, czp + Math.sin(ang) * dist); o.castShadow = true; o.receiveShadow = true
-    entorno.add(o); viz.push(o)
+  // cidade em volta (cidade3d.js): lotes fora do quarteirão do prédio e fora das duas avenidas
+  if (cidade) {
+    plano(400, 400, matAsfalto, cxp, czp, 0.002)   // ruas entre as quadras
+    const livres = [[bx0 - CAL - 9, bz0 - CAL - 9, bx1 + CAL + 9, bz1 + CAL + 9]]
+    for (const lado of [ladoRua1, ladoRua2]) {
+      const L = LADOS[lado], a = L.k + L.n * (CAL + 1), b = L.k + L.n * (CAL + 6 + 2 * RUA + MED)
+      const [p0, p1] = [Math.min(a, b), Math.max(a, b)]
+      livres.push(L.horiz ? [cxp - 400, p0, cxp + 400, p1] : [p0, czp - 400, p1, czp + 400])
+    }
+    const c = montarCidade({ centro: [cxp, czp], livres, camera: [-0.6, 0.85], noite, r })
+    entorno.add(c.grupo)
   }
 
   // abertura: 0 = prédio fechado, 1 = andar aberto (torre sobe e some, fachada some)

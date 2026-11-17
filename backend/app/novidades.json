@@ -2,6 +2,26 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.3.1",
+      "data": "2026-11-16",
+      "titulo": "Mapa 3D: prédio de 11 andares e a cidade em volta",
+      "resumo": "O prédio do mapa agora tem 11 andares, com o escritório no 9º, fachada de vidro mais realista e uma cidade inteira em volta. O andar ganhou corredor e hall dos elevadores.",
+      "novo": [
+        "Cidade em volta do prédio: quadras com prédios de escritório, residenciais com sacadas, comércio no térreo, praças, árvores e postes",
+        "Corredor em volta das salas e hall dos elevadores em frente à porta de entrada",
+        "Na edição da planta: escolher o total de andares do prédio além do andar do escritório"
+      ],
+      "melhorias": [
+        "Prédio com 11 andares (escritório no 9º), pele de vidro com montantes, persianas e cobertura com caixas d'água e condensadoras",
+        "Janelas da cidade acendem à noite",
+        "Andando com o avatar, dá para sair pela porta de entrada até o corredor sem cair do andar"
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "Erro do 3D ao sair da página antes de terminar de carregar (\"isReady\")"
+      ]
+    },
+    {
       "versao": "1.3.0",
       "data": "2026-11-16",
       "titulo": "Vários ares por transmissor, e-mails do domínio e o agente no Windows",

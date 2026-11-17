@@ -300,7 +300,7 @@ export default function Mapa() {
   const salvar = async () => {
     setSalvando(true)
     try {
-      const corpo = { largura: rascunho.largura, altura: rascunho.altura, salas: rascunho.salas, ares: rascunho.ares, elementos: rascunho.elementos, auto: rascunho.auto || [], andar: Number.isFinite(+rascunho.andar) ? +rascunho.andar : 9, pessoas: rascunho.pessoas || [], escritas: rascunho.escritas || [] }
+      const corpo = { largura: rascunho.largura, altura: rascunho.altura, salas: rascunho.salas, ares: rascunho.ares, elementos: rascunho.elementos, auto: rascunho.auto || [], andar: Number.isFinite(+rascunho.andar) ? +rascunho.andar : 9, andares: Number.isFinite(+rascunho.andares) ? +rascunho.andares : 11, pessoas: rascunho.pessoas || [], escritas: rascunho.escritas || [] }
       setDados(await api.put('/api/mapa', corpo)); setEditando(false); setRascunho(null); setHistorico([])
       toast('Planta salva.')
     } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
@@ -478,8 +478,8 @@ export default function Mapa() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
-        <section className="cartao relative overflow-hidden">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="cartao relative min-w-0 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
             {editando ? (
               <div className="flex flex-wrap items-center gap-1">
@@ -589,8 +589,10 @@ export default function Mapa() {
                     onChange={(e) => mexer((n) => { n.largura = lim(+e.target.value || 400, 400, 6000) })} className="campo mt-1 h-9" /></label>
                   <label className="text-xs text-muted-foreground">Altura<input type="number" min="300" max="6000" step="50" value={rascunho.altura}
                     onChange={(e) => mexer((n) => { n.altura = lim(+e.target.value || 300, 300, 6000) })} className="campo mt-1 h-9" /></label>
-                  <label className="col-span-2 text-xs text-muted-foreground">Andar do escritório no prédio<input type="number" min="0" max="200" step="1" value={rascunho.andar ?? 9}
-                    onChange={(e) => mexer((n) => { n.andar = lim(Math.round(+e.target.value || 0), 0, 200) })} className="campo mt-1 h-9" /></label>
+                  <label className="text-xs text-muted-foreground">Andar do escritório<input type="number" min="0" max="200" step="1" value={rascunho.andar ?? 9}
+                    onChange={(e) => mexer((n) => { n.andar = lim(Math.round(+e.target.value || 0), 0, 200); n.andares = Math.max(n.andares ?? 11, n.andar) })} className="campo mt-1 h-9" /></label>
+                  <label className="text-xs text-muted-foreground">Andares do prédio<input type="number" min="1" max="200" step="1" value={rascunho.andares ?? 11}
+                    onChange={(e) => mexer((n) => { n.andares = lim(Math.round(+e.target.value || 1), Math.max(1, n.andar ?? 9), 200) })} className="campo mt-1 h-9" /></label>
                 </div>
                 {sel ? (
                   <div className="space-y-3 border-t border-border pt-4 text-sm">
