@@ -448,3 +448,6 @@ create table if not exists public.email_envios (
 create index if not exists email_envios_resend_idx on public.email_envios (resend_id);
 create index if not exists email_envios_criado_idx on public.email_envios (criado_em desc);
 alter table public.email_envios enable row level security;
+
+-- "O que há de novo": última versão que cada usuário já viu (o modal aparece uma vez por pessoa, em qualquer aparelho)
+alter table public.usuarios add column if not exists novidades_vista text;

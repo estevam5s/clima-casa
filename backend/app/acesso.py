@@ -47,7 +47,7 @@ PAPEIS = {
 # Regras por rota: (métodos, padrão da rota do FastAPI, permissão). A primeira que casar vale.
 # Rotas não listadas: GET liberado para qualquer usuário logado; o resto exige "configuracoes.gerenciar".
 REGRAS = [
-    ("*", r"^/api/(sessao|perfil|notificacoes|conta|clima-externo|apps/qr)", None),
+    ("*", r"^/api/(sessao|perfil|notificacoes|conta|clima-externo|apps/qr|novidades)", None),
     ("POST", r"^/api/aparelhos/\{aid\}/(estado|botoes/\{chave\}/enviar|temporizador)$", "aparelhos.controlar"),
     ("DELETE", r"^/api/aparelhos/\{aid\}/temporizador$", "aparelhos.controlar"),
     ("POST", r"^/api/(cenas|automacoes)/\{\w+\}/executar$", "aparelhos.controlar"),
@@ -59,6 +59,7 @@ REGRAS = [
     ("POST|PUT|DELETE", r"^/api/agendamentos", "agenda.gerenciar"),
     ("POST|PUT|DELETE", r"^/api/automacoes", "automacoes.gerenciar"),
     ("*", r"^/api/hubs/descobrir", "transmissores.gerenciar"),
+    ("POST", r"^/api/hubs/\{hid\}/todos$", "aparelhos.controlar"),   # ligar/desligar todos os ares de um transmissor
     ("POST|PUT|DELETE", r"^/api/hubs", "transmissores.gerenciar"),
     ("POST", r"^/api/projetos/\{pid\}/desligar$", "aparelhos.controlar"),
     ("GET", r"^/api/projetos/\{pid\}/exportar$", "projetos.gerenciar"),

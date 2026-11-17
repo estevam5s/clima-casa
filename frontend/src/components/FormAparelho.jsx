@@ -3,19 +3,20 @@ import { MODOS } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Interruptor } from './ui'
 
-export default function FormAparelho({ inicial, hubs, aoSalvar, rotuloBotao = 'Salvar' }) {
+// padrao: valores iniciais de um ar novo (ex.: vindo de Transmissores → "Adicionar ar a este transmissor")
+export default function FormAparelho({ inicial, padrao = {}, hubs, aoSalvar, rotuloBotao = 'Salvar' }) {
   const { projetos, projeto } = useProjeto()
   const [f, setF] = useState(() => ({
     nome: inicial?.nome || '',
     comodo: inicial?.comodo || '',
     marca: inicial?.marca || '',
-    hub_id: inicial?.hub_id || hubs[0]?.id || '',
+    hub_id: inicial?.hub_id || padrao.hub_id || hubs[0]?.id || '',
     temp_min: inicial?.temp_min ?? 16,
     temp_max: inicial?.temp_max ?? 30,
     modos: inicial?.modos ? inicial.modos.split(',') : Object.keys(MODOS),
     alexa: inicial ? !!inicial.alexa : true,
     potencia_w: inicial?.potencia_w ?? 1000,
-    projeto_id: inicial ? inicial.projeto_id : (projeto?.id ?? projetos[0]?.id ?? null),
+    projeto_id: inicial ? inicial.projeto_id : (padrao.projeto_id ?? projeto?.id ?? projetos[0]?.id ?? null),
   }))
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)

@@ -139,7 +139,8 @@ export default function Aparelhos() {
       )}
 
       <Modal aberto={aberto} titulo="Adicionar ar-condicionado" onFechar={() => setParams({})}>
-        <FormAparelho hubs={hubs} aoSalvar={criar} rotuloBotao="Adicionar" />
+        <FormAparelho hubs={hubs} aoSalvar={criar} rotuloBotao="Adicionar"
+          padrao={{ hub_id: params.get('hub') || undefined, projeto_id: params.get('projeto') ? +params.get('projeto') : undefined }} />
       </Modal>
     </>
   )

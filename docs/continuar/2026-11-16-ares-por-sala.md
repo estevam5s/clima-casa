@@ -44,14 +44,25 @@ na primeira vaga daquela sala (`mapaUtil.completar`). Por isso não precisa posi
    Cor no mapa: a do controle/ar real (o do escritório é preto `#18181b`).
 5. **Botões**:
    - Pede para você gravar o **Desligar** e confere a gravação (pulsos ≥ 100; o sistema já recusa ruído < 16 pulsos).
-   - Se o controle for **Gree** (cabeçalho ~9000/4500 µs): roda `scripts/gree_gerar.py <id>` para conferir, depois
-     `--testar frio 24 auto` (o ar tem de apitar e mudar) e `--gravar` (300 botões).
+   - Se o controle for **Gree** (cabeçalho ~9000/4500 µs): pela tela, Aparelho → Botões gravados → "Controle Gree"
+     (Conferir → Testar Frio 24° → Gerar 300 botões), ou pela API `POST /api/aparelhos/{id}/gree`. O script
+     `scripts/gree_gerar.py <id>` faz o mesmo pelo terminal (mesmo módulo `backend/app/gree.py`).
+   - Ar do **mesmo modelo** que outro já pronto: Botões gravados → "Copiar de outro ar" (`POST /api/aparelhos/{id}/copiar-botoes`).
    - Se **não** for Gree: você grava à mão os ajustes mais usados (Frio 21–25°, etc.), sempre com o controle 1° acima e
      apertando "−" uma vez (nunca o Power, que alterna liga/desliga).
 6. **Testa** com você olhando o ar: Ligar, Desligar, uma temperatura diferente.
 7. **Alexa**: o Sinric Pro grátis aceita **3 aparelhos** (hoje usa 1). Com 8+ ares, decidir antes: plano pago do Sinric ou a
    skill própria (`alexa/GUIA.md`). Não marcar "Disponível na Alexa" além do limite.
 8. Atualiza o `CLAUDE.md` §14 (estado) e faz commit sem segredos (§0).
+
+## Um transmissor para 3 ou 4 ares (mesmo ambiente)
+
+Dá para um único transmissor atender vários ares **à vista dele** (até ~4, 8–10 m, sem parede no caminho):
+- Transmissores → cartão → **"Adicionar ar a este transmissor"** (transmissor e projeto já escolhidos). O ar pode ser de outro projeto.
+- **Ligar todos / Desligar todos** no cartão (`POST /api/hubs/{id}/todos`, um ar por vez, ~1,2 s entre eles).
+- **Ares iguais respondem juntos**: o sistema detecta (mesmo Desligar no mesmo transmissor), atualiza o estado dos dois
+  (`clima.responderam_juntos`) e mostra o aviso amarelo no cartão. Para separar, um transmissor por ar.
+- Tutorial para o usuário: Guia → "Um transmissor para vários ares" (`/guia#varios-ares`).
 
 ## Cuidados
 
@@ -78,8 +89,10 @@ Para cada sala, nesta ordem e me avisando o que precisa de mim:
 2. Importe o transmissor da conta Smart Life, coloque no projeto da sala com o nome "Smart IR · <Sala>",
    descubra o IP e confirme a conexão.
 3. Crie o aparelho no projeto (16–30°, todos os modos), vinculado ao transmissor da sala, ocupando a vaga do mapa.
-4. Me peça para gravar o Desligar, confira a gravação e, se for Gree, use scripts/gree_gerar.py para testar
-   (--testar frio 24 auto) e depois gerar os 300 botões (--gravar). Se não for Gree, me guie na gravação manual.
+4. Me peça para gravar o Desligar, confira a gravação e, se for Gree, use a tela "Controle Gree" (ou
+   scripts/gree_gerar.py) para testar Frio 24° e depois gerar os 300 botões. Ar igual a outro já pronto:
+   "Copiar de outro ar". Se não for Gree, me guie na gravação manual.
+   (Se um transmissor atende vários ares da mesma sala, use "Adicionar ar a este transmissor".)
 5. Teste comigo: ligar, desligar e mudar a temperatura.
 Não coloque mais aparelhos na Alexa do que o limite do Sinric sem me perguntar. No fim, atualize o CLAUDE.md
 (estado atual) e faça o commit sem segredos.

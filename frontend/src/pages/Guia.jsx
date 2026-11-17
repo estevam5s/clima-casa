@@ -112,6 +112,20 @@ const CAPITULOS = [
     dicas: ['Os dois podem ficar instalados para sempre: só um é o principal por vez, e o outro assume se ele sumir. Não dá conflito.'],
   },
   {
+    id: 'varios-ares', icone: Radio, titulo: 'Um transmissor para vários ares',
+    resumo: 'Um transmissor no teto pode atender 3 ou 4 ares do mesmo ambiente. Veja onde colocar, como cadastrar e o que acontece com ares iguais.',
+    passos: [
+      { t: 'Onde colocar o transmissor', d: 'No teto ou no alto da parede, no meio do ambiente, com visão direta do receptor de cada ar (o cantinho do painel do ar onde você aponta o controle). Alcance bom: até 8 a 10 metros. Infravermelho não atravessa parede, divisória, porta fechada nem luminária: um ar em outra sala precisa do próprio transmissor.' },
+      { t: 'Cadastre cada ar no mesmo transmissor', d: 'Transmissores → no cartão do transmissor, “Adicionar ar a este transmissor”. O transmissor e o projeto já vêm escolhidos; dê um nome que você falaria para a Alexa (ex.: “Ar da janela”). Um ar pode ser de outro projeto e usar o mesmo transmissor.', link: ['/transmissores', 'Abrir Transmissores'] },
+      { t: 'Botões do primeiro ar', d: 'Grave o Desligar dele (Aparelhos → o ar → Botões gravados → Desligar). Se o controle for Gree, use “Controle Gree: gerar todos os botões”: Conferir, Testar (o ar tem que apitar e ir para 24°) e Gerar. Se não for Gree, grave à mão os ajustes mais usados.' },
+      { t: 'Ares do mesmo modelo: copie', d: 'No segundo ar, em Botões gravados → “Copiar de outro ar”, escolha o primeiro. Mesmo controle remoto = mesmos sinais, não precisa gravar de novo.' },
+      { t: 'Entenda: ares iguais respondem juntos', d: 'O sinal infravermelho não tem endereço. Se dois ares do mesmo modelo estão à vista do mesmo transmissor, os dois obedecem a qualquer comando. O sistema percebe isso (mesmos botões, mesmo transmissor), atualiza os dois no painel e mostra o aviso amarelo no cartão do transmissor. Para comandar cada um separado, use um transmissor para cada, bem perto do seu ar e virado só para ele.' },
+      { t: 'Ligar ou desligar todos de uma vez', d: 'No cartão do transmissor, “Ligar todos” e “Desligar todos” mandam um ar por vez (cerca de 1 segundo entre eles), porque o transmissor só manda um sinal de cada vez. Quem respondeu junto não recebe o sinal de novo.' },
+      { t: 'Teste com alguém olhando os ares', d: 'Mande Ligar para um ar e veja se só ele (ou o grupo esperado) apitou. Depois Desligar. Se um ar não reage, mude a posição do transmissor ou aproxime-o.' },
+    ],
+    dicas: ['Recomendado: até 4 ares por transmissor. Acima disso, a tela avisa para conferir se todos estão à vista.', 'Modelos diferentes no mesmo ambiente funcionam separados no mesmo transmissor, porque cada um só entende o sinal do próprio controle.', 'Cenas e automações funcionam igual: cada ar segue o próprio estado.'],
+  },
+  {
     id: 'sinric', icone: KeyRound, titulo: 'Sinric Pro: a ponte para a Alexa',
     resumo: 'Conta, credenciais e criação dos ares no Sinric.',
     passos: [
@@ -234,6 +248,8 @@ export default function Guia() {
     return () => io.disconnect()
   }, [filtrados])
   const ir = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // /guia#capitulo (links de outras telas) abre direto no capítulo
+  useEffect(() => { const h = decodeURIComponent(window.location.hash.slice(1)); if (h) setTimeout(() => ir(h), 150) }, [])
 
   return (
     <div>

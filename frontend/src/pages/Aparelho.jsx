@@ -134,6 +134,77 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
 }
 
 // ---------- temporizador ----------
+// Atalhos para não gravar 300 botões à mão:
+// - copiar de outro ar do mesmo modelo (mesmo controle remoto = mesmos sinais);
+// - controle Gree: com o Desligar gravado, o sistema monta todos os outros (rota /gree; protocolo em backend/app/gree.py).
+function AtalhosBotoes({ ar, aoMudar }) {
+  const toast = useToast()
+  const { dados: lista } = useDados(() => api.get('/api/aparelhos'))
+  const [de, setDe] = useState('')
+  const [copiando, setCopiando] = useState(false)
+  const [gree, setGree] = useState(null)       // resultado do "conferir"
+  const [passo, setPasso] = useState(null)     // 'conferir' | 'testar' | 'gerar' em andamento
+  const [testado, setTestado] = useState(false)
+  const outros = (lista || []).filter((a) => a.id !== ar.id && a.total_codigos > 0)
+  const temDesligar = ar.codigos.some((c) => c.chave === 'desligar')
+
+  const copiar = async () => {
+    setCopiando(true)
+    try { const r = await api.post(`/api/aparelhos/${ar.id}/copiar-botoes`, { de: +de }); toast(`${r.copiados} botões copiados.`); aoMudar() }
+    catch (e) { toast(e.message, 'erro') } finally { setCopiando(false) }
+  }
+  const greeAcao = async (acao) => {
+    setPasso(acao)
+    try {
+      const r = await api.post(`/api/aparelhos/${ar.id}/gree`, { acao, modo: 'frio', temperatura: 24, ventilador: 'auto' })
+      if (acao === 'conferir') setGree(r)
+      if (acao === 'testar') { setTestado(true); toast('Enviado: Frio 24°. O ar apitou e mudou para 24°?') }
+      if (acao === 'gerar') { toast(`${r.gerados} botões gerados.`); aoMudar() }
+    } catch (e) { toast(e.message, 'erro'); if (acao === 'conferir') setGree({ erro: e.message }) } finally { setPasso(null) }
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <div className="cartao p-4">
+        <h2 className="text-sm font-semibold">Copiar de outro ar</h2>
+        <p className="ajuda mt-1">Mesmo modelo de ar (o mesmo controle remoto)? Use os botões já gravados nele. Botões com o mesmo nome são substituídos.</p>
+        {outros.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhum outro ar com botões ainda.</p> : (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <select className="campo min-w-0 flex-1" value={de} onChange={(e) => setDe(e.target.value)} aria-label="Copiar botões de">
+              <option value="">Escolha o ar…</option>
+              {outros.map((a) => <option key={a.id} value={a.id}>{a.nome} · {a.total_codigos} botões</option>)}
+            </select>
+            <Botao variante="secundario" disabled={!de} carregando={copiando} onClick={copiar}>Copiar botões</Botao>
+          </div>
+        )}
+      </div>
+      <div className="cartao p-4">
+        <h2 className="text-sm font-semibold">Controle Gree: gerar todos os botões</h2>
+        <p className="ajuda mt-1">Com só o <b>Desligar</b> gravado, o sistema monta os 300 ajustes (5 modos, 16 a 30°, 4 ventilações).</p>
+        {!temDesligar ? <p className="mt-3 text-sm text-muted-foreground">Grave primeiro o Desligar (abaixo).</p> : (
+          <>
+            <ol className="mt-3 space-y-2 text-sm">
+              <li className="flex flex-wrap items-center justify-between gap-2">
+                <span>1. Conferir se o sinal é Gree</span>
+                {gree && !gree.erro ? <Selo cor="verde">Gree · {gree.pulsos} pulsos</Selo> : <Botao tamanho="sm" variante="secundario" carregando={passo === 'conferir'} onClick={() => greeAcao('conferir')}>Conferir</Botao>}
+              </li>
+              <li className="flex flex-wrap items-center justify-between gap-2">
+                <span className={gree && !gree.erro ? '' : 'text-muted-foreground'}>2. Testar: mandar Frio 24°</span>
+                <Botao tamanho="sm" variante="secundario" disabled={!gree || gree.erro || !ar.hub_id} carregando={passo === 'testar'} onClick={() => greeAcao('testar')}>{testado ? 'Testar de novo' : 'Testar'}</Botao>
+              </li>
+              <li className="flex flex-wrap items-center justify-between gap-2">
+                <span className={testado ? '' : 'text-muted-foreground'}>3. O ar apitou e foi para 24°? Gerar</span>
+                <Botao tamanho="sm" disabled={!testado} carregando={passo === 'gerar'} onClick={() => greeAcao('gerar')}>Gerar 300 botões</Botao>
+              </li>
+            </ol>
+            {gree?.erro && <div className="mt-3"><Aviso>{gree.erro}</Aviso></div>}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Temporizador({ ar }) {
   const [ativo, setAtivo] = useState(null)
   const toast = useToast()
@@ -171,6 +242,7 @@ export default function Aparelho() {
   const { dados: ar, erro, recarregar, setDados } = useDados(() => api.get(`/api/aparelhos/${id}`), [id])
   const { dados: hubs } = useDados(() => api.get('/api/hubs'))
   const [ocupado, setOcupado] = useState(false)
+  const [todosBotoes, setTodosBotoes] = useState(false)
   const [gravar, setGravar] = useState(null)
   const [apagar, setApagar] = useState(false)
   const toast = useToast()
@@ -332,6 +404,8 @@ export default function Aparelho() {
             <Botao icone={CircleDot} disabled={semTransmissor} onClick={() => setGravar({})}>Gravar botão</Botao>
           </div>
 
+          <AtalhosBotoes ar={ar} aoMudar={recarregar} />
+
           <div className="cartao p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold">Desligar</h2>
@@ -367,7 +441,7 @@ export default function Aparelho() {
               <table className="tabela w-full">
                 <thead><tr><th>Botão</th><th className="hidden sm:table-cell">Gravado</th><th className="w-10"></th></tr></thead>
                 <tbody>
-                  {ar.codigos.map((c) => (
+                  {(todosBotoes ? ar.codigos : ar.codigos.slice(0, 40)).map((c) => (
                     <tr key={c.chave}>
                       <td>{c.descricao}</td>
                       <td className="hidden text-muted-foreground sm:table-cell">{haQuanto(c.criado_em)}</td>
@@ -376,6 +450,7 @@ export default function Aparelho() {
                   ))}
                 </tbody>
               </table>
+              {ar.codigos.length > 40 && !todosBotoes && <button className="w-full border-t border-border py-2.5 text-sm text-primary hover:bg-muted" onClick={() => setTodosBotoes(true)}>Ver os {ar.codigos.length} botões</button>}
             </div>
           )}
         </div>

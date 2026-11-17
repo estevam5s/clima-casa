@@ -33,6 +33,7 @@ import ComandosAlexa from './pages/ComandosAlexa'
 import Apps from './pages/Apps'
 import Musica from './pages/Musica'
 import Guia from './pages/Guia'
+import Novidades from './pages/Novidades'
 import Infra from './pages/Infra'
 import Emails from './pages/Emails'
 
@@ -112,6 +113,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="apps" element={<Apps />} />
             <Route path="musica" element={<Musica />} />
             <Route path="guia" element={<Guia />} />
+            <Route path="novidades" element={<Novidades />} />
             <Route path="infra" element={<Infra />} />
             <Route path="emails" element={<Emails />} />
             <Route path="configuracoes" element={<Configuracoes />} />

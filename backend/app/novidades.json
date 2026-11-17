@@ -1,0 +1,65 @@
+{
+  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
+  "versoes": [
+    {
+      "versao": "1.3.0",
+      "data": "2026-11-16",
+      "titulo": "Vários ares por transmissor, e-mails do domínio e o agente no Windows",
+      "resumo": "Um transmissor agora atende 3 ou 4 ares do mesmo ambiente, os e-mails saem do zynio.com.br, a tela Infra cuida também da Cloudflare e o agente pode ser instalado num PC Windows com um código de uso único.",
+      "novo": [
+        "Um transmissor para vários ares: 'Adicionar ar a este transmissor', 'Ligar todos' e 'Desligar todos' no cartão do transmissor",
+        "Ares do mesmo modelo no mesmo transmissor são reconhecidos: o painel mostra os dois mudando juntos e avisa no cartão",
+        "Controle Gree: com só o botão Desligar gravado, o sistema gera os 300 ajustes (Conferir, Testar e Gerar)",
+        "Copiar os botões de outro ar do mesmo modelo, sem gravar de novo",
+        "Instalar o agente num PC Windows por código de uso único (Infra → Agentes), também pelo admin",
+        "Infra → Cloudflare: DNS com travas de segurança, e-mails @zynio.com.br, DNSSEC, Turnstile, auditoria e saúde do domínio",
+        "E-mails do sistema saem de nao-responda@zynio.com.br: recuperar senha, boas-vindas, senha alterada e acesso novo",
+        "Endereços contato@, suporte@, financeiro@ e seguranca@zynio.com.br recebendo e-mails",
+        "Esta janela de novidades e a página Novidades com o histórico de versões"
+      ],
+      "melhorias": [
+        "Quando há dois computadores com o agente, fica no comando o que enxerga os transmissores",
+        "Telas da Infra mais rápidas (consultas em paralelo e fila própria para elas)",
+        "Painel abre num ar que tem transmissor e avisa quando o ar escolhido ainda não tem um",
+        "Transmissor pareado de novo é encontrado e reconectado sozinho",
+        "Novo capítulo no Guia: Um transmissor para vários ares"
+      ],
+      "seguranca": [
+        "DNSSEC ligado no zynio.com.br (assinatura das respostas de DNS)",
+        "E-mails do domínio assinados (DKIM) e com DMARC rejeitando falsificações",
+        "Código de instalação do agente: uso único, vale 30 minutos, chaves cifradas e tentativas erradas contam no firewall",
+        "Token da Cloudflare fica só no computador do agente, nunca na nuvem",
+        "Webhook do Resend só aceito com assinatura válida"
+      ],
+      "correcoes": [
+        "Portão 'Executando verificação de segurança' não fica mais parado: tenta de novo sozinho e oferece 'Tentar de novo'",
+        "Instalador do Windows não falha mais com acentos (UTF-8)",
+        "Gravação de botão recusa ruído em vez de salvar um sinal vazio",
+        "Botões do Painel não ficam mais desativados sem explicação"
+      ]
+    },
+    {
+      "versao": "1.2.0",
+      "data": "2026-11-15",
+      "titulo": "Biometria, Google e atualizações nos apps",
+      "resumo": "Entrar com biometria e com Google nos apps, atualizações automáticas no Android e atalhos no computador. Detalhes em docs/releases/v1.2.0.md.",
+      "novo": [
+        "Entrar com biometria (digital, rosto, Touch ID e Windows Hello)",
+        "Entrar com Google",
+        "Relatórios completos em 8 formatos (PDF, Word, Excel, HTML, CSV, XML, JSON e Markdown)",
+        "Projetos com meta de gasto e mensagens do site no estilo WhatsApp Web"
+      ],
+      "melhorias": [
+        "Atualizações automáticas e aviso de versão nova nos apps",
+        "Atalhos de teclado e Touch ID no app de computador",
+        "Painel com conclusões da semana e escritório ao vivo em 3D"
+      ],
+      "seguranca": [
+        "Sessões ativas com encerramento remoto, tempo de inatividade e duração máxima",
+        "Senha mínima de 10 caracteres conferida contra vazamentos conhecidos",
+        "Política de segundo fator para administradores (opcional)"
+      ],
+      "correcoes": []
+    }
+  ]
+}

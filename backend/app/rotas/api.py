@@ -378,6 +378,143 @@ def mudar_estado(aid: int, d: EstadoIn):
         _erro(e)
 
 
+class GreeIn(BaseModel):
+    acao: str = Field(pattern=r"^(conferir|testar|gerar)$")
+    base: str = Field("desligar", max_length=60, pattern=r"^[a-z0-9_]+$")
+    modo: str = Field("frio", pattern=r"^(auto|frio|seco|ventilar|quente)$")
+    temperatura: int = Field(24, ge=16, le=30)
+    ventilador: str = Field("auto", pattern=r"^(auto|baixa|media|alta)$")
+
+
+@api.post("/aparelhos/{aid}/gree")
+def gree_aparelho(aid: int, d: GreeIn):
+    """Controle Gree: com UM botão gravado (o Desligar), confere o sinal, testa um ajuste e gera os 300 botões."""
+    from .. import gree
+    a = clima.aparelho(aid)
+    linha = db.um("SELECT codigo FROM codigos WHERE aparelho_id = ? AND chave = ?", (aid, d.base))
+    if not linha:
+        raise HTTPException(409, "Grave primeiro o botão Desligar deste ar (Botões → Desligar). Ele é a base para gerar os outros.")
+    base = gree.pulsos(linha["codigo"])
+    if not gree.eh_gree(base):
+        raise HTTPException(422, f"O sinal gravado ({len(base)} pulsos) não é do protocolo Gree ou veio com defeito. "
+                                 "Grave o Desligar de novo ou grave os botões à mão.")
+    if d.acao == "conferir":
+        return {"gree": True, "base": d.base, "pulsos": len(base), "estado": gree.descrever(base), "total": 5 * 15 * 4}
+    if d.acao == "testar":
+        if not a["hub_id"]:
+            raise HTTPException(409, "Este ar não tem transmissor vinculado.")
+        p = gree.gerar(base, True, gree.MODOS[d.modo], d.temperatura, gree.VENT[d.ventilador])
+        try:
+            via = transmissor.enviar(a["hub_id"], gree.codigo(p))
+        except Exception as e:  # noqa: BLE001
+            db.registrar("painel", f"Teste Gree: {d.modo} {d.temperatura}°", ok=False, aparelho_id=aid, detalhe=str(e))
+            _erro(e)
+        db.registrar("painel", f"Teste Gree: {clima.MODOS[d.modo]} {d.temperatura}° · ventilação {clima.VENTILACAO[d.ventilador].lower()}",
+                     aparelho_id=aid, detalhe=f"via {via}")
+        return {"ok": True, "via": via}
+    n = 0
+    for chave, cod in gree.todos(base):
+        db.executar("INSERT INTO codigos (aparelho_id, chave, rotulo, codigo, criado_em) VALUES (?,?,?,?,?) "
+                    "ON CONFLICT (aparelho_id, chave) DO UPDATE SET codigo = excluded.codigo, rotulo = excluded.rotulo, criado_em = excluded.criado_em",
+                    (aid, chave, "gerado (Gree)", cod, db.agora()))
+        n += 1
+    db.registrar("painel", f"{n} botões gerados pelo protocolo Gree", aparelho_id=aid, detalhe=f"a partir de '{d.base}'")
+    return {"ok": True, "gerados": n}
+
+
+class CopiarIn(BaseModel):
+    de: int = Field(ge=1)
+
+
+@api.post("/aparelhos/{aid}/copiar-botoes")
+def copiar_botoes(aid: int, d: CopiarIn):
+    """Ar do mesmo modelo: usa os botões de outro ar (sem gravar de novo). Substitui os que tiverem o mesmo nome."""
+    if d.de == aid:
+        raise HTTPException(422, "Escolha outro ar.")
+    _exigir_aparelhos([d.de])
+    origem = clima.aparelho(d.de)
+    clima.aparelho(aid)
+    n = db.um("SELECT COUNT(*) n FROM codigos WHERE aparelho_id = ?", (d.de,))["n"]
+    if not n:
+        raise HTTPException(409, f"O ar '{origem['nome']}' ainda não tem botões.")
+    db.executar("INSERT INTO codigos (aparelho_id, chave, rotulo, codigo, criado_em) SELECT ?, chave, rotulo, codigo, ? FROM codigos "
+                "WHERE aparelho_id = ? ON CONFLICT (aparelho_id, chave) DO UPDATE SET codigo = excluded.codigo, rotulo = excluded.rotulo, "
+                "criado_em = excluded.criado_em", (aid, db.agora(), d.de))
+    db.registrar("painel", f"{n} botões copiados de '{origem['nome']}'", aparelho_id=aid, detalhe="mesmo modelo de controle")
+    return {"ok": True, "copiados": n}
+
+
+class TodosIn(BaseModel):
+    ligado: bool
+    modo: str | None = Field(None, pattern=r"^(auto|frio|seco|ventilar|quente)$")
+    temperatura: int | None = Field(None, ge=16, le=30)
+
+
+@api.post("/hubs/{hid}/todos")
+def hub_todos(hid: str, d: TodosIn):
+    """Liga ou desliga todos os ares de um transmissor, um de cada vez (o SRW-004 manda um sinal por vez)."""
+    import time
+    transmissor.hub(hid)
+    ids = [r["id"] for r in db.consultar("SELECT id FROM aparelhos WHERE hub_id = ? ORDER BY nome", (hid,))]
+    perm = _ids_aparelhos_permitidos()
+    if perm is not None:
+        ids = [i for i in ids if i in perm]
+    if not ids:
+        raise HTTPException(404, "Nenhum ar seu neste transmissor.")
+    feitos, falhas, ja = [], [], set()
+    for i in ids:
+        if i in ja:             # já mudou junto com outro (mesmo modelo): não manda de novo
+            feitos.append(i); continue
+        try:
+            r = clima.aplicar(i, "painel", ligado=d.ligado, modo=d.modo, temperatura=d.temperatura)
+            feitos.append(i); ja.update(r.get("juntos") or [])
+        except Exception as e:  # noqa: BLE001
+            falhas.append({"id": i, "erro": str(e)[:160]})
+        time.sleep(1.2)
+    return {"feitos": feitos, "falhas": falhas}
+
+
+# ---------------- "O que há de novo" (backend/app/novidades.json) ----------------
+def _novidades() -> list[dict]:
+    import pathlib
+    return json.loads((pathlib.Path(__file__).resolve().parent.parent / "novidades.json").read_text(encoding="utf-8"))["versoes"]
+
+
+def _chave_versao(v: str) -> tuple:
+    return tuple(int(x) if x.isdigit() else 0 for x in (v or "0").split("."))
+
+
+@api.get("/novidades")
+def novidades():
+    """Histórico de versões + qual a pessoa já viu. `mostrar` = abrir o modal agora (versão nova desde a última vista)."""
+    from .. import acesso
+    versoes = _novidades()
+    u = acesso.atual.get() or {}
+    vista = (db.um("SELECT novidades_vista FROM usuarios WHERE id = ?", (u.get("id"),)) or {}).get("novidades_vista") if u.get("id") else None
+    atual = versoes[0]["versao"] if versoes else None
+    if atual:   # avisa também na central de notificações (uma por versão, para todos)
+        if not db.um("SELECT 1 FROM notificacoes WHERE chave = ?", (f"versao:{atual}",)):
+            from .. import notificacoes
+            notificacoes.notificar(f"versao:{atual}", "sistema", "baixa", f"Versão {atual} no ar: {versoes[0]['titulo']}",
+                                   versoes[0].get("resumo", ""), "/novidades")
+    return {"atual": atual, "vista": vista, "mostrar": bool(atual and _chave_versao(atual) > _chave_versao(vista)),
+            "versoes": versoes}
+
+
+class VistaIn(BaseModel):
+    versao: str = Field(max_length=20, pattern=r"^\d+\.\d+\.\d+$")
+
+
+@api.post("/novidades/vista")
+def novidades_vista(d: VistaIn):
+    from .. import acesso
+    u = acesso.atual.get() or {}
+    if not u.get("id"):
+        raise HTTPException(401, "Entre de novo.")
+    db.executar("UPDATE usuarios SET novidades_vista = ? WHERE id = ?", (d.versao, u["id"]))
+    return {"ok": True}
+
+
 @api.post("/aparelhos/{aid}/botoes/{chave}/enviar")
 def enviar_botao(aid: int, chave: str):
     try:
@@ -442,11 +579,20 @@ class HubEdit(BaseModel):
     projeto_id: int | None = None
 
 
+LIMITE_ARES_POR_TRANSMISSOR = 4   # recomendado: um SRW-004 no teto alcança bem 3–4 ares no mesmo ambiente
+
+
 def _hub_publico(h):
     h = dict(h)
     h["tem_chave"] = bool(h.pop("local_key", None))
     h["funcoes_nuvem"] = json.loads(h["funcoes_nuvem"] or "[]")
-    h["aparelhos"] = db.um("SELECT COUNT(*) n FROM aparelhos WHERE hub_id = ?", (h["id"],))["n"]
+    ares = db.consultar("SELECT a.id, a.nome, a.ligado, a.modo, a.temperatura, a.projeto_id, p.nome AS projeto_nome, "
+                        "(SELECT COUNT(*) FROM codigos c WHERE c.aparelho_id = a.id) AS botoes "
+                        "FROM aparelhos a LEFT JOIN projetos p ON p.id = a.projeto_id WHERE a.hub_id = ? ORDER BY a.nome", (h["id"],))
+    h["aparelhos"] = len(ares)
+    h["ares"] = [dict(a) for a in ares]
+    h["juntos"] = clima.grupos_juntos(h["id"])
+    h["limite_recomendado"] = LIMITE_ARES_POR_TRANSMISSOR
     return h
 
 

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, AirVent, BarChart3, BookOpen, CalendarClock, Check, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Mail, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Workflow, Wrench, X } from 'lucide-react'
+import { Activity, AirVent, BarChart3, BookOpen, CalendarClock, Check, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Workflow, Wrench, X } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
 import Notificacoes, { useCentral } from './Notificacoes'
 import Atalhos from './Atalhos'
+import NovidadesModal from './Novidades'
 import { siteComSessao } from '../site'
 import { Avatar } from './config/Perfil'
 import { useTema } from '../tema'
@@ -43,6 +44,7 @@ export const GRUPOS = [
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
     { para: '/guia', rotulo: 'Passo a passo', icone: BookOpen },
+    { para: '/novidades', rotulo: 'Novidades', icone: Megaphone },
   ] },
 ]
 const TODAS = GRUPOS.flatMap((g) => g.itens)
@@ -474,6 +476,7 @@ export default function Layout() {
           </div>
         </header>
         <Banner />
+        <NovidadesModal />
         <main className="w-full px-4 pb-16 pt-6 sm:px-6 lg:px-8 2xl:px-10">
           <motion.div key={local.pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
       <Atalhos />

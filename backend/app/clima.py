@@ -116,10 +116,35 @@ def aplicar(aparelho_id: int, origem: str, ligado=None, modo=None, temperatura=N
          aparelho_id),
     )
     db.registrar(origem, descricao, aparelho_id=aparelho_id, detalhe=f"via {via}")
+    juntos = responderam_juntos(aparelho_id, a["hub_id"], chave, cods[chave], novo, origem)
     if bool(a["ligado"]) != bool(novo["ligado"]):  # mudou de desligado↔ligado: avalia automações
         from . import automacao
         automacao.evento(aparelho_id, origem, bool(novo["ligado"]))
-    return {**aparelho(aparelho_id), "via": via}
+    return {**aparelho(aparelho_id), "via": via, "juntos": juntos}
+
+
+def responderam_juntos(aparelho_id: int, hub_id: str, chave: str, codigo: str, novo: dict, origem: str) -> list[int]:
+    """Infravermelho não tem endereço: dois ares do MESMO modelo à vista do mesmo transmissor obedecem ao mesmo sinal.
+    Quem tem exatamente o mesmo código para essa chave mudou de verdade; o painel passa a mostrar isso."""
+    ids = [r["aparelho_id"] for r in db.consultar(
+        "SELECT c.aparelho_id FROM codigos c JOIN aparelhos a ON a.id = c.aparelho_id "
+        "WHERE a.hub_id = ? AND c.aparelho_id <> ? AND c.chave = ? AND c.codigo = ?", (hub_id, aparelho_id, chave, codigo))]
+    for i in ids:
+        db.executar("UPDATE aparelhos SET ligado = ?, modo = ?, temperatura = ?, ventilador = ?, atualizado_em = ?, "
+                    "ligado_desde = CASE WHEN ? = 1 THEN coalesce(CASE WHEN ligado = 1 THEN ligado_desde END, ?) END WHERE id = ?",
+                    (novo["ligado"], novo["modo"], novo["temperatura"], novo["ventilador"], db.agora(), novo["ligado"], db.agora(), i))
+        db.registrar(origem, ("Desligar" if not novo["ligado"] else f"Ligar: {rotulo_chave(chave)}") + " (respondeu junto)", aparelho_id=i,
+                     detalhe="mesmo modelo à vista do mesmo transmissor: recebeu o mesmo sinal")
+    return ids
+
+
+def grupos_juntos(hub_id: str) -> list[list[int]]:
+    """Ares do transmissor que respondem juntos (mesmo código de Desligar = mesmo modelo/controle)."""
+    grupos: dict[str, list[int]] = {}
+    for r in db.consultar("SELECT c.aparelho_id, md5(c.codigo) AS h FROM codigos c JOIN aparelhos a ON a.id = c.aparelho_id "
+                          "WHERE a.hub_id = ? AND c.chave = 'desligar'", (hub_id,)):
+        grupos.setdefault(r["h"], []).append(r["aparelho_id"])
+    return [g for g in grupos.values() if len(g) > 1]
 
 
 def enviar_extra(aparelho_id: int, chave: str, origem: str) -> str:
