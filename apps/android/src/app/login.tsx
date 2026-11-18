@@ -6,12 +6,11 @@ import { api } from '@/lib/api';
 import { useTema } from '@/lib/tema';
 import { useClima } from '@/lib/contexto';
 import { entrarComGoogle } from '@/lib/google';
+import { entrarPeloNavegador } from '@/lib/entrarNavegador';
 import { Botao, Texto } from '@/ui/base';
 
 export default function Login() {
   const t = useTema();
-  const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [codigo, setCodigo] = useState('');
@@ -25,19 +24,19 @@ export default function Login() {
     finally { conferindo.current = false; setEnviando(false); }
   };
 
+  // e-mail e senha pelo navegador (o login por senha tem verificação anti-robô, que só roda num navegador)
   const entrar = async () => {
     setErro(''); setEnviando(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
-    if (error) {
-      setErro(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
-      setEnviando(false); return;
-    }
-    // com Google Authenticator o servidor exige o código antes (a tela muda sozinha para o passo do código)
-    const { data: nivel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (nivel?.nextLevel === 'aal2' && nivel.currentLevel !== 'aal2') { setEnviando(false); return; }
-    try { await api.get('/api/sessao'); api.post('/api/sessao/registrar-login').catch(() => {}); }
-    catch (e: any) { await supabase.auth.signOut(); setErro(e.message); }
-    setEnviando(false);
+    try {
+      if ((await entrarPeloNavegador()) === 'ok') {
+        // com Google Authenticator o servidor exige o código antes (a tela muda sozinha para o passo do código)
+        const { data: nivel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (!(nivel?.nextLevel === 'aal2' && nivel.currentLevel !== 'aal2')) {
+          try { await api.get('/api/sessao'); api.post('/api/sessao/registrar-login').catch(() => {}); }
+          catch (e: any) { await supabase.auth.signOut(); setErro(e.message); }
+        }
+      }
+    } catch (e: any) { setErro(e.message); } finally { setEnviando(false); }
   };
 
   const google = async () => {
@@ -53,7 +52,6 @@ export default function Login() {
     } catch (e: any) { setErro(e.message); } finally { setEnviando(false); }
   };
 
-  const campo = campoBase(t);
   if (sessao && precisa2fa) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: t.fundo }}>
@@ -80,12 +78,9 @@ export default function Login() {
         </View>
         <Texto tam={22} peso="600">Entrar</Texto>
         <Texto suave>Acesso restrito ao administrador.</Texto>
-        <TextInput style={campo} placeholder="E-mail" placeholderTextColor={t.suave} autoCapitalize="none" keyboardType="email-address"
-          autoComplete="email" textContentType="username" value={email} onChangeText={setEmail} />
-        <TextInput style={campo} placeholder="Senha" placeholderTextColor={t.suave} secureTextEntry autoComplete="current-password"
-          textContentType="password" value={senha} onChangeText={setSenha} onSubmitEditing={entrar} />
         {erro ? <Texto cor={t.perigo}>{erro}</Texto> : null}
-        <Botao titulo="Entrar" onPress={entrar} carregando={enviando} desabilitado={!email || !senha} />
+        <Botao titulo="Entrar com e-mail e senha" onPress={entrar} carregando={enviando} />
+        <Texto suave tam={12}>Abre a página de entrada do sistema no navegador (com a verificação anti-robô) e volta para o app sozinho.</Texto>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 }}>
           <View style={{ flex: 1, height: 1, backgroundColor: t.borda }} /><Texto suave tam={12}>ou</Texto><View style={{ flex: 1, height: 1, backgroundColor: t.borda }} />
         </View>

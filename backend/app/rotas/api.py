@@ -3178,6 +3178,69 @@ class ResgateConvite(BaseModel):
     prova: str = Field(..., pattern=r"^[0-9a-f]{64}$")
 
 
+# ---------------- login do app Android pelo navegador (com Turnstile) ----------------
+# O CAPTCHA do Supabase exige o token do Turnstile, que só existe num navegador. O app abre /entrar-app numa aba segura
+# com um desafio PKCE (SHA-256 do verificador que fica só no celular); depois do login normal do site, a página pede um
+# código de uso único (2 min) ligado a esse desafio e volta para climacasa://auth?codigo=…; o app troca código +
+# verificador por uma sessão nova. Quem interceptar o link de volta não tem o verificador.
+class AppCodigoIn(BaseModel):
+    desafio: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+@api.post("/apps/login/codigo")
+def app_login_codigo(d: AppCodigoIn, request: Request):
+    import hashlib
+    import secrets
+    u = request.state.u
+    codigo = secrets.token_urlsafe(24)
+    db.set_cfg(f"app_login:{hashlib.sha256(codigo.encode()).hexdigest()}", {"usuario_id": str(u["id"]), "desafio": d.desafio, "expira": db.agora() + 120})
+    db.registrar("sistema", "Login no app pelo navegador: código gerado", detalhe=u.get("email", ""))
+    return {"codigo": codigo, "expira_em_s": 120}
+
+
+class AppTrocaIn(BaseModel):
+    codigo: str = Field(min_length=20, max_length=80)
+    verificador: str = Field(min_length=43, max_length=128)
+
+
+@publico.post("/apps/login/trocar")
+def app_login_trocar(d: AppTrocaIn, request: Request):
+    import hashlib
+    import json as _json
+    from .. import firewall
+    from .contas import _admin
+    ip = firewall.ip_do_pedido(request)
+    chave = f"app_login:{hashlib.sha256(d.codigo.encode()).hexdigest()}"
+    linha = db.um("DELETE FROM config WHERE chave = ? RETURNING valor", (chave,))   # uso único, mesmo se der errado
+    dados = None
+    if linha:
+        v = linha["valor"]
+        dados = v if isinstance(v, dict) else _json.loads(v)
+    if not dados or int(dados.get("expira") or 0) < db.agora() or hashlib.sha256(d.verificador.encode()).hexdigest() != dados.get("desafio"):
+        firewall.registrar(ip, "login_falhou", "/api/apps/login/trocar", "código do app inválido ou vencido")
+        raise HTTPException(401, "O código venceu ou não confere. Toque em Entrar de novo.")
+    u = db.um("SELECT * FROM usuarios WHERE id = ?", (dados["usuario_id"],))
+    if not u or not u["ativo"]:
+        raise HTTPException(403, "Esta conta está desativada.")
+    link = _admin("POST", "/admin/generate_link", json={"type": "magiclink", "email": u["email"]})
+    hashed = link.get("hashed_token") or (link.get("properties") or {}).get("hashed_token")
+    r = httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/verify", timeout=15, headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]},
+                   json={"type": "magiclink", "token_hash": hashed})
+    if r.status_code != 200:
+        raise HTTPException(502, "O Supabase não abriu a sessão. Tente de novo.")
+    sessao = r.json()
+    from ..seguranca import _claims
+    cl = _claims(sessao["access_token"])
+    if str(cl.get("sub", "")) != str(u["id"]):
+        raise HTTPException(409, "A conta mudou de e-mail. Entre de novo pelo site.")
+    db.executar("INSERT INTO sessoes_fortes (session_id, usuario_id, criado_em, expira_em) VALUES (?,?,?,?) ON CONFLICT (session_id) DO NOTHING",
+                (cl.get("session_id", ""), u["id"], db.agora(), db.agora() + 30 * 86400))
+    db.executar("UPDATE usuarios SET ultimo_acesso = ? WHERE id = ?", (db.agora(), u["id"]))
+    firewall.registrar(ip, "login_ok", "/api/apps/login/trocar", "app pelo navegador")
+    db.registrar("sistema", "Login no app Android pelo navegador", detalhe=u["email"])
+    return {k: sessao.get(k) for k in ("access_token", "refresh_token", "expires_in", "expires_at", "token_type")}
+
+
 @publico.post("/agentes/convite/resgatar")
 def resgatar_convite(d: ResgateConvite, request: Request):
     """Instalador do PC: troca id + prova pelo .env CIFRADO (só o código decifra) e pelo link do código do sistema. Uso único."""

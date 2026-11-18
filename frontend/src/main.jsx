@@ -15,6 +15,7 @@ import Atividade from './pages/Atividade'
 import Alexa from './pages/Alexa'
 import Configuracoes from './pages/Configuracoes'
 import Autorizar from './pages/Autorizar'
+import EntrarApp from './pages/EntrarApp'
 import Supabase from './pages/Supabase'
 import RedefinirSenha from './pages/RedefinirSenha'
 import Projetos from './pages/Projetos'
@@ -92,6 +93,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/login" element={<Login />} />
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
           <Route path="/oauth/autorizar" element={<Protegido><Autorizar /></Protegido>} />
+          <Route path="/entrar-app" element={<Protegido><EntrarApp /></Protegido>} />
           <Route element={<Protegido><ProjetoProvider><Layout /></ProjetoProvider></Protegido>}>
             <Route index element={<Painel />} />
             <Route path="aparelhos" element={<Aparelhos />} />
