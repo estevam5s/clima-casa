@@ -1,11 +1,16 @@
 {
   "notas": [
-    "Entrar com biometria (digital, rosto, Touch ID e Windows Hello)",
-    "Entrar com Google",
-    "Atualizações automáticas e aviso de versão nova",
-    "Atalhos de teclado no app de computador"
+    "Entrar com e-mail e senha pelo navegador, com a verificação anti-robô",
+    "Instaladores de computador para Mac, Windows e Linux (x64 e ARM64)",
+    "Acompanha a versão 1.7.0 do sistema (térreo, Ilha, relatórios da Prefeitura, Raspberry Pi)"
   ],
-  "publicado_em": "2026-11-15",
-  "android": { "versao": "1.2.0", "pagina": "https://app.zynio.com.br/apps" },
-  "desktop": { "versao": "1.2.0", "pagina": "https://app.zynio.com.br/apps" }
+  "publicado_em": "2026-11-17",
+  "android": {
+    "versao": "1.3.0",
+    "pagina": "https://app.zynio.com.br/apps"
+  },
+  "desktop": {
+    "versao": "1.3.0",
+    "pagina": "https://app.zynio.com.br/apps"
+  }
 }
