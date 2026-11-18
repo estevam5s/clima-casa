@@ -17,6 +17,7 @@ from .rotas import contas as rotas_contas
 from .rotas import musica as rotas_musica
 from .rotas import infra as rotas_infra
 from .rotas import correio as rotas_correio
+from .rotas import dispositivos as rotas_dispositivos
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -113,7 +114,7 @@ async def cabecalhos(request: Request, chamar):
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data: https://challenges.cloudflare.com https://*.scdn.co https://*.spotifycdn.com; style-src 'self' 'unsafe-inline'; "
         "script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; "
-        "font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://api.pwnedpasswords.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests")
+        "font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://api.pwnedpasswords.com https://speed.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests")
     if request.url.scheme == "https":
         resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     return resp
@@ -139,6 +140,7 @@ app.include_router(rotas_infra.rotas_infra)
 app.include_router(rotas_correio.publico_email)
 app.include_router(rotas_correio.rotas_email)
 app.include_router(rotas_alexa.roteador)
+app.include_router(rotas_dispositivos.rotas_disp)
 
 
 @app.get("/saude")

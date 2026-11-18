@@ -301,7 +301,7 @@ export default function Mapa() {
   const salvar = async () => {
     setSalvando(true)
     try {
-      const corpo = { largura: rascunho.largura, altura: rascunho.altura, salas: rascunho.salas, ares: rascunho.ares, elementos: rascunho.elementos, auto: rascunho.auto || [], andar: Number.isFinite(+rascunho.andar) ? +rascunho.andar : 9, andares: Number.isFinite(+rascunho.andares) ? +rascunho.andares : 11, pessoas: rascunho.pessoas || [], escritas: rascunho.escritas || [] }
+      const corpo = { largura: rascunho.largura, altura: rascunho.altura, salas: rascunho.salas, ares: rascunho.ares, elementos: rascunho.elementos, auto: rascunho.auto || [], andar: Number.isFinite(+rascunho.andar) ? +rascunho.andar : 9, andares: Number.isFinite(+rascunho.andares) ? +rascunho.andares : 11, pessoas: rascunho.pessoas || [], escritas: rascunho.escritas || [], elevador: rascunho.elevador || null }
       setDados(await api.put('/api/mapa', corpo)); setEditando(false); setRascunho(null); setHistorico([])
       toast('Planta salva.')
     } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
@@ -479,7 +479,7 @@ export default function Mapa() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="cartao relative min-w-0 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
             {editando ? (
@@ -594,6 +594,21 @@ export default function Mapa() {
                     onChange={(e) => mexer((n) => { n.andar = lim(Math.round(+e.target.value || 0), 0, 200); n.andares = Math.max(n.andares ?? 11, n.andar) })} className="campo mt-1 h-9" /></label>
                   <label className="text-xs text-muted-foreground">Andares do prédio<input type="number" min="1" max="200" step="1" value={rascunho.andares ?? 11}
                     onChange={(e) => mexer((n) => { n.andares = lim(Math.round(+e.target.value || 1), Math.max(1, n.andar ?? 9), 200) })} className="campo mt-1 h-9" /></label>
+                </div>
+                {/* elevador (fora das salas, no corredor): de que lado da porta de entrada e a que distância. A copa fica entre a
+                    porta e o elevador quando cabe; o banheiro fica do outro lado do elevador */}
+                <div className="space-y-2 rounded-md border border-border p-3">
+                  <p className="text-xs font-medium">Elevador, copa e banheiro (3D)</p>
+                  <div className="flex flex-wrap gap-1" role="group" aria-label="Lado do elevador">
+                    {[[null, 'Automático'], [-1, 'Esquerda da porta'], [1, 'Direita da porta']].map(([v, r]) => (
+                      <button key={r} type="button" onClick={() => mexer((n) => { n.elevador = { ...(n.elevador || {}), lado: v } })} aria-pressed={(rascunho.elevador?.lado ?? null) === v}
+                        className={`rounded-md border px-2 py-1 text-xs ${(rascunho.elevador?.lado ?? null) === v ? 'border-primary bg-primary/10 font-medium' : 'border-border hover:bg-muted'}`}>{r}</button>
+                    ))}
+                  </div>
+                  <label className="block text-xs text-muted-foreground">Distância da porta: {rascunho.elevador?.distancia ? `${rascunho.elevador.distancia.toFixed(1)} m` : 'automática (cabe a copa)'}
+                    <input type="range" min="1" max="20" step="0.5" value={rascunho.elevador?.distancia || 5.5} onChange={(e) => mexer((n) => { n.elevador = { ...(n.elevador || {}), distancia: +e.target.value } })} className="mt-1 w-full accent-[hsl(var(--primary))]" /></label>
+                  {rascunho.elevador?.distancia ? <button type="button" onClick={() => mexer((n) => { n.elevador = { ...(n.elevador || {}), distancia: null } })} className="text-xs text-primary hover:underline">Voltar à distância automática</button> : null}
+                  <p className="text-[11px] text-muted-foreground">Veja o resultado na vista 3D depois de salvar.</p>
                 </div>
                 {sel ? (
                   <div className="space-y-3 border-t border-border pt-4 text-sm">

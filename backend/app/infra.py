@@ -240,6 +240,14 @@ def op_agente_convite(a):
 OPS["agente_convite"] = op_agente_convite
 
 
+def op_rede_teste(a):   # teste de velocidade da internet do escritório + tempo de resposta dos transmissores (rede.py)
+    from . import rede
+    return rede.testar_agente(a)
+
+
+OPS["rede_teste"] = op_rede_teste
+
+
 def executar(op: str, args: dict):
     if op.startswith("cf_"):           # Cloudflare (cloudflare.py): mesmo caminho, token próprio no .env do agente
         from . import cloudflare

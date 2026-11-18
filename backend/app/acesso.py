@@ -72,7 +72,14 @@ REGRAS = [
     ("POST", r"^/api/mapa/elementos/\{eid\}/estado$", "aparelhos.controlar"),
     ("POST", r"^/api/mapa/ares/\{aid\}/aparencia$", "projetos.gerenciar"),
     ("POST", r"^/api/mapa/salas/\{pid\}/aparencia$", None),
-    ("POST", r"^/api/apps/login/codigo$", None),   # qualquer pessoa logada gera o código do próprio login no app   # a rota confere: cores = projetos.gerenciar; abrir porta = controlar
+    ("POST", r"^/api/apps/login/codigo$", None),
+    # cafeteira, persianas e fechadura: comandar = controlar ares; cadastrar/configurar = gerenciar transmissores;
+    # a fechadura é conferida na rota (só dono/admin, e destrancar pede a senha)
+    ("GET", r"^/api/avatares(/\{avid\}/arquivo)?$", None),
+    ("GET", r"^/api/dispositivos(/\{did\}/eventos)?$", None),
+    ("*", r"^/api/avatares", "configuracoes.gerenciar"),   # importar/apagar (a rota ainda exige dono/admin); ler é liberado acima
+    ("POST", r"^/api/dispositivos/\{did\}/(comando|atualizar|cafe)$", "aparelhos.controlar"),
+    ("*", r"^/api/dispositivos", "transmissores.gerenciar"),   # qualquer pessoa logada gera o código do próprio login no app   # a rota confere: cores = projetos.gerenciar; abrir porta = controlar
     ("PUT", r"^/api/mapa/(pessoas|escritas)$", "projetos.gerenciar"),
     # música: tocar/pausar é controle do dia a dia; conta, credenciais e rotinas são integração
     ("POST", r"^/api/musica/comando$", "aparelhos.controlar"),

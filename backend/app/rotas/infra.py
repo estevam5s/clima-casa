@@ -279,6 +279,48 @@ def cf_auditoria(limite: int = 50):
     return _via_agente("cf_auditoria", {"limite": limite})
 
 
+# ---------- teste de velocidade da rede ----------
+@rotas_infra.post("/infra/rede/teste")
+def rede_teste_agente():
+    """Mede a internet do escritório pelo agente (Raspberry/PC) e o tempo de resposta de cada transmissor."""
+    _papel("dono", "admin")
+    r = _via_agente("rede_teste", {}, espera=58)
+    db.registrar("sistema", "Teste de velocidade da rede do escritório", detalhe=f"↓ {r.get('download')} Mbps · ↑ {r.get('upload')} Mbps · {r.get('latencia')} ms")
+    return r
+
+
+@rotas_infra.get("/infra/rede/historico")
+def rede_historico():
+    _papel("dono", "admin")
+    from .. import rede
+    return {"historico": rede.historico()}
+
+
+class ResultadoRede(BaseModel):
+    download: float | None = Field(None, ge=0, le=100000)
+    upload: float | None = Field(None, ge=0, le=100000)
+    latencia: float | None = Field(None, ge=0, le=100000)
+    latencia_min: float | None = Field(None, ge=0, le=100000)
+    jitter: float | None = Field(None, ge=0, le=100000)
+    latencia_carga: float | None = Field(None, ge=0, le=100000)
+    perda_pct: float | None = Field(None, ge=0, le=100)
+    ip: str | None = Field(None, max_length=60)
+    colo: str | None = Field(None, max_length=10)
+    cidade: str | None = Field(None, max_length=80)
+    pais: str | None = Field(None, max_length=4)
+    asn: str | None = Field(None, max_length=20)
+    navegador: str | None = Field(None, max_length=120)
+    conexao: str | None = Field(None, max_length=30)
+
+
+@rotas_infra.post("/infra/rede/resultado")
+def rede_resultado(d: ResultadoRede):
+    """O navegador mede a própria conexão e manda o resultado para entrar no histórico."""
+    u = _papel("dono", "admin")
+    from .. import rede
+    return rede.salvar_resultado(d.model_dump(), u.get("nome") or u.get("email", ""))
+
+
 # ---------- computadores com o agente ----------
 @rotas_infra.get("/agentes")
 def agentes():

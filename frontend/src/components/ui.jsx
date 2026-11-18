@@ -5,9 +5,9 @@ import { simboloTemp, temp } from '../marcaAtual'
 
 const VARIANTES = {
   primario: 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50',
-  secundario: 'border border-border bg-card text-foreground hover:bg-muted',
+  secundario: 'border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 disabled:hover:bg-card',
   perigo: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-600/50',
-  fantasma: 'text-muted-foreground hover:bg-muted hover:text-foreground',
+  fantasma: 'text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent',
 }
 
 export function Botao({ variante = 'primario', carregando, icone: Icone, children, className = '', tamanho = 'md', ...props }) {

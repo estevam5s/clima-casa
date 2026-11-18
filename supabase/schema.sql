@@ -458,3 +458,50 @@ alter table public.oauth_tokens add column if not exists usuario_id uuid;
 
 -- 17/11: ares sob responsabilidade do usuário ("*" = todos os ares dos projetos dele; lista = só esses ares)
 alter table public.usuarios add column if not exists aparelhos jsonb not null default '"*"'::jsonb;
+
+-- 18/11: aparelhos do escritório além dos ares (Tuya/Smart Life): cafeteira (tomada inteligente), persianas (motor de
+-- cortina) e fechadura Wi-Fi da porta do escritório. estado = último status lido da nuvem Tuya (código → valor).
+create table if not exists public.dispositivos (
+  id bigint generated always as identity primary key,
+  tipo text not null check (tipo in ('cafeteira', 'persiana', 'fechadura')),
+  nome text not null,
+  projeto_id bigint references public.projetos(id) on delete set null,
+  tuya_id text,
+  categoria text default '',
+  produto text default '',
+  funcoes jsonb not null default '[]'::jsonb,
+  estado jsonb not null default '{}'::jsonb,
+  config jsonb not null default '{}'::jsonb,
+  mapa_elemento text default '',
+  online integer not null default 0,
+  visto_em bigint,
+  criado_em bigint not null
+);
+alter table public.dispositivos enable row level security;
+create table if not exists public.dispositivos_eventos (
+  id bigint generated always as identity primary key,
+  dispositivo_id bigint references public.dispositivos(id) on delete cascade,
+  quando bigint not null,
+  acao text not null,
+  origem text not null default 'painel',
+  ok integer not null default 1,
+  detalhe text default ''
+);
+alter table public.dispositivos_eventos enable row level security;
+create index if not exists dispositivos_eventos_disp_quando on public.dispositivos_eventos (dispositivo_id, quando desc);
+
+-- 18/11: biblioteca de avatares 3D (GLB) do mapa; o arquivo fica no Storage privado (bucket avatares)
+create table if not exists public.avatares (
+  id bigint generated always as identity primary key,
+  nome text not null,
+  descricao text default '',
+  origem text not null,
+  licenca text not null,
+  arquivo text not null,
+  tamanho bigint not null default 0,
+  estado text not null default 'enviando' check (estado in ('enviando', 'pronto')),
+  info jsonb not null default '{}'::jsonb,
+  criado_em bigint not null,
+  criado_por text default ''
+);
+alter table public.avatares enable row level security;

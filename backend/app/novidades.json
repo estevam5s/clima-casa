@@ -2,6 +2,33 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.8.0",
+      "data": "2026-11-18",
+      "titulo": "Cafeteira, persianas e fechadura, teste de velocidade da rede, avatares 3D e copa no mapa",
+      "resumo": "Automações do escritório prontas para aparelhos Smart Life, teste de velocidade completo do computador e da rede do escritório, biblioteca de avatares 3D e um andar com copa, banheiro, portas de vidro e gente tomando café.",
+      "novo": [
+        "Cafeteira: ligar para aquecer, desligar, agenda, desligamento automático por segurança, estoque de cápsulas e cafés do dia (com tomada inteligente Smart Life)",
+        "Persianas: todas as janelas de todas as salas, abrir, fechar, parar e posição, por sala ou todas, agenda e fechar quando o sol esquenta (com motor Smart Life); a persiana do mapa acompanha o motor",
+        "Fechadura da porta do escritório: estado, trancar e destrancar com a senha, trancar sozinha, aviso fora do expediente e histórico (com fechadura Smart Life)",
+        "Rede e velocidade: download, upload, latência, variação, latência com carga e perda, deste computador e da rede do escritório pelo agente, com o tempo de resposta de cada transmissor e histórico",
+        "Avatares 3D: importar personagens .glb (com origem e licença), ver as animações e expressões e escolher quem usa cada um no mapa",
+        "Mapa: copa com cafeteira de cápsulas vermelha, mesa e geladeira, e banheiro ao lado do elevador; as pessoas vão até a copa, fazem café e andam com a xícara",
+        "Mapa: posição do elevador escolhida na edição da planta (lado da porta e distância)"
+      ],
+      "melhorias": [
+        "Portas das salas de vidro, como as paredes (a da Reunião e a do Escritório continuam sólidas)",
+        "Mesa da Reunião branca e maior, com cadeiras dos dois lados e nas cabeceiras",
+        "Botões desativados ficam esmaecidos em todo o sistema"
+      ],
+      "seguranca": [
+        "Destrancar a porta exige a senha de novo e a verificação anti-robô; só dono e administradores mexem na fechadura",
+        "Arquivos de avatar ficam num armazenamento privado e são conferidos antes de entrar (sem arquivos externos embutidos)"
+      ],
+      "correcoes": [
+        "Mapa: o cartão do 3D não estica mais com uma área vazia embaixo"
+      ]
+    },
+    {
       "versao": "1.7.1",
       "data": "2026-11-17",
       "titulo": "Menu recolhido com o seletor de projeto ajustado",

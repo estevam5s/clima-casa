@@ -36,6 +36,11 @@ import Musica from './pages/Musica'
 import Guia from './pages/Guia'
 import Novidades from './pages/Novidades'
 import Infra from './pages/Infra'
+import Rede from './pages/Rede'
+import Cafeteira from './pages/Cafeteira'
+import Persianas from './pages/Persianas'
+import Fechadura from './pages/Fechadura'
+import Avatares from './pages/Avatares'
 import Emails from './pages/Emails'
 
 function Protegido({ children }) {
@@ -117,6 +122,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="guia" element={<Guia />} />
             <Route path="novidades" element={<Novidades />} />
             <Route path="infra" element={<Infra />} />
+            <Route path="rede" element={<Rede />} />
+            <Route path="cafeteira" element={<Cafeteira />} />
+            <Route path="persianas" element={<Persianas />} />
+            <Route path="fechadura" element={<Fechadura />} />
+            <Route path="avatares" element={<Avatares />} />
             <Route path="emails" element={<Emails />} />
             <Route path="configuracoes" element={<Configuracoes />} />
             <Route path="*" element={<NaoEncontrado />} />

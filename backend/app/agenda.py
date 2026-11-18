@@ -43,6 +43,11 @@ async def laco():
                 log.warning("escudo/Vercel: %s", e)
             if ciclo % 3 == 0:  # status online dos transmissores a cada ~1 min
                 await asyncio.to_thread(transmissor.atualizar_online)
+            try:   # cafeteira, persianas e fechadura: estado, agendas e regras de segurança
+                from . import dispositivos
+                await asyncio.to_thread(dispositivos.ciclo, ciclo)
+            except Exception as e:  # noqa: BLE001
+                log.warning("aparelhos do escritório: %s", e)
             if ciclo % 180 == 0:   # selo de integridade dos registros (SHA-256 por dia) a cada ~1 h: a cadeia fica sempre em dia
                 try:
                     from . import conformidade

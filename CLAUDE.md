@@ -69,6 +69,10 @@ caminhos de serviço e o projeto da Vercel).
 | Checagem antes de gravar botão / próximo ar | `GET /api/aparelhos/{id}/pronto-para-gravar` (`rotas/api.py`), `pages/Aparelho.jsx` (`Gravar`) |
 | Aparelhos (grade, por sala, tabela, lote) | `pages/Aparelhos.jsx` (`problemasDoAr`, `emLote`), `components/ArCartao.jsx` |
 | Busca no menu lateral | `components/Layout.jsx` (`CHAVES`, `ConteudoSidebar`) |
+| Cafeteira, persianas, fechadura (Tuya/Smart Life) | `backend/app/dispositivos.py` (comandos pela nuvem Tuya, `ciclo` no agente), `rotas/dispositivos.py`, tabelas `dispositivos` e `dispositivos_eventos`, `pages/Cafeteira.jsx`, `Persianas.jsx`, `Fechadura.jsx`, `components/dispositivos/Comum.jsx` |
+| Teste de velocidade da rede | `backend/app/rede.py` (op `rede_teste` no agente), `rotas/infra.py` (`/infra/rede/*`), `pages/Rede.jsx` (mede no navegador via speed.cloudflare.com, liberado na CSP) |
+| Avatares 3D (GLB) | `backend/app/avatares.py` (Storage privado `avatares`), rotas `/api/avatares…`, `components/avatares/AvatarViewer.jsx` (`carregarAvatar`, `caixaReal`), `pages/Avatares.jsx`, `Mapa3D.jsx` (`E.glbs`), `docs/AVATARES_3D.md` |
+| Copa, banheiro, cafeteira vermelha, xícara, portas de vidro, mesa da Reunião, elevador na planta | `components/copa3d.js`, `Mapa3D.jsx` (`portaDeVidro`, `salaCorredor`, `E.pontoCafe`, `mapa.elevador`), `pages/Mapa.jsx` (editor) |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
@@ -841,6 +845,12 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 ---
 
 ## 14. Estado atual e pendências (16/11/2026, noite)
+
+- **18/11, madrugada (1.8.0)**: cafeteira (item 11), 10 persianas (uma por janela, ligadas às janelas do mapa) e a fechadura
+  (`porta-entrada`) cadastradas **sem aparelho**: a tela diz "sem aparelho conectado" até parear tomada, motores e fechadura
+  Smart Life e usar "Conectar". Fechadura: destrancar pela internet depende do modelo (o sistema avisa quando não aceita).
+  Avatar de demonstração CC0 (robô do Three.js) na biblioteca; ninguém da equipe usa avatar ainda. Teste de rede: o 1º
+  resultado "agente" foi do Mac fora do escritório (125/144 Mbps).
 
 - **17/11, noite (1.7.0)**: diário completo da sessão e o comando para continuar numa sessão nova em
   `docs/continuar/sessao-2026-11-17/` (`continuar.sh`). Pendências principais: Alexa nova (descobrir dispositivos), Raspberry Pi em

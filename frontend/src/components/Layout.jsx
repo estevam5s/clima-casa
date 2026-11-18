@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, AirVent, BarChart3, BookOpen, CalendarClock, Check, ChevronDown, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Workflow, Wrench, X } from 'lucide-react'
+import { Activity, AirVent, BarChart3, Blinds, BookOpen, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -19,6 +19,7 @@ export const GRUPOS = [
     { para: '/', rotulo: 'Painel', icone: Gauge, fim: true },
     { para: '/projetos', rotulo: 'Projetos', icone: FolderKanban },
     { para: '/mapa', rotulo: 'Mapa do escritório', icone: MapIcon },
+    { para: '/avatares', rotulo: 'Avatares 3D', icone: PersonStanding },
     { para: '/relatorios', rotulo: 'Relatórios', icone: BarChart3, perm: 'relatorios.ver' },
   ] },
   { titulo: 'Controle', itens: [
@@ -29,6 +30,11 @@ export const GRUPOS = [
     { para: '/transmissores', rotulo: 'Transmissores IR', icone: Radio },
     { para: '/musica', rotulo: 'Música', icone: Music2 },
   ] },
+  { titulo: 'Escritório', itens: [
+    { para: '/cafeteira', rotulo: 'Cafeteira', icone: Coffee },
+    { para: '/persianas', rotulo: 'Persianas', icone: Blinds },
+    { para: '/fechadura', rotulo: 'Fechadura', icone: DoorClosed },
+  ] },
   { titulo: 'Integrações', itens: [
     { para: '/integracoes', rotulo: 'Alexa e Google', icone: Plug, perm: 'integracoes.gerenciar' },
     { para: '/comandos-alexa', rotulo: 'Comandos de voz', icone: MessageSquareQuote },
@@ -36,6 +42,7 @@ export const GRUPOS = [
     { para: '/alexa', rotulo: 'Skill própria', icone: Mic, perm: 'integracoes.gerenciar' },
     { para: '/supabase', rotulo: 'Supabase', icone: Database, perm: 'configuracoes.gerenciar' },
     { para: '/infra', rotulo: 'Infra', icone: Server, perm: 'configuracoes.gerenciar' },
+    { para: '/rede', rotulo: 'Rede e velocidade', icone: Wifi, perm: 'configuracoes.gerenciar' },
   ] },
   { titulo: 'Sistema', itens: [
     { para: '/atividade', rotulo: 'Atividade', icone: Activity, perm: 'atividade.ver' },
@@ -57,7 +64,7 @@ const CHAVES = {
   '/alexa': 'skill', '/supabase': 'banco dados tabelas sql backup', '/infra': 'vercel cloudflare dns agentes raspberry pi computador servidor',
   '/atividade': 'historico log eventos', '/seguranca': 'firewall conformidade iso 27001 ips ataques', '/mensagens': 'contato site',
   '/configuracoes': 'usuarios contas perfil marca senha 2fa', '/apps': 'android desktop windows mac download', '/guia': 'ajuda manual tutorial',
-  '/novidades': 'versoes changelog atualizacoes',
+  '/novidades': 'versoes changelog atualizacoes', '/rede': 'speedtest velocidade internet wifi download upload ping latencia jitter', '/cafeteira': 'cafe capsula copa tomada dolce', '/persianas': 'cortina janela sol', '/fechadura': 'porta tranca chave entrada', '/avatares': 'personagem boneco glb modelo 3d animacao sims',
 }
 const semAcento = (t) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 function lerFechados() { try { return JSON.parse(localStorage.getItem('clima-menu-fechados') || '[]') } catch { return [] } }

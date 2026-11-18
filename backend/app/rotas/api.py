@@ -1504,6 +1504,8 @@ class ElementoMapa(BaseModel):
     modelo: str = Field("", max_length=30)
     aberta: int = Field(50, ge=0, le=100)     # janela: persiana (0 = fechada); porta: 0 = fechada, 50+ = aberta
     ligado: bool = True                       # dispositivo do mapa: aceso ou apagado
+    vidro: bool | None = None                 # porta: força vidro (True) ou sólida (False); vazio = automático pela sala
+    dispositivo_id: int | None = Field(None, ge=1)   # item do mapa ligado a um aparelho de verdade (persiana, cafeteira, fechadura)
 
 
 class AparenciaPessoa(BaseModel):
@@ -1525,6 +1527,7 @@ class PessoaMapa(BaseModel):
     nome: str = Field(min_length=1, max_length=40)
     cargo: str = Field("", max_length=40)
     sexo: str = Field("", pattern=r"^(masculino|feminino|)$")   # mostrado no cartão da pessoa no 3D
+    avatar_id: int | None = Field(None, ge=1)   # modelo 3D importado (Avatares); vazio = boneco desenhado pelo sistema
     sala: str = Field("", max_length=12)
     posto: str = Field("", max_length=60)
     inicio: str = Field("08:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -1547,6 +1550,11 @@ class EscritaMapa(BaseModel):
     criado_em: int = 0
 
 
+class ElevadorMapa(BaseModel):
+    lado: int | None = Field(None, ge=-1, le=1)          # -1 / 1: de que lado da porta de entrada; vazio = automático
+    distancia: float | None = Field(None, ge=1.0, le=60)  # metros do meio da porta ao meio do núcleo; vazio = cabe a copa
+
+
 class MapaIn(BaseModel):
     largura: int = Field(1400, ge=400, le=6000)
     altura: int = Field(900, ge=300, le=6000)
@@ -1559,6 +1567,7 @@ class MapaIn(BaseModel):
     andares: int = Field(11, ge=1, le=200)   # total de andares do prédio (3D): o escritório fica abaixo ou no último
     pessoas: list[PessoaMapa] = Field(default_factory=list, max_length=200)
     escritas: list[EscritaMapa] = Field(default_factory=list, max_length=300)
+    elevador: ElevadorMapa | None = None
 
 
 MAPA_PADRAO = {"largura": 1400, "altura": 900, "salas": {}, "ares": {}, "elementos": []}
@@ -1663,6 +1672,15 @@ def mexer_item_mapa(eid: str, d: ItemMapaIn, request: Request):
             else f"persiana {d.aberta}% aberta" if d.aberta is not None else ("ligado" if d.ligado else "desligado") if d.ligado is not None
             else f"cor {d.cor or 'padrão'}" if d.cor is not None else f"modelo {d.modelo}")
     db.registrar("painel", f"Mapa: {el.get('rotulo') or el.get('tipo')} {acao}")
+    # persiana do mapa ligada a um motor de verdade: manda a posição (sem motor conectado, só o desenho muda)
+    if d.aberta is not None and el.get("tipo") == "janela":
+        try:
+            from .. import dispositivos
+            alvo = db.um("SELECT id FROM dispositivos WHERE tipo = 'persiana' AND mapa_elemento = ? AND tuya_id IS NOT NULL", (eid,))
+            if alvo:
+                dispositivos.comando(alvo["id"], "posicao", d.aberta, "mapa")
+        except Exception as e:  # noqa: BLE001  (o mapa já mudou; a falha fica no histórico da persiana)
+            import logging; logging.getLogger("clima.mapa").warning("persiana do mapa: %s", e)
     return ver_mapa(request)
 
 
@@ -3478,9 +3496,9 @@ _PADRAO_DE_PROPOSITO = ("/api/infra/", "/api/email/", "/api/agentes/")
 def rotas_sem_regra() -> list[str]:
     """Rotas logadas que mudam dados sem regra explícita em acesso.REGRAS (fora as de propósito acima)."""
     from .. import acesso
-    from . import alexa, contas, correio, infra, musica
+    from . import alexa, contas, correio, dispositivos, infra, musica
     sem = []
-    for rt in (api, contas.contas, musica.rotas_musica, infra.rotas_infra, correio.rotas_email, alexa.roteador):
+    for rt in (api, contas.contas, musica.rotas_musica, infra.rotas_infra, correio.rotas_email, alexa.roteador, dispositivos.rotas_disp):
         for r in rt.routes:
             caminho = getattr(r, "path", "")
             if not caminho.startswith("/api") or caminho.startswith(_PADRAO_DE_PROPOSITO):
@@ -3597,6 +3615,74 @@ def declaracao_aplicabilidade(formato: str = "csv"):
     w.writerow(cab)
     w.writerows(linhas)
     return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})
+
+
+# ---------------- avatares 3D (GLB) ----------------
+def _dono_admin():
+    from .. import acesso
+    u = acesso.atual.get() or {}
+    if u.get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só o dono e os administradores importam ou apagam avatares.")
+    return u
+
+
+@api.get("/avatares")
+def listar_avatares():
+    from .. import avatares
+    return {"avatares": avatares.listar(), "limite_mb": avatares.LIMITE_BYTES // 1024 // 1024}
+
+
+class AvatarEnvioIn(BaseModel):
+    nome: str = Field(min_length=1, max_length=60)
+    descricao: str = Field("", max_length=300)
+    origem: str = Field(min_length=3, max_length=200)      # de onde veio o modelo (ex.: "feito no Blender por …", "pacote X")
+    licenca: str = Field(min_length=3, max_length=200)     # licença ou autorização de uso
+    tamanho: int = Field(ge=1, le=30 * 1024 * 1024)
+    autorizado: bool                                        # quem importa declara que pode usar o modelo
+
+
+@api.post("/avatares/envio")
+def avatar_envio(d: AvatarEnvioIn):
+    from .. import avatares
+    u = _dono_admin()
+    if not d.autorizado:
+        raise HTTPException(400, "Só importe modelos que você tem autorização para usar.")
+    try:
+        return avatares.preparar_envio(d.nome.strip(), d.descricao.strip(), d.origem.strip(), d.licenca.strip(), d.tamanho, u.get("email", ""))
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(502, str(e)) from e
+
+
+@api.post("/avatares/{avid}/confirmar")
+def avatar_confirmar(avid: int):
+    from .. import avatares
+    _dono_admin()
+    try:
+        return avatares.confirmar(avid)
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'")) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@api.get("/avatares/{avid}/arquivo")
+def avatar_arquivo(avid: int):
+    from .. import avatares
+    try:
+        return {"url": avatares.endereco(avid)}
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'")) from e
+
+
+@api.delete("/avatares/{avid}")
+def avatar_apagar(avid: int):
+    from .. import avatares
+    _dono_admin()
+    avatares.apagar(avid)
+    db.registrar("painel", "Avatar 3D apagado", detalhe=str(avid))
+    return {"ok": True}
 
 
 @api.get("/seguranca/documentos")
