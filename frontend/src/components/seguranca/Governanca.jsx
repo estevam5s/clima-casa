@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertTriangle, BadgeCheck, CheckCircle2, CircleDashed, ClipboardCheck, Download, FileSpreadsheet, Fingerprint, Globe2, Link2, Lock, MinusCircle, Pencil, Play, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, UserX, XCircle } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../../api'
@@ -89,6 +89,60 @@ function ProximosPassos({ dados }) {
   )
 }
 
+// registros formais (aprovação da política, liderança, contexto, partes interessadas, recursos, auditoria interna,
+// análise crítica) e contatos com autoridades e grupos: valem por 12 meses na conformidade
+function Registros() {
+  const toast = useToast()
+  const { dados, recarregar } = useDados(() => api.get('/api/seguranca/registros'))
+  const [f, setF] = useState(null)
+  const [contatos, setContatos] = useState(null)
+  if (!dados) return null
+  const lista = contatos ?? dados.contatos
+  const salvar = async (e) => { e.preventDefault(); try { await api.post('/api/seguranca/registros', f); toast('Registro salvo.'); setF(null); recarregar() } catch (err) { toast(err.message, 'erro') } }
+  const salvarContatos = async () => { try { await api.put('/api/seguranca/contatos', lista); toast('Contatos salvos.'); setContatos(null); recarregar() } catch (err) { toast(err.message, 'erro') } }
+  const ultimo = (t) => dados.registros.filter((r) => r.tipo === t).sort((a, b) => b.data - a.data)[0]
+  return (
+    <Secao titulo="Registros do sistema de gestão" contexto="Atas e aprovações que a norma pede (cláusulas 4, 5, 7 e 9): cada uma vale por 12 meses na nota">
+      <ul className="divide-y divide-border">{Object.entries(dados.tipos).map(([k, r]) => { const u = ultimo(k); return (
+        <li key={k} className="flex flex-wrap items-center gap-2 px-5 py-3">
+          <div className="min-w-0 flex-1"><p className="text-sm font-medium">{r}</p><p className="text-xs text-muted-foreground">{u ? `${new Date(u.data * 1000).toLocaleDateString('pt-BR')} · ${u.responsavel} · ${u.resumo.slice(0, 90)}` : 'Sem registro'}</p></div>
+          {u ? <Situacao status={Date.now() / 1000 - u.data < 365 * 86400 ? 'implementado' : 'parcial'} /> : <Situacao status="pendente" />}
+          <Botao tamanho="sm" variante="secundario" onClick={() => setF({ tipo: k, data: new Date().toISOString().slice(0, 10), responsavel: '', resumo: '' })}>Registrar</Botao>
+        </li>) })}
+      </ul>
+      <div className="border-t border-border px-5 py-4">
+        <p className="text-sm font-medium">Contatos de segurança (5.5 e 5.6)</p>
+        <p className="text-xs text-muted-foreground">Autoridades (ANPD, polícia, CERT.br), grupos de segurança, fornecedores e responsáveis internos.</p>
+        <ul className="mt-2 space-y-2">{lista.map((c, i) => (
+          <li key={i} className="grid gap-2 sm:grid-cols-[1fr_8rem_1.4fr_auto]">
+            <input className="campo h-9" placeholder="Nome" value={c.nome} onChange={(e) => setContatos(lista.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} />
+            <select className="campo h-9" value={c.tipo} onChange={(e) => setContatos(lista.map((x, j) => (j === i ? { ...x, tipo: e.target.value } : x)))}><option value="autoridade">Autoridade</option><option value="grupo">Grupo</option><option value="fornecedor">Fornecedor</option><option value="interno">Interno</option></select>
+            <input className="campo h-9" placeholder="E-mail, telefone ou site" value={c.contato} onChange={(e) => setContatos(lista.map((x, j) => (j === i ? { ...x, contato: e.target.value } : x)))} />
+            <button type="button" onClick={() => setContatos(lista.filter((_, j) => j !== i))} className="rounded p-2 text-muted-foreground hover:text-red-600" aria-label="Remover contato"><Trash2 className="h-4 w-4" /></button>
+          </li>))}
+        </ul>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Botao tamanho="sm" variante="secundario" icone={Plus} onClick={() => setContatos([...lista, { nome: '', tipo: 'autoridade', contato: '', quando_usar: '' }])}>Adicionar contato</Botao>
+          {!lista.length && <Botao tamanho="sm" variante="secundario" onClick={() => setContatos([
+            { nome: 'ANPD (Autoridade Nacional de Proteção de Dados)', tipo: 'autoridade', contato: 'https://www.gov.br/anpd', quando_usar: 'incidente com dado pessoal' },
+            { nome: 'CERT.br', tipo: 'grupo', contato: 'cert@cert.br', quando_usar: 'ataques e incidentes de rede' }])}>Começar com ANPD e CERT.br</Botao>}
+          {contatos && <Botao tamanho="sm" onClick={salvarContatos}>Salvar contatos</Botao>}
+        </div>
+      </div>
+      <Modal aberto={!!f} titulo={f ? dados.tipos[f.tipo] : ''} onFechar={() => setF(null)}>
+        {f && <form onSubmit={salvar} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs text-muted-foreground">Data<input type="date" className="campo mt-1" value={f.data} onChange={(e) => setF({ ...f, data: e.target.value })} required /></label>
+            <label className="text-xs text-muted-foreground">Responsável<input className="campo mt-1" value={f.responsavel} onChange={(e) => setF({ ...f, responsavel: e.target.value })} required minLength={2} /></label>
+          </div>
+          <label className="block text-xs text-muted-foreground">Resumo (o que foi decidido ou verificado)<textarea className="campo mt-1 min-h-32" value={f.resumo} onChange={(e) => setF({ ...f, resumo: e.target.value })} required minLength={10} /></label>
+          <div className="flex justify-end gap-2"><Botao type="button" variante="secundario" onClick={() => setF(null)}>Cancelar</Botao><Botao type="submit">Salvar registro</Botao></div>
+        </form>}
+      </Modal>
+    </Secao>
+  )
+}
+
 export function Conformidade() {
   const toast = useToast()
   const { dados, recarregar } = useDados(() => api.get('/api/seguranca/conformidade'))
@@ -141,6 +195,7 @@ export function Conformidade() {
 
       <ProximosPassos dados={dados} />
       <Documentos />
+      <Registros />
 
       <Secao titulo="Normas cobertas" contexto="Quanto de cada norma da família ISO 27000 (e da LGPD) os controles atendem hoje">
         <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
@@ -392,6 +447,85 @@ export function Acessos() {
 }
 
 // ---------------------------------------------------------------- Testes ao vivo (cabeçalhos, TLS, exposição, CORS)
+// Lote de mais de mil testes (no agente): anel de progresso, grade com um quadrado por teste acendendo, últimos resultados
+// passando e barras por categoria. A tela pergunta o progresso a cada 0,8 s enquanto roda.
+function TesteLote() {
+  const toast = useToast()
+  const [d, setD] = useState(null)
+  const [completo, setCompleto] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [cat, setCat] = useState('')
+  const carregar = async (full = false) => { const r = await api.get(`/api/seguranca/testes/lote${full ? '?completo=true' : ''}`); setD(r); if (full) setCompleto(r.resultado?.resultados || null); return r }
+  useEffect(() => { carregar(true).catch(() => {}) }, [])
+  useEffect(() => {
+    if (!d?.progresso?.rodando) return undefined
+    const t = setInterval(async () => { const r = await carregar().catch(() => null); if (r && !r.progresso.rodando) { clearInterval(t); carregar(true); toast(`Testes concluídos: ${r.resultado?.ok}/${r.resultado?.total} aprovados.`) } }, 800)
+    return () => clearInterval(t)
+  }, [d?.progresso?.rodando])   // eslint-disable-line react-hooks/exhaustive-deps
+  const iniciar = async () => { try { const r = await api.post('/api/seguranca/testes/lote'); setCompleto(null); setD((x) => ({ ...(x || {}), progresso: { rodando: true, total: r.total, feitos: 0, falhas: 0, ultimos: [] } })) } catch (e) { toast(e.message, 'erro') } }
+  if (!d) return <Esqueleto className="h-64" />
+  const p = d.progresso || {}, res = d.resultado
+  const total = p.rodando ? p.total : res?.total || 0, feitos = p.rodando ? p.feitos : res?.total || 0
+  const pct = total ? Math.round(feitos / total * 100) : 0
+  const lista = (completo || []).filter((r) => (!cat || r.cat === cat) && (!busca || r.nome.toLowerCase().includes(busca.toLowerCase())))
+  return (
+    <section className="cartao p-5">
+      <div className="flex flex-wrap items-center gap-5">
+        <div className="relative h-28 w-28 shrink-0">
+          <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90"><circle cx="50" cy="50" r="44" fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
+            <motion.circle cx="50" cy="50" r="44" fill="none" stroke={p.rodando ? 'hsl(var(--primary))' : res && res.ok === res.total ? '#10b981' : '#f59e0b'} strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={276.5} initial={false} animate={{ strokeDashoffset: 276.5 * (1 - pct / 100) }} transition={{ duration: 0.6 }} /></svg>
+          <div className="absolute inset-0 grid place-items-center text-center"><div><p className="text-xl font-semibold tabular">{p.rodando ? `${pct}%` : res ? `${Math.round(res.ok / res.total * 100)}%` : '—'}</p><p className="text-[10px] text-muted-foreground">{p.rodando ? 'testando' : res ? 'aprovados' : 'sem teste'}</p></div></div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Testes em lote: {total || 'mais de mil'} verificações reais</p>
+          <p className="text-sm text-muted-foreground">Arquivos expostos, cabeçalhos em cada página, API sem login e com token falso, métodos HTTP, CORS, mensagens de erro, TLS, DNS e e-mail, cookies. Rodam no agente, 16 por vez, contra os próprios domínios.</p>
+          {res && !p.rodando && <p className="mt-1 text-xs text-muted-foreground">Último lote: {res.ok}/{res.total} aprovados em {res.duracao_s} s · {new Date(res.em * 1000).toLocaleString('pt-BR')}</p>}
+          {p.rodando && <p className="mt-1 text-xs tabular text-muted-foreground">{feitos} de {total} · {p.falhas} falha(s) até agora</p>}
+        </div>
+        <Botao icone={Play} carregando={!!p.rodando} onClick={iniciar}>{p.rodando ? 'Testando…' : 'Rodar todos os testes'}</Botao>
+      </div>
+      {p.erro && !p.rodando && <div className="mt-4"><Aviso>{p.erro}</Aviso></div>}
+      {total > 0 && (
+        <div className="mt-5 flex flex-wrap gap-[3px]" aria-label={`${feitos} de ${total} testes`}>
+          {Array.from({ length: total }, (_, i) => {
+            const r = completo?.[i]
+            const feito = p.rodando ? i < feitos : true
+            const cor = !feito ? 'bg-muted' : r ? (r.ok ? 'bg-emerald-500' : 'bg-red-500') : 'bg-primary/70'
+            return <motion.span key={i} title={r ? `${r.nome}: ${r.det}` : undefined} className={`h-2.5 w-2.5 rounded-[2px] ${cor}`} initial={false} animate={{ scale: feito ? [1.6, 1] : 1 }} transition={{ duration: 0.35 }} />
+          })}
+        </div>
+      )}
+      {p.rodando && p.ultimos?.length > 0 && (
+        <ul className="mt-4 max-h-40 overflow-hidden text-xs">{[...p.ultimos].reverse().slice(0, 8).map((u) => (
+          <motion.li key={u.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 py-0.5">
+            {u.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <XCircle className="h-3.5 w-3.5 text-red-600" />}<span className="truncate">{u.nome}</span><span className="ml-auto shrink-0 text-muted-foreground">{u.det}</span></motion.li>))}
+        </ul>
+      )}
+      {res?.categorias && !p.rodando && (
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(res.categorias).map(([c, v]) => (
+          <button key={c} onClick={() => setCat(cat === c ? '' : c)} className={`rounded-md border p-3 text-left ${cat === c ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'}`}>
+            <div className="flex items-center justify-between text-sm"><span className="font-medium">{c}</span><span className="tabular text-muted-foreground">{v.ok}/{v.total}</span></div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><motion.div className={v.ok === v.total ? 'h-full bg-emerald-500' : 'h-full bg-amber-500'} initial={{ width: 0 }} animate={{ width: `${v.ok / v.total * 100}%` }} transition={{ duration: 0.8 }} /></div>
+          </button>))}
+        </div>
+      )}
+      {completo && !p.rodando && (
+        <div className="mt-5">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <label className="relative"><Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" /><input className="campo h-8 w-64 pl-8 text-sm" placeholder="Buscar teste" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
+            <span className="text-xs text-muted-foreground">{lista.length} teste(s){cat ? ` em ${cat}` : ''} · falhas primeiro</span>
+          </div>
+          <ul className="max-h-96 divide-y divide-border overflow-auto rounded-md border border-border text-xs">{[...lista].sort((a, b) => a.ok - b.ok).slice(0, 400).map((r) => (
+            <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">{r.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> : <XCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />}
+              <span className="min-w-0 flex-1 truncate">{r.nome}</span><span className="shrink-0 text-muted-foreground">{r.det}</span></li>))}
+          </ul>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function TestesAoVivo() {
   const toast = useToast()
   const { dados, setDados } = useDados(() => api.get('/api/seguranca/testes'))
@@ -400,6 +534,7 @@ export function TestesAoVivo() {
   if (!dados) return <Esqueleto className="h-96" />
   return (
     <div className="grid gap-6">
+      <TesteLote />
       <section className="cartao flex flex-wrap items-center gap-4 p-5">
         {dados.total ? <Anel nota={Math.round((dados.ok / dados.total) * 100)} /> : <Globe2 className="h-10 w-10 text-muted-foreground" />}
         <div className="min-w-0 flex-1"><p className="text-sm font-medium">Testes de fora para dentro</p>

@@ -48,6 +48,12 @@ async def laco():
                 await asyncio.to_thread(dispositivos.ciclo, ciclo)
             except Exception as e:  # noqa: BLE001
                 log.warning("aparelhos do escritório: %s", e)
+            if ciclo % 15 == 0:   # teste de velocidade agendado (Rede → Agendar), a cada ~5 min confere se venceu
+                try:
+                    from . import rede
+                    await asyncio.to_thread(rede.ciclo)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("teste de rede agendado: %s", e)
             if ciclo % 180 == 0:   # selo de integridade dos registros (SHA-256 por dia) a cada ~1 h: a cadeia fica sempre em dia
                 try:
                     from . import conformidade

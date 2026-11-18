@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AirVent, AppWindow, Archive, Armchair, ArrowRight, Store, Box, ChevronRight, Columns2, DoorOpen, Droplets, Expand, Grid3x3, Laptop, LayoutGrid, Leaf, Minus, Monitor, Pencil, Plus, Power, RotateCw, Save, Snowflake, Sparkles, Square, Sun, Table2, Trash2, Type, Undo2, Wind, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { AirVent, PawPrint, AppWindow, Archive, Armchair, ArrowRight, Store, Box, ChevronRight, Columns2, DoorOpen, Droplets, Expand, Grid3x3, Laptop, LayoutGrid, Leaf, Minus, Monitor, Pencil, Plus, Power, RotateCw, Save, Snowflake, Sparkles, Square, Sun, Table2, Trash2, Type, Undo2, Wind, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { api, haQuanto, MODOS, VENTILACAO } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, useDados, useToast } from '../components/ui'
@@ -140,6 +140,10 @@ function Elemento({ e, selecionado, editando, aoArrastar, aoClicar }) {
         {e.tipo === 'rack' && <line x1="0" y1={e.h - 2} x2={e.w} y2={e.h - 2} stroke={tracos} strokeWidth="2.5" />}</>
       break
     }
+    case 'personagem':
+      corpo = <><circle cx={e.w / 2} cy={e.h / 2} r={Math.min(e.w, e.h) / 2} fill="hsl(var(--primary))" fillOpacity="0.18" stroke="hsl(var(--primary))" strokeWidth="1.2" />
+        <PawPrint x={e.w / 2 - 8} y={e.h / 2 - 8} width={16} height={16} stroke="hsl(var(--primary))" /></>
+      break
     default: // armario
       corpo = <><rect width={e.w} height={e.h} fill={preench} stroke={tracos} strokeWidth="1.2" />
         <line x1="0" y1="0" x2={e.w} y2={e.h} stroke={tracos} strokeWidth="0.8" /><line x1={e.w} y1="0" x2="0" y2={e.h} stroke={tracos} strokeWidth="0.8" /></>

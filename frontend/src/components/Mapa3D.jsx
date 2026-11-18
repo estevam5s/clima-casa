@@ -1007,6 +1007,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const sobreMovel = (e) => { const [mx, my] = girar(e, e.w / 2, e.h / 2); return mapa.elementos.some((o) => o !== e && MOVEIS_APOIO.includes(o.tipo) && mx > o.x && mx < o.x + o.w && my > o.y && my < o.y + o.h) }
     const TIPOS_DISP = ['rack', 'roteador', 'impressora', 'nobreak', 'projetor', 'camera', 'alexa', 'ventilador', 'purificador', 'bebedouro', 'frigobar', 'cadeira', 'quadro']
     for (const e of mapa.elementos) {
+      if (e.tipo === 'personagem') continue   // pets e mascotes: montados depois da grade (andam por ela)
       const [mx, my] = girar(e, e.w / 2, e.h / 2)
       const x = W(mx), z = Z(my), ry = -(e.rot || 0) * Math.PI / 180
       const w = e.w * S, d = e.h * S
@@ -1312,7 +1313,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         if (E.mundo !== mundo) return   // o andar foi remontado enquanto o arquivo baixava
         const modelo = clonarComOssos(gltf.scene)
         const bb = caixaReal(modelo), alt = bb.getSize(new THREE.Vector3()).y || 1.7
-        modelo.scale.setScalar(1.72 / alt); modelo.position.y = -bb.min.y * (1.72 / alt)
+        const kk = gltf.meta?.escala_real ? 1 : 1.72 / alt   // feito no Estúdio: já vem na altura certa da pessoa
+        modelo.scale.setScalar(kk); modelo.position.y = -bb.min.y * kk
         modelo.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
         it.av.traverse((o) => { if (o.isMesh && o.material?.visible !== false && !o.userData?.tipo) o.visible = false })   // esconde o boneco (o alvo de clique continua)
         it.av.add(modelo)
@@ -1330,6 +1332,57 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         g.tocar = tocar; tocar(it.av.userData.sentada ? 'sentado' : 'parado'); glbs.push(g)
       }).catch(() => { /* sem o arquivo, fica o boneco desenhado */ })
     }
+
+    // personagens do escritório (pets, mascotes, pessoas extras da aba "No escritório" em /avatares): ficam perto do
+    // ponto escolhido, parados ou passeando pela grade de colisão; dormem ou sentam quando o arquivo tem esses clips
+    const personagens = []
+    E.personagens = personagens
+    for (const e of mapa.elementos.filter((x) => x.tipo === 'personagem' && x.avatar_id)) {
+      const casa = [W(e.x + (e.w || 40) / 2), Z(e.y + (e.h || 40) / 2)]
+      if (!celulaLivre(grade, casa[0], casa[1])) {   // ponto em cima de mesa ou parede: vai para o chão livre mais perto
+        const cel = livreProxima(grade, casa[0], casa[1], 30)
+        if (cel) { casa[0] = grade.bx0 + (cel[0] + 0.5) * grade.C; casa[1] = grade.bz0 + (cel[1] + 0.5) * grade.C }
+      }
+      carregarAvatar(e.avatar_id).then((gltf) => {
+        if (E.mundo !== mundo) return
+        const modelo = clonarComOssos(gltf.scene)
+        const bb = caixaReal(modelo), alt = bb.getSize(new THREE.Vector3()).y || 1
+        const k = gltf.meta?.escala_real ? 1 : 1.72 / alt
+        modelo.scale.setScalar(k); modelo.position.y = -bb.min.y * k
+        modelo.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
+        const g0 = new THREE.Group(); g0.position.set(casa[0], 0, casa[1]); g0.rotation.y = Math.random() * Math.PI * 2; g0.add(modelo); mundo.add(g0)
+        const mixer = new THREE.AnimationMixer(modelo)
+        const porNome = (w) => gltf.animations.find((c) => w.some((x) => c.name.toLowerCase().includes(x)))
+        const clips = { parado: porNome(['idle', 'parado', 'stand']) || gltf.animations[0], andando: porNome(['walk', 'andar']), descanso: porNome(['sleep', 'sit', 'sentad']) }
+        const pet = gltf.meta?.especie && gltf.meta.especie !== 'pessoa'
+        const P = { g: g0, mixer, clips, casa, passear: e.passear !== false, estado: 'parado', espera: 2 + Math.random() * 4, rota: null, i: 0, vel: pet ? 0.5 : 0.9, atual: null }
+        P.tocar = (nome) => { const c = clips[nome] || clips.parado; if (!c || P.atual?.getClip() === c) return; const a = mixer.clipAction(c); a.reset().play(); if (P.atual) P.atual.crossFadeTo(a, 0.3, false); P.atual = a }
+        P.tocar('parado'); personagens.push(P)
+      }).catch(() => { /* avatar apagado ou sem acesso: não aparece */ })
+    }
+    const moverPersonagem = (P, dt) => {
+      if (P.estado === 'parado' || P.estado === 'descanso') {
+        P.espera -= dt
+        if (P.espera > 0) return
+        if (!P.passear) { P.espera = 8; return }
+        if (P.clips.descanso && Math.random() < 0.25 && P.estado !== 'descanso') { P.estado = 'descanso'; P.espera = 8 + Math.random() * 10; P.tocar('descanso'); return }
+        for (let k = 0; k < 10; k++) {
+          const ang = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 1.6
+          const alvo = [P.casa[0] + Math.cos(ang) * r, P.casa[1] + Math.sin(ang) * r]
+          if (!celulaLivre(E.grade, alvo[0], alvo[1])) continue
+          const rota = caminho(E.grade, [P.g.position.x, P.g.position.z], alvo)
+          if (rota && rota.length > 1) { P.rota = rota; P.i = 1; P.estado = 'andando'; P.tocar('andando'); return }
+        }
+        P.estado = 'parado'; P.espera = 3; P.tocar('parado'); return
+      }
+      const alvo = P.rota[P.i]
+      const dx = alvo[0] - P.g.position.x, dz = alvo[1] - P.g.position.z, dist = Math.hypot(dx, dz)
+      if (dist < 0.05) { P.i++; if (P.i >= P.rota.length) { P.estado = 'parado'; P.espera = 3 + Math.random() * 7; P.tocar('parado') } return }
+      const passo = Math.min(dist, P.vel * dt)
+      P.g.position.x += dx / dist * passo; P.g.position.z += dz / dist * passo
+      const ang = Math.atan2(dx, dz); let d = ang - P.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); P.g.rotation.y += d * Math.min(1, dt * 6)
+    }
+    E.moverPersonagem = moverPersonagem
 
     // térreo (recepção do prédio): montado escondido dentro do pódio, no chão da rua (y = -yA). O elevador leva o
     // avatar controlado até lá e de volta. Tem grade de colisão própria, recepcionista, segurança e gente andando.
@@ -1798,6 +1851,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (camera.near !== nearAlvo) { camera.near = nearAlvo; camera.updateProjectionMatrix() }
       E.elevAndar?.el.tick(dt); E.elevTerreo?.el.tick(dt)
       cafeteiras.forEach((c) => c.animar(t, !!c.fazendo))
+      for (const P of E.personagens || []) { if (E.nivel !== 'terreo') E.moverPersonagem(P, dt); P.mixer.update(dt) }
       for (const g of E.glbs || []) {   // avatares GLB: animação pelo movimento (andando × parado) ou sentado na mesa
         const pos = g.it.av.getWorldPosition(new THREE.Vector3())
         const v = dt > 0 ? pos.distanceTo(g.ult) / dt : 0

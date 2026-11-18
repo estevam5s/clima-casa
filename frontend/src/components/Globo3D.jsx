@@ -7,6 +7,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { criarUniverso, luzesDasCidades } from './universo'
 import { COR_ASTRO, GRUPOS_ASTROS, INFO_ASTROS } from './astros-info'
+import { criarMarcos, MARCOS } from './marcos3d'
+import { criarExoplanetas } from './exoplanetas3d'
 
 // Globo de acessos em Three.js, desenhado a partir de dados reais:
 // - Terra: países do world-atlas (Natural Earth 1:50m) pintados numa textura equirretangular, com fronteiras e litoral;
@@ -36,6 +38,23 @@ function pontoSubsolar(data = new Date()) {
   const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g))
   const minutos = data.getUTCHours() * 60 + data.getUTCMinutes() + data.getUTCSeconds() / 60
   return { lat: decl * 180 / Math.PI, lon: -((minutos + eqt) / 4 - 180) }
+}
+
+// ruído suave (value noise com 5 oitavas) que dá a volta na longitude: relevo, biomas e nuvens sem imagem externa
+function criarRuido(semente = 1) {
+  const P = new Uint8Array(512); let s = semente
+  for (let i = 0; i < 256; i++) P[i] = i
+  for (let i = 255; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1); [P[i], P[j]] = [P[j], P[i]] }
+  for (let i = 0; i < 256; i++) P[i + 256] = P[i]
+  const v = (x, y) => P[(P[x & 255] + y) & 255] / 255
+  const sm = (t) => t * t * (3 - 2 * t)
+  const n2 = (x, y, per) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi
+    const a = v(xi % per, yi), b = v((xi + 1) % per, yi), c = v(xi % per, yi + 1), d = v((xi + 1) % per, yi + 1)
+    const u = sm(xf), w = sm(yf)
+    return a + (b - a) * u + (c - a) * w + (a - b - c + d) * u * w
+  }
+  return (x, y, oit = 5, base = 8) => { let t = 0, amp = 0.5, f = base; for (let o = 0; o < oit; o++) { t += amp * n2(x * f, y * f, f); amp *= 0.5; f *= 2 } return t }
 }
 
 // Texturas do dia (cores), da noite (litoral e fronteiras acesos) e máscara de água (para o brilho do Sol).
@@ -80,11 +99,37 @@ async function texturasTerra() {
   const mar = d.createLinearGradient(0, 0, 0, A)
   mar.addColorStop(0, '#16324a'); mar.addColorStop(0.18, '#0d2a45'); mar.addColorStop(0.5, '#0a2440'); mar.addColorStop(0.82, '#0d2a45'); mar.addColorStop(1, '#1d3a52')
   d.fillStyle = mar; d.fillRect(0, 0, L, A)
-  const terra = d.createLinearGradient(0, 0, 0, A)
-  terra.addColorStop(0, '#d9e2e8'); terra.addColorStop(0.1, '#9fb0a3'); terra.addColorStop(0.22, '#4f6b4d'); terra.addColorStop(0.36, '#5d6e45')
-  terra.addColorStop(0.44, '#8a7a52'); terra.addColorStop(0.5, '#3f6236'); terra.addColorStop(0.58, '#476a3a'); terra.addColorStop(0.66, '#8b7c55')
-  terra.addColorStop(0.78, '#57704d'); terra.addColorStop(0.9, '#a9b6ad'); terra.addColorStop(1, '#eef3f6')
-  d.fillStyle = terra; preencher(d)
+  // biomas (ilustração): gelo nos polos, tundra, floresta temperada, cinturão de desertos perto dos trópicos, savana e
+  // floresta tropical no equador; o ruído quebra as faixas e o relevo sombreado (luz de noroeste) dá volume
+  const BL = 768, BA = 384, relevo = criarRuido(7), umid = criarRuido(19)
+  const cB = document.createElement('canvas'); cB.width = BL; cB.height = BA
+  const gB = cB.getContext('2d'), img = gB.createImageData(BL, BA)
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+  const C = { gelo: [236, 241, 245], tundra: [128, 138, 118], boreal: [52, 74, 50], temperada: [70, 102, 56], estepe: [150, 146, 98], deserto: [205, 172, 120], savana: [148, 140, 72], tropical: [34, 84, 38] }
+  for (let y = 0; y < BA; y++) {
+    const lat = Math.abs(90 - (y + 0.5) / BA * 180)
+    for (let x = 0; x < BL; x++) {
+      const u = x / BL, w = y / BA
+      const h = relevo(u, w * 0.5, 5, 6), um = umid(u, w * 0.5, 4, 4)
+      const latR = lat + (h - 0.5) * 14
+      let cor
+      if (latR > 70) cor = mix(C.tundra, C.gelo, Math.min(1, (latR - 70) / 8))
+      else if (latR > 55) cor = mix(C.boreal, C.tundra, (latR - 55) / 15)
+      else if (latR > 38) cor = mix(C.temperada, C.boreal, (latR - 38) / 17)
+      else if (latR > 14) { const seco = Math.max(0, 1 - Math.abs(latR - 25) / 12) * (1.2 - um); cor = mix(mix(C.temperada, C.estepe, Math.min(1, (latR - 14) / 10)), C.deserto, Math.min(1, seco * 1.4)) }
+      else cor = mix(C.tropical, C.savana, Math.max(0, Math.min(1, (0.55 - um) * 2.2 + latR / 40)))
+      const dx = relevo((x + 1) / BL, w * 0.5, 5, 6) - h, dy = relevo(u, (y + 1) / BA * 0.5, 5, 6) - h
+      const luz = 1 + (-dx - dy) * 38 + (h - 0.5) * 0.25
+      const i = (y * BL + x) * 4
+      img.data[i] = Math.min(255, cor[0] * luz); img.data[i + 1] = Math.min(255, cor[1] * luz); img.data[i + 2] = Math.min(255, cor[2] * luz); img.data[i + 3] = 255
+    }
+  }
+  gB.putImageData(img, 0, 0)
+  // recorta os biomas pelo contorno dos continentes
+  const [cT, gT] = tela(); gT.fillStyle = '#000'; preencher(gT); gT.globalCompositeOperation = 'source-in'; gT.imageSmoothingQuality = 'high'; gT.drawImage(cB, 0, 0, L, A)
+  // águas rasas perto da costa: litoral borrado em azul mais claro antes de pintar a terra
+  d.save(); d.filter = 'blur(10px)'; d.fillStyle = 'rgba(40,110,150,0.55)'; preencher(d); d.restore()
+  d.drawImage(cT, 0, 0)
   // textura de ruído fino na terra (sensação de relevo)
   const ruido = d.getImageData(0, 0, L, A)
   for (let i = 0; i < ruido.data.length; i += 4) {
@@ -150,26 +195,25 @@ const SOMBREADOR_TERRA = {
 
 // nuvens procedurais: manchas suaves sobrepostas em várias escalas (sem imagem externa)
 function texturaNuvens() {
-  const L = 2048, A = 1024
+  // nuvens por ruído com oitavas: formas irregulares, mais nas faixas de chuva (equador e latitudes médias), menos nos desertos
+  const L = 768, A = 384, n = criarRuido(31), n2 = criarRuido(53)
   const c = document.createElement('canvas'); c.width = L; c.height = A
-  const g = c.getContext('2d')
-  g.fillStyle = '#000'; g.fillRect(0, 0, L, A)
-  let s = 11
-  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647 }
-  for (const [n, raio, alfa] of [[260, 90, 0.05], [900, 38, 0.07], [2600, 14, 0.08]]) {
-    for (let i = 0; i < n; i++) {
-      const y = A * (0.08 + r() * 0.84)
-      // faixas de nuvem nas zonas de convergência (equador e latitudes médias)
-      const lat = Math.abs(y / A - 0.5)
-      if (lat > 0.12 && lat < 0.22 && r() < 0.6) continue
-      const x = r() * L, rr = raio * (0.5 + r())
-      const gr = g.createRadialGradient(x, y, 0, x, y, rr)
-      gr.addColorStop(0, `rgba(255,255,255,${alfa * 1.6})`); gr.addColorStop(1, 'rgba(255,255,255,0)')
-      g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, rr * 1.8, rr, 0, 0, Math.PI * 2); g.fill()
-      if (x + rr * 2 > L) { g.save(); g.translate(-L, 0); g.beginPath(); g.ellipse(x, y, rr * 1.8, rr, 0, 0, Math.PI * 2); g.fill(); g.restore() }
+  const g = c.getContext('2d'), img = g.createImageData(L, A)
+  for (let y = 0; y < A; y++) {
+    const lat = Math.abs(90 - (y + 0.5) / A * 180)
+    const faixa = 0.55 + 0.35 * Math.exp(-((lat - 3) ** 2) / 60) + 0.3 * Math.exp(-((lat - 55) ** 2) / 120) - 0.35 * Math.exp(-((lat - 24) ** 2) / 50)
+    for (let x = 0; x < L; x++) {
+      const v = n(x / L, y / A * 0.5, 6, 5) * 0.75 + n2(x / L, y / A * 0.5, 3, 12) * 0.25
+      const a = Math.max(0, Math.min(1, (v - (1 - faixa * 0.62)) * 3.2))
+      const i = (y * L + x) * 4
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = Math.round(a * 235)
     }
   }
-  return new THREE.CanvasTexture(c)
+  g.putImageData(img, 0, 0)
+  // a textura de nuvens usa o canal vermelho como intensidade: pinta sobre preto
+  const f = document.createElement('canvas'); f.width = L; f.height = A
+  const gf = f.getContext('2d'); gf.fillStyle = '#000'; gf.fillRect(0, 0, L, A); gf.drawImage(c, 0, 0)
+  return new THREE.CanvasTexture(f)
 }
 
 export default function Globo3D({ pontos = [], servidor, aoSelecionar, className = '', ataque = false }) {
@@ -187,6 +231,9 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   const astrosRef = useRef(null)
   const caixaRef = useRef(null)
   const [info, setInfo] = useState(null)          // astro em foco (ficha)
+  const exoRef = useRef({})
+  const [exoLista, setExoLista] = useState([])
+  const [buscaAstro, setBuscaAstro] = useState('')
   const [aba, setAba] = useState('dados')
   const [tour, setTour] = useState(false)
   const [nave, setNave] = useState(false)         // pilotar a nave (voo livre pelo teclado)
@@ -227,12 +274,24 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     globo.updateMatrixWorld()
     // Sol, Lua, planetas e Via Láctea nas direções reais de agora
     const universo = criarUniverso(cena, globo)
+    // lugares na Terra (inclui a Muralha da China) e os 200 exoplanetas mais próximos (NASA Exoplanet Archive)
+    let vivo = true, exo = null
+    const marcos = criarMarcos(globo, vetor); Object.assign(universo.corpos, marcos.corpos)
+    api.get('/api/exoplanetas').then((d) => {
+      if (!vivo) return
+      exo = criarExoplanetas(universo.grupo, d.lista || [], globo.quaternion); Object.assign(universo.corpos, exo.corpos)
+      exoRef.current = exo.dados; setExoLista(Object.entries(exo.dados).map(([k, x]) => ({ k, nome: x.pl_name, al: x.anos_luz })))
+    }).catch(() => { /* sem o arquivo da NASA agora: o resto do universo continua */ })
     // satélites reais (SGP4) em volta da Terra
     const sats = criarSatelites(globo, vetor, satRotulosRef.current)
     // nave (visão de perseguição, presa à câmera), estrelas cadentes e aurora nos polos
     cena.add(camera)
-    const nave = criarNave(); nave.grupo.position.set(0.05, -0.3, -2.1); nave.grupo.scale.setScalar(0.75); nave.grupo.visible = false; camera.add(nave.grupo)
-    const luzNave = new THREE.DirectionalLight(0xffffff, 1.6); luzNave.position.set(-0.8, 1.2, 0.6); camera.add(luzNave); luzNave.target.position.set(0, -0.3, -2.1); camera.add(luzNave.target)   // alvo preso à câmera: ilumina a nave de cima, pela frente
+    // nave no mundo (não presa à câmera): voo com inércia e câmera de perseguição. A escala da nave acompanha a distância
+    // do astro mais perto (perto da Terra ela fica pequena e lenta; no espaço profundo, grande e rápida), como nos jogos
+    const nave = criarNave(renderer); nave.grupo.visible = false; cena.add(nave.grupo)
+    const luzNave = new THREE.DirectionalLight(0xffffff, 2.4); luzNave.position.set(0.7, 1.3, 0.4); nave.grupo.add(luzNave); nave.grupo.add(luzNave.target)
+    const luzNave2 = new THREE.HemisphereLight(0xcfe3ff, 0x1a1d22, 0.9); nave.grupo.add(luzNave2)
+    const voo = { ativo: false, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), vel: new THREE.Vector3(), w: new THREE.Vector3(), acel: 0.35, k: 0.05, arrasto: null, upCam: new THREE.Vector3(0, 1, 0), nearAntes: camera.near }
     const meteoros = criarMeteoros(cena)
     const aurora = criarAurora(globo, R)
     let ultimoHud = 0, ultimoIss = 0
@@ -427,6 +486,10 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       acoesRef.current.aoFocar?.(chave)
       if (chave === 'terra') { controles.minDistance = 1.5; voar(new THREE.Vector3(), controles.maxDistance > 50 ? new THREE.Vector3(2.2, 1.2, 4.2) : inicioCam.clone()); return }
       const alvo = c.obj.getWorldPosition(new THREE.Vector3())
+      if (c.superficie) {   // lugar na Terra: desce de cima, a ~2.000 km de altura (na escala do globo)
+        controles.minDistance = 0.05
+        voar(alvo, alvo.clone().add(alvo.clone().normalize().multiplyScalar(0.32)).add(new THREE.Vector3(0, 0.04, 0)), 1800); return
+      }
       // chega pelo lado iluminado (entre o astro e o Sol), um pouco acima
       const lado = universo.solPos.clone().sub(alvo).normalize().multiplyScalar(0.55).add(camera.position.clone().sub(alvo).normalize().multiplyScalar(0.45)).normalize()
       const dist = chave === 'sol' ? 40 : c.obj.isSprite ? c.raio * 2.6 : c.raio * 4.2 + 0.6
@@ -492,10 +555,15 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     const tecla = (e) => {
       if (!acoesRef.current.naveLigada || /input|textarea|select/i.test(e.target.tagName)) return
       const k = e.key.toLowerCase()
-      if (!['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) return
-      if (e.type === 'keydown') { teclas.add(k); if (k.startsWith('arrow')) e.preventDefault() } else teclas.delete(k)
+      if (!['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift', ' ', 'x', 'c'].includes(k)) return
+      if (e.type === 'keydown') { teclas.add(k); if (k.startsWith('arrow') || k === ' ') e.preventDefault(); if (k === 'x') voo.acel = 0; if (k === 'c') voo.camLivre = !voo.camLivre } else teclas.delete(k)
     }
     const soltar = () => teclas.clear()
+    // arrastar com o mouse durante o voo: aponta o nariz (guinada e arfagem)
+    const arrastoIni = (e) => { if (acoesRef.current.naveLigada && !voo.camLivre) voo.arrasto = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 } }
+    const arrastoMove = (e) => { if (voo.arrasto) { voo.arrasto.dx = (e.clientX - voo.arrasto.x) / 120; voo.arrasto.dy = (e.clientY - voo.arrasto.y) / 120 } }
+    const arrastoFim = () => { voo.arrasto = null }
+    el.addEventListener('pointerdown', arrastoIni); window.addEventListener('pointermove', arrastoMove); window.addEventListener('pointerup', arrastoFim)
     window.addEventListener('keydown', tecla); window.addEventListener('keyup', tecla); window.addEventListener('blur', soltar)
     el.addEventListener('pointermove', mover); el.addEventListener('click', clicar); el.addEventListener('pointerleave', sair)
     let retomar
@@ -564,55 +632,108 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
         const c = universo.corpos[foco.atual]
         if (c) { c.obj.getWorldPosition(tmp); if (seguir.pos) { const d = tmp.clone().sub(seguir.pos); if (d.lengthSq() > 1e-10 && d.length() < 2) { camera.position.add(d); controles.target.add(d) } } seguir.pos = (seguir.pos || new THREE.Vector3()).copy(tmp) }
       }
-      // voo livre
-      if (teclas.size && acoesRef.current.naveLigada) {
-        const frente = new THREE.Vector3(); camera.getWorldDirection(frente)
-        const lado = new THREE.Vector3().crossVectors(frente, camera.up).normalize()
-        const vel = (teclas.has('shift') ? 60 : 12) * dt * Math.max(0.15, Math.min(4, camera.position.distanceTo(controles.target) / 8))
-        const mov = new THREE.Vector3()
-        if (teclas.has('w') || teclas.has('arrowup')) mov.addScaledVector(frente, vel)
-        if (teclas.has('s') || teclas.has('arrowdown')) mov.addScaledVector(frente, -vel)
-        if (teclas.has('d') || teclas.has('arrowright')) mov.addScaledVector(lado, vel)
-        if (teclas.has('a') || teclas.has('arrowleft')) mov.addScaledVector(lado, -vel)
-        if (teclas.has('e')) mov.addScaledVector(camera.up, vel)
-        if (teclas.has('q')) mov.addScaledVector(camera.up, -vel)
-        camera.position.add(mov); controles.target.add(mov); seguir.pos = null; foco.atual = 'livre'
+      // ---------- voo da nave: inércia, rotação nos 3 eixos, acelerador, freio, colisão com os astros ----------
+      const pilotando = !!acoesRef.current.naveLigada
+      if (pilotando && !voo.ativo) {   // entra na nave: aparece à frente da câmera, apontando para onde ela olha
+        voo.ativo = true; voo.vel.set(0, 0, 0); voo.w.set(0, 0, 0); voo.acel = 0.3; voo.nearAntes = camera.near; voo.camOff = null
+        const dAlvo = camera.position.distanceTo(controles.target)
+        voo.k = THREE.MathUtils.clamp(dAlvo * 0.03, 0.01, 2.5)
+        voo.quat.copy(camera.quaternion)
+        voo.pos.copy(camera.position).add(new THREE.Vector3(0, -0.28, -1.6).multiplyScalar(voo.k).applyQuaternion(camera.quaternion))
+        controles.enabled = false; controles.autoRotate = false; seguir.pos = null; foco.atual = 'livre'
+      } else if (!pilotando && voo.ativo) {   // sai: a câmera volta a girar em volta de onde a nave estava
+        voo.ativo = false; controles.enabled = true; camera.up.set(0, 1, 0); camera.near = voo.nearAntes; camera.updateProjectionMatrix()
+        controles.target.copy(voo.pos); controles.update(); universo.dobra = 0
       }
-      // nave: aparece no voo livre, chama conforme o empuxo, inclina nas curvas
-      nave.grupo.visible = !!acoesRef.current.naveLigada
-      if (nave.grupo.visible) {
-        const frenteT = teclas.has('w') || teclas.has('arrowup'), reT = teclas.has('s') || teclas.has('arrowdown')
-        nave.atualizar(dt, t, { empuxo: frenteT ? 1 : reT ? 0.35 : 0.12, boost: teclas.has('shift'), lado: (teclas.has('d') || teclas.has('arrowright') ? 1 : 0) - (teclas.has('a') || teclas.has('arrowleft') ? 1 : 0), sobe: (teclas.has('e') ? 1 : 0) - (teclas.has('q') ? 1 : 0) })
-        if (t - ultimoHud > 0.25) {
-          const v = camera.position.distanceTo(posAntes) / Math.max(1e-3, t - ultimoHud)
-          posAntes.copy(camera.position); ultimoHud = t
-          let perto = null
-          for (const [k, c] of Object.entries(universo.corpos)) { c.obj.getWorldPosition(tmp); const d = tmp.distanceTo(camera.position) - (c.raio || 0); if (!perto || d < perto.d) perto = { k, nome: c.nome, d } }
-          acoesRef.current.aoHud?.({ vel: v, perto, empuxo: nave.estado.empuxo, dobra: dobraNave })
+      nave.grupo.visible = voo.ativo
+      if (voo.ativo) {
+        // astro mais perto (superfície): define a escala do voo
+        let perto = null
+        for (const [kk, c] of Object.entries(universo.corpos)) { c.obj.getWorldPosition(tmp); const d = tmp.distanceTo(voo.pos) - (c.raio || 0); if (!perto || d < perto.d) perto = { k: kk, nome: c.nome, d, c: tmp.clone(), raio: c.raio || 0 } }
+        const alvoK = THREE.MathUtils.clamp((perto ? Math.max(0, perto.d) : 50) * 0.05, 0.01, 2.5)
+        voo.k += (alvoK - voo.k) * Math.min(1, dt * 1.5)
+        const k = voo.k
+        if (viagem.ativa) {   // piloto automático (clicou num destino): a nave acompanha a câmera
+          voo.quat.copy(camera.quaternion); voo.vel.set(0, 0, 0)
+          voo.pos.copy(camera.position).add(new THREE.Vector3(0, -0.28, -1.6).multiplyScalar(k).applyQuaternion(camera.quaternion))
+        } else {
+          const T = (a) => teclas.has(a)
+          // acelerador: W sobe, S desce (segurando); X zera; espaço freia
+          if (T('w')) voo.acel = Math.min(1, voo.acel + dt * 0.6)
+          if (T('s')) voo.acel = Math.max(0, voo.acel - dt * 0.8)
+          const boost = T('shift')
+          // rotação: A/D guinada, ↑/↓ arfagem, ←/→ ou Q/E rolagem, mais o arrasto do mouse
+          const ent = new THREE.Vector3(
+            ((T('arrowdown') ? 1 : 0) - (T('arrowup') ? 1 : 0)) * 0.9 - (voo.arrasto?.dy || 0),
+            ((T('a') ? 1 : 0) - (T('d') ? 1 : 0)) * 0.9 - (voo.arrasto?.dx || 0),
+            ((T('q') || T('arrowleft') ? 1 : 0) - (T('e') || T('arrowright') ? 1 : 0)) * 1.4)
+          ent.clampScalar(-1.6, 1.6)
+          voo.w.lerp(ent, 1 - Math.exp(-dt * 3.5))
+          const dq = new THREE.Quaternion().setFromEuler(new THREE.Euler(voo.w.x * dt, voo.w.y * dt, voo.w.z * dt))
+          voo.quat.multiply(dq).normalize()
+          const frente = new THREE.Vector3(0, 0, -1).applyQuaternion(voo.quat)
+          const vMax = k * 22 * (boost ? 4 : 1)
+          const desejada = frente.clone().multiplyScalar(voo.acel * vMax)
+          if (T(' ')) { voo.vel.multiplyScalar(Math.exp(-dt * 3)); voo.acel = Math.max(0, voo.acel - dt * 1.5) }
+          else voo.vel.lerp(desejada, 1 - Math.exp(-dt * (boost ? 1.6 : 0.9)))   // inércia: a nave "escorrega" nas curvas
+          voo.pos.addScaledVector(voo.vel, dt)
+          // não atravessa planetas: empurra para fora e tira a velocidade que ia para dentro
+          if (perto && perto.raio) {
+            const n = voo.pos.clone().sub(perto.c), min = perto.raio * 1.004 + k * 0.6
+            if (n.length() < min) { n.normalize(); voo.pos.copy(perto.c).addScaledVector(n, min); const vn = voo.vel.dot(n); if (vn < 0) voo.vel.addScaledVector(n, -vn) }
+          }
+        }
+        nave.grupo.position.copy(voo.pos); nave.grupo.quaternion.copy(voo.quat); nave.grupo.scale.setScalar(k)
+        const velN = voo.vel.length()
+        nave.atualizar(dt, t, { empuxo: viagem.ativa ? 0.9 : voo.acel, boost: teclas.has('shift'), guinada: voo.w.y, arfagem: voo.w.x, rolagem: voo.w.z })
+        // câmera de perseguição (mola): atrás e um pouco acima; o horizonte gira junto quando a nave rola
+        if (!viagem.ativa) {
+          const atras = new THREE.Vector3(0, 0.3, 1.55 + Math.min(0.6, velN / Math.max(1e-6, k * 22) * 0.25)).multiplyScalar(k).applyQuaternion(voo.quat)
+          // a mola age no deslocamento em relação à nave (não na posição do mundo): em alta velocidade a câmera não fica para trás
+          if (!voo.camOff) voo.camOff = camera.position.clone().sub(voo.pos)
+          voo.camOff.lerp(atras, 1 - Math.exp(-dt * 6))
+          camera.position.copy(voo.pos).add(voo.camOff)
+          const upN = new THREE.Vector3(0, 1, 0).applyQuaternion(voo.quat)
+          voo.upCam.lerp(upN, 1 - Math.exp(-dt * 4)).normalize(); camera.up.copy(voo.upCam)
+          const olhar = voo.pos.clone().add(new THREE.Vector3(0, 0.12, -0.9).multiplyScalar(k).applyQuaternion(voo.quat))
+          camera.lookAt(olhar); controles.target.copy(olhar)
+          const near = Math.max(0.0008, k * 0.08)
+          if (Math.abs(camera.near - near) / near > 0.2) { camera.near = near; camera.updateProjectionMatrix() }
+        }
+        // dobra: com Shift e acelerador alto, linhas de luz e a lente abre
+        const acelerando = teclas.has('shift') && voo.acel > 0.6
+        const antes = dobraNave
+        dobraNave = acelerando ? Math.min(0.7, dobraNave + dt * 1.2) : Math.max(0, dobraNave - dt * 2)
+        if (!viagem.ativa && (dobraNave || antes)) { universo.dobra = dobraNave; camera.fov = 38 + dobraNave * 20; camera.updateProjectionMatrix() }
+        if (t - ultimoHud > 0.2) {
+          ultimoHud = t
+          acoesRef.current.aoHud?.({ vel: velN, perto, empuxo: voo.acel, dobra: dobraNave, escala: k })
         }
       }
-      const acelerando = teclas.has('shift') && (teclas.has('w') || teclas.has('arrowup'))
-      const antes = dobraNave
-      dobraNave = acelerando ? Math.min(0.7, dobraNave + dt * 1.5) : Math.max(0, dobraNave - dt * 2)
-      if (!viagem.ativa && (dobraNave || antes)) universo.dobra = dobraNave
-      controles.update()
+      if (!(voo.ativo && !viagem.ativa)) controles.update()   // no voo, quem posiciona a câmera é a perseguição
       renderer.render(cena, camera)
       // rótulos dos astros (no modo explorar)
       const caixaAstros = astrosRef.current
       if (caixaAstros && controles.maxDistance > 50) {
         const w = el.clientWidth, h = el.clientHeight
+        const cacheR = (caixaAstros._cache ||= new Map())
         for (const [k, c] of Object.entries(universo.corpos)) {
           if (k === 'terra') continue
-          let div = caixaAstros.querySelector(`[data-astro="${k}"]`)
+          let div = cacheR.get(k)
+          if (div && !div.isConnected) div = null
           if (!div) { div = document.createElement('div'); div.dataset.astro = k; div.className = 'absolute left-0 top-0 whitespace-nowrap rounded-md border border-white/15 bg-black/55 px-2 py-1 text-[11px] text-white backdrop-blur-sm transition-opacity'; const b = document.createElement('b'); b.textContent = c.nome; const sm = document.createElement('span'); sm.className = 'ml-1.5 text-white/60'; sm.textContent = c.distancia; div.append(b, sm); caixaAstros.appendChild(div) }
+          if (!cacheR.has(k) || cacheR.get(k) !== div) cacheR.set(k, div)
           c.obj.getWorldPosition(tmp)
           const dist = tmp.distanceTo(camera.position)
+          let extra = true
+          if (c.superficie) extra = dist < 3.2 && tmp.clone().normalize().dot(camera.position.clone().sub(tmp)) > 0   // atrás da Terra não aparece
+          else if (c.exo) extra = dist < 70 || foco.atual === k
           tmp.project(camera)
-          const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && dist > c.raio * 2.2
+          const vis = extra && tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && dist > c.raio * 2.2
           div.style.transform = `translate(${(tmp.x * 0.5 + 0.5) * w + 10}px, ${(-tmp.y * 0.5 + 0.5) * h - 12}px)`
           div.style.opacity = vis ? '1' : '0'
         }
-      } else if (caixaAstros && caixaAstros.childElementCount) caixaAstros.innerHTML = ''
+      } else if (caixaAstros && caixaAstros.childElementCount) { caixaAstros.innerHTML = ''; caixaAstros._cache?.clear() }
       // rótulos: posição na tela e escondidos quando estão atrás do globo
       if (rotulosRef.current) rotulosRef.current.style.opacity = controles.target.length() < 0.5 && camera.position.length() < 8 ? '1' : '0'
       if (rotulos.length) {
@@ -638,6 +759,8 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       clearTimeout(retomar)   // o "voltar a girar" não dispara depois de fechar a tela
       el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair); el.removeEventListener('dblclick', duplo)
       window.removeEventListener('keydown', tecla); window.removeEventListener('keyup', tecla); window.removeEventListener('blur', soltar)
+      el.removeEventListener('pointerdown', arrastoIni); window.removeEventListener('pointermove', arrastoMove); window.removeEventListener('pointerup', arrastoFim)
+      vivo = false; marcos.descartar(); exo?.descartar()
       universo.descartar(); sats.descartar()
       controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
@@ -680,7 +803,18 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     return () => document.removeEventListener('fullscreenchange', f)
   }, [])
   const alternarTelaCheia = () => { if (document.fullscreenElement) document.exitFullscreen?.(); else caixaRef.current?.requestFullscreen?.().catch(() => {}) }
-  const ficha = info ? INFO_ASTROS[info] : null
+  const fichaExo = (k) => {
+    const p = exoRef.current[k]; if (!p) return null
+    const n = (v, c = 1) => (v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: c }))
+    return { nome: p.pl_name, tipo: `${p.classe} · estrela ${p.hostname}${p.st_spectype ? ` (${p.st_spectype})` : ''}`,
+      dados: [['Distância', `${n(p.anos_luz)} anos-luz (${n(p.sy_dist, 2)} parsecs)`], ['Raio', p.pl_rade ? `${n(p.pl_rade, 2)} × a Terra` : '—'], ['Massa', p.pl_bmasse ? `${n(p.pl_bmasse, 1)} × a Terra` : '—'],
+        ['Ano do planeta', p.pl_orbper ? `${n(p.pl_orbper, 2)} dias` : '—'], ['Temperatura de equilíbrio', p.pl_eqt ? `${n(p.pl_eqt, 0)} K (${n(p.pl_eqt - 273.15, 0)} °C)` : '—'],
+        ['Temperatura da estrela', p.st_teff ? `${n(p.st_teff, 0)} K` : '—'], ['Descoberta', `${p.disc_year || '—'} · ${p.discoverymethod || '—'}`], ['Posição no céu', `AR ${n(p.ra, 2)}° · Dec ${n(p.dec, 2)}°`]],
+      historia: 'Dados do NASA Exoplanet Archive (parâmetros compostos). A aparência no globo é ilustrativa, escolhida pela classe do planeta; a direção no céu é a real e a distância está fora de escala.',
+      curiosidades: [`A luz da estrela ${p.hostname} leva cerca de ${n(p.anos_luz, 0)} anos para chegar até nós.`, p.discoverymethod === 'Transit' ? 'Descoberto pelo trânsito: a estrela fica um pouco mais fraca quando o planeta passa na frente.' : p.discoverymethod === 'Radial Velocity' ? 'Descoberto pela velocidade radial: o planeta faz a estrela "balançar" um pouco.' : `Método de descoberta: ${p.discoverymethod || 'não informado'}.`] }
+  }
+  const fichaLugar = (k) => { const m = MARCOS.find((x) => `lugar:${x[0]}` === k); return m && { nome: m[1], tipo: 'Lugar na Terra', dados: [['Latitude', `${m[2].toFixed(3).replace('.', ',')}°`], ['Longitude', `${m[3].toFixed(3).replace('.', ',')}°`]], historia: m[4], curiosidades: [m[0] === 'muralha' ? 'Mito comum: a muralha não é vista a olho nu da Lua nem da órbita baixa; ela é estreita e tem a cor do terreno.' : 'Coordenadas reais; o alfinete fica fora de escala para dar para achar.'] } }
+  const ficha = info ? INFO_ASTROS[info] || (info.startsWith('exo:') ? fichaExo(info) : info.startsWith('lugar:') ? fichaLugar(info) : null) : null
 
   const botao = 'flex h-8 w-8 items-center justify-center hover:bg-white/10'
   return (
@@ -710,9 +844,9 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       )}
       {explorar && nave && hud && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-4 rounded-lg border border-sky-300/20 bg-black/60 px-4 py-2 font-mono text-[11px] text-sky-100 backdrop-blur"> {/* marca: painel de voo da nave */}
-          <span>EMPUXO <b className="tabular-nums">{Math.round(Math.min(1.6, hud.empuxo) / 1.6 * 100)}%</b></span>
+          <span>ACELERADOR <b className="tabular-nums">{Math.round(hud.empuxo * 100)}%</b></span>
+          <span>VEL <b className="tabular-nums">{Math.round(hud.vel / Math.max(1e-6, hud.escala || 1) * 50).toLocaleString('pt-BR')}</b> m/s</span>
           <span>DOBRA <b className="tabular-nums">{Math.round(hud.dobra / 0.7 * 100)}%</b></span>
-          <span>VEL <b className="tabular-nums">{hud.vel < 10 ? hud.vel.toFixed(2) : Math.round(hud.vel)}</b> u/s</span>
           {hud.perto && <span>PERTO DE <b>{hud.perto.nome}</b></span>}
         </div>
       )}
@@ -722,12 +856,25 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
         <div className="absolute left-3 top-3 flex max-h-[calc(100%-3rem)] w-48 flex-col overflow-hidden rounded-lg border border-white/15 bg-black/60 text-white backdrop-blur"> {/* marca: painel flutua sobre o espaço */}
           <div className="flex items-center justify-between border-b border-white/15 px-3 py-2"><span className="text-xs font-semibold">Viajar para</span><button onClick={() => setExplorar(false)} aria-label="Sair do modo universo" className="rounded p-0.5 hover:bg-white/10"><X className="h-3.5 w-3.5" /></button></div>
           <div className="min-h-0 flex-1 overflow-y-auto py-1 [scrollbar-width:thin]">
-            {GRUPOS_ASTROS.map(([g, lista]) => (
+            <div className="px-2 pb-1 pt-1.5"><input value={buscaAstro} onChange={(e) => setBuscaAstro(e.target.value)} placeholder="Buscar astro ou lugar" aria-label="Buscar astro ou lugar" className="h-7 w-full rounded border border-white/15 bg-white/5 px-2 text-[11px] text-white placeholder:text-white/40" /></div>
+            {!buscaAstro && GRUPOS_ASTROS.map(([g, lista]) => (
               <div key={g}>
                 <p className="px-3 pb-0.5 pt-2 text-[9px] font-semibold uppercase tracking-wider text-white/45">{g}</p>
                 {lista.map((k) => <button key={k} onClick={() => { setTour(false); acoesRef.current.irPara?.(k) }} className={`flex w-full items-center gap-2 px-3 py-1 text-left text-xs hover:bg-white/10 ${info === k ? 'bg-white/15' : ''}`}><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: COR_ASTRO[k] }} />{INFO_ASTROS[k]?.nome || k}</button>)}
               </div>
             ))}
+            {(() => {
+              const q = buscaAstro.trim().toLowerCase()
+              const lugares = MARCOS.map(([k, nome]) => ({ k: `lugar:${k}`, nome, cor: '#f59e0b' })).filter((x) => !q || x.nome.toLowerCase().includes(q))
+              const exos = exoLista.map((x) => ({ k: x.k, nome: x.nome, sub: `${x.al < 100 ? x.al.toFixed(1).replace('.', ',') : Math.round(x.al)} a.l.`, cor: '#a78bfa' })).filter((x) => !q || x.nome.toLowerCase().includes(q))
+              const astros = q ? GRUPOS_ASTROS.flatMap(([, l]) => l).filter((k) => (INFO_ASTROS[k]?.nome || k).toLowerCase().includes(q)).map((k) => ({ k, nome: INFO_ASTROS[k]?.nome || k, cor: COR_ASTRO[k] })) : []
+              const bloco = (titulo, l) => l.length > 0 && (
+                <div key={titulo}>
+                  <p className="px-3 pb-0.5 pt-2 text-[9px] font-semibold uppercase tracking-wider text-white/45">{titulo}</p>
+                  {l.slice(0, q ? 60 : 400).map((x) => <button key={x.k} onClick={() => { setTour(false); acoesRef.current.irPara?.(x.k) }} className={`flex w-full items-center gap-2 px-3 py-1 text-left text-xs hover:bg-white/10 ${info === x.k ? 'bg-white/15' : ''}`}><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: x.cor }} /><span className="truncate">{x.nome}</span>{x.sub && <span className="ml-auto shrink-0 text-[10px] text-white/45">{x.sub}</span>}</button>)}
+                </div>)
+              return [bloco('Astros', astros), bloco('Lugares na Terra', lugares), bloco(`Exoplanetas · NASA (${exoLista.length})`, exos)]
+            })()}
           </div>
           <div className="space-y-2 border-t border-white/15 px-3 py-2">
             <div className="grid grid-cols-2 gap-1.5">
@@ -737,7 +884,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
             {tour && <button onClick={() => { acoesRef.current.irPara?.(ROTEIRO[passoTour.current % ROTEIRO.length]); passoTour.current += 1 }} className="flex w-full items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] hover:bg-white/10"><SkipForward className="h-3 w-3" />Próximo destino</button>}
             <label className="block text-[10px] text-white/70"><span className="flex items-center justify-between"><span className="flex items-center gap-1"><FastForward className="h-3 w-3" />Tempo</span><span className="tabular-nums">{tempo}×</span></span>
               <input type="range" min={0} max={6} step={1} value={[0, 1, 5, 20, 100, 500, 2000].indexOf(tempo)} onChange={(e) => setTempo([0, 1, 5, 20, 100, 500, 2000][Number(e.target.value)])} className="w-full accent-sky-400" aria-label="Velocidade do tempo" /></label>
-            {nave && <p className="text-[10px] leading-snug text-sky-200">W ou ↑ acelera · S freia/ré · A/D curva · Q/E desce e sobe · Shift dobra espacial · arraste para olhar · clique num destino para o piloto automático.</p>}
+            {nave && <p className="text-[10px] leading-snug text-sky-200">W/S acelerador · A/D guinada · ↑/↓ nariz · Q/E ou ←/→ rolagem · arraste para apontar · Espaço freia · X corta o motor · Shift turbo e dobra · clique num destino para o piloto automático. Velocidade pela escala da nave (50 m).</p>}
             {!nave && <p className="text-[10px] leading-snug text-white/55">Role para aproximar · dois cliques num astro para ir até ele. Direções reais; tamanhos fora de escala.</p>}
           </div>
         </div>

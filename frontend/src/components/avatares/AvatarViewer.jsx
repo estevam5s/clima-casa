@@ -26,7 +26,7 @@ const cache = new Map()   // id → Promise<gltf> (cada viewer clona a cena; o a
 
 export function carregarAvatar(id) {
   if (!cache.has(id)) {
-    cache.set(id, api.get(`/api/avatares/${id}/arquivo`).then(({ url }) => new Promise((ok, falha) => new GLTFLoader().load(url, ok, undefined, falha))).catch((e) => { cache.delete(id); throw e }))
+    cache.set(id, api.get(`/api/avatares/${id}/arquivo`).then(({ url, ...meta }) => new Promise((ok, falha) => new GLTFLoader().load(url, (g) => { g.meta = meta; ok(g) }, undefined, falha))).catch((e) => { cache.delete(id); throw e }))
   }
   return cache.get(id)
 }

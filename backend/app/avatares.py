@@ -48,16 +48,42 @@ def garantir_bucket():
 
 
 def listar() -> list[dict]:
-    return db.consultar("SELECT id, nome, descricao, origem, licenca, estado, tamanho, info, criado_em FROM avatares ORDER BY criado_em DESC")
+    return db.consultar("SELECT id, nome, descricao, origem, licenca, estado, tamanho, info, criado_em, especie, escala_real, parametros IS NOT NULL AS editavel "
+                        "FROM avatares ORDER BY criado_em DESC")
 
 
-def preparar_envio(nome: str, descricao: str, origem: str, licenca: str, tamanho: int, autor: str) -> dict:
+ESPECIES = ("pessoa", "cao", "gato", "outro")
+
+
+def receita(aid: int) -> dict | None:
+    a = db.um("SELECT parametros FROM avatares WHERE id = ?", (aid,))
+    return a["parametros"] if a else None
+
+
+def editar(aid: int, d: dict) -> dict:
+    campos = {k: v for k, v in d.items() if k in ("nome", "descricao", "origem", "licenca", "especie") and v is not None}
+    if not campos:
+        raise ValueError("Nada para mudar.")
+    if "especie" in campos and campos["especie"] not in ESPECIES:
+        raise ValueError("Espécie inválida.")
+    sets = ", ".join(f"{k} = ?" for k in campos)   # chaves de uma lista fechada
+    db.executar(f"UPDATE avatares SET {sets} WHERE id = ?", (*campos.values(), aid))  # nosec B608
+    return db.um("SELECT id, nome, descricao, origem, licenca, estado, tamanho, info, criado_em, especie, escala_real FROM avatares WHERE id = ?", (aid,))
+
+
+def preparar_envio(nome: str, descricao: str, origem: str, licenca: str, tamanho: int, autor: str,
+                   especie: str = "pessoa", parametros: dict | None = None, escala_real: bool = False, substituir: int | None = None) -> dict:
     if tamanho <= 0 or tamanho > LIMITE_BYTES:
         raise ValueError(f"O arquivo precisa ter até {LIMITE_BYTES // 1024 // 1024} MB.")
     garantir_bucket()
     caminho = f"{secrets.token_hex(8)}.glb"
-    aid = db.um("INSERT INTO avatares (nome, descricao, origem, licenca, arquivo, tamanho, estado, criado_em, criado_por) "
-                "VALUES (?,?,?,?,?,?, 'enviando', ?, ?) RETURNING id", (nome, descricao, origem, licenca, caminho, tamanho, db.agora(), autor))["id"]
+    if especie not in ESPECIES:
+        raise ValueError("Espécie inválida.")
+    if parametros is not None and len(json.dumps(parametros)) > 400_000:
+        raise ValueError("A receita do modelo passou de 400 KB.")
+    aid = db.um("INSERT INTO avatares (nome, descricao, origem, licenca, arquivo, tamanho, estado, criado_em, criado_por, especie, parametros, escala_real) "
+                "VALUES (?,?,?,?,?,?, 'enviando', ?, ?, ?, CAST(? AS jsonb), ?) RETURNING id",
+                (nome, descricao, origem, licenca, caminho, tamanho, db.agora(), autor, especie, json.dumps(parametros) if parametros is not None else None, 1 if escala_real else 0))["id"]
     url = db.ENV["SUPABASE_URL"]
     r = httpx.post(f"{url}/storage/v1/object/upload/sign/{BUCKET}/{caminho}", headers=_cab(), timeout=10, json={})
     if r.status_code >= 300:
@@ -122,6 +148,10 @@ def confirmar(aid: int) -> dict:
     except Exception as e:
         apagar(aid)
         raise ValueError(str(e)) from e
+
+
+def meta(aid: int) -> dict:
+    return db.um("SELECT especie, escala_real FROM avatares WHERE id = ?", (aid,)) or {}
 
 
 def endereco(aid: int) -> str:

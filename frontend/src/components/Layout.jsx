@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, AirVent, BarChart3, Blinds, BookOpen, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X } from 'lucide-react'
+import { Activity, AirVent, BarChart3, Blinds, BookOpen, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
 import Notificacoes, { useCentral } from './Notificacoes'
 import Atalhos from './Atalhos'
 import NovidadesModal from './Novidades'
+import TermoAceite from './TermoAceite'
 import { siteComSessao } from '../site'
 import { Avatar } from './config/Perfil'
 import { useTema } from '../tema'
@@ -51,6 +52,7 @@ export const GRUPOS = [
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
     { para: '/guia', rotulo: 'Passo a passo', icone: BookOpen },
+    { para: '/treinamento', rotulo: 'Treinamento de segurança', icone: GraduationCap },
     { para: '/novidades', rotulo: 'Novidades', icone: Megaphone },
   ] },
 ]
@@ -64,7 +66,7 @@ const CHAVES = {
   '/alexa': 'skill', '/supabase': 'banco dados tabelas sql backup', '/infra': 'vercel cloudflare dns agentes raspberry pi computador servidor',
   '/atividade': 'historico log eventos', '/seguranca': 'firewall conformidade iso 27001 ips ataques', '/mensagens': 'contato site',
   '/configuracoes': 'usuarios contas perfil marca senha 2fa', '/apps': 'android desktop windows mac download', '/guia': 'ajuda manual tutorial',
-  '/novidades': 'versoes changelog atualizacoes', '/rede': 'speedtest velocidade internet wifi download upload ping latencia jitter', '/cafeteira': 'cafe capsula copa tomada dolce', '/persianas': 'cortina janela sol', '/fechadura': 'porta tranca chave entrada', '/avatares': 'personagem boneco glb modelo 3d animacao sims',
+  '/novidades': 'versoes changelog atualizacoes', '/rede': 'speedtest velocidade internet wifi download upload ping latencia jitter', '/cafeteira': 'cafe capsula copa tomada dolce', '/persianas': 'cortina janela sol', '/fechadura': 'porta tranca chave entrada', '/avatares': 'personagem boneco glb modelo 3d animacao sims', '/treinamento': 'curso prova conscientizacao iso phishing',
 }
 const semAcento = (t) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 function lerFechados() { try { return JSON.parse(localStorage.getItem('clima-menu-fechados') || '[]') } catch { return [] } }
@@ -535,6 +537,7 @@ export default function Layout() {
         </header>
         <Banner />
         <NovidadesModal />
+        <TermoAceite />
         <main className="w-full px-4 pb-16 pt-6 sm:px-6 lg:px-8 2xl:px-10">
           <motion.div key={local.pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
       <Atalhos />

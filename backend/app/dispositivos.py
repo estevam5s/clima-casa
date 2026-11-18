@@ -45,7 +45,16 @@ def _linha(d: dict) -> dict:
     d["funcoes"] = _j(d.get("funcoes"), [])
     d["estado"] = _j(d.get("estado"), {})
     d["config"] = {**PADRAO_CONFIG.get(d["tipo"], {}), **_j(d.get("config"), {})}
-    d["conectado"] = bool(d.get("tuya_id"))
+    d["fila"] = _j(d.get("fila"), [])
+    d["info_placa"] = _j(d.get("info_placa"), {})
+    d["placa_configurada"] = bool(d.get("token_hash"))
+    d.pop("token_hash", None)
+    if d.get("driver") == "placa":   # placa própria: conectada quando já falou com o servidor; online se falou há < 20 s (ela sincroniza a cada 3 s)
+        d["conectado"] = bool(d.get("ultimo_contato"))
+        d["online"] = 1 if d.get("ultimo_contato") and db.agora() - int(d["ultimo_contato"]) < 20 else 0
+        d["visto_em"] = d.get("ultimo_contato")
+    else:
+        d["conectado"] = bool(d.get("tuya_id"))
     d["resumo"] = resumo(d)
     return d
 
@@ -89,7 +98,7 @@ def _ler_status(tuya_id: str) -> dict:
 
 def atualizar(did: int) -> dict:
     d = um(did)
-    if not d["tuya_id"]:
+    if d.get("driver") == "placa" or not d["tuya_id"]:   # placa própria manda o estado sozinha
         return d
     try:
         st = _ler_status(d["tuya_id"])
@@ -110,6 +119,13 @@ def atualizar(did: int) -> dict:
 def resumo(d: dict) -> dict:
     """Estado legível a partir dos códigos-padrão Tuya de cada categoria (o que não vier fica None)."""
     st, t = d.get("estado") or {}, d["tipo"]
+    if d.get("driver") == "placa":   # a placa já manda os nomes do sistema
+        if t == "cafeteira":
+            return {"ligada": st.get("ligada"), "potencia_w": st.get("potencia_w"), "tensao_v": None}
+        if t == "persiana":
+            return {"posicao": st.get("posicao"), "movimento": st.get("movimento")}
+        if t == "fechadura":
+            return {"trancada": st.get("trancada"), "porta_aberta": st.get("porta_aberta"), "bateria": st.get("bateria"), "alarme": st.get("alarme")}
     if t == "cafeteira":
         lig = next((st[k] for k in ("switch_1", "switch") if k in st), None)
         pot = st.get("cur_power")
@@ -151,8 +167,22 @@ def _cmds(d: dict, acao: str, valor) -> list[dict]:
     raise RuntimeError("Ação não reconhecida para este aparelho.")
 
 
+ACOES_PLACA = {"cafeteira": {"ligar", "desligar"}, "persiana": {"abrir", "fechar", "parar", "posicao"}, "fechadura": {"trancar", "destrancar"}}
+
+
 def comando(did: int, acao: str, valor=None, origem: str = "painel") -> dict:
     d = um(did)
+    if d.get("driver") == "placa":   # entra na fila; a placa busca em até ~2 s e confirma
+        if not d["placa_configurada"]:
+            raise RuntimeError(f"{d['nome']} ainda não tem placa configurada. Gere o código da placa em Conectar aparelho → Placa própria.")
+        if acao not in ACOES_PLACA[d["tipo"]]:
+            raise RuntimeError("Ação não vale para este aparelho.")
+        import secrets
+        fila = (d["fila"] + [{"id": secrets.token_hex(4), "acao": acao, "valor": valor, "em": db.agora()}])[-20:]
+        db.executar("UPDATE dispositivos SET fila = CAST(? AS jsonb) WHERE id = ?", (json.dumps(fila), did))
+        evento(did, _rotulo(acao, valor), origem, True, "enviado à placa" + ("" if d["online"] else " (offline: executa quando ela voltar)"))
+        db.registrar(origem, f"{d['nome']}: {_rotulo(acao, valor)}", detalhe=f"{d['tipo']} · placa {d.get('placa') or ''}")
+        return um(did)
     if not d["tuya_id"]:
         raise RuntimeError(f"{d['nome']} ainda não tem aparelho conectado. Pareie no Smart Life e importe em {d['tipo'].capitalize()} → Conectar aparelho.")
     from . import tuya_nuvem
@@ -172,6 +202,56 @@ def comando(did: int, acao: str, valor=None, origem: str = "painel") -> dict:
 def _rotulo(acao, valor) -> str:
     return {"ligar": "Ligou", "desligar": "Desligou", "abrir": "Abriu", "fechar": "Fechou", "parar": "Parou", "trancar": "Trancou",
             "destrancar": "Destrancou", "posicao": f"Posição {valor}%"}.get(acao, acao)
+
+
+# ---------------- placa própria (Arduino / ESP) ----------------
+PLACAS = {"uno_r4_wifi": "Arduino UNO R4 WiFi", "giga_r1_wifi": "Arduino GIGA R1 WiFi", "nano_33_iot": "Arduino Nano 33 IoT",
+          "mkr_wifi_1010": "Arduino MKR WiFi 1010", "nano_esp32": "Arduino Nano ESP32", "esp32": "ESP32 (DevKit)", "esp8266": "ESP8266 (NodeMCU / Wemos D1)",
+          "opta_wifi": "Arduino Opta WiFi", "portenta_h7": "Arduino Portenta H7"}
+
+
+def _hash(token: str) -> str:
+    import hashlib
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def gerar_token_placa(did: int, placa: str) -> dict:
+    """Liga o aparelho a uma placa própria. O token aparece uma vez (no banco fica só o hash); gerar de novo invalida o anterior."""
+    import secrets
+    if placa not in PLACAS:
+        raise ValueError("Placa não suportada.")
+    um(did)
+    token = "cp_" + secrets.token_urlsafe(32)
+    db.executar("UPDATE dispositivos SET driver = 'placa', placa = ?, token_hash = ?, ultimo_contato = NULL, fila = '[]'::jsonb WHERE id = ?", (placa, _hash(token), did))
+    evento(did, f"Placa configurada: {PLACAS[placa]}", "painel")
+    return {"token": token, "placa": placa, "nome_placa": PLACAS[placa]}
+
+
+def voltar_para_tuya(did: int) -> dict:
+    db.executar("UPDATE dispositivos SET driver = 'tuya', token_hash = NULL, ultimo_contato = NULL, fila = '[]'::jsonb WHERE id = ?", (did,))
+    evento(did, "Placa desligada do sistema", "painel")
+    return um(did)
+
+
+def sincronizar(token: str, corpo: dict) -> dict | None:
+    """Chamado pela placa a cada ~2 s: grava o estado que ela mandou, tira da fila o que ela confirmou e devolve o resto."""
+    if not token.startswith("cp_"):
+        return None
+    d = db.um("SELECT id, tipo, fila, estado, nome, info_placa FROM dispositivos WHERE token_hash = ? AND driver = 'placa'", (_hash(token),))
+    if not d:
+        return None
+    fila = _j(d["fila"], [])
+    feitos = {str(x) for x in (corpo.get("feitos") or [])[:50]}
+    resto = [c for c in fila if c["id"] not in feitos]
+    estado = corpo.get("estado") if isinstance(corpo.get("estado"), dict) else _j(d["estado"], {})
+    estado = {k: v for k, v in list(estado.items())[:20] if isinstance(k, str) and len(k) <= 30 and isinstance(v, (bool, int, float, str, type(None)))}
+    info = {**_j(d.get("info_placa"), {}), **{k: corpo.get(k) for k in ("firmware", "placa", "rssi", "ip", "uptime_s", "heap") if corpo.get(k) is not None}}
+    db.executar("UPDATE dispositivos SET estado = CAST(? AS jsonb), fila = CAST(? AS jsonb), info_placa = CAST(? AS jsonb), ultimo_contato = ?, online = 1 WHERE id = ?",
+                (json.dumps(estado), json.dumps(resto), json.dumps(info, default=str)[:2000], db.agora(), d["id"]))
+    for c in fila:
+        if c["id"] in feitos:
+            evento(d["id"], f"{_rotulo(c['acao'], c.get('valor'))} (confirmado pela placa)", "placa", True)
+    return {"comandos": [{"id": c["id"], "acao": c["acao"], "valor": c.get("valor")} for c in resto], "intervalo_ms": 3000, "hora": db.agora()}
 
 
 # ---------------- importar da conta Smart Life ----------------
@@ -213,7 +293,7 @@ def ciclo(contador: int = 0):
     agora = datetime.datetime.now()
     dia = agora.isoweekday()   # 1 = segunda
     for d in listar():
-        if not d["tuya_id"]:
+        if not d["conectado"] and not d.get("placa_configurada"):
             continue
         cfg = d["config"]
         try:

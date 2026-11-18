@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CalendarClock, Link2, Plug, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { api, haQuanto } from '../../api'
+import Placa from './Placa'
 import { Aviso, Botao, Modal, Selo, useDados, useToast } from '../ui'
 
 // Partes comuns da cafeteira, das persianas e da fechadura (aparelhos Tuya / Smart Life).
@@ -19,7 +20,7 @@ export function Estado({ d }) {
 export function SemAparelho({ d, aoConectar }) {
   return (
     <Aviso tipo="alerta">
-      <b>{d.nome}</b> ainda não tem aparelho conectado: o que aparece aqui é só o cadastro, nenhum comando sai. Para controlar de verdade, use {HARDWARE[d.tipo]}, pareie no app Smart Life (mesma conta já conectada ao sistema) e depois{' '}
+      <b>{d.nome}</b> ainda não tem aparelho conectado: o que aparece aqui é só o cadastro, nenhum comando sai. Para controlar de verdade, use {HARDWARE[d.tipo]} (pareie no app Smart Life, a mesma conta já conectada ao sistema) ou uma <b>placa própria</b> (Arduino UNO R4 WiFi, GIGA R1 WiFi, Opta, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, ESP32 ou ESP8266) com relé. Depois,{' '}
       <button onClick={aoConectar} className="font-medium underline">conecte aqui</button>.
     </Aviso>
   )
@@ -30,13 +31,19 @@ export function ConectarAparelho({ d, aberto, aoFechar, aoConectar }) {
   const toast = useToast()
   const { dados, erro, recarregar } = useDados(() => (aberto ? api.get('/api/dispositivos/disponiveis') : Promise.resolve(null)), [aberto])
   const [ocupado, setOcupado] = useState('')
+  const [aba, setAba] = useState(d.driver === 'placa' ? 'placa' : 'tuya')
   const lista = (dados?.aparelhos || []).filter((a) => a.tipo === d.tipo)
   const conectar = async (tid) => {
     setOcupado(tid)
     try { aoConectar(await api.post(`/api/dispositivos/${d.id}/conectar`, { tuya_id: tid })); toast('Aparelho conectado.'); aoFechar() } catch (e) { toast(e.message, 'erro') } finally { setOcupado('') }
   }
   return (
-    <Modal aberto={aberto} titulo={`Conectar aparelho · ${d.nome}`} onFechar={aoFechar}>
+    <Modal aberto={aberto} titulo={`Conectar aparelho · ${d.nome}`} onFechar={aoFechar} largura="max-w-3xl">
+      <div className="mb-4 flex gap-1 rounded-lg border border-border p-0.5" role="tablist">
+        {[['tuya', 'Aparelho Smart Life (Tuya)'], ['placa', 'Placa própria (Arduino / ESP)']].map(([k, r]) => (
+          <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)} className={`flex-1 rounded-md px-3 py-1.5 text-sm ${aba === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}>{r}</button>))}
+      </div>
+      {aba === 'placa' ? <Placa d={d} aoMudar={aoConectar} /> : (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">Aparelhos da conta Smart Life conectada que servem para {d.tipo === 'cafeteira' ? 'a cafeteira (tomadas)' : d.tipo === 'persiana' ? 'persianas (motores de cortina)' : 'a porta (fechaduras)'}.</p>
         {erro && <Aviso>{erro}</Aviso>}
@@ -50,7 +57,7 @@ export function ConectarAparelho({ d, aberto, aoFechar, aoConectar }) {
           </li>))}
         </ul>
         <Botao variante="secundario" icone={RefreshCw} onClick={recarregar}>Procurar de novo</Botao>
-      </div>
+      </div>)}
     </Modal>
   )
 }

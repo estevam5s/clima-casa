@@ -41,6 +41,7 @@ import Cafeteira from './pages/Cafeteira'
 import Persianas from './pages/Persianas'
 import Fechadura from './pages/Fechadura'
 import Avatares from './pages/Avatares'
+import Treinamento from './pages/Treinamento'
 import Emails from './pages/Emails'
 
 function Protegido({ children }) {
@@ -127,6 +128,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="persianas" element={<Persianas />} />
             <Route path="fechadura" element={<Fechadura />} />
             <Route path="avatares" element={<Avatares />} />
+            <Route path="treinamento" element={<Treinamento />} />
             <Route path="emails" element={<Emails />} />
             <Route path="configuracoes" element={<Configuracoes />} />
             <Route path="*" element={<NaoEncontrado />} />

@@ -248,6 +248,22 @@ def op_rede_teste(a):   # teste de velocidade da internet do escritório + tempo
 OPS["rede_teste"] = op_rede_teste
 
 
+def op_seguranca_testes(a):   # lote de testes de segurança ao vivo (testes_seguranca.py); demora 1 a 3 min
+    from . import testes_seguranca
+    return testes_seguranca.executar(a)
+
+
+OPS["seguranca_testes"] = op_seguranca_testes
+
+
+def op_rede_diagnostico(a):
+    from . import rede
+    return rede.diagnostico(a)
+
+
+OPS["rede_diagnostico"] = op_rede_diagnostico
+
+
 def executar(op: str, args: dict):
     if op.startswith("cf_"):           # Cloudflare (cloudflare.py): mesmo caminho, token próprio no .env do agente
         from . import cloudflare

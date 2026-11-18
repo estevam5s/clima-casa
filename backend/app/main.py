@@ -88,7 +88,8 @@ async def cabecalhos(request: Request, chamar):
         return resp
     # Firewall: listas de IP, país, assinaturas de ataque e limite de taxa (só nas rotas dinâmicas)
     dinamica = request.url.path.startswith(("/api/", "/oauth/", "/alexa/"))
-    if dinamica:
+    de_teste = dinamica and request.headers.get("x-clima-teste") and firewall.pedido_de_teste(request)   # testes ao vivo do próprio sistema
+    if dinamica and not de_teste:
         firewall.definir_contexto(request)
         barrado = await asyncio.to_thread(firewall.verificar, request)
         if barrado:
@@ -99,7 +100,7 @@ async def cabecalhos(request: Request, chamar):
         if origem and origem.split("://", 1)[-1] != request.headers.get("host"):
             return JSONResponse({"detail": "Origem não permitida."}, status_code=403)
     resp = await chamar(request)
-    if dinamica and resp.status_code in (401, 403):
+    if dinamica and resp.status_code in (401, 403) and not de_teste:
         await asyncio.to_thread(firewall.depois, request, resp.status_code)
     elif dinamica and resp.status_code < 400 and firewall.config().get("ativo"):
         await asyncio.to_thread(firewall.registrar_acesso, request, resp.status_code)
@@ -140,6 +141,7 @@ app.include_router(rotas_infra.rotas_infra)
 app.include_router(rotas_correio.publico_email)
 app.include_router(rotas_correio.rotas_email)
 app.include_router(rotas_alexa.roteador)
+app.include_router(rotas_dispositivos.publico_iot)
 app.include_router(rotas_dispositivos.rotas_disp)
 
 

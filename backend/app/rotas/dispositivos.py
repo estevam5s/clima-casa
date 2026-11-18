@@ -14,6 +14,7 @@ from .. import acesso, db, dispositivos
 from ..seguranca import exigir_login
 
 rotas_disp = APIRouter(prefix="/api", dependencies=[Depends(exigir_login)])
+publico_iot = APIRouter(prefix="/api")   # só a sincronização das placas (autenticada pelo token da placa)
 
 
 def _escopo() -> tuple[str, tuple]:
@@ -119,6 +120,63 @@ def conectar(did: int, d: ConectarIn):
         return dispositivos.conectar(did, d.tuya_id)
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e).strip("'")) from e
+
+
+class PlacaIn(BaseModel):
+    placa: str = Field(pattern=r"^[a-z0-9_]{3,30}$")
+
+
+@rotas_disp.post("/dispositivos/{did}/placa")
+def configurar_placa(did: int, d: PlacaIn):
+    """Liga o aparelho a uma placa própria (Arduino/ESP) e devolve o token UMA vez, para colar no código da placa."""
+    atual = _pegar(did)
+    if atual["tipo"] == "fechadura":
+        _so_dono_admin()
+    try:
+        r = dispositivos.gerar_token_placa(did, d.placa)
+    except (ValueError, KeyError) as e:
+        raise HTTPException(400, str(e).strip("'")) from e
+    db.registrar("painel", f"{atual['nome']}: placa própria configurada", detalhe=r["nome_placa"])
+    return {**r, "dispositivo": dispositivos.um(did)}
+
+
+@rotas_disp.post("/dispositivos/{did}/tuya")
+def voltar_tuya(did: int):
+    atual = _pegar(did)
+    if atual["tipo"] == "fechadura":
+        _so_dono_admin()
+    return dispositivos.voltar_para_tuya(did)
+
+
+@rotas_disp.get("/dispositivos/placas")
+def placas():
+    return {"placas": dispositivos.PLACAS}
+
+
+class SincIn(BaseModel):
+    estado: dict = Field(default_factory=dict)
+    feitos: list[str] = Field(default_factory=list, max_length=50)
+    firmware: str | None = Field(None, max_length=40)
+    placa: str | None = Field(None, max_length=40)
+    rssi: int | None = Field(None, ge=-150, le=0)
+    ip: str | None = Field(None, max_length=45)
+    uptime_s: int | None = Field(None, ge=0)
+    heap: int | None = Field(None, ge=0)
+
+
+@publico_iot.post("/iot/sincronizar")
+def sincronizar(d: SincIn, request: Request):
+    """Placa Arduino/ESP: manda o estado e recebe os comandos pendentes. Token no cabeçalho Authorization: Bearer cp_…"""
+    from .. import firewall
+    ip = firewall.ip_do_pedido(request)
+    tok = (request.headers.get("authorization") or "").removeprefix("Bearer ").strip()
+    if firewall.falhas_recentes(ip, ("iot_token",), 10) >= 20:
+        raise HTTPException(429, "Muitas tentativas com token inválido.")
+    r = dispositivos.sincronizar(tok, d.model_dump()) if tok else None
+    if r is None:
+        firewall.registrar(ip, "iot_token", "/api/iot/sincronizar", "token de placa inválido")
+        raise HTTPException(401, "Token da placa inválido. Gere outro no painel.")
+    return r
 
 
 class ComandoIn(BaseModel):

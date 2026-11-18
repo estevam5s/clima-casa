@@ -160,3 +160,214 @@ def testar_agente(_a=None) -> dict:
     except Exception:  # noqa: BLE001
         r["ip_local"] = None
     return _gravar(r)
+
+
+# ---------- diagnóstico completo pelo agente (op `rede_diagnostico`) ----------
+# Serviços que o sistema usa de verdade: o tempo para abrir a conexão (TCP) mostra onde a rede do escritório engasga.
+SERVICOS = [
+    ("Painel (Vercel)", "app.zynio.com.br", 443), ("Banco (Supabase)", "aws-0-us-east-2.pooler.supabase.com", 6543),
+    ("Alexa (Sinric Pro)", "ws.sinric.pro", 443), ("Smart Life (Tuya)", "openapi.tuyaus.com", 443),
+    ("Spotify", "api.spotify.com", 443), ("E-mail (Resend)", "api.resend.com", 443), ("Cloudflare", "1.1.1.1", 443),
+    ("Google", "8.8.8.8", 443), ("GitHub", "github.com", 443), ("Medição (speed.cloudflare.com)", "speed.cloudflare.com", 443),
+]
+RESOLVEDORES = [("Cloudflare", "https://cloudflare-dns.com/dns-query"), ("Google", "https://dns.google/resolve"), ("Quad9", "https://dns.quad9.net:5053/dns-query")]
+NOMES_DNS = ["app.zynio.com.br", "ws.sinric.pro", "openapi.tuyaus.com", "api.spotify.com", "github.com"]
+
+
+def _rodar(cmd: list[str], limite: float = 25) -> str:
+    import subprocess
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=limite, errors="replace").stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _tcp(host: str, porta: int, n: int = 5) -> dict:
+    ms, falhas = [], 0
+    for _ in range(n):
+        t0 = time.perf_counter()
+        try:
+            with socket.create_connection((host, porta), timeout=3):
+                ms.append((time.perf_counter() - t0) * 1000)
+        except OSError:
+            falhas += 1
+        time.sleep(0.05)
+    if not ms:
+        return {"ok": False, "falhas": falhas}
+    return {"ok": True, "med": round(statistics.median(ms), 1), "min": round(min(ms), 1), "max": round(max(ms), 1), "falhas": falhas}
+
+
+def _gateway() -> str | None:
+    import platform
+    so = platform.system()
+    if so == "Darwin":
+        m = re.search(r"gateway:\s*(\S+)", _rodar(["route", "-n", "get", "default"], 5))
+    elif so == "Linux":
+        m = re.search(r"default via (\S+)", _rodar(["ip", "route"], 5))
+    else:
+        m = re.search(r"0\.0\.0\.0\s+0\.0\.0\.0\s+(\d+\.\d+\.\d+\.\d+)", _rodar(["route", "print", "-4"], 8))
+    return m.group(1) if m else None
+
+
+def _ping(ip: str, n: int = 6) -> dict:
+    import platform
+    win = platform.system() == "Windows"
+    out = _rodar(["ping", "-n" if win else "-c", str(n), "-w" if win else "-W", "1000" if win else ("1000" if platform.system() == "Darwin" else "1"), ip], 20)
+    tempos = [float(x) for x in re.findall(r"(?:time|tempo)[=<]\s*([\d.]+)", out)]
+    return {"enviados": n, "recebidos": len(tempos), "perda_pct": round((n - len(tempos)) / n * 100), "med": round(statistics.median(tempos), 1) if tempos else None,
+            "max": round(max(tempos), 1) if tempos else None}
+
+
+def _traceroute(destino: str = "1.1.1.1") -> list[dict]:
+    import platform
+    if platform.system() == "Windows":
+        out = _rodar(["tracert", "-d", "-h", "15", "-w", "800", destino], 40)
+        saltos = []
+        for ln in out.splitlines():
+            m = re.match(r"\s*(\d+)\s+(.+?)\s+(\d+\.\d+\.\d+\.\d+|\*)\s*$", ln)
+            if m:
+                ms = re.findall(r"<?(\d+) ms", m.group(2))
+                saltos.append({"n": int(m.group(1)), "ip": None if m.group(3) == "*" else m.group(3), "ms": float(ms[0]) if ms else None})
+        return saltos
+    out = _rodar(["traceroute", "-n", "-q", "1", "-w", "1", "-m", "15", destino], 40)
+    saltos = []
+    for ln in out.splitlines()[1:] if out.startswith("traceroute") else out.splitlines():
+        m = re.match(r"\s*(\d+)\s+(\S+)(?:\s+([\d.]+) ms)?", ln)
+        if m:
+            saltos.append({"n": int(m.group(1)), "ip": None if m.group(2) == "*" else m.group(2), "ms": float(m.group(3)) if m.group(3) else None})
+    return saltos
+
+
+def _vizinhos() -> list[dict]:
+    """Tabela ARP: aparelhos que este computador viu na rede local (não varre a rede; só lê o que o sistema já sabe)."""
+    import platform
+    out = _rodar(["arp", "-a"] if platform.system() == "Windows" else ["arp", "-an"], 8)
+    vistos = {}
+    for ln in out.splitlines():
+        ip = re.search(r"\(?(\d+\.\d+\.\d+\.\d+)\)?", ln)
+        mac = re.search(r"([0-9a-fA-F]{1,2}[:-]){5}[0-9a-fA-F]{1,2}", ln)
+        if ip and mac and not ip.group(1).endswith(".255") and not ip.group(1).startswith(("224.", "239.")):
+            m = mac.group(0).lower().replace("-", ":")
+            if m not in ("ff:ff:ff:ff:ff:ff",):
+                vistos[ip.group(1)] = m
+    hubs = {h["ip"]: h["nome"] for h in db.consultar("SELECT nome, ip FROM hubs WHERE ip <> ''")}
+    return [{"ip": ip, "mac": mac, "transmissor": hubs.get(ip)} for ip, mac in sorted(vistos.items(), key=lambda x: tuple(int(p) for p in x[0].split(".")))]
+
+
+def _wifi() -> dict | None:
+    import platform
+    so = platform.system()
+    if so == "Linux":
+        out = _rodar(["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,FREQ,RATE", "dev", "wifi"], 8)
+        for ln in out.splitlines():
+            p = ln.split(":")
+            if p and p[0] in ("yes", "sim"):
+                return {"rede": p[1], "sinal_pct": int(p[2]) if p[2].isdigit() else None, "frequencia": p[3] if len(p) > 3 else None, "taxa": p[4] if len(p) > 4 else None}
+        return None
+    if so == "Windows":
+        out = _rodar(["netsh", "wlan", "show", "interfaces"], 8)
+        g = lambda k: (re.search(rf"^\s*{k}\s*:\s*(.+)$", out, re.M) or [None, None])[1]  # noqa: E731
+        sinal = g("(?:Signal|Sinal)")
+        return {"rede": g("SSID"), "sinal_pct": int(re.sub(r"\D", "", sinal)) if sinal else None, "frequencia": g("(?:Band|Banda)"), "taxa": g("(?:Receive rate|Taxa de recep..o).*?")} if out else None
+    if so == "Darwin":
+        out = _rodar(["system_profiler", "SPAirPortDataType"], 20)
+        m = re.search(r"Current Network Information:\s*\n\s*(.+?):\s*\n(.*?)(?:\n\s*Other Local|\Z)", out, re.S)
+        if not m:
+            return None
+        bloco = m.group(2)
+        sinal = re.search(r"Signal / Noise:\s*(-?\d+) dBm / (-?\d+) dBm", bloco)
+        canal = re.search(r"Channel:\s*(.+)", bloco)
+        taxa = re.search(r"Transmit Rate:\s*(\d+)", bloco)
+        return {"rede": m.group(1).strip(), "sinal_dbm": int(sinal.group(1)) if sinal else None, "ruido_dbm": int(sinal.group(2)) if sinal else None,
+                "frequencia": canal.group(1).strip() if canal else None, "taxa": f"{taxa.group(1)} Mbps" if taxa else None}
+    return None
+
+
+def diagnostico(_a=None) -> dict:
+    """Roda no agente: IP público (v4 e v6), roteador, Wi-Fi, DNS do sistema e por DoH, serviços usados pelo sistema,
+    caminho até a internet (traceroute) e os aparelhos vistos na rede local. 20 a 50 s; cada parte que falhar fica None."""
+    import concurrent.futures as cf
+    import httpx
+    r: dict = {"quando": db.agora(), "computador": socket.gethostname().split(".")[0]}
+    def ip_publico(fam):
+        try:
+            url = "https://1.1.1.1/cdn-cgi/trace" if fam == 4 else "https://[2606:4700:4700::1111]/cdn-cgi/trace"
+            t = httpx.get(url, timeout=5).text
+            kv = dict(x.split("=", 1) for x in t.splitlines() if "=" in x)
+            return {"ip": kv.get("ip"), "colo": kv.get("colo"), "pais": kv.get("loc"), "tls": kv.get("tls"), "http": kv.get("http")}
+        except (httpx.HTTPError, OSError):
+            return None
+    def dns_sistema():
+        out = []
+        for n in NOMES_DNS:
+            t0 = time.perf_counter()
+            try:
+                ips = {a[4][0] for a in socket.getaddrinfo(n, 443, proto=socket.IPPROTO_TCP)}
+                out.append({"nome": n, "ms": round((time.perf_counter() - t0) * 1000, 1), "ips": sorted(ips)[:4]})
+            except OSError as e:
+                out.append({"nome": n, "ms": None, "erro": str(e)[:60]})
+        return out
+    def doh():
+        out = []
+        with httpx.Client(timeout=5, headers={"accept": "application/dns-json"}) as c:
+            for nome, url in RESOLVEDORES:
+                ms = []
+                for n in NOMES_DNS[:3]:
+                    t0 = time.perf_counter()
+                    try:
+                        c.get(url, params={"name": n, "type": "A"}).raise_for_status()
+                        ms.append((time.perf_counter() - t0) * 1000)
+                    except httpx.HTTPError:
+                        pass
+                out.append({"resolvedor": nome, "ms": round(statistics.median(ms), 1) if ms else None, "ok": len(ms)})
+        return out
+    with cf.ThreadPoolExecutor(8) as ex:
+        f = {
+            "ipv4": ex.submit(ip_publico, 4), "ipv6": ex.submit(ip_publico, 6), "dns": ex.submit(dns_sistema), "doh": ex.submit(doh),
+            "servicos": ex.submit(lambda: [{"nome": n, "host": h, "porta": p, **_tcp(h, p)} for n, h, p in SERVICOS]),
+            "rota": ex.submit(_traceroute), "vizinhos": ex.submit(_vizinhos), "wifi": ex.submit(_wifi),
+        }
+        for k, fut in f.items():
+            try:
+                r[k] = fut.result(timeout=60)
+            except Exception:  # noqa: BLE001  (parte que não deu para medir fica None)
+                r[k] = None
+    gw = _gateway()
+    r["gateway"] = {"ip": gw, **_ping(gw)} if gw else None
+    try:
+        from . import coordenador
+        r["ip_local"] = coordenador.saude().get("ip")
+    except Exception:  # noqa: BLE001
+        r["ip_local"] = None
+    db.set_cfg("rede_diagnostico", r)
+    return r
+
+
+# ---------- testes agendados e alertas ----------
+AGENDA = "rede_agenda"
+
+
+def agenda_cfg() -> dict:
+    return {"ativo": False, "a_cada_h": 6, "alerta_download_min": None, "alerta_latencia_max": None, "alerta_perda_max": None, "ultimo": 0, **(db.cfg(AGENDA) or {})}
+
+
+def ciclo() -> None:
+    """Chamado pelo laço da agenda no agente: roda o teste quando vence e avisa se passar dos limites."""
+    c = agenda_cfg()
+    if not c["ativo"] or db.agora() - int(c.get("ultimo") or 0) < max(1, int(c["a_cada_h"])) * 3600:
+        return
+    db.set_cfg(AGENDA, {**c, "ultimo": db.agora()})
+    r = testar_agente()
+    problemas = []
+    if c.get("alerta_download_min") and (r.get("download") or 0) < c["alerta_download_min"]:
+        problemas.append(f"download {r.get('download')} Mbps (mínimo {c['alerta_download_min']})")
+    if c.get("alerta_latencia_max") and (r.get("latencia") or 0) > c["alerta_latencia_max"]:
+        problemas.append(f"latência {r.get('latencia')} ms (máximo {c['alerta_latencia_max']})")
+    if c.get("alerta_perda_max") is not None and c.get("alerta_perda_max") != "" and (r.get("perda_pct") or 0) > float(c["alerta_perda_max"]):
+        problemas.append(f"perda {r.get('perda_pct')}% (máximo {c['alerta_perda_max']}%)")
+    sem_tx = [t["nome"] for t in r.get("transmissores", []) if t.get("ms") is None]
+    if sem_tx:
+        problemas.append("transmissor sem resposta: " + ", ".join(sem_tx))
+    if problemas:
+        from . import notificacoes
+        notificacoes.notificar(f"rede:{time.strftime('%Y%m%d%H')}", "rede", "media", "Internet do escritório abaixo do esperado", "; ".join(problemas), link="/rede")

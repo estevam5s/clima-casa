@@ -505,3 +505,29 @@ create table if not exists public.avatares (
   criado_por text default ''
 );
 alter table public.avatares enable row level security;
+
+-- 18/11: aparelhos ligados a placa própria (Arduino UNO R4 WiFi, GIGA R1 WiFi, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, ESP32,
+-- ESP8266). A placa busca os comandos (token próprio, só o hash fica aqui) e manda o estado; fila = comandos pendentes.
+alter table public.dispositivos add column if not exists driver text not null default 'tuya';
+alter table public.dispositivos add column if not exists placa text default '';
+alter table public.dispositivos add column if not exists token_hash text;
+alter table public.dispositivos add column if not exists ultimo_contato bigint;
+alter table public.dispositivos add column if not exists fila jsonb not null default '[]'::jsonb;
+alter table public.dispositivos add column if not exists info_placa jsonb not null default '{}'::jsonb;
+create unique index if not exists dispositivos_token_hash on public.dispositivos (token_hash) where token_hash is not null;
+
+-- 18/11: termo de uso e confidencialidade aceito dentro do sistema (ISO 27001 5.10, 6.2, 6.5, 6.6) e treinamento de
+-- segurança com prova (6.3, cláusulas 7.2 e 7.3)
+create table if not exists public.aceites (
+  id bigint generated always as identity primary key, usuario_id uuid not null, documento text not null, versao text not null,
+  aceito_em bigint not null, ip text default '', unique (usuario_id, documento, versao));
+alter table public.aceites enable row level security;
+create table if not exists public.treinamentos (
+  id bigint generated always as identity primary key, usuario_id uuid not null, curso text not null, nota integer not null,
+  aprovado integer not null default 0, concluido_em bigint not null);
+alter table public.treinamentos enable row level security;
+
+-- 18/11: avatares feitos no Estúdio (pessoa, cão, gato): receita para editar de novo e tamanho real (pets não viram 1,72 m)
+alter table public.avatares add column if not exists especie text not null default 'pessoa';
+alter table public.avatares add column if not exists parametros jsonb;
+alter table public.avatares add column if not exists escala_real integer not null default 0;

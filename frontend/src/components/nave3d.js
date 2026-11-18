@@ -1,71 +1,129 @@
 import * as THREE from 'three'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
-// Nave para voar pelo universo do globo: foguete de aço inox no estilo das naves reutilizáveis (corpo cilíndrico,
-// nariz em ogiva, escudo térmico escuro na barriga, aletas de controle e 6 motores com chama). O modelo é desenhado
-// aqui (sem logotipos de empresas). Fica presa à câmera, um pouco à frente e abaixo (visão de perseguição).
-export function criarNave() {
+// Nave para voar pelo universo do globo: foguete de aço inox no estilo das naves reutilizáveis de hoje (corpo
+// cilíndrico de 9 m por 50 m na proporção, nariz em ogiva, escudo térmico de placas hexagonais pretas no lado de baixo,
+// 2 aletas dianteiras e 2 traseiras articuladas e 6 motores: 3 centrais que giram e 3 de vácuo com sino maior).
+// Desenhada aqui, sem logotipos nem marcas. Eixo: comprimento em Z, nariz para -Z (frente), barriga (escudo) para -Y.
+function texturaPlacas() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 512
+  const g = c.getContext('2d')
+  g.fillStyle = '#16181c'; g.fillRect(0, 0, 512, 512)
+  const r = 9, h = Math.sqrt(3) * r
+  let s = 7; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 }
+  for (let y = -h; y < 512 + h; y += h) for (let x = -r * 3, k = 0; x < 512 + r * 3; x += r * 1.5, k++) {
+    const cy = y + (k % 2 ? h / 2 : 0), v = 18 + Math.floor(rnd() * 16)
+    g.beginPath(); for (let a = 0; a < 6; a++) { const t = a * Math.PI / 3; g.lineTo(x + Math.cos(t) * (r - 0.9), cy + Math.sin(t) * (r - 0.9)) }
+    g.closePath(); g.fillStyle = `rgb(${v},${v + 1},${v + 3})`; g.fill()
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8
+  return t
+}
+function texturaInox() {   // aço escovado: listras finas no comprimento + painéis de solda
+  const c = document.createElement('canvas'); c.width = 256; c.height = 1024
+  const g = c.getContext('2d')
+  g.fillStyle = '#7d7d7d'; g.fillRect(0, 0, 256, 1024)
+  let s = 3; const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 }
+  for (let i = 0; i < 900; i++) { const v = 100 + Math.floor(rnd() * 70); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(rnd() * 256, 0, 0.6 + rnd(), 1024) }
+  for (let y = 0; y < 1024; y += 128) { g.fillStyle = '#b5b5b5'; g.fillRect(0, y, 256, 2) }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+export function criarNave(renderer) {
   const g = new THREE.Group()
-  // sem mapa de ambiente, metal muito espelhado sai preto: inox com metal moderado e um leve brilho próprio
-  const inox = new THREE.MeshStandardMaterial({ color: 0xe3e7ec, metalness: 0.45, roughness: 0.32, emissive: 0x2a2f36, emissiveIntensity: 0.35 })
-  const inoxEscuro = new THREE.MeshStandardMaterial({ color: 0xa9b0b9, metalness: 0.5, roughness: 0.4 })
-  const escudo = new THREE.MeshStandardMaterial({ color: 0x30343b, metalness: 0.15, roughness: 0.8 })
-  const motor = new THREE.MeshStandardMaterial({ color: 0x3a3f47, metalness: 0.8, roughness: 0.4 })
-  const R = 0.09, L = 0.95
-  // o comprimento da nave fica no eixo Z (nariz para -Z, que é "para a frente" da câmera)
-  const corpo = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 40, 1, false), inox); corpo.rotation.x = Math.PI / 2; g.add(corpo)
-  // escudo térmico: metade de baixo do cilindro, um pouco por fora
-  const sh = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.008, R * 1.008, L * 0.98, 40, 1, true, -Math.PI * 0.38, Math.PI * 0.76), escudo); sh.rotation.x = Math.PI / 2; g.add(sh)
-  // anéis de solda (detalhe do inox)
-  for (let i = 0; i < 6; i++) { const a = new THREE.Mesh(new THREE.TorusGeometry(R * 1.004, 0.0015, 6, 40), inoxEscuro); a.position.z = -L / 2 + (i + 0.5) * (L / 6); g.add(a) }
-  // nariz em ogiva
-  const perfil = Array.from({ length: 16 }, (_, i) => { const t = i / 15; return new THREE.Vector2(R * Math.sqrt(Math.max(0, 1 - t * t)) * (1 - t * 0.08), t * 0.32) })
-  const nariz = new THREE.Mesh(new THREE.LatheGeometry(perfil, 40), inox); nariz.rotation.x = -Math.PI / 2; nariz.position.z = -L / 2; g.add(nariz)
-  const narizSh = new THREE.Mesh(new THREE.LatheGeometry(perfil.map((v) => new THREE.Vector2(v.x * 1.01, v.y)), 40, Math.PI * 0.5, Math.PI), escudo); narizSh.rotation.x = -Math.PI / 2; narizSh.position.z = -L / 2; g.add(narizSh)
-  // aletas: 2 na frente (pequenas) e 2 atrás (grandes), dos lados
-  const aleta = (comp, larg, z, lado) => {
-    const forma = new THREE.Shape(); forma.moveTo(0, 0); forma.lineTo(larg, comp * 0.15); forma.lineTo(larg, comp * 0.85); forma.lineTo(0, comp); forma.lineTo(0, 0)
-    const m = new THREE.Mesh(new THREE.ExtrudeGeometry(forma, { depth: 0.006, bevelEnabled: false }), escudo)
-    m.rotation.set(Math.PI / 2, 0, lado > 0 ? 0 : Math.PI); m.position.set(lado * R * 0.98, 0, z); g.add(m); return m
+  const corpoG = new THREE.Group(); g.add(corpoG)   // o corpo treme com o empuxo; o grupo de fora é a pose da nave
+  let env = null
+  if (renderer) {   // reflexo do aço: ambiente de estúdio só nos materiais da nave (não mexe no resto da cena)
+    const pm = new THREE.PMREMGenerator(renderer)
+    env = pm.fromScene(new RoomEnvironment(), 0.04).texture; pm.dispose()
   }
-  const aletas = [aleta(0.16, 0.05, -L / 2 - 0.05, 1), aleta(0.16, 0.05, -L / 2 - 0.05, -1), aleta(0.26, 0.1, L / 2 - 0.27, 1), aleta(0.26, 0.1, L / 2 - 0.27, -1)]
-  // motores: 3 de nível do mar no meio e 3 de vácuo (sino maior) por fora
-  const chamas = []
-  const matChama = (cor) => new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })
-  const motorEm = (x, y, raio, comp) => {
-    const sino = new THREE.Mesh(new THREE.CylinderGeometry(raio * 0.55, raio, comp, 20, 1, true), motor); sino.rotation.x = Math.PI / 2; sino.position.set(x, y, L / 2 + comp / 2); g.add(sino)
-    const nucleo = new THREE.Mesh(new THREE.ConeGeometry(raio * 0.7, 0.2, 16, 1, true), matChama(0xbfe3ff)); nucleo.rotation.x = -Math.PI / 2; nucleo.position.set(x, y, L / 2 + comp + 0.1); g.add(nucleo)
-    const externa = new THREE.Mesh(new THREE.ConeGeometry(raio * 1.1, 0.36, 16, 1, true), matChama(0x5aa0ff)); externa.rotation.x = -Math.PI / 2; externa.position.set(x, y, L / 2 + comp + 0.18); externa.material.opacity = 0.35; g.add(externa)
-    chamas.push({ nucleo, externa, base: L / 2 + comp, fase: Math.random() * 10 })
+  const rugInox = texturaInox()
+  const inox = new THREE.MeshStandardMaterial({ color: 0xd9dde2, metalness: 1, roughness: 0.3, roughnessMap: rugInox, envMap: env, envMapIntensity: 1.15 })
+  if (!env) { inox.metalness = 0.45; inox.emissive = new THREE.Color(0x2a2f36); inox.emissiveIntensity = 0.35 }
+  const placas = texturaPlacas()
+  const escudo = new THREE.MeshStandardMaterial({ color: 0xffffff, map: placas, metalness: 0.05, roughness: 0.85, envMap: env, envMapIntensity: 0.25 })
+  const escuro = new THREE.MeshStandardMaterial({ color: 0x2c3036, metalness: 0.7, roughness: 0.45, envMap: env })
+  const solda = new THREE.MeshStandardMaterial({ color: 0x9aa1a9, metalness: 1, roughness: 0.45, envMap: env })
+  const R = 0.09, L = 0.72, NARIZ = 0.28
+  // corpo: cilindro (inox) + metade de baixo coberta de placas (um pouco por fora, para não brigar no z-buffer)
+  const corpo = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 64, 1, true), inox); corpo.rotation.x = Math.PI / 2; corpoG.add(corpo)
+  placas.repeat.set(10, 4)
+  const sh = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.006, R * 1.006, L, 64, 1, true, -Math.PI * 0.38, Math.PI * 0.76), escudo); sh.rotation.x = Math.PI / 2; corpoG.add(sh)
+  for (let i = 1; i < 8; i++) { const a = new THREE.Mesh(new THREE.TorusGeometry(R * 1.002, 0.0009, 4, 64), solda); a.position.z = -L / 2 + i * (L / 8); corpoG.add(a) }
+  // nariz em ogiva tangente (perfil de verdade, ponta arredondada)
+  const rho = (R * R + NARIZ * NARIZ) / (2 * R)
+  const perfil = []
+  for (let i = 0; i <= 28; i++) { const y = (i / 28) * NARIZ; const x = Math.sqrt(Math.max(0, rho * rho - y * y)) + R - rho; perfil.push(new THREE.Vector2(Math.max(0.0001, x), y)) }
+  const nariz = new THREE.Mesh(new THREE.LatheGeometry(perfil, 64), inox); nariz.rotation.x = -Math.PI / 2; nariz.position.z = -L / 2; corpoG.add(nariz)
+  const narizSh = new THREE.Mesh(new THREE.LatheGeometry(perfil.map((v) => new THREE.Vector2(v.x * 1.008, v.y)), 64, Math.PI * 0.62, Math.PI * 0.76), escudo); narizSh.rotation.x = -Math.PI / 2; narizSh.position.z = -L / 2; corpoG.add(narizSh)
+  // saia traseira (fecha o corpo) e pinos de captura perto do nariz
+  const saia = new THREE.Mesh(new THREE.CircleGeometry(R, 64), escuro); saia.position.z = L / 2; corpoG.add(saia)
+  for (const x of [-1, 1]) { const pino = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.008, 0.02), solda); pino.position.set(x * R * 0.72, R * 0.72, -L / 2 + 0.02); corpoG.add(pino) }
+  // aletas (no plano horizontal, presas pela dobradiça ao corpo; o lado de baixo também tem placas)
+  const aleta = (comp, larg, z, lado, dianteira, xBase) => {
+    const pts = dianteira ? [[0, 0], [larg, comp * 0.35], [larg * 0.92, comp], [0, comp]] : [[0, 0], [larg * 0.85, comp * 0.12], [larg, comp * 0.78], [0, comp]]
+    const f = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x * lado, y)))   // lado esquerdo = espelhado na forma (normais certas)
+    const geo = new THREE.ExtrudeGeometry(f, { depth: 0.007, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1 })
+    geo.translate(0, 0, -0.0035)
+    const piv = new THREE.Group(); piv.position.set(lado * xBase, 0, z)
+    const m = new THREE.Mesh(geo, [escudo, inox]); m.rotation.set(Math.PI / 2, 0, 0)
+    piv.add(m); corpoG.add(piv); return piv
   }
-  for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2; motorEm(Math.cos(a) * 0.028, Math.sin(a) * 0.028, 0.018, 0.035) }
-  for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + Math.PI / 3; motorEm(Math.cos(a) * 0.062, Math.sin(a) * 0.062, 0.026, 0.05) }
-  const brilho = new THREE.PointLight(0x7fb4ff, 0, 1.6); brilho.position.set(0, 0, L / 2 + 0.3); g.add(brilho)
-  // luzes de navegação: vermelha (esquerda), verde (direita), branca piscando no topo
-  const luz = (cor, x, y, z) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), new THREE.MeshBasicMaterial({ color: cor })); m.position.set(x, y, z); g.add(m); return m }
-  const luzes = [luz(0xff3b30, -R - 0.1, 0, L / 2 - 0.15), luz(0x34c759, R + 0.1, 0, L / 2 - 0.15), luz(0xffffff, 0, R + 0.004, -0.1)]
+  const aletas = { de: aleta(0.13, 0.05, -L / 2 - 0.1, -1, true, R * 0.86), dd: aleta(0.13, 0.05, -L / 2 - 0.1, 1, true, R * 0.86), te: aleta(0.25, 0.1, L / 2 - 0.27, -1, false, R * 0.97), td: aleta(0.25, 0.1, L / 2 - 0.27, 1, false, R * 0.97) }
+  // motores: sino com perfil parabólico; dentro, garganta que brilha com o empuxo
+  const chamas = [], gargantas = []
+  const matChama = (cor, op) => new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+  const motor = (x, y, raio, comp, vacuo) => {
+    const pts = []; for (let i = 0; i <= 14; i++) { const t = i / 14; pts.push(new THREE.Vector2(raio * (0.32 + 0.68 * Math.sqrt(t)), t * comp)) }
+    const sino = new THREE.Mesh(new THREE.LatheGeometry(pts, 32), new THREE.MeshStandardMaterial({ color: vacuo ? 0x6b5a4a : 0x3b3f45, metalness: 0.85, roughness: 0.35, envMap: env, side: THREE.DoubleSide }))
+    sino.rotation.x = Math.PI / 2; sino.position.set(x, y, L / 2 - 0.004); corpoG.add(sino)
+    const gar = new THREE.Mesh(new THREE.CircleGeometry(raio * 0.3, 20), new THREE.MeshBasicMaterial({ color: 0xffb36b })); gar.position.set(x, y, L / 2 + 0.002); corpoG.add(gar); gargantas.push(gar)
+    const z0 = L / 2 + comp
+    const nucleo = new THREE.Mesh(new THREE.ConeGeometry(raio * 0.55, 0.3, 20, 1, true), matChama(0xd6e8ff, 0.9)); nucleo.rotation.x = -Math.PI / 2
+    const pluma = new THREE.Mesh(new THREE.ConeGeometry(raio * 0.75, 0.55, 20, 1, true), matChama(0x8f80ff, 0.2)); pluma.rotation.x = Math.PI / 2   // abre para trás (no vácuo a pluma se espalha)
+    const diamantes = []
+    for (let k = 0; k < 4; k++) { const d = new THREE.Mesh(new THREE.SphereGeometry(raio * (0.32 - k * 0.05), 10, 8), matChama(0xffd7a8, 0.7)); diamantes.push(d); corpoG.add(d) }
+    corpoG.add(nucleo); corpoG.add(pluma)
+    chamas.push({ nucleo, pluma, diamantes, x, y, z0, fase: Math.random() * 10, vacuo })
+  }
+  for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + Math.PI / 2; motor(Math.cos(a) * 0.026, Math.sin(a) * 0.026, 0.017, 0.032, false) }
+  for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 - Math.PI / 2; motor(Math.cos(a) * 0.06, Math.sin(a) * 0.06, 0.027, 0.055, true) }
+  const brilho = new THREE.PointLight(0x9db7ff, 0, 2.5); brilho.position.set(0, 0, L / 2 + 0.35); corpoG.add(brilho)
+  const luz = (cor, x, y, z) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 8, 6), new THREE.MeshBasicMaterial({ color: cor })); m.position.set(x, y, z); corpoG.add(m); return m }
+  const luzes = [luz(0xff3b30, -R - 0.1, 0, L / 2 - 0.15), luz(0x34c759, R + 0.1, 0, L / 2 - 0.15), luz(0xffffff, 0, R + 0.003, -0.1)]
   g.traverse((o) => { if (o.isMesh) o.frustumCulled = false })
 
-  const estado = { empuxo: 0, inclina: 0, arfagem: 0 }
-  // c = { empuxo 0..1, boost bool, lado -1..1, sobe -1..1 }
+  const estado = { empuxo: 0, guinada: 0, arfagem: 0, rolagem: 0 }
+  // c = { empuxo 0..1, boost, guinada -1..1, arfagem -1..1, rolagem -1..1 }: só o visual (motores, aletas, tremor)
   const atualizar = (dt, t, c) => {
-    const alvo = c.empuxo * (c.boost ? 1.6 : 1)
-    estado.empuxo += (alvo - estado.empuxo) * Math.min(1, dt * 4)
-    estado.inclina += ((-c.lado * 0.22) - estado.inclina) * Math.min(1, dt * 3)
-    estado.arfagem += ((c.sobe * 0.18) - estado.arfagem) * Math.min(1, dt * 3)
-    g.rotation.set(estado.arfagem + 0.04, 0.42, estado.inclina)   // vista de três quartos: mostra o casco inteiro
+    const alvo = Math.min(1.6, c.empuxo * (c.boost ? 1.6 : 1))
+    estado.empuxo += (alvo - estado.empuxo) * Math.min(1, dt * 5)
+    for (const k of ['guinada', 'arfagem', 'rolagem']) estado[k] += ((c[k] || 0) - estado[k]) * Math.min(1, dt * 4)
+    const e = estado.empuxo
     for (const ch of chamas) {
-      const piscar = 0.85 + Math.sin(t * 40 + ch.fase) * 0.08 + Math.random() * 0.07
-      const k = Math.max(0.05, estado.empuxo) * piscar
-      ch.nucleo.scale.y = k; ch.nucleo.position.z = ch.base + 0.1 * k
-      ch.externa.scale.y = k * (c.boost ? 1.8 : 1); ch.externa.position.z = ch.base + 0.18 * k * (c.boost ? 1.8 : 1)
-      ch.nucleo.material.opacity = 0.35 + 0.55 * Math.min(1, estado.empuxo)
-      ch.externa.material.opacity = 0.12 + 0.3 * Math.min(1, estado.empuxo)
+      const pisca = 0.9 + Math.sin(t * 47 + ch.fase) * 0.06 + Math.random() * 0.06
+      const k = Math.max(0.02, e) * pisca * (ch.vacuo ? 1.15 : 1)
+      const gx = ch.vacuo ? 0 : -estado.guinada * 0.01, gy = ch.vacuo ? 0 : estado.arfagem * 0.01   // motores centrais giram (vetorização)
+      ch.nucleo.scale.set(1, k, 1); ch.nucleo.position.set(ch.x + gx, ch.y + gy, ch.z0 + 0.15 * k)
+      ch.pluma.scale.set(1 + e * 0.25, k * (c.boost ? 1.7 : 1), 1 + e * 0.25); ch.pluma.position.set(ch.x + gx * 2, ch.y + gy * 2, ch.z0 + 0.3 * k * (c.boost ? 1.7 : 1))
+      ch.nucleo.material.opacity = Math.min(0.95, 0.15 + 0.75 * e); ch.pluma.material.opacity = Math.min(0.22, 0.03 + 0.16 * e)
+      ch.diamantes.forEach((d, i) => { d.position.set(ch.x + gx * (1 + i), ch.y + gy * (1 + i), ch.z0 + (0.05 + i * 0.07) * Math.max(0.3, k)); d.visible = e > 0.25; d.material.opacity = 0.55 * Math.min(1, e) * (1 - i * 0.2) })
     }
-    brilho.intensity = 0.2 + estado.empuxo * 2.2
+    gargantas.forEach((gg) => gg.material.color.setRGB(1, 0.45 + 0.4 * Math.min(1, e), 0.2 + 0.3 * Math.min(1, e)))
+    brilho.intensity = 0.1 + e * 3
     luzes[2].visible = (t % 1.2) < 0.12
-    aletas[0].rotation.y = aletas[1].rotation.y = estado.arfagem * 0.8
+    // aletas: arfagem = as 4 juntas; rolagem = diferencial; guinada = dianteiras opostas
+    const a = estado
+    aletas.de.rotation.z = (a.arfagem + a.rolagem + a.guinada * 0.6) * 0.35
+    aletas.dd.rotation.z = -(a.arfagem - a.rolagem - a.guinada * 0.6) * 0.35
+    aletas.te.rotation.z = (-a.arfagem + a.rolagem) * 0.3
+    aletas.td.rotation.z = -(-a.arfagem - a.rolagem) * 0.3
+    // tremor do empuxo (só o corpo, a câmera não)
+    const tr = e > 0.6 ? (e - 0.6) * 0.0025 : 0
+    corpoG.position.set((Math.random() - 0.5) * tr, (Math.random() - 0.5) * tr, 0)
   }
-  return { grupo: g, atualizar, estado }
+  return { grupo: g, atualizar, estado, comprimento: L + NARIZ }
 }
 
 // estrelas cadentes no céu ao fundo: um risco que atravessa e some, de tempos em tempos

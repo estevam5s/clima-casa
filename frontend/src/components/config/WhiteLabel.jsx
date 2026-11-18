@@ -6,6 +6,7 @@ import { MARCA_PADRAO, NOMES_FONTES, aplicarMarca, contraste, escalaDeTons, sazo
 import { MODELOS } from '../../cursores'
 import { Aviso, Botao, Interruptor, Modal, useToast } from '../ui'
 
+import MarcaExtras from './MarcaExtras'
 const PALETAS = [
   ['Teal (padrão)', '#0f766a', '#2563a8'], ['Azul corporativo', '#1d4ed8', '#0891b2'], ['Grafite', '#27272a', '#52525b'],
   ['Verde', '#15803d', '#0d9488'], ['Vinho', '#9f1239', '#be123c'], ['Laranja', '#c2410c', '#b45309'],
@@ -609,6 +610,7 @@ export default function WhiteLabel() {
         </aside>
       </div>
       </BuscaCtx.Provider>
+      <MarcaExtras f={f} />
 
       <Modal aberto={!!historico} titulo="Versões anteriores" onFechar={() => setHistorico(null)}>
         {historico?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma versão salva ainda.</p>}

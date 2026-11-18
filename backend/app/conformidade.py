@@ -22,16 +22,16 @@ from . import db
 # ---------------------------------------------------------------- catálogo
 # (id, tema, título resumido, verificação automática ou "sistema" ou None, normas relacionadas)
 CONTROLES = [
-    ("5.1", "Organizacionais", "Política de segurança aprovada e publicada", None, ["27002"]),
+    ("5.1", "Organizacionais", "Política de segurança aprovada e publicada", "reg:politica", ["27002"]),
     ("5.2", "Organizacionais", "Papéis e responsabilidades de segurança definidos", "papeis", ["27002"]),
     ("5.3", "Organizacionais", "Funções conflitantes separadas", "papeis", ["27002"]),
-    ("5.4", "Organizacionais", "Direção cobra as regras de segurança", None, ["27002"]),
-    ("5.5", "Organizacionais", "Contato com autoridades (ANPD, polícia, CERT.br)", None, ["27002", "LGPD"]),
-    ("5.6", "Organizacionais", "Contato com grupos especializados em segurança", None, ["27002"]),
+    ("5.4", "Organizacionais", "Direção cobra as regras de segurança", "reg:lideranca", ["27002"]),
+    ("5.5", "Organizacionais", "Contato com autoridades (ANPD, polícia, CERT.br)", "contatos", ["27002", "LGPD"]),
+    ("5.6", "Organizacionais", "Contato com grupos especializados em segurança", "contatos", ["27002"]),
     ("5.7", "Organizacionais", "Inteligência de ameaças", "ameacas", ["27002"]),
     ("5.8", "Organizacionais", "Segurança dentro da gestão de projetos", None, ["27002"]),
     ("5.9", "Organizacionais", "Inventário de informações e ativos", "inventario", ["27002"]),
-    ("5.10", "Organizacionais", "Regras de uso aceitável", None, ["27002"]),
+    ("5.10", "Organizacionais", "Regras de uso aceitável", "aceites", ["27002"]),
     ("5.11", "Organizacionais", "Devolução de ativos no desligamento", None, ["27002"]),
     ("5.12", "Organizacionais", "Classificação da informação", None, ["27002", "27701"]),
     ("5.13", "Organizacionais", "Rotulagem da informação", "rotulo", ["27002"]),
@@ -60,27 +60,27 @@ CONTROLES = [
     ("5.36", "Organizacionais", "Conformidade com as próprias regras", "checklist", ["27002"]),
     ("5.37", "Organizacionais", "Procedimentos operacionais documentados", "sistema:docs", ["27002"]),
     ("6.1", "Pessoas", "Verificação de antecedentes na contratação", None, ["27002"]),
-    ("6.2", "Pessoas", "Segurança nos termos de contratação", None, ["27002"]),
-    ("6.3", "Pessoas", "Conscientização e treinamento em segurança", None, ["27002"]),
+    ("6.2", "Pessoas", "Segurança nos termos de contratação", "aceites", ["27002"]),
+    ("6.3", "Pessoas", "Conscientização e treinamento em segurança", "treinamento", ["27002"]),
     ("6.4", "Pessoas", "Processo disciplinar", None, ["27002"]),
-    ("6.5", "Pessoas", "Deveres que continuam após o desligamento", None, ["27002"]),
-    ("6.6", "Pessoas", "Acordos de confidencialidade", None, ["27002", "LGPD"]),
+    ("6.5", "Pessoas", "Deveres que continuam após o desligamento", "aceites", ["27002"]),
+    ("6.6", "Pessoas", "Acordos de confidencialidade", "aceites", ["27002", "LGPD"]),
     ("6.7", "Pessoas", "Regras para trabalho remoto", "sessoes", ["27002"]),
     ("6.8", "Pessoas", "Canal para relatar eventos de segurança", "canal_relato", ["27002", "27035"]),
-    ("7.1", "Físicos", "Perímetro de segurança física", None, ["27002"]),
-    ("7.2", "Físicos", "Controle de entrada física", None, ["27002"]),
-    ("7.3", "Físicos", "Proteção de escritórios e salas", None, ["27002"]),
-    ("7.4", "Físicos", "Monitoramento da segurança física", None, ["27002"]),
-    ("7.5", "Físicos", "Proteção contra ameaças físicas e ambientais", None, ["27002"]),
-    ("7.6", "Físicos", "Regras para áreas seguras", None, ["27002"]),
+    ("7.1", "Físicos", "Perímetro de segurança física", "fisico", ["27002"]),
+    ("7.2", "Físicos", "Controle de entrada física", "fisico", ["27002"]),
+    ("7.3", "Físicos", "Proteção de escritórios e salas", "fisico", ["27002"]),
+    ("7.4", "Físicos", "Monitoramento da segurança física", "fisico", ["27002"]),
+    ("7.5", "Físicos", "Proteção contra ameaças físicas e ambientais", "fisico", ["27002"]),
+    ("7.6", "Físicos", "Regras para áreas seguras", "fisico", ["27002"]),
     ("7.7", "Físicos", "Mesa limpa e tela bloqueada", "sessoes", ["27002"]),
     ("7.8", "Físicos", "Instalação e proteção dos equipamentos", "transmissores", ["27002"]),
     ("7.9", "Físicos", "Equipamentos fora do escritório", None, ["27002"]),
     ("7.10", "Físicos", "Mídias de armazenamento", None, ["27002"]),
-    ("7.11", "Físicos", "Energia e serviços de apoio", None, ["27002"]),
-    ("7.12", "Físicos", "Proteção do cabeamento", None, ["27002"]),
+    ("7.11", "Físicos", "Energia e serviços de apoio", "fisico", ["27002"]),
+    ("7.12", "Físicos", "Proteção do cabeamento", "fisico", ["27002"]),
     ("7.13", "Físicos", "Manutenção dos equipamentos", "transmissores", ["27002"]),
-    ("7.14", "Físicos", "Descarte e reaproveitamento seguro", None, ["27002"]),
+    ("7.14", "Físicos", "Descarte e reaproveitamento seguro", "fisico", ["27002"]),
     ("8.1", "Tecnológicos", "Proteção dos aparelhos dos usuários", "sistema:dispositivos", ["27002"]),
     ("8.2", "Tecnológicos", "Acessos privilegiados controlados", "privilegiado", ["27002"]),
     ("8.3", "Tecnológicos", "Restrição de acesso à informação", "rls", ["27002"]),
@@ -119,28 +119,28 @@ CONTROLES = [
 
 # Cláusulas da ISO 27001 (o sistema de gestão em si)
 CLAUSULAS = [
-    ("4.1", "Contexto: questões internas e externas que afetam a segurança", None),
-    ("4.2", "Partes interessadas e o que esperam", None),
+    ("4.1", "Contexto: questões internas e externas que afetam a segurança", "reg:contexto"),
+    ("4.2", "Partes interessadas e o que esperam", "reg:partes"),
     ("4.3", "Escopo do sistema de gestão definido", "escopo"),
     ("4.4", "Sistema de gestão estabelecido e mantido", "checklist"),
-    ("5.1", "Liderança e comprometimento da direção", None),
-    ("5.2", "Política de segurança", None),
+    ("5.1", "Liderança e comprometimento da direção", "reg:lideranca"),
+    ("5.2", "Política de segurança", "reg:politica"),
     ("5.3", "Papéis, responsabilidades e autoridades", "papeis"),
     ("6.1.2", "Avaliação de riscos feita", "riscos_avaliados"),
     ("6.1.3", "Plano de tratamento e Declaração de Aplicabilidade", "riscos_tratados"),
     ("6.2", "Objetivos de segurança mensuráveis", "checklist"),
     ("6.3", "Mudanças planejadas", "mudancas"),
-    ("7.1", "Recursos para a segurança", None),
-    ("7.2", "Competência das pessoas", None),
-    ("7.3", "Conscientização", None),
+    ("7.1", "Recursos para a segurança", "reg:recursos"),
+    ("7.2", "Competência das pessoas", "treinamento"),
+    ("7.3", "Conscientização", "treinamento"),
     ("7.4", "Comunicação interna e externa", "canal_relato"),
     ("7.5", "Informação documentada", "sistema:docs"),
     ("8.1", "Controle operacional", "monitoramento"),
     ("8.2", "Avaliação de riscos em intervalos planejados", "riscos_revisados"),
     ("8.3", "Tratamento de riscos aplicado", "riscos_tratados"),
     ("9.1", "Monitoramento, medição e análise", "checklist"),
-    ("9.2", "Auditoria interna", None),
-    ("9.3", "Análise crítica pela direção", None),
+    ("9.2", "Auditoria interna", "reg:auditoria"),
+    ("9.3", "Análise crítica pela direção", "reg:analise"),
     ("10.1", "Melhoria contínua", "licoes"),
     ("10.2", "Não conformidades e ações corretivas", "acoes_corretivas"),
 ]
@@ -180,6 +180,10 @@ SISTEMA = {
 }
 
 STATUS_VALIDOS = ("implementado", "parcial", "pendente", "nao_aplicavel")
+TERMO_VERSAO = "2026.11"
+# registros formais do sistema de gestão (data, responsável, resumo): valem por 12 meses
+REGISTROS = {"politica": "Aprovação da Política de Segurança", "lideranca": "Compromisso da direção", "contexto": "Contexto da organização (questões internas e externas)",
+             "partes": "Partes interessadas e requisitos", "recursos": "Recursos para a segurança", "auditoria": "Auditoria interna", "analise": "Análise crítica pela direção"}
 
 
 # ---------------------------------------------------------------- utilidades
@@ -449,6 +453,23 @@ def _verificacoes() -> dict:
     out["riscos_tratados"] = S(bool(riscos) and all(x.get("tratamento") and x.get("tratamento") != "pendente" for x in altos), f"{len(altos)} risco(s) alto(s), todos com tratamento definido." if riscos else "Sem riscos avaliados.", parcial=bool(riscos))
     rev = max([x.get("revisado_em", 0) for x in riscos] or [0])
     out["riscos_revisados"] = S(bool(rev) and agora - rev < 365 * 86400, "Riscos revisados no último ano." if rev else "Revise os riscos ao menos uma vez por ano.")
+    # termo de uso e confidencialidade aceito no próprio sistema (versão atual)
+    ativos = db.consultar("SELECT id FROM usuarios WHERE ativo")
+    aceitaram = {r["usuario_id"] for r in db.consultar("SELECT usuario_id FROM aceites WHERE documento = 'termo' AND versao = ?", (TERMO_VERSAO,))}
+    n_ok = sum(1 for u in ativos if u["id"] in aceitaram)
+    out["aceites"] = S(bool(ativos) and n_ok == len(ativos), f"{n_ok} de {len(ativos)} usuário(s) aceitaram o Termo de Uso e Confidencialidade (versão {TERMO_VERSAO}) dentro do sistema.", parcial=n_ok > 0)
+    treinados = {r["usuario_id"] for r in db.consultar("SELECT usuario_id FROM treinamentos WHERE aprovado = 1 AND concluido_em > ?", (agora - 365 * 86400,))}
+    n_t = sum(1 for u in ativos if u["id"] in treinados)
+    out["treinamento"] = S(bool(ativos) and n_t == len(ativos), f"{n_t} de {len(ativos)} usuário(s) concluíram o treinamento de segurança no último ano (com prova).", parcial=n_t > 0)
+    plano = db.cfg("seguranca_plano") or {}
+    contatos = _lista("seguranca_contatos")
+    out["contatos"] = S(bool(plano.get("contato_anpd")) and len(contatos) >= 2, f"{len(contatos)} contato(s) registrado(s) (autoridades e grupos de segurança)." if contatos else "Registre os contatos (ANPD, CERT.br, polícia, fornecedores) na aba Conformidade → Registros.", parcial=bool(contatos or plano.get("contato_anpd")))
+    out["fisico"] = ("parcial", "Servidores e banco: segurança física dos data centers da Vercel e do Supabase (sobre a AWS), com certificações publicadas por eles "
+                     "(confira o relatório atual de cada um antes de usar como evidência). Falta a parte física do escritório: computador do agente, Raspberry Pi e transmissores.")
+    regs = _lista("iso_registros")
+    for tipo, rotulo in REGISTROS.items():
+        ult = max([x.get("data", 0) for x in regs if x.get("tipo") == tipo] or [0])
+        out[f"reg:{tipo}"] = S(bool(ult) and agora - ult < 365 * 86400, f"{rotulo}: registro de {time.strftime('%d/%m/%Y', time.localtime(ult))}." if ult else f"{rotulo}: sem registro. Faça em Conformidade → Registros.", parcial=bool(ult))
     return out
 
 

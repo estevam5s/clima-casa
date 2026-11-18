@@ -290,6 +290,28 @@ def falhas_da_conta(marca: str, minutos: int) -> int:
                  (marca, db.agora() - minutos * 60))["n"]
 
 
+def assinatura_teste(ts: int | None = None) -> str:
+    """Cabeçalho X-Clima-Teste dos testes de segurança ao vivo (feitos pelo próprio sistema): "ts.hmac", vale 5 min."""
+    import hashlib
+    import hmac
+    ts = ts or int(time.time())
+    seg = (db.ENV.get("VERIFICACAO_SEGREDO") or db.ENV.get("CLIMA_CHAVE_MESTRA") or "").encode()
+    return f"{ts}." + hmac.new(seg, f"teste:{ts}".encode(), hashlib.sha256).hexdigest()
+
+
+def pedido_de_teste(request) -> bool:
+    """Pedido assinado pelo próprio sistema (testes ao vivo): o firewall não conta os 401/403 dele nem aplica limite."""
+    import hmac
+    h = request.headers.get("x-clima-teste") or ""
+    try:
+        ts = int(h.split(".", 1)[0])
+    except ValueError:
+        return False
+    if abs(time.time() - ts) > 300 or not (db.ENV.get("VERIFICACAO_SEGREDO") or db.ENV.get("CLIMA_CHAVE_MESTRA")):
+        return False
+    return hmac.compare_digest(h, assinatura_teste(ts))
+
+
 def verificar(request) -> tuple[int, str] | None:
     """Antes de atender: devolve (status, motivo) para barrar, ou None para seguir."""
     c = config()

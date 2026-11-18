@@ -296,6 +296,54 @@ def rede_historico():
     return {"historico": rede.historico()}
 
 
+@rotas_infra.post("/infra/rede/diagnostico")
+def rede_diagnostico():
+    """IP público v4/v6, roteador, Wi-Fi, DNS, serviços, traceroute e aparelhos da rede local, medidos pelo agente."""
+    _papel("dono", "admin")
+    r = _via_agente("rede_diagnostico", {}, espera=58)
+    db.registrar("sistema", "Diagnóstico da rede do escritório")
+    return r
+
+
+@rotas_infra.get("/infra/rede/diagnostico")
+def rede_diagnostico_ultimo():
+    _papel("dono", "admin")
+    return {"diagnostico": db.cfg("rede_diagnostico")}
+
+
+class AgendaRede(BaseModel):
+    ativo: bool = False
+    a_cada_h: int = Field(6, ge=1, le=168)
+    alerta_download_min: float | None = Field(None, ge=0, le=100000)
+    alerta_latencia_max: float | None = Field(None, ge=0, le=100000)
+    alerta_perda_max: float | None = Field(None, ge=0, le=100)
+
+
+@rotas_infra.get("/infra/rede/agenda")
+def rede_agenda():
+    _papel("dono", "admin")
+    from .. import rede
+    return rede.agenda_cfg()
+
+
+@rotas_infra.put("/infra/rede/agenda")
+def rede_agenda_salvar(d: AgendaRede):
+    _papel("dono", "admin")
+    from .. import rede
+    db.set_cfg(rede.AGENDA, {**rede.agenda_cfg(), **d.model_dump()})
+    db.registrar("painel", "Agenda do teste de rede", detalhe=f"{'ligada' if d.ativo else 'desligada'} · a cada {d.a_cada_h} h")
+    return rede.agenda_cfg()
+
+
+@rotas_infra.delete("/infra/rede/historico")
+def rede_historico_limpar():
+    _papel("dono")
+    from .. import rede
+    db.set_cfg(rede.HIST, [])
+    db.registrar("painel", "Histórico de testes de rede apagado")
+    return {"historico": []}
+
+
 class ResultadoRede(BaseModel):
     download: float | None = Field(None, ge=0, le=100000)
     upload: float | None = Field(None, ge=0, le=100000)

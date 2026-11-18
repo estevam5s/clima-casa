@@ -1466,7 +1466,7 @@ def apagar_projeto(pid: int):
 # (porta, janela, mesa, bancada, parede, coluna, planta, texto). Quem só vê alguns projetos só mexe nas salas deles.
 MAPA_TIPOS = {"porta", "janela", "mesa", "bancada", "parede", "coluna", "planta", "texto", "armario", "sofa", "monitor", "ar_previsto", "estacao", "gaveteiro",
               "rack", "roteador", "impressora", "nobreak", "projetor", "camera", "alexa", "ventilador", "purificador",
-              "bebedouro", "frigobar", "cadeira", "quadro"}
+              "bebedouro", "frigobar", "cadeira", "quadro", "personagem"}
 
 
 class SalaMapa(BaseModel):
@@ -1506,6 +1506,8 @@ class ElementoMapa(BaseModel):
     ligado: bool = True                       # dispositivo do mapa: aceso ou apagado
     vidro: bool | None = None                 # porta: força vidro (True) ou sólida (False); vazio = automático pela sala
     dispositivo_id: int | None = Field(None, ge=1)   # item do mapa ligado a um aparelho de verdade (persiana, cafeteira, fechadura)
+    avatar_id: int | None = Field(None, ge=1)        # personagem (pet, mascote, pessoa extra) do Estúdio/biblioteca de avatares
+    passear: bool = True                             # personagem anda pela sala (False: fica parado no lugar)
 
 
 class AparenciaPessoa(BaseModel):
@@ -1768,6 +1770,33 @@ def salvar_pessoas_mapa(pessoas: list[PessoaMapa], request: Request):
     return ver_mapa(request)
 
 
+class PersonagemMapa(BaseModel):
+    id: str = Field(min_length=1, max_length=40, pattern=r"^[\w-]+$")
+    avatar_id: int = Field(ge=1)
+    x: float = Field(ge=0, le=6000)
+    y: float = Field(ge=0, le=6000)
+    rotulo: str = Field("", max_length=40)
+    passear: bool = True
+
+
+@api.put("/mapa/personagens")
+def salvar_personagens_mapa(lista: list[PersonagemMapa], request: Request):
+    """Pets, mascotes e pessoas extras (avatares da biblioteca) no escritório: troca só os itens tipo "personagem"."""
+    _so_dono_admin_mapa()
+    if len(lista) > 40:
+        raise HTTPException(422, "No máximo 40 personagens no escritório.")
+    ids = {a["id"] for a in db.consultar("SELECT id FROM avatares WHERE estado = 'pronto'")}
+    if any(p.avatar_id not in ids for p in lista):
+        raise HTTPException(422, "Algum avatar escolhido não existe mais na biblioteca.")
+    mapa = {**MAPA_PADRAO, **(db.cfg("mapa") or {})}
+    outros = [e for e in mapa.get("elementos", []) if e.get("tipo") != "personagem"]
+    mapa["elementos"] = outros + [{"id": p.id, "tipo": "personagem", "x": p.x, "y": p.y, "w": 40, "h": 40, "rot": 0, "rotulo": p.rotulo,
+                                   "cor": "", "modelo": "", "aberta": 50, "ligado": True, "avatar_id": p.avatar_id, "passear": p.passear} for p in lista]
+    db.set_cfg("mapa", mapa)
+    db.registrar("painel", "Personagens do escritório atualizados", detalhe=f"{len(lista)} no mapa")
+    return ver_mapa(request)
+
+
 @api.put("/mapa/escritas")
 def salvar_escritas_mapa(escritas: list[EscritaMapa], request: Request):
     u = _so_dono_admin_mapa()
@@ -1914,6 +1943,10 @@ def qr_app(alvo: str = "android", request: Request = None):
     import qrcode
     destinos = {"android": "https://github.com/estevam5s/clima-casa/releases/latest/download/ClimaCasa-android.apk",
                 "site": f"https://{request.headers.get('host', 'clima-casa-lac.vercel.app')}/"}
+    if alvo.startswith("ar:") and alvo[3:].isdigit():   # placa da sala: abre o controle daquele ar (pede login)
+        if not db.um("SELECT 1 FROM aparelhos WHERE id = ?", (int(alvo[3:]),)):
+            raise HTTPException(404, "Ar não encontrado.")
+        destinos[alvo] = f"https://{request.headers.get('host', 'app.zynio.com.br')}/aparelhos/{int(alvo[3:])}"
     if alvo not in destinos:
         raise HTTPException(400, "Destino inválido.")
     buf = io.BytesIO()
@@ -1938,6 +1971,15 @@ def _ler_tle(texto: str, grupo: str, limite: int) -> list[dict]:
         if len(out) >= limite:
             break
     return out
+
+
+@api.get("/exoplanetas")
+def ver_exoplanetas():
+    from .. import exoplanetas
+    try:
+        return exoplanetas.lista()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, "O NASA Exoplanet Archive não respondeu agora. Tente de novo em alguns minutos.") from e
 
 
 @api.get("/satelites")
@@ -3617,6 +3659,116 @@ def declaracao_aplicabilidade(formato: str = "csv"):
     return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})
 
 
+# ---------------- termo de uso, treinamento e registros (ISO 27001) ----------------
+TERMO_TEXTO = [
+    "Uso minha conta só para as atividades do meu trabalho e não compartilho senha, código de duas etapas ou código de instalação.",
+    "Mantenho em sigilo as informações restritas e sigilosas do sistema (chaves, registros, dados de pessoas), também depois de sair.",
+    "Não tento acessar salas, ares ou telas fora do meu acesso e não copio dados para fora do ambiente de trabalho.",
+    "Comunico na hora qualquer incidente ou comportamento estranho do sistema, dos ares ou da porta do escritório.",
+    "Sei que o uso fica registrado e que descumprir a Política de Segurança leva à suspensão da conta e às medidas cabíveis.",
+]
+
+
+@api.get("/conta/termo")
+def ver_termo(request: Request):
+    from .. import conformidade
+    u = request.state.u
+    ok = db.um("SELECT aceito_em FROM aceites WHERE usuario_id = ? AND documento = 'termo' AND versao = ?", (u["id"], conformidade.TERMO_VERSAO))
+    return {"versao": conformidade.TERMO_VERSAO, "itens": TERMO_TEXTO, "aceito": bool(ok), "aceito_em": ok["aceito_em"] if ok else None}
+
+
+@api.post("/conta/termo/aceitar")
+def aceitar_termo(request: Request):
+    from .. import conformidade, firewall
+    u = request.state.u
+    db.executar("INSERT INTO aceites (usuario_id, documento, versao, aceito_em, ip) VALUES (?, 'termo', ?, ?, ?) ON CONFLICT (usuario_id, documento, versao) DO NOTHING",
+                (u["id"], conformidade.TERMO_VERSAO, db.agora(), firewall.ip_do_pedido(request)))
+    db.registrar("sistema", "Termo de Uso e Confidencialidade aceito", detalhe=f"{u.get('email', '')} · versão {conformidade.TERMO_VERSAO}")
+    return {"ok": True}
+
+
+# treinamento de segurança: perguntas com uma resposta certa (a correção é no servidor); aprovado com 70%
+CURSO = [
+    ("Chegou um e-mail com o logo do sistema pedindo para você entrar por um link e confirmar a senha. O que fazer?", ["Entrar e confirmar", "Não clicar; abrir o sistema digitando app.zynio.com.br e avisar o administrador", "Responder o e-mail com a senha"], 1),
+    ("Um colega pediu o seu código de duas etapas para ligar o ar da sala dele.", ["Passar o código", "Não passar: cada pessoa tem a própria conta e o acesso dela", "Passar só desta vez"], 1),
+    ("Você vai sair da mesa por alguns minutos com o painel aberto.", ["Deixar como está", "Bloquear a tela (Windows+L / Ctrl+Cmd+Q)", "Diminuir o brilho"], 1),
+    ("Onde ficam as chaves do sistema (.env)?", ["Num e-mail para não perder", "Só no computador do agente e cifradas no servidor; nunca em chat, e-mail ou repositório", "Numa planilha compartilhada"], 1),
+    ("O ar de uma sala ligou sozinho de madrugada e ninguém agendou.", ["Ignorar", "Registrar como possível incidente e avisar o responsável pelo plano de resposta", "Apagar o histórico"], 1),
+    ("Qual senha é mais segura?", ["Nome do filho + ano", "Uma frase longa e única para este sistema, guardada num gerenciador de senhas", "A mesma de outros sites, com um número no fim"], 1),
+    ("O código de instalação do agente (Raspberry/PC) vale por quanto tempo e quantas vezes?", ["Para sempre", "30 minutos, uma vez só", "Um dia, quantas vezes quiser"], 1),
+    ("Encontrou um pendrive no estacionamento com a etiqueta 'Salários'.", ["Ligar no computador do escritório para ver de quem é", "Não ligar; entregar à TI", "Ligar no Raspberry do agente"], 1),
+    ("Alguém de fora pediu, por telefone, a lista de usuários do sistema dizendo ser do suporte.", ["Mandar por e-mail", "Recusar e confirmar a identidade pelo canal oficial antes de qualquer coisa", "Ler a lista pelo telefone"], 1),
+    ("Destrancar a porta do escritório pelo sistema exige o quê?", ["Nada", "Ser dono ou administrador e confirmar a senha", "Só estar logado"], 1),
+]
+
+
+@api.get("/treinamento")
+def ver_treinamento(request: Request):
+    u = request.state.u
+    hist = db.consultar("SELECT nota, aprovado, concluido_em FROM treinamentos WHERE usuario_id = ? ORDER BY concluido_em DESC LIMIT 10", (u["id"],))
+    return {"curso": "seguranca-2026", "perguntas": [{"n": i, "texto": t, "opcoes": o} for i, (t, o, _) in enumerate(CURSO)], "historico": hist}
+
+
+class RespostasIn(BaseModel):
+    respostas: list[int] = Field(min_length=len(CURSO), max_length=len(CURSO))
+
+
+@api.post("/treinamento/responder")
+def responder_treinamento(d: RespostasIn, request: Request):
+    u = request.state.u
+    certas = [i for i, (_, _, c) in enumerate(CURSO) if d.respostas[i] == c]
+    nota = round(len(certas) / len(CURSO) * 100)
+    aprovado = nota >= 70
+    db.executar("INSERT INTO treinamentos (usuario_id, curso, nota, aprovado, concluido_em) VALUES (?, 'seguranca-2026', ?, ?, ?)", (u["id"], nota, 1 if aprovado else 0, db.agora()))
+    db.registrar("sistema", "Treinamento de segurança concluído" if aprovado else "Treinamento de segurança: refazer", detalhe=f"{u.get('email', '')} · {nota}%")
+    return {"nota": nota, "aprovado": aprovado, "certas": certas, "gabarito": [c for _, _, c in CURSO]}
+
+
+class RegistroIn(BaseModel):
+    tipo: str = Field(pattern=r"^(politica|lideranca|contexto|partes|recursos|auditoria|analise)$")
+    data: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    responsavel: str = Field(min_length=2, max_length=80)
+    resumo: str = Field(min_length=10, max_length=4000)
+
+
+@api.get("/seguranca/registros")
+def ver_registros():
+    from .. import conformidade
+    return {"tipos": conformidade.REGISTROS, "registros": db.cfg("iso_registros") or [], "contatos": db.cfg("seguranca_contatos") or []}
+
+
+@api.post("/seguranca/registros")
+def novo_registro(d: RegistroIn, request: Request):
+    import datetime as _dt
+    import secrets as _s
+    data = int(_dt.datetime.strptime(d.data, "%Y-%m-%d").replace(hour=12).timestamp())
+    lista = [{"id": _s.token_hex(4), "tipo": d.tipo, "data": data, "responsavel": d.responsavel.strip(), "resumo": d.resumo.strip(),
+              "por": request.state.u.get("email", ""), "em": db.agora()}] + (db.cfg("iso_registros") or [])
+    db.set_cfg("iso_registros", lista[:300])
+    db.registrar("painel", "Registro do sistema de gestão", detalhe=d.tipo)
+    return {"registros": lista}
+
+
+@api.delete("/seguranca/registros/{rid}")
+def apagar_registro(rid: str):
+    lista = [x for x in (db.cfg("iso_registros") or []) if x.get("id") != rid]
+    db.set_cfg("iso_registros", lista)
+    return {"registros": lista}
+
+
+class ContatoIn(BaseModel):
+    nome: str = Field(min_length=2, max_length=80)
+    tipo: str = Field(pattern=r"^(autoridade|grupo|fornecedor|interno)$")
+    contato: str = Field(min_length=3, max_length=200)
+    quando_usar: str = Field("", max_length=300)
+
+
+@api.put("/seguranca/contatos")
+def salvar_contatos(contatos: list[ContatoIn]):
+    db.set_cfg("seguranca_contatos", [c.model_dump() for c in contatos][:50])
+    return {"contatos": db.cfg("seguranca_contatos")}
+
+
 # ---------------- avatares 3D (GLB) ----------------
 def _dono_admin():
     from .. import acesso
@@ -3639,6 +3791,9 @@ class AvatarEnvioIn(BaseModel):
     licenca: str = Field(min_length=3, max_length=200)     # licença ou autorização de uso
     tamanho: int = Field(ge=1, le=30 * 1024 * 1024)
     autorizado: bool                                        # quem importa declara que pode usar o modelo
+    especie: str = Field("pessoa", pattern=r"^(pessoa|cao|gato|outro)$")
+    parametros: dict | None = None                          # receita do Estúdio (para editar de novo)
+    escala_real: bool = False                               # True: o mapa usa o tamanho do arquivo (pets); False: reescala para 1,72 m
 
 
 @api.post("/avatares/envio")
@@ -3648,7 +3803,8 @@ def avatar_envio(d: AvatarEnvioIn):
     if not d.autorizado:
         raise HTTPException(400, "Só importe modelos que você tem autorização para usar.")
     try:
-        return avatares.preparar_envio(d.nome.strip(), d.descricao.strip(), d.origem.strip(), d.licenca.strip(), d.tamanho, u.get("email", ""))
+        return avatares.preparar_envio(d.nome.strip(), d.descricao.strip(), d.origem.strip(), d.licenca.strip(), d.tamanho, u.get("email", ""),
+                                       d.especie, d.parametros, d.escala_real)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     except RuntimeError as e:
@@ -3671,9 +3827,40 @@ def avatar_confirmar(avid: int):
 def avatar_arquivo(avid: int):
     from .. import avatares
     try:
-        return {"url": avatares.endereco(avid)}
+        return {"url": avatares.endereco(avid), **avatares.meta(avid)}
     except KeyError as e:
         raise HTTPException(404, str(e).strip("'")) from e
+
+
+class AvatarEdicaoIn(BaseModel):
+    nome: str | None = Field(None, min_length=1, max_length=60)
+    descricao: str | None = Field(None, max_length=300)
+    origem: str | None = Field(None, min_length=3, max_length=200)
+    licenca: str | None = Field(None, min_length=3, max_length=200)
+    especie: str | None = Field(None, pattern=r"^(pessoa|cao|gato|outro)$")
+
+
+@api.put("/avatares/{avid}")
+def avatar_editar(avid: int, d: AvatarEdicaoIn):
+    from .. import avatares
+    _dono_admin()
+    try:
+        a = avatares.editar(avid, {k: (v.strip() if isinstance(v, str) else v) for k, v in d.model_dump().items()})
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    if not a:
+        raise HTTPException(404, "Avatar não encontrado.")
+    db.registrar("painel", "Avatar 3D editado", detalhe=a["nome"])
+    return a
+
+
+@api.get("/avatares/{avid}/receita")
+def avatar_receita(avid: int):
+    from .. import avatares
+    r = avatares.receita(avid)
+    if r is None:
+        raise HTTPException(404, "Este avatar não foi feito no Estúdio (não tem receita para editar).")
+    return {"receita": r}
 
 
 @api.delete("/avatares/{avid}")
@@ -3705,6 +3892,40 @@ def documento_seguranca(tipo: str, request: Request, formato: str = "pdf"):
         raise HTTPException(404, str(e).strip("'")) from e
     db.registrar("painel", "Documento de segurança gerado", detalhe=f"{titulo} ({ext.upper()})")
     return Response(corpo, media_type=tipo_mime, headers={"Content-Disposition": f'attachment; filename="{tipo}-{time.strftime("%Y%m%d")}.{ext}"'})
+
+
+@publico.get("/seguranca/testes/assinatura")
+def conferir_assinatura_teste(request: Request):
+    """Pública: só diz se o cabeçalho X-Clima-Teste deste pedido vale (o lote não começa se a nuvem não aceitar)."""
+    from .. import firewall
+    return {"aceita": firewall.pedido_de_teste(request)}
+
+
+@api.post("/seguranca/testes/lote")
+def iniciar_testes_lote():
+    """Começa o lote de testes (mais de mil) no agente e volta na hora; a tela acompanha pelo GET."""
+    from .. import testes_seguranca
+    prog = db.cfg(testes_seguranca.PROGRESSO) or {}
+    if prog.get("rodando") and db.agora() - int(prog.get("inicio") or 0) < 600:
+        return {"ja_rodando": True, **prog}
+    if transmissor.PAPEL == "agente":
+        import threading
+        threading.Thread(target=testes_seguranca.executar, daemon=True).start()
+    else:
+        if not transmissor.agente_online():
+            raise HTTPException(503, "O agente do escritório está offline: os testes em lote rodam nele.")
+        transmissor.enfileirar("infra", None, {"op": "seguranca_testes", "args": {}})
+    db.registrar("painel", "Testes de segurança em lote iniciados")
+    return {"iniciado": True, "total": len(testes_seguranca.catalogo())}
+
+
+@api.get("/seguranca/testes/lote")
+def ver_testes_lote(completo: bool = False):
+    from .. import testes_seguranca
+    res = db.cfg(testes_seguranca.RESULTADO) or None
+    if res and not completo:
+        res = {k: v for k, v in res.items() if k != "resultados"}
+    return {"progresso": db.cfg(testes_seguranca.PROGRESSO) or {"rodando": False}, "resultado": res}
 
 
 @api.get("/seguranca/testes")

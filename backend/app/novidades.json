@@ -2,6 +2,32 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.9.0",
+      "data": "2026-11-18",
+      "titulo": "Placas Arduino e ESP, Estúdio de avatares e pets, rede avançada, universo e conformidade",
+      "resumo": "Cafeteira e outros aparelhos também por placa própria (Arduino e ESP), Estúdio para criar e editar avatares e pets que andam pelo escritório, diagnóstico avançado da rede, globo mais realista com lugares da Terra e exoplanetas, e a conformidade com termo de uso e treinamento dentro do sistema.",
+      "novo": [
+        "Cafeteira e aparelhos: ligar por placa própria (Arduino UNO R4 WiFi, GIGA R1 WiFi, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, Opta, Portenta H7, ESP32 e ESP8266), com código pronto para a placa",
+        "Avatares: Estúdio para criar homem, mulher, cão e gato por parâmetros, pelas partes ou pela receita em código, e salvar como .glb",
+        "Avatares: aba No escritório para colocar pets e mascotes nas salas; eles passeiam pelo andar no mapa 3D",
+        "Rede: estabilidade deste computador, diagnóstico da rede do escritório, teste automático com alertas e os últimos 7 dias",
+        "Globo: lugares conhecidos da Terra com alfinete, incluindo o traçado da Muralha da China",
+        "Globo: os 200 exoplanetas confirmados mais próximos, com dados do NASA Exoplanet Archive",
+        "Segurança: bateria com mais de mil testes automáticos, com o andamento ao vivo",
+        "Conformidade: termo de uso e confidencialidade aceito no sistema, treinamento de segurança com prova e registros da gestão",
+        "Marca: material da marca com assinatura de e-mail, crachás da equipe, papel timbrado e placas das salas com QR Code"
+      ],
+      "melhorias": [
+        "Nave redesenhada, com voo por inércia, câmera de perseguição e mira pelo mouse",
+        "Terra com relevo, biomas, águas rasas na costa e nuvens mais naturais"
+      ],
+      "seguranca": [
+        "Cada placa usa um código de acesso próprio; o sistema guarda só a impressão dele",
+        "Os testes conferem se as rotas do sistema pedem login"
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.8.0",
       "data": "2026-11-18",
       "titulo": "Cafeteira, persianas e fechadura, teste de velocidade da rede, avatares 3D e copa no mapa",

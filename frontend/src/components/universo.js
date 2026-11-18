@@ -93,7 +93,7 @@ function brilho(cores) {
 }
 
 // pontos: posição no "céu" fixo na Terra (lat/lon) → mundo, aplicando a rotação do globo
-const naTerra = (lat, lon, r, quat) => {
+export const naTerra = (lat, lon, r, quat) => {
   const phi = (90 - lat) * RAD, theta = (lon + 180) * RAD
   return new THREE.Vector3(-r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta)).applyQuaternion(quat)
 }

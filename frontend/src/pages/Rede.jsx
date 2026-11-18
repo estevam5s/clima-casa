@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Building2, Gamepad2, Gauge, Laptop, Radio, Timer, T
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, Selo, useToast } from '../components/ui'
+import { AgendaRede, Bufferbloat, Diagnostico, Estabilidade, Resumo } from '../components/rede/Avancado'
 
 // Teste de velocidade (como o speed.cloudflare.com): do computador de quem abriu o painel (o navegador mede) e da rede do
 // escritório (o agente mede e também o tempo de resposta de cada transmissor). Servidor de medição: speed.cloudflare.com.
@@ -130,6 +131,7 @@ function Resultado({ r, titulo, icone: I }) {
           {[['video_4k', 'Vídeo em 4K', Tv], ['chamadas', 'Chamadas de vídeo', Video], ['jogos', 'Jogos online', Gamepad2]].map(([k, n, Ic]) => (
             <span key={k} className="inline-flex items-center gap-1.5"><Ic className="h-3.5 w-3.5 text-muted-foreground" />{n}: <Selo cor={ROT_Q[r.qualidade[k]]?.[1] || 'cinza'}>{ROT_Q[r.qualidade[k]]?.[0] || '—'}</Selo></span>
           ))}
+          <Bufferbloat r={r} />
         </div>
       )}
       <p className="mt-3 text-xs text-muted-foreground">
@@ -211,6 +213,12 @@ export default function Rede() {
         </div>
       </div>
 
+      <div className="mt-6 grid grid-cols-1 gap-6">
+        <Diagnostico pode={pode} />
+        <Estabilidade pode={pode} />
+        <AgendaRede pode={pode} />
+        {hist.length > 0 && <Resumo hist={hist} dono={sessao?.papel === 'dono'} aoLimpar={() => setHist([])} />}
+      </div>
       {hist.length > 1 && (
         <section className="cartao mt-6 p-5">
           <h2 className="text-sm font-semibold">Histórico</h2>
