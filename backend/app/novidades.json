@@ -2,6 +2,23 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.9.1",
+      "data": "2026-11-18",
+      "titulo": "Tela de Segurança mais leve",
+      "resumo": "O globo da tela de Segurança não trava mais o navegador ao abrir.",
+      "novo": [],
+      "melhorias": [
+        "O globo só começa a carregar quando você rola a página até ele, e para de desenhar quando sai da tela",
+        "O modo Explorar o universo e a nave só são montados quando você entra nele, sem congelar a tela",
+        "Mapa da Terra desenhado com menos memória e sem a travada de alguns segundos na abertura",
+        "O globo não é refeito a cada atualização automática quando os locais não mudaram"
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "Tela de Segurança que travava ou fechava a aba em computadores mais fracos"
+      ]
+    },
+    {
       "versao": "1.9.0",
       "data": "2026-11-18",
       "titulo": "Placas Arduino e ESP, Estúdio de avatares e pets, rede avançada, universo e conformidade",

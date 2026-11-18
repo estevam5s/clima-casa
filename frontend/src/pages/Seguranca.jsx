@@ -9,6 +9,20 @@ import { useSearchParams } from 'react-router-dom'
 import { Acessos, Conformidade, Incidentes, Integridade, Riscos, TestesAoVivo } from '../components/seguranca/Governanca'
 
 const Globo3D = lazy(() => import('../components/Globo3D'))
+
+// O globo é a parte mais pesada da tela: só carrega quando a pessoa chega perto dele rolando a página.
+function QuandoPerto({ children, reserva }) {
+  const ref = useRef(null)
+  const [perto, setPerto] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || perto) return undefined
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) setPerto(true) }, { rootMargin: '200px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [perto])
+  return <div ref={ref} className="h-full w-full">{perto ? children : reserva}</div>
+}
 const PERIODOS = [[1, '24 h'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']]
 const CATS = [['acesso', 'Acessos', '#2dd4bf'], ['login', 'Logins', '#22c55e'], ['robo', 'Robôs inofensivos', '#f59e0b'], ['ataque', 'Ataques reais', '#ef4444']]
 const FORMATOS = [['pdf', 'PDF', FileText], ['docx', 'Word (DOCX)', FileType2], ['xlsx', 'Excel (XLSX)', FileSpreadsheet], ['csv', 'CSV (ZIP)', FileSpreadsheet],
@@ -313,9 +327,11 @@ function Monitoramento({ barra }) {
                 </div>
               </div>
               <div className="relative h-[460px] sm:h-[560px]">
-                <Suspense fallback={<div className="flex h-full items-center justify-center bg-[#03070d] text-sm text-white/60">Carregando o globo…</div>}> {/* marca: efeito de alerta/fundo do globo */}
-                  <Globo3D pontos={dados.pontos} servidor={dados.servidor} aoSelecionar={setLocal} ataque={!!escudo?.ativo} />
-                </Suspense>
+                <QuandoPerto reserva={<div className="flex h-full items-center justify-center bg-[#03070d] text-sm text-white/60">Carregando o globo…</div>}> {/* marca: fundo do globo */}
+                  <Suspense fallback={<div className="flex h-full items-center justify-center bg-[#03070d] text-sm text-white/60">Carregando o globo…</div>}> {/* marca: efeito de alerta/fundo do globo */}
+                    <Globo3D pontos={dados.pontos} servidor={dados.servidor} aoSelecionar={setLocal} ataque={!!escudo?.ativo} />
+                  </Suspense>
+                </QuandoPerto>
                 <AnimatePresence>
                   {local && (
                     <motion.div initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }}

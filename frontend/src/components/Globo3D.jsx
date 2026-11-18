@@ -64,7 +64,9 @@ async function texturasTerra() {
   const paises = feature(topo, topo.objects.countries)
   const fronteiras = mesh(topo, topo.objects.countries, (a, b) => a !== b)
   const litoral = mesh(topo, topo.objects.countries, (a, b) => a === b)
-  const L = 4096, A = 2048
+  // 2048×1024 (antes 4096×2048): 4× menos memória e tempo; a pausa entre as etapas devolve o controle ao navegador
+  const L = 2048, A = 1024
+  const pausa = () => new Promise((r) => setTimeout(r, 0))
   const px = ([lon, lat]) => [(lon + 180) / 360 * L, (90 - lat) / 180 * A]
   const tracar = (g, geometria) => {
     const linhas = geometria.type === 'MultiLineString' ? geometria.coordinates : [geometria.coordinates]
@@ -101,7 +103,7 @@ async function texturasTerra() {
   d.fillStyle = mar; d.fillRect(0, 0, L, A)
   // biomas (ilustração): gelo nos polos, tundra, floresta temperada, cinturão de desertos perto dos trópicos, savana e
   // floresta tropical no equador; o ruído quebra as faixas e o relevo sombreado (luz de noroeste) dá volume
-  const BL = 768, BA = 384, relevo = criarRuido(7), umid = criarRuido(19)
+  const BL = 512, BA = 256, relevo = criarRuido(7), umid = criarRuido(19)
   const cB = document.createElement('canvas'); cB.width = BL; cB.height = BA
   const gB = cB.getContext('2d'), img = gB.createImageData(BL, BA)
   const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
@@ -125,36 +127,49 @@ async function texturasTerra() {
     }
   }
   gB.putImageData(img, 0, 0)
+  await pausa()
   // recorta os biomas pelo contorno dos continentes
   const [cT, gT] = tela(); gT.fillStyle = '#000'; preencher(gT); gT.globalCompositeOperation = 'source-in'; gT.imageSmoothingQuality = 'high'; gT.drawImage(cB, 0, 0, L, A)
   // águas rasas perto da costa: litoral borrado em azul mais claro antes de pintar a terra
-  d.save(); d.filter = 'blur(10px)'; d.fillStyle = 'rgba(40,110,150,0.55)'; preencher(d); d.restore()
+  // (desenhada pequena e ampliada: o filtro blur() na textura inteira travava a placa de vídeo por segundos)
+  { const cR = document.createElement('canvas'); cR.width = L / 8; cR.height = A / 8; const gR = cR.getContext('2d')
+    gR.scale(1 / 8, 1 / 8); gR.fillStyle = 'rgba(40,110,150,0.55)'; preencher(gR)
+    d.save(); d.imageSmoothingEnabled = true; d.imageSmoothingQuality = 'high'; d.drawImage(cR, 0, 0, L, A); d.restore() }
   d.drawImage(cT, 0, 0)
-  // textura de ruído fino na terra (sensação de relevo)
-  const ruido = d.getImageData(0, 0, L, A)
-  for (let i = 0; i < ruido.data.length; i += 4) {
-    const v = (Math.random() - 0.5) * 14
-    ruido.data[i] += v; ruido.data[i + 1] += v; ruido.data[i + 2] += v
-  }
-  d.putImageData(ruido, 0, 0)
-  d.strokeStyle = 'rgba(255,255,255,0.28)'; d.lineWidth = 1.1; d.beginPath(); tracar(d, fronteiras); d.stroke()
-  d.strokeStyle = 'rgba(190,230,255,0.35)'; d.lineWidth = 1.4; d.beginPath(); tracar(d, litoral); d.stroke()
+  // textura de ruído fino (sensação de relevo): um ladrilho de 256 px repetido. Ler e regravar os pixels da textura
+  // inteira (como era antes) levava ~2 s e travava a tela
+  const cR = document.createElement('canvas'); cR.width = cR.height = 256
+  const gR = cR.getContext('2d'), iR = gR.createImageData(256, 256)
+  for (let i = 0; i < iR.data.length; i += 4) { const v = Math.random() < 0.5 ? 0 : 255; iR.data[i] = iR.data[i + 1] = iR.data[i + 2] = v; iR.data[i + 3] = Math.random() * 16 }
+  gR.putImageData(iR, 0, 0)
+  d.fillStyle = d.createPattern(cR, 'repeat'); d.fillRect(0, 0, L, A)
+  d.strokeStyle = 'rgba(255,255,255,0.28)'; d.lineWidth = 0.7; d.beginPath(); tracar(d, fronteiras); d.stroke()
+  d.strokeStyle = 'rgba(190,230,255,0.35)'; d.lineWidth = 0.9; d.beginPath(); tracar(d, litoral); d.stroke()
 
+  await pausa()
   // noite: quase preto, litoral e fronteiras em luz fria (lembra as luzes das cidades ao longo das costas)
   const [cNoite, n] = tela()
   n.fillStyle = '#040b14'; n.fillRect(0, 0, L, A)
   n.fillStyle = '#122233'; preencher(n)
-  n.shadowColor = 'rgba(255,190,110,0.9)'; n.shadowBlur = 6
-  n.strokeStyle = 'rgba(255,196,120,0.55)'; n.lineWidth = 1.6; n.beginPath(); tracar(n, litoral); n.stroke()
-  n.shadowBlur = 0
-  n.strokeStyle = 'rgba(94,234,212,0.22)'; n.lineWidth = 1; n.beginPath(); tracar(n, fronteiras); n.stroke()
+  // brilho do litoral: uma linha larga e fraca por baixo da fina (shadowBlur no litoral inteiro custava ~1 s)
+  n.beginPath(); tracar(n, litoral)
+  n.strokeStyle = 'rgba(255,190,110,0.16)'; n.lineWidth = 3.5; n.stroke()
+  n.strokeStyle = 'rgba(255,196,120,0.55)'; n.lineWidth = 1; n.stroke()
+  n.strokeStyle = 'rgba(94,234,212,0.22)'; n.lineWidth = 0.7; n.beginPath(); tracar(n, fronteiras); n.stroke()
 
-  // máscara de água: branco = oceano
-  const [cAgua, a] = tela()
-  a.fillStyle = '#fff'; a.fillRect(0, 0, L, A); a.fillStyle = '#000'; preencher(a)
-  luzesDasCidades(n, cAgua, L, A)
+  // máscara de água: branco = oceano. Tela pequena e só na CPU (willReadFrequently): as luzes das cidades leem os
+  // pixels dela, e ler uma tela da placa de vídeo obriga o navegador a terminar todo o desenho pendente (segundos)
+  const cAgua = document.createElement('canvas'); cAgua.width = L / 2; cAgua.height = A / 2
+  const a = cAgua.getContext('2d', { willReadFrequently: true })
+  a.scale(0.5, 0.5); a.fillStyle = '#fff'; a.fillRect(0, 0, L, A); a.fillStyle = '#000'; preencher(a)
+  await pausa()
+  // luzes das cidades numa tela de CPU (willReadFrequently): milhares de pontinhos na tela acelerada viravam ~2,7 s
+  // de trabalho da placa de vídeo no envio da textura; na CPU são poucos milissegundos, e depois é uma cópia só
+  const cLuz = document.createElement('canvas'); cLuz.width = L; cLuz.height = A
+  luzesDasCidades(cLuz.getContext('2d', { willReadFrequently: true }), cAgua, L, A)
+  n.save(); n.globalCompositeOperation = 'lighter'; n.drawImage(cLuz, 0, 0); n.restore()
 
-  const tex = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t }
+  const tex = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t }
   return { dia: tex(cDia), noite: tex(cNoite), agua: new THREE.CanvasTexture(cAgua) }
 }
 
@@ -196,7 +211,7 @@ const SOMBREADOR_TERRA = {
 // nuvens procedurais: manchas suaves sobrepostas em várias escalas (sem imagem externa)
 function texturaNuvens() {
   // nuvens por ruído com oitavas: formas irregulares, mais nas faixas de chuva (equador e latitudes médias), menos nos desertos
-  const L = 768, A = 384, n = criarRuido(31), n2 = criarRuido(53)
+  const L = 512, A = 256, n = criarRuido(31), n2 = criarRuido(53)
   const c = document.createElement('canvas'); c.width = L; c.height = A
   const g = c.getContext('2d'), img = g.createImageData(L, A)
   for (let y = 0; y < A; y++) {
@@ -252,7 +267,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     if (!el) return undefined
     const calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     el.appendChild(renderer.domElement)
     const cena = new THREE.Scene()
@@ -272,25 +287,51 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     globo.rotation.y = -1.25 // começa nas Américas
     cena.add(globo)
     globo.updateMatrixWorld()
-    // Sol, Lua, planetas e Via Láctea nas direções reais de agora
-    const universo = criarUniverso(cena, globo)
-    // lugares na Terra (inclui a Muralha da China) e os 200 exoplanetas mais próximos (NASA Exoplanet Archive)
-    let vivo = true, exo = null
-    const marcos = criarMarcos(globo, vetor); Object.assign(universo.corpos, marcos.corpos)
-    api.get('/api/exoplanetas').then((d) => {
-      if (!vivo) return
-      exo = criarExoplanetas(universo.grupo, d.lista || [], globo.quaternion); Object.assign(universo.corpos, exo.corpos)
-      exoRef.current = exo.dados; setExoLista(Object.entries(exo.dados).map(([k, x]) => ({ k, nome: x.pl_name, al: x.anos_luz })))
-    }).catch(() => { /* sem o arquivo da NASA agora: o resto do universo continua */ })
+    // O universo (Sol, Lua, planetas, 16 mil estrelas, exoplanetas) e a nave são pesados: só são montados quando a
+    // pessoa entra no modo universo. Até lá, um céu leve de estrelas e um "universo" mínimo com a Terra e os lugares.
+    let vivo = true, exo = null, nave = null, compilando = false
+    const marcos = criarMarcos(globo, vetor)
+    let universo = {
+      leve: true, grupo: null, solPos: new THREE.Vector3(), escala: 1, dobra: 0,
+      corpos: { terra: { obj: globo, raio: 1, nome: 'Terra', distancia: 'acessos ao sistema agora' }, ...marcos.corpos },
+      atualizar() {}, descartar() {},
+    }
+    const ceuLeve = (() => {
+      const n = 1800, pos = new Float32Array(n * 3), v = new THREE.Vector3()
+      for (let i = 0; i < n; i++) { v.randomDirection().multiplyScalar(420 + Math.random() * 60); pos.set([v.x, v.y, v.z], i * 3) }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+      const p = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 1.4, sizeAttenuation: false, transparent: true, opacity: 0.75, depthWrite: false }))
+      p.frustumCulled = false; cena.add(p); return p
+    })()
+    const garantirUniverso = () => {
+      if (!universo.leve || !vivo) return
+      cena.remove(ceuLeve); ceuLeve.geometry.dispose(); ceuLeve.material.dispose()
+      // Sol, Lua, planetas e Via Láctea nas direções reais de agora
+      universo = criarUniverso(cena, globo); Object.assign(universo.corpos, marcos.corpos)
+      // nave no mundo (não presa à câmera): voo com inércia e câmera de perseguição
+      nave = criarNave(renderer); cena.add(nave.grupo)
+      const luzNave = new THREE.DirectionalLight(0xffffff, 2.4); luzNave.position.set(0.7, 1.3, 0.4); nave.grupo.add(luzNave); nave.grupo.add(luzNave.target)
+      nave.grupo.add(new THREE.HemisphereLight(0xcfe3ff, 0x1a1d22, 0.9))
+      // compila os sombreadores fora do quadro (senão o 1º quadro trava a tela por segundos); até lá, só o globo aparece
+      const grupoU = universo.grupo, grupoN = nave.grupo
+      compilando = true
+      const liberar = () => { compilando = false; if (vivo) { grupoU.visible = true } }
+      if (renderer.compileAsync) renderer.compileAsync(cena, camera).then(liberar, liberar)
+      else liberar()
+      grupoN.visible = false
+      // os 200 exoplanetas mais próximos (NASA Exoplanet Archive)
+      api.get('/api/exoplanetas').then((d) => {
+        if (!vivo) return
+        exo = criarExoplanetas(universo.grupo, d.lista || [], globo.quaternion); Object.assign(universo.corpos, exo.corpos)
+        exoRef.current = exo.dados; setExoLista(Object.entries(exo.dados).map(([k, x]) => ({ k, nome: x.pl_name, al: x.anos_luz })))
+      }).catch(() => { /* sem o arquivo da NASA agora: o resto do universo continua */ })
+    }
     // satélites reais (SGP4) em volta da Terra
     const sats = criarSatelites(globo, vetor, satRotulosRef.current)
     // nave (visão de perseguição, presa à câmera), estrelas cadentes e aurora nos polos
     cena.add(camera)
-    // nave no mundo (não presa à câmera): voo com inércia e câmera de perseguição. A escala da nave acompanha a distância
-    // do astro mais perto (perto da Terra ela fica pequena e lenta; no espaço profundo, grande e rápida), como nos jogos
-    const nave = criarNave(renderer); nave.grupo.visible = false; cena.add(nave.grupo)
-    const luzNave = new THREE.DirectionalLight(0xffffff, 2.4); luzNave.position.set(0.7, 1.3, 0.4); nave.grupo.add(luzNave); nave.grupo.add(luzNave.target)
-    const luzNave2 = new THREE.HemisphereLight(0xcfe3ff, 0x1a1d22, 0.9); nave.grupo.add(luzNave2)
+    // A escala da nave acompanha a distância do astro mais perto (perto da Terra ela fica pequena e lenta; no espaço
+    // profundo, grande e rápida), como nos jogos. Ela nasce em garantirUniverso().
     const voo = { ativo: false, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), vel: new THREE.Vector3(), w: new THREE.Vector3(), acel: 0.35, k: 0.05, arrasto: null, upCam: new THREE.Vector3(0, 1, 0), nearAntes: camera.near }
     const meteoros = criarMeteoros(cena)
     const aurora = criarAurora(globo, R)
@@ -308,17 +349,20 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       sol: { value: solLocal.clone() }, solVista: { value: new THREE.Vector3() }, carregado: { value: 0 },
     }
     const matTerra = new THREE.ShaderMaterial({ uniforms, vertexShader: SOMBREADOR_TERRA.vertex, fragmentShader: SOMBREADOR_TERRA.fragment })
-    const terra = new THREE.Mesh(new THREE.SphereGeometry(R, 128, 128), matTerra)
+    const terra = new THREE.Mesh(new THREE.SphereGeometry(R, 96, 96), matTerra)
     globo.add(terra)
     let texturas = null
-    texturasTerra().then((t) => {
+    // envia uma textura por quadro para a placa de vídeo (as três juntas seguravam um quadro por segundos)
+    const quadroLivre = () => new Promise((r) => requestAnimationFrame(() => r()))
+    texturasTerra().then(async (t) => {
+      for (const x of [t.agua, t.noite, t.dia]) { await quadroLivre(); if (!vivo) return; renderer.initTexture?.(x) }
       texturas = t
       uniforms.dia.value = t.dia; uniforms.noite.value = t.noite; uniforms.agua.value = t.agua
       setPronto(true)
     }).catch(() => setPronto(true))
 
     // atmosfera: halo externo (lado de trás) e brilho fino na borda
-    const halo = new THREE.Mesh(new THREE.SphereGeometry(R * 1.16, 96, 96), new THREE.ShaderMaterial({
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(R * 1.16, 64, 64), new THREE.ShaderMaterial({
       uniforms: { sol: { value: new THREE.Vector3() }, cor: { value: new THREE.Color(0.30, 0.62, 1.0) } },
       vertexShader: 'varying vec3 n; varying vec3 w; void main(){ n = normalize(normalMatrix * normal); w = normalize((modelMatrix * vec4(position,1.0)).xyz); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
       fragmentShader: `uniform vec3 sol; uniform vec3 cor; varying vec3 n; varying vec3 w;
@@ -330,7 +374,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
 
     // camada de nuvens, iluminada pelo Sol (some no lado da noite)
     const texNuvens = texturaNuvens()
-    const nuvens = new THREE.Mesh(new THREE.SphereGeometry(R * 1.012, 96, 96), new THREE.ShaderMaterial({
+    const nuvens = new THREE.Mesh(new THREE.SphereGeometry(R * 1.012, 64, 64), new THREE.ShaderMaterial({
       uniforms: { mapa: { value: texNuvens }, sol: { value: uniforms.sol.value } },
       vertexShader: 'varying vec2 vUv; varying vec3 vN; void main(){ vUv = uv; vN = normalize(normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
       fragmentShader: `uniform sampler2D mapa; uniform vec3 sol; varying vec2 vUv; varying vec3 vN;
@@ -501,6 +545,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       inicio: () => irPara('terra'),
       girar: (v) => { controles.autoRotate = v && !calmo },
       explorar: (v) => {
+        if (v) garantirUniverso()
         controles.enableZoom = v; controles.zoomToCursor = false
         controles.maxDistance = v ? 600 : 9
         if (!v) { universo.escala = 1; irPara('terra') }
@@ -576,12 +621,15 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     }
     ajustar()
     const ro = new ResizeObserver(ajustar); ro.observe(el)
+    // fora da tela (rolou a página) ou em tela cheia de outra coisa: não desenha
+    let naTela = true
+    const io = new IntersectionObserver(([e]) => { naTela = e.isIntersecting }, { rootMargin: '100px' }); io.observe(el)
     const relogio = new THREE.Clock()
     const tmp = new THREE.Vector3(), solMundo = new THREE.Vector3()
     let quadro, ultimoSol = 0
     const laco = () => {
       quadro = requestAnimationFrame(laco)
-      if (document.hidden) return
+      if (document.hidden || !naTela) { relogio.getDelta(); return }
       const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime
       if (t - ultimoSol > 60) { // o Sol anda 0,25° por minuto
         ultimoSol = t
@@ -634,7 +682,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       }
       // ---------- voo da nave: inércia, rotação nos 3 eixos, acelerador, freio, colisão com os astros ----------
       const pilotando = !!acoesRef.current.naveLigada
-      if (pilotando && !voo.ativo) {   // entra na nave: aparece à frente da câmera, apontando para onde ela olha
+      if (pilotando && !voo.ativo && nave && !compilando) {   // entra na nave: aparece à frente da câmera, apontando para onde ela olha
         voo.ativo = true; voo.vel.set(0, 0, 0); voo.w.set(0, 0, 0); voo.acel = 0.3; voo.nearAntes = camera.near; voo.camOff = null
         const dAlvo = camera.position.distanceTo(controles.target)
         voo.k = THREE.MathUtils.clamp(dAlvo * 0.03, 0.01, 2.5)
@@ -645,8 +693,9 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
         voo.ativo = false; controles.enabled = true; camera.up.set(0, 1, 0); camera.near = voo.nearAntes; camera.updateProjectionMatrix()
         controles.target.copy(voo.pos); controles.update(); universo.dobra = 0
       }
-      nave.grupo.visible = voo.ativo
-      if (voo.ativo) {
+      if (nave) nave.grupo.visible = voo.ativo && !compilando
+      if (compilando && universo.grupo) universo.grupo.visible = false
+      if (voo.ativo && nave) {
         // astro mais perto (superfície): define a escala do voo
         let perto = null
         for (const [kk, c] of Object.entries(universo.corpos)) { c.obj.getWorldPosition(tmp); const d = tmp.distanceTo(voo.pos) - (c.raio || 0); if (!perto || d < perto.d) perto = { k: kk, nome: c.nome, d, c: tmp.clone(), raio: c.raio || 0 } }
@@ -755,13 +804,13 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     }
     laco()
     return () => {
-      cancelAnimationFrame(quadro); ro.disconnect(); clearTimeout(retomar)
+      cancelAnimationFrame(quadro); ro.disconnect(); io.disconnect(); clearTimeout(retomar)
       clearTimeout(retomar)   // o "voltar a girar" não dispara depois de fechar a tela
       el.removeEventListener('pointermove', mover); el.removeEventListener('click', clicar); el.removeEventListener('pointerleave', sair); el.removeEventListener('dblclick', duplo)
       window.removeEventListener('keydown', tecla); window.removeEventListener('keyup', tecla); window.removeEventListener('blur', soltar)
       el.removeEventListener('pointerdown', arrastoIni); window.removeEventListener('pointermove', arrastoMove); window.removeEventListener('pointerup', arrastoFim)
       vivo = false; marcos.descartar(); exo?.descartar()
-      universo.descartar(); sats.descartar()
+      universo.descartar(); sats.descartar(); nave?.descartar?.()
       controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
       tex.dispose(); texNuvens.dispose(); if (texturas) Object.values(texturas).forEach((x) => x.dispose())
@@ -771,7 +820,8 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // dados novos: recria só a camada dinâmica
-  useEffect(() => { montarRef.current?.() }, [pontos])
+  const chavePontos = JSON.stringify(pontos)
+  useEffect(() => { montarRef.current?.() }, [chavePontos])
   useEffect(() => { mostrarSatsRef.current = mostrarSats; if (satsRef.current) satsRef.current.camada.visivel = mostrarSats }, [mostrarSats])
   // painel ao vivo dos satélites (posição da ISS etc.), 1 vez por segundo
   useEffect(() => {

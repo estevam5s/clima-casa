@@ -52,31 +52,34 @@ export function equatorialParaTerra(ra, dec, data = new Date()) {
 export const CEU_PROFUNDO = { andromeda: [10.68, 41.27], magalhaes: [80.9, -69.8], orion: [83.82, -5.39], pleiades: [56.75, 24.12] }
 
 const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')] }
+// planetas: desenha em coordenadas de 1024×512 numa tela de 512×256 (a escala fica no contexto, então quem pinta
+// depois, como a mancha de Júpiter e o coração de Plutão, continua usando as mesmas coordenadas). 4× mais leve.
+const canvasPlaneta = () => { const [c, g] = canvas(512, 256); g.scale(0.5, 0.5); return [c, g] }
 const textura = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t }
 function aleat(semente) { let s = semente; return () => { s = (s * 16807) % 2147483647; return s / 2147483647 } }
 
 function texturaFaixas(cores, semente, turbulencia = 0.15) {
-  const [c, g] = canvas(1024, 512); const r = aleat(semente)
+  const [c, g] = canvasPlaneta(); const r = aleat(semente)
   for (let y = 0; y < 512; y += 2) {
     const k = Math.floor((y / 512) * cores.length * 3 + Math.sin(y * 0.05) * 2) % cores.length
     g.fillStyle = cores[(k + cores.length) % cores.length]; g.fillRect(0, y, 1024, 2)
   }
-  for (let i = 0; i < 900; i++) { // redemoinhos
+  for (let i = 0; i < 400; i++) { // redemoinhos
     const x = r() * 1024, y = r() * 512, rr = 6 + r() * 30
     g.fillStyle = `rgba(255,255,255,${r() * turbulencia * 0.5})`; g.beginPath(); g.ellipse(x, y, rr * 2.5, rr * 0.5, 0, 0, 7); g.fill()
   }
   return textura(c)
 }
 function texturaRochosa(base, manchas, semente, calotas = false) {
-  const [c, g] = canvas(1024, 512); const r = aleat(semente)
+  const [c, g] = canvasPlaneta(); const r = aleat(semente)
   g.fillStyle = base; g.fillRect(0, 0, 1024, 512)
-  for (let i = 0; i < 1600; i++) {
-    const x = r() * 1024, y = r() * 512, rr = 2 + r() * (i < 60 ? 70 : 14)
+  for (let i = 0; i < 600; i++) {
+    const x = r() * 1024, y = r() * 512, rr = 3 + r() * (i < 40 ? 70 : 16)
     const gr = g.createRadialGradient(x, y, 0, x, y, rr)
     gr.addColorStop(0, manchas[i % manchas.length]); gr.addColorStop(1, 'rgba(0,0,0,0)')
     g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill()
   }
-  for (let i = 0; i < 260; i++) { // crateras
+  for (let i = 0; i < 160; i++) { // crateras
     const x = r() * 1024, y = r() * 512, rr = 1.5 + r() * 9
     g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, rr, 0, 7); g.stroke()
     g.strokeStyle = 'rgba(255,255,255,0.12)'; g.beginPath(); g.arc(x - 0.8, y - 0.8, rr, 0, 7); g.stroke()
@@ -127,7 +130,7 @@ const SOMBREADOR_SOL = {
 function texturaGalaxia(semente) {
   const [c, g] = canvas(512, 512); const r = aleat(semente)
   const nucleo = g.createRadialGradient(256, 256, 0, 256, 256, 90); nucleo.addColorStop(0, 'rgba(255,240,215,1)'); nucleo.addColorStop(0.4, 'rgba(240,215,190,0.5)'); nucleo.addColorStop(1, 'rgba(200,180,220,0)')
-  for (let i = 0; i < 9000; i++) {
+  for (let i = 0; i < 4000; i++) {
     const braco = i % 2, k = r() * 1, ang = k * 9 + braco * Math.PI + (r() - 0.5) * 0.6, raio = 20 + k * 220
     const x = 256 + Math.cos(ang) * raio + (r() - 0.5) * 22, y = 256 + Math.sin(ang) * raio + (r() - 0.5) * 22
     g.fillStyle = r() < 0.15 ? `rgba(255,190,220,${0.35 * (1 - k)})` : `rgba(${180 + r() * 60},${190 + r() * 50},255,${0.28 * (1 - k * 0.7)})`
@@ -155,7 +158,7 @@ export function criarUniverso(cena, globo) {
   const animaveis = []   // luas em órbita: { piv, periodo }
 
   // ---------- estrelas e Via Láctea ----------
-  const N = 16000
+  const N = 9000
   const pos = new Float32Array(N * 3), cor = new Float32Array(N * 3), tam = new Float32Array(N), fase = new Float32Array(N)
   const r = aleat(7)
   const plano = new THREE.Vector3(0.45, 0.88, 0.17).normalize() // plano galáctico inclinado
@@ -294,7 +297,7 @@ export function criarUniverso(cena, globo) {
   const pe = eclipticaParaTerra(0, Math.PI / 2, diasJ2000())   // polo norte da eclíptica
   const polo = naTerra(pe.lat, pe.lon, 1, q).normalize()
   const ua = new THREE.Vector3().crossVectors(polo, new THREE.Vector3(0, 1, 0.3)).normalize(), ub = new THREE.Vector3().crossVectors(polo, ua)
-  const NA = 5000, posA = new Float32Array(NA * 3)
+  const NA = 3000, posA = new Float32Array(NA * 3)
   for (let i = 0; i < NA; i++) {
     const ang = r() * Math.PI * 2, raio = 30 + r() * 9 + (r() - 0.5) * 3
     const p = ua.clone().multiplyScalar(Math.cos(ang) * raio).addScaledVector(ub, Math.sin(ang) * raio).addScaledVector(polo, (r() - 0.5) * 1.6).add(solPos)
@@ -417,18 +420,22 @@ export function criarUniverso(cena, globo) {
 
 // luzes das cidades no lado da noite: pontos quentes sobre a terra firme, mais densos perto do litoral
 export function luzesDasCidades(ctx, mascaraAgua, L, A) {
-  const dados = mascaraAgua.getContext('2d').getImageData(0, 0, L, A).data
+  // a máscara pode ser menor que a textura (ex.: metade): a consulta converte a escala
+  const mL = mascaraAgua.width, mA = mascaraAgua.height, sx = mL / L, sy = mA / A
+  const dados = mascaraAgua.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, mL, mA).data
   const r = aleat(21)
-  const terra = (x, y) => dados[((y | 0) * L + (x | 0)) * 4] < 128
+  const terra = (x, y) => { const px = Math.min(mL - 1, Math.max(0, (x * sx) | 0)), py = Math.min(mA - 1, Math.max(0, (y * sy) | 0)); return dados[(py * mL + px) * 4] < 128 }
   ctx.save(); ctx.globalCompositeOperation = 'lighter'
+  // quantidade e tamanho proporcionais à textura (referência: 4096×2048 → 52 mil pontos)
+  const k = (L * A) / (4096 * 2048), e = L / 4096, viz = Math.max(3, Math.round(9 * e))
   let n = 0
-  for (let i = 0; i < 220000 && n < 52000; i++) {
+  for (let i = 0, lim = 220000 * k, max = 52000 * k; i < lim && n < max; i++) {
     const x = r() * L, y = A * (0.12 + r() * 0.62)
     if (!terra(x, y)) continue
-    const costa = !terra(x + 9, y) || !terra(x - 9, y) || !terra(x, y + 9) || !terra(x, y - 9)
+    const costa = !terra(x + viz, y) || !terra(x - viz, y) || !terra(x, y + viz) || !terra(x, y - viz)
     if (!costa && r() < 0.72) continue
     n++
-    const a = 0.25 + r() * 0.6, rr = r() < 0.03 ? 2.6 : 1.1
+    const a = 0.25 + r() * 0.6, rr = (r() < 0.03 ? 2.6 : 1.1) * Math.max(0.6, e)
     ctx.fillStyle = `rgba(255,${190 + (r() * 40) | 0},${110 + (r() * 50) | 0},${a})`
     ctx.beginPath(); ctx.arc(x, y, rr, 0, 7); ctx.fill()
   }
