@@ -567,7 +567,12 @@ export default function Transmissores() {
 
   const verificar = async () => {
     setVerificando(true)
-    try { setDados(await api.post('/api/hubs/verificar')) } finally { setVerificando(false) }
+    try {
+      const lista = await api.post('/api/hubs/verificar')
+      setDados(lista)
+      const fora = lista.filter((h) => !h.online)
+      toast(fora.length ? `Sem resposta: ${fora.map((h) => h.nome).join(', ')}. ${lista[0]?.agente_aviso || ''}` : 'Todos os transmissores respondendo.', fora.length ? 'erro' : 'ok')
+    } catch (e) { toast(e.message, 'erro') } finally { setVerificando(false) }
   }
   const remover = async (h) => {
     try {

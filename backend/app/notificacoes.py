@@ -170,7 +170,7 @@ def executar_acao(nid: int) -> str:
         elif transmissor.agente_online():
             transmissor.enfileirar("reparar", None, {})
         else:
-            raise ValueError("O agente do Mac está offline: ele que procura o transmissor na rede.")
+            raise ValueError(transmissor.sem_agente())
         msg = "Reconexão pedida ao agente. A notificação some sozinha quando o transmissor responder."
         return msg
     else:

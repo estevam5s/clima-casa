@@ -119,6 +119,12 @@ export default function FormAparelho({ inicial, padrao = {}, hubs, aoSalvar, rot
         </div>
         <Interruptor ligado={f.alexa} onChange={(v) => setF({ ...f, alexa: v })} rotulo="Disponível na Alexa" />
       </div>
+      {!inicial && (
+        <div className="rounded-md border border-border px-3 py-2.5 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Depois de adicionar: gravar os botões</p>
+          <p className="mt-1">Abra o ar → aba Botões → Gravar. Comece pelo <b>Desligar</b>: visor do controle aceso, aperte o liga/desliga apontando para o transmissor. Ar Gree: só o Desligar e depois "Controle Gree → Gerar". Mesmo modelo de outro ar já gravado: "Copiar de outro ar".</p>
+        </div>
+      )}
       {erro && <Aviso>{erro}</Aviso>}
       <div className="flex justify-end">
         <Botao type="submit" carregando={salvando}>{rotuloBotao}</Botao>

@@ -101,8 +101,8 @@ export default function Integracoes() {
               </div>
               <div>
                 <label className="rotulo" htmlFor="as">Senha do App (App Secret)</label>
-                <input id="as" type="password" className="campo font-mono" value={f.app_secret} placeholder={cfg.tem_secret ? 'Guardada. Preencha só para trocar.' : ''}
-                  onChange={(e) => setForm({ ...f, app_secret: e.target.value })} autoComplete="off" />
+                <input id="as" type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" className="campo font-mono" value={f.app_secret} placeholder={cfg.tem_secret ? 'Guardada. Preencha só para trocar.' : ''}
+                  onChange={(e) => setForm({ ...f, app_secret: e.target.value })} />
               </div>
               <p className="ajuda sm:col-span-2">A App Key precisa ser a mesma escolhida no dispositivo do Sinric. Se a Alexa disser que o aparelho não responde e o portal mostrar "signature mismatched", a credencial do dispositivo é outra.</p>
               <div className="flex justify-end sm:col-span-2"><Botao type="submit" disabled={!form}>Salvar credenciais</Botao></div>

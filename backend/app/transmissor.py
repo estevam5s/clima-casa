@@ -154,6 +154,23 @@ def atualizar_online():
 
 
 # ---------------- fila no Supabase ----------------
+def sem_agente() -> str:
+    """Por que um pedido que depende da rede do escritório não vai funcionar agora (texto para a tela)."""
+    try:
+        from . import coordenador
+        maquinas = coordenador.maquinas()
+    except Exception:  # noqa: BLE001
+        maquinas = []
+    principal = next((m for m in maquinas if m.get("principal")), None)
+    if not agente_online() or not principal:
+        return ("Nenhum computador do escritório está com o agente ligado. Ligue o PC do escritório (ou o Raspberry Pi) "
+                "e confira em Infra → Agentes.")
+    if not principal.get("ve_transmissores"):
+        return (f"O computador no comando ({principal.get('nome')}) não está na rede do escritório e não enxerga os transmissores. "
+                "Ligue um computador que esteja no escritório.")
+    return f"O agente ({principal.get('nome')}) não respondeu a tempo. Tente de novo em alguns segundos."
+
+
 def enfileirar(tipo: str, hub_id: str | None, dados: dict) -> int:
     return db.executar("INSERT INTO fila_comandos (tipo, hub_id, dados, criado_em) VALUES (?, ?, CAST(? AS jsonb), ?)",
                        (tipo, hub_id, json.dumps(dados), db.agora()))
@@ -168,7 +185,7 @@ def aguardar(fila_id: int, limite: float) -> dict:
         time.sleep(0.4)
     db.executar("UPDATE fila_comandos SET estado = 'erro', erro = 'Tempo esgotado' WHERE id = ? AND estado = 'pendente'",
                 (fila_id,))
-    return {"estado": "erro", "erro": "O agente do Mac não respondeu a tempo."}
+    return {"estado": "erro", "erro": sem_agente()}
 
 
 def processar_fila_uma_vez() -> bool:
@@ -300,7 +317,7 @@ def iniciar_aprendizado(hub_id: str, aparelho_id: int, chave: str, rotulo: str, 
     if not (h["ip"] and h["local_key"]):
         raise RuntimeError("O transmissor precisa de IP e Local Key para aprender botões.")
     if PAPEL != "agente" and not agente_online():
-        raise RuntimeError("Gravar botões precisa do agente rodando no Mac (na mesma rede do transmissor).")
+        raise RuntimeError("Gravar botões precisa do agente num computador do escritório. " + sem_agente())
     if db.um("SELECT 1 FROM fila_comandos WHERE hub_id = ? AND tipo = 'aprender' AND estado IN ('pendente','executando') "
              "AND criado_em > ?", (hub_id, db.agora() - 90)):
         raise RuntimeError("Este transmissor já está gravando um botão.")
@@ -318,7 +335,7 @@ def job(job_id: int) -> dict:
     inicio = f["inicio_em"] or f["criado_em"]
     estado = {"pendente": "iniciando", "executando": "escutando"}.get(f["estado"], f["estado"])
     if f["estado"] == "pendente" and f["criado_em"] < db.agora() - 20:
-        estado, f["erro"] = "erro", "O agente do Mac não pegou o pedido. Confira se o Clima Casa está rodando no Mac."
+        estado, f["erro"] = "erro", sem_agente()
     return {"id": f["id"], "estado": estado, "erro": f["erro"], "tipo": (res or {}).get("tipo"),
             "restante": max(0, int(inicio + dados.get("duracao", 30) - time.time()))}
 
@@ -327,7 +344,7 @@ def descobrir(segundos=8) -> list[dict]:
     if PAPEL == "agente":
         return descobrir_local(segundos)
     if not agente_online():
-        raise RuntimeError("Procurar na rede precisa do agente rodando no Mac.")
+        raise RuntimeError(sem_agente())
     f = aguardar(enfileirar("descobrir", None, {"segundos": 6}), 20)
     if f["estado"] != "ok":
         raise RuntimeError(f["erro"])

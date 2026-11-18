@@ -182,7 +182,10 @@ async def _laco():
                 atual = desejado
         except Exception as e:  # noqa: BLE001
             _estado.update(conectado=False, erro=str(e)[:200])
-            _gravar_status()
+            try:   # sem internet o banco também cai: gravar o status não pode derrubar o laço da Alexa
+                _gravar_status()
+            except Exception:  # noqa: BLE001
+                pass
             atual = ()
             log.warning("Sinric: %s", e)
         await asyncio.sleep(30)

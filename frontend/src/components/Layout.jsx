@@ -209,7 +209,7 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores,
       {aberta ? (
         <label className="relative -mb-1 block">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={irPrimeiro} placeholder="Buscar no menu" aria-label="Buscar no menu"
+          <input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={irPrimeiro} placeholder="Buscar no menu" aria-label="Buscar no menu" type="search" name="busca-menu" autoComplete="off" autoCorrect="off" spellCheck={false} data-1p-ignore data-lpignore="true" data-form-type="other"
             className="h-9 w-full rounded-lg border border-border bg-background/60 pl-8 pr-8 text-[13px] outline-none placeholder:text-muted-foreground focus:border-primary/60" />
           {busca ? <button onClick={() => setBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Limpar busca"><X className="h-3.5 w-3.5" /></button>
             : <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border px-1 text-[10px] text-muted-foreground">/</kbd>}
@@ -285,7 +285,7 @@ function Paleta({ aberta, fechar }) {
             className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-2xl" /* marca: paleta flutua */ onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-border px-3">
               <Search className="h-4 w-4 text-muted-foreground" />
-              <input ref={ref} value={q} onChange={(e) => { setQ(e.target.value); setSel(0) }} placeholder="Buscar páginas e aparelhos…"
+              <input ref={ref} value={q} onChange={(e) => { setQ(e.target.value); setSel(0) }} placeholder="Buscar páginas e aparelhos…" type="search" name="busca-paginas" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other"
                 className="h-12 flex-1 bg-transparent text-sm outline-none focus-visible:ring-0 placeholder:text-muted-foreground" aria-label="Buscar" /* marca: o foco aparece na borda da paleta */
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, itens.length - 1)) }

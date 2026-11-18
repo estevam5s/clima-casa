@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import LogoSpotify from '../components/LogoSpotify'
 import { CalendarClock, Disc3, ExternalLink, KeyRound, ListMusic, LogOut, Music2, Pause, Pencil, Play, Plus, Repeat, Repeat1, Search, Shuffle, SkipBack, SkipForward, Smartphone, Speaker, Trash2, Tv, Volume2, Zap } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
@@ -34,7 +35,7 @@ function Configurar({ estado, aoMudar }) {
       </ol>
       <form onSubmit={salvar} className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-xs text-muted-foreground">Client ID<input value={id} onChange={(e) => setId(e.target.value)} required minLength={20} className="campo mt-1 h-9 font-mono" autoComplete="off" spellCheck={false} /></label>
-        <label className="text-xs text-muted-foreground">Client Secret<input type="password" value={segredo} onChange={(e) => setSegredo(e.target.value)} required minLength={20} className="campo mt-1 h-9 font-mono" autoComplete="off" /></label>
+        <label className="text-xs text-muted-foreground">Client Secret<input type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" value={segredo} onChange={(e) => setSegredo(e.target.value)} required minLength={20} className="campo mt-1 h-9 font-mono" /></label>
         <div className="sm:col-span-2 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">{estado.configurado ? `App atual: ${estado.client_id}. Salvar outro troca o app e pede login de novo.` : 'O segredo fica cifrado no banco; ninguém vê depois de salvo.'}</p>
           <Botao type="submit" icone={KeyRound} carregando={salvando}>Salvar app</Botao>
@@ -331,7 +332,7 @@ export default function Musica() {
         <>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             {estado.conta?.foto ? <img src={estado.conta.foto} alt="" className="h-8 w-8 rounded-full object-cover" /> : <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted"><Music2 className="h-4 w-4" /></span>}
-            <span><b>{estado.conta?.nome}</b> <span className="text-muted-foreground">· Spotify {estado.conta?.produto === 'premium' ? 'Premium' : estado.conta?.produto || ''}</span></span>
+            <span className="flex items-center gap-1.5"><LogoSpotify className="h-5 w-5" /><b>{estado.conta?.nome || 'Conta Spotify'}</b> <span className="text-muted-foreground">· Spotify {estado.conta?.produto === 'premium' ? 'Premium' : estado.conta?.produto || ''}</span></span>
             {estado.conta?.produto && estado.conta.produto !== 'premium' && <span className="text-xs text-amber-600 dark:text-amber-400">Sem Premium o Spotify não deixa controlar a reprodução por aqui.</span>}
           </div>
           <Player podeControlar={podeControlar} />
@@ -376,7 +377,7 @@ export default function Musica() {
           <div className="cartao p-5">
             <h2 className="titulo-secao">2. Conectar a conta</h2>
             <p className="mt-2 text-sm text-muted-foreground">Depois de salvar o app, entre com a conta Spotify. Para controlar a reprodução, ela precisa ser <b className="text-foreground">Premium</b>.</p>
-            <Botao className="mt-4 w-full" icone={ExternalLink} disabled={!estado.configurado || !admin} onClick={conectar}>Conectar com o Spotify</Botao>
+            <Botao className="mt-4 w-full" icone={ExternalLink} disabled={!estado.configurado || !admin} onClick={conectar}><span className="inline-flex items-center gap-2"><LogoSpotify className="h-4 w-4" />Conectar com o Spotify</span></Botao>
             <h3 className="mt-6 text-sm font-semibold">E a Alexa?</h3>
             <p className="mt-1 text-sm text-muted-foreground">No app Alexa: Mais → Configurações → Música e podcasts → Vincular novo serviço → Spotify. Assim os Echo aparecem como aparelhos aqui e as rotinas podem tocar neles.</p>
           </div>

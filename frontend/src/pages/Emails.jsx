@@ -29,7 +29,7 @@ function Passo({ ok, titulo, children }) {
 function Segredo({ rotulo, salvo, valor, mudar, dica, placeholder }) {
   return (
     <label className="block text-xs text-muted-foreground">{rotulo} {salvo && <span className="text-emerald-600 dark:text-emerald-400">· salvo (cifrado)</span>}
-      <input type="password" value={valor} onChange={(e) => mudar(e.target.value)} placeholder={salvo ? 'deixe vazio para manter · “-” para apagar' : placeholder} className="campo mt-1 h-9 font-mono" autoComplete="off" />
+      <input type="password" value={valor} onChange={(e) => mudar(e.target.value)} placeholder={salvo ? 'deixe vazio para manter · “-” para apagar' : placeholder} className="campo mt-1 h-9 font-mono" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" />
       {dica && <span className="mt-1 block text-[11px]">{dica}</span>}
     </label>
   )

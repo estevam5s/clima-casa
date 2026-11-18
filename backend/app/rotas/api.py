@@ -946,7 +946,13 @@ def listar_hubs(projeto_id: int | None = None):
 @api.post("/hubs/verificar")
 def verificar_hubs():
     transmissor.atualizar_online()
-    return listar_hubs()
+    lista = listar_hubs()
+    if lista and transmissor.PAPEL != "agente":
+        # na nuvem quem testa a rede é o agente (a cada ~30 s); sem ele no escritório, o status é o último conhecido
+        aviso = transmissor.sem_agente()
+        principal_ok = transmissor.agente_online() and "não respondeu a tempo" in aviso
+        lista[0]["agente_aviso"] = "" if principal_ok else aviso
+    return lista
 
 
 @api.get("/hubs/descobrir")
@@ -2577,7 +2583,7 @@ def reparar_hubs():
         if transmissor.PAPEL == "agente":
             return {"resultados": transmissor.autorreparar(forcar=True)}
         if not transmissor.agente_online():
-            raise RuntimeError("O agente do Mac está offline: ele que procura o transmissor na rede de casa.")
+            raise RuntimeError(transmissor.sem_agente())
         f = transmissor.aguardar(transmissor.enfileirar("reparar", None, {}), 45)
         if f["estado"] != "ok":
             raise RuntimeError(f["erro"])

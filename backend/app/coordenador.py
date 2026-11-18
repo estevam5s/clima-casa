@@ -217,10 +217,43 @@ def _estou_cego() -> bool:
     return _visao["ve"] == 0
 
 
+# Cão de guarda: se o laço de coordenação parar de dar a volta (ex.: travado numa conexão morta), o processo sai e o
+# serviço (launchd, tarefa do Windows, systemd) liga de novo. Sem isso o agente ficava horas "vivo" sem fazer nada.
+_ultimo_ciclo = time.time()
+LIMITE_PARADO = 180
+
+
+def _girou():
+    global _ultimo_ciclo
+    _ultimo_ciclo = time.time()
+
+
+_cao_ligado = False
+
+
+def iniciar_cao_de_guarda():
+    global _cao_ligado
+    if _cao_ligado:
+        return
+    _cao_ligado = True
+    _girou()
+
+    def vigia():
+        while True:
+            time.sleep(30)
+            parado = time.time() - _ultimo_ciclo
+            if parado > LIMITE_PARADO:
+                log.error("coordenação parada há %d s; reiniciando o agente", parado)
+                os._exit(3)
+    threading.Thread(target=vigia, daemon=True, name="cao-de-guarda").start()
+
+
 def esperar_posto():
     """Bloqueia até este computador virar o principal (fica de reserva, se anunciando)."""
     avisou = False
+    iniciar_cao_de_guarda()
     while True:
+        _girou()
         try:
             if not _preferido_online_e_outro() and not (_estou_cego() and _outro_enxerga()) and tentar_posto():
                 anunciar("principal")
@@ -243,6 +276,7 @@ def vigiar():
         cego = 0
         while True:
             time.sleep(BATIDA)
+            _girou()
             try:
                 cego = cego + 1 if _estou_cego() else 0
                 if cego >= 4 and _outro_enxerga():   # ~40 s cego (sondagem a cada 30 s)

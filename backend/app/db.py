@@ -56,6 +56,9 @@ def _nova_conexao():
         sslmode="verify-full", sslrootcert=str(Path(__file__).resolve().parents[1] / "supabase-ca.crt"),
         autocommit=True, prepare_threshold=None, row_factory=dict_row, connect_timeout=15,
         application_name="clima-casa",
+        # teste de vida da conexão: quando o computador troca de rede ou dorme, a conexão antiga morre sem avisar e a
+        # consulta esperava para sempre (o agente ficava "vivo" sem fazer nada). Com keepalive vira erro em ~1 min.
+        keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3,
     )
 
 

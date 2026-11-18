@@ -2,6 +2,25 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.10.1",
+      "data": "2026-11-18",
+      "titulo": "Agente que não trava, passo a passo para gravar botões e correções",
+      "resumo": "O agente se recupera sozinho quando o computador troca de rede, a tela de gravar explica o passo a passo e a busca do menu não é mais preenchida com o seu e-mail.",
+      "novo": [
+        "Passo a passo na tela de gravar botões e no cadastro de ar: o que vale é o visor do controle, comece pelo Desligar"
+      ],
+      "melhorias": [
+        "Transmissores: mensagens dizem o motivo real quando não dá (nenhum computador ligado no escritório, ou o computador fora da rede) e o Verificar mostra quem não respondeu",
+        "Música: logo do Spotify na conta conectada e no botão de conectar"
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "O agente ficava horas parado depois que o computador trocava de rede ou dormia; agora se recupera sozinho",
+        "A conexão com a Alexa caía de vez quando a internet do computador do agente piscava",
+        "Na tela de E-mails o navegador colocava o seu e-mail na busca do menu"
+      ]
+    },
+    {
       "versao": "1.10.0",
       "data": "2026-11-18",
       "titulo": "Um transmissor por sala",
