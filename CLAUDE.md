@@ -523,6 +523,11 @@ log do agente (`~/Library/Logs/ClimaCasa.log`, `data\agente.log` no Windows).
 - "Reiniciar agente": `POST /api/agentes/reiniciar {id}` grava `agente_ordem:<id>`; o computador lê no próximo anúncio (~10 s), libera o
   posto se for principal e sai com `os._exit(3)` (o serviço o liga de novo).
 
+- **Cartão pronto no Mac**: `./scripts/preparar-cartao-raspberry.sh` grava o Raspberry Pi OS Lite 64-bit (Trixie, Python 3.13,
+  cloud-init) no microSD e coloca `user-data` (hostname `clima-agente`, usuário `clima` só com a chave `~/.ssh/clima-agente`),
+  `network-config` (Wi-Fi digitado pelo dono no Terminal), o código e o `.env`; no 1º boot `clima/primeiro-boot.sh` instala o agente
+  e apaga o `.env` da partição de boot. Só aceita disco externo/removível < 300 GB e pede "APAGAR". Precisa do `sudo` do dono.
+
 ### 7.15 Novidades a cada versão
 `backend/app/novidades.json` → `GET /api/novidades` (logado; devolve `versoes`, `atual`, `vista`, `mostrar`) e
 `POST /api/novidades/vista {versao}` (grava `usuarios.novidades_vista`). O `NovidadesModal` (no `Layout`, fora do bloco que remonta por
