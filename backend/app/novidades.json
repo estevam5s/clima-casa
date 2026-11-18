@@ -2,6 +2,19 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.9.3",
+      "data": "2026-11-18",
+      "titulo": "Diagnóstico da Alexa mais completo",
+      "resumo": "O diagnóstico da Alexa avisa quando um ar está nela sem transmissor, e os comandos de voz que não deram certo aparecem na Atividade.",
+      "novo": [],
+      "melhorias": [
+        "Integrações → Diagnóstico: aviso de ar na Alexa sem transmissor (por voz ele não responde)",
+        "Comando de voz que não pôde ser executado fica registrado na Atividade, no filtro de falhas"
+      ],
+      "seguranca": [],
+      "correcoes": []
+    },
+    {
       "versao": "1.9.2",
       "data": "2026-11-18",
       "titulo": "Música não bloqueia mais o seu acesso",

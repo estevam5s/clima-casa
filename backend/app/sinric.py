@@ -90,6 +90,12 @@ def _callbacks(dispositivo, aparelho_id: int):
             return True
         except Exception as e:  # noqa: BLE001
             log.warning("Sinric → aparelho %s falhou: %s", aparelho_id, e)
+            # aparece na Atividade (filtro falhas): antes, um comando de voz para ar sem transmissor sumia sem rastro
+            if "sem transmissor" in str(e) or "não tem transmissor" in str(e) or not isinstance(e, RuntimeError):
+                try:
+                    db.registrar("sinric", "Comando de voz não executado", ok=False, aparelho_id=aparelho_id, detalhe=str(e)[:200])
+                except Exception:  # noqa: BLE001
+                    pass
             return False
 
     async def energia(ligado: bool):

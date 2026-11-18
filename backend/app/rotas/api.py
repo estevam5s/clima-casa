@@ -2182,7 +2182,7 @@ def sinric_diagnostico():
     # aparelhos que a conta do Sinric comporta: 3 no grátis; depois de comprar, ajuste config.sinric.limite_aparelhos
     limite = int(c.get("limite_aparelhos") or 3)
     st = db.cfg("sinric_status") or {}
-    ap = db.consultar("""SELECT a.id, a.nome, a.sinric_device_id, a.alexa,
+    ap = db.consultar("""SELECT a.id, a.nome, a.sinric_device_id, a.alexa, a.hub_id,
                          (SELECT COUNT(*) FROM codigos k WHERE k.aparelho_id = a.id) AS botoes FROM aparelhos a ORDER BY a.nome""")
     itens = []
 
@@ -2224,6 +2224,11 @@ def sinric_diagnostico():
     sem_ir = [a["nome"] for a in vinc if not a["botoes"]]
     item("ir", "Botões do controle gravados", "ok" if vinc and not sem_ir else "aviso",
          "Todos têm sinais IR gravados." if not sem_ir else f"Sem botões gravados: {', '.join(sem_ir)}. A Alexa responde \"ok\", mas o ar não recebe nada.")
+    sem_tx = [a["nome"] for a in vinc if not a.get("hub_id")]
+    item("transmissor", "Ares da Alexa com transmissor", "ok" if not sem_tx else "aviso",
+         "Todos os ares da Alexa têm transmissor." if not sem_tx else
+         f"Sem transmissor: {', '.join(sem_tx)}. Por voz, a Alexa diz que o aparelho não respondeu. Vincule um transmissor "
+         "(Transmissores → Ares deste transmissor) ou tire o ar da Alexa até ter um.")
     ult = db.um("SELECT quando, origem, acao, ok FROM atividade WHERE origem IN ('alexa', 'sinric') ORDER BY quando DESC LIMIT 1")
     item("ultimo", "Último comando de voz recebido", "ok" if ult and ult["ok"] else "aviso",
          (time.strftime("%d/%m %H:%M", time.gmtime(ult["quando"] - 3 * 3600)) + f" · {ult['acao']} ({'ok' if ult['ok'] else 'falhou'})") if ult
