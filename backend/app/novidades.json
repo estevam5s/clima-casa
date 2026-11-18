@@ -2,6 +2,23 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.9.2",
+      "data": "2026-11-18",
+      "titulo": "Música não bloqueia mais o seu acesso",
+      "resumo": "Quando o Spotify recusa a conta, a tela de Música avisa o que fazer e não faz o firewall bloquear quem está usando.",
+      "novo": [],
+      "melhorias": [
+        "Mensagem clara quando o Spotify recusa a conta: adicionar o e-mail em User Management no app do Spotify",
+        "Com erro do Spotify, a tela de Música tenta de novo a cada minuto em vez de a cada 5 segundos"
+      ],
+      "seguranca": [
+        "Recusas do Spotify não contam mais como tentativa de acesso indevido no firewall"
+      ],
+      "correcoes": [
+        "Tela de Música aberta com o Spotify recusando a conta bloqueava o próprio IP por 15 minutos"
+      ]
+    },
+    {
       "versao": "1.9.1",
       "data": "2026-11-18",
       "titulo": "Tela de Segurança mais leve",

@@ -49,8 +49,10 @@ function Player({ podeControlar }) {
   const [p, setP] = useState(null), [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
   const ultimo = useRef(0)
-  const carregar = useCallback(() => api.get('/api/musica/tocando').then((x) => { setP(x); setErro(''); ultimo.current = Date.now() }).catch((e) => setErro(e.message)), [])
-  useEffect(() => { carregar(); const t = setInterval(() => { if (!document.hidden) carregar() }, 5000); return () => clearInterval(t) }, [carregar])
+  // com erro (Spotify recusando, conta sem acesso), espera 1 min entre tentativas em vez de insistir a cada 5 s
+  const falhou = useRef(0)
+  const carregar = useCallback(() => api.get('/api/musica/tocando').then((x) => { setP(x); setErro(''); falhou.current = 0; ultimo.current = Date.now() }).catch((e) => { setErro(e.message); falhou.current = Date.now() }), [])
+  useEffect(() => { carregar(); const t = setInterval(() => { if (!document.hidden && (!falhou.current || Date.now() - falhou.current > 60000)) carregar() }, 5000); return () => clearInterval(t) }, [carregar])
   // barra de progresso anda sozinha entre as atualizações
   const [, tique] = useState(0)
   useEffect(() => { const t = setInterval(() => tique((x) => x + 1), 1000); return () => clearInterval(t) }, [])

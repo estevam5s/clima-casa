@@ -31,7 +31,11 @@ REDIRECIONAR = "https://app.zynio.com.br/musica"
 class ErroSpotify(Exception):
     def __init__(self, status: int, msg: str):
         super().__init__(msg)
-        self.status = status
+        # 401/403 do Spotify não é falta de permissão no nosso sistema: vira 424 (falha num serviço de fora). Antes o
+        # firewall contava cada 403 repassado como acesso indevido e, com a tela de Música perguntando a cada 5 s,
+        # bloqueava o IP do próprio dono.
+        self.origem = status   # o que o Spotify respondeu (para decidir a mensagem)
+        self.status = 424 if status in (401, 403) else status
 
 
 def _cfg() -> dict:
@@ -104,7 +108,7 @@ def concluir_login(code: str, estado_oauth: str) -> dict:
         eu = chamar("GET", "/me")
     except ErroSpotify as e:
         db.registrar("musica", "Spotify conectado, mas a conta não pôde ser lida", ok=False, detalhe=str(e)[:200])
-        if e.status == 403:
+        if e.origem == 403:
             raise ErroSpotify(403, "O Spotify autorizou, mas bloqueou o acesso à conta: em developer.spotify.com, abra o app → User Management e adicione o e-mail desta conta Spotify.") from e
         raise
     c = _cfg()
@@ -157,7 +161,12 @@ def chamar(metodo: str, caminho: str, **kw):
         except ValueError:
             err = {}
         motivo = err.get("reason") or ""
-        raise ErroSpotify(r.status_code if r.status_code < 500 else 502, MENSAGENS.get(motivo) or err.get("message") or f"Spotify respondeu {r.status_code}.")
+        texto = MENSAGENS.get(motivo) or err.get("message") or ""
+        if r.status_code == 403 and not MENSAGENS.get(motivo):
+            # app em modo de desenvolvimento: só contas listadas em User Management podem usar
+            texto = ("O Spotify recusou esta conta (403). Em developer.spotify.com, abra o app → User Management e adicione o nome "
+                     "e o e-mail da conta Spotify conectada; depois clique em Desconectar e Conectar de novo.") + (f" Detalhe: {texto}" if texto else "")
+        raise ErroSpotify(r.status_code if r.status_code < 500 else 502, texto or f"Spotify respondeu {r.status_code}.")
     return r.json()
 
 
