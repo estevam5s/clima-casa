@@ -6,11 +6,17 @@ import { Aviso, Botao, Interruptor } from './ui'
 // padrao: valores iniciais de um ar novo (ex.: vindo de Transmissores → "Adicionar ar a este transmissor")
 export default function FormAparelho({ inicial, padrao = {}, hubs, aoSalvar, rotuloBotao = 'Salvar' }) {
   const { projetos, projeto } = useProjeto()
+  // ar novo: sugere o transmissor da sala escolhida (antes caía sempre no primeiro da lista, até de outra sala)
+  const hubDaSala = (pid) => {
+    const da = hubs.filter((h) => pid && String(h.projeto_id) === String(pid))
+    return da.length === 1 ? da[0].id : ''
+  }
+  const [hubManual, setHubManual] = useState(!!(inicial || padrao.hub_id))
   const [f, setF] = useState(() => ({
     nome: inicial?.nome || '',
     comodo: inicial?.comodo || '',
     marca: inicial?.marca || '',
-    hub_id: inicial?.hub_id || padrao.hub_id || hubs[0]?.id || '',
+    hub_id: inicial ? (inicial.hub_id || '') : (padrao.hub_id || hubDaSala(padrao.projeto_id ?? projeto?.id ?? projetos[0]?.id)),
     temp_min: inicial?.temp_min ?? 16,
     temp_max: inicial?.temp_max ?? 30,
     modos: inicial?.modos ? inicial.modos.split(',') : Object.keys(MODOS),
@@ -20,7 +26,15 @@ export default function FormAparelho({ inicial, padrao = {}, hubs, aoSalvar, rot
   }))
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
-  const mudar = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  const mudar = (k) => (e) => {
+    const v = e.target.value
+    if (k === 'hub_id') setHubManual(true)
+    if (k === 'projeto_id' && !hubManual && !inicial) return setF({ ...f, projeto_id: v, hub_id: hubDaSala(v) })
+    setF({ ...f, [k]: v })
+  }
+  const hubEscolhido = hubs.find((h) => h.id === f.hub_id)
+  const salaEscolhida = projetos.find((p) => String(p.id) === String(f.projeto_id))?.nome
+  const outrasSalas = (hubEscolhido?.salas || []).filter((s) => s !== salaEscolhida)
   const alternarModo = (m) => setF({ ...f, modos: f.modos.includes(m) ? f.modos.filter((x) => x !== m) : [...f.modos, m] })
 
   const enviar = async (e) => {
@@ -63,9 +77,15 @@ export default function FormAparelho({ inicial, padrao = {}, hubs, aoSalvar, rot
           <label className="rotulo" htmlFor="hub">Transmissor infravermelho</label>
           <select id="hub" className="campo" value={f.hub_id} onChange={mudar('hub_id')}>
             <option value="">Nenhum</option>
-            {hubs.map((h) => <option key={h.id} value={h.id}>{h.nome}{h.ip ? ` (${h.ip})` : ''}</option>)}
+            {hubs.map((h) => <option key={h.id} value={h.id}>{h.nome}{h.projeto_nome ? ` · ${h.projeto_nome}` : ''}{h.online === 0 || h.online === false ? ' (sem resposta)' : ''}</option>)}
           </select>
-          <p className="ajuda">O transmissor precisa estar no mesmo cômodo e com visão do aparelho.</p>
+          <p className="ajuda">O transmissor precisa estar na mesma sala e com visão do aparelho.</p>
+          {hubEscolhido && outrasSalas.length > 0 && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              Este transmissor já atende {outrasSalas.join(', ')}. Se {salaEscolhida || 'esta sala'} for fechada, use um transmissor só dela: ares iguais que o sinal alcança mudam juntos.
+            </p>
+          )}
+          {hubEscolhido && !hubEscolhido.online && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Este transmissor não está respondendo agora: dá para salvar, mas os comandos só chegam quando ele voltar.</p>}
         </div>
         <div>
           <label className="rotulo" htmlFor="tmin">Temperatura mínima</label>

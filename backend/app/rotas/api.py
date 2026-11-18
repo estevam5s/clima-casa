@@ -729,7 +729,10 @@ class AresDoHubIn(BaseModel):
 def ares_do_hub(hid: str, d: AresDoHubIn):
     """Planejar ou mover um transmissor: quais ares ele atende agora. Quem sai fica 'sem transmissor' (botões continuam
     salvos), assim um transmissor levado para outro lugar nunca dispara num ar que não vê mais."""
-    h = transmissor.hub(hid)
+    try:
+        h = transmissor.hub(hid)
+    except KeyError as e:
+        _erro(e)
     _exigir_aparelhos(d.aparelhos)
     if d.projeto_id:
         _exigir_projeto(d.projeto_id)
@@ -750,7 +753,10 @@ def ares_do_hub(hid: str, d: AresDoHubIn):
 def hub_todos(hid: str, d: TodosIn):
     """Liga ou desliga todos os ares de um transmissor, um de cada vez (o SRW-004 manda um sinal por vez)."""
     import time
-    transmissor.hub(hid)
+    try:
+        transmissor.hub(hid)
+    except KeyError as e:
+        _erro(e)
     ids = [r["id"] for r in db.consultar("SELECT id FROM aparelhos WHERE hub_id = ? ORDER BY nome", (hid,))]
     perm = _ids_aparelhos_permitidos()
     if perm is not None:
@@ -896,7 +902,38 @@ def _hub_publico(h):
     h["juntos"] = [vis(z["aparelhos"]) for z in zs]
     h["testado"] = h["id"] in (db.cfg(zonas.TESTADOS) or [])
     h["limite_recomendado"] = LIMITE_ARES_POR_TRANSMISSOR
+    # salas (projetos) atendidas: infravermelho não tem endereço, então salas fechadas precisam de um transmissor cada
+    h["salas"] = sorted({a["projeto_nome"] for a in h["ares"] if a.get("projeto_nome")})
     return h
+
+
+REMOVIDO = "hub_removido:"   # config: o que um transmissor removido atendia (para voltar sozinho se for importado de novo)
+REMOVIDO_VALE = 30 * 86400
+
+
+def _guardar_removido(h: dict):
+    ares = [r["id"] for r in db.consultar("SELECT id FROM aparelhos WHERE hub_id = ?", (h["id"],))]
+    db.set_cfg(REMOVIDO + h["id"], {"nome": h["nome"], "versao": h.get("versao"), "projeto_id": h.get("projeto_id"),
+                                    "control_type": h.get("control_type"), "ares": ares, "em": db.agora()})
+
+
+def _restaurar_removido(hub_id: str) -> str:
+    """Transmissor importado/cadastrado de novo depois de removido: devolve nome, sala, protocolo e os ares que ainda
+    estão sem transmissor. Devolve um resumo para a Atividade ('' se não havia nada guardado)."""
+    r = db.cfg(REMOVIDO + hub_id)
+    if not r or db.agora() - int(r.get("em") or 0) > REMOVIDO_VALE:
+        return ""
+    db.executar("UPDATE hubs SET nome = ?, versao = COALESCE(?, versao), projeto_id = COALESCE(?, projeto_id), "
+                "control_type = COALESCE(control_type, ?) WHERE id = ?",
+                (r["nome"], r.get("versao"), r.get("projeto_id"), r.get("control_type"), hub_id))
+    voltaram = []
+    for aid in r.get("ares") or []:
+        a = db.um("SELECT nome FROM aparelhos WHERE id = ? AND hub_id IS NULL", (aid,))
+        if a:   # só quem continua sem transmissor (não desfaz o que alguém já mudou de lugar)
+            db.executar("UPDATE aparelhos SET hub_id = ? WHERE id = ?", (hub_id, aid))
+            voltaram.append(a["nome"])
+    db.executar("DELETE FROM config WHERE chave = ?", (REMOVIDO + hub_id,))
+    return f"{r['nome']} voltou como estava" + (f"; ares religados: {', '.join(voltaram)}" if voltaram else "")
 
 
 @api.get("/hubs")
@@ -928,14 +965,20 @@ def criar_hub(d: HubIn):
     db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, projeto_id, criado_em) VALUES (?,?,?,?,?,?,?)",
                 (d.id.strip(), d.nome.strip(), d.ip.strip(), cripto.cifrar(d.local_key.strip(), "hub:local_key"), d.versao,
                  d.projeto_id or (db.um("SELECT min(id) AS id FROM projetos") or {}).get("id"), db.agora()))
+    volta = _restaurar_removido(d.id.strip())
+    if volta:
+        db.registrar("painel", "Transmissor removido voltou", detalhe=volta)
     transmissor.atualizar_online()
     db.registrar("painel", "Transmissor adicionado", detalhe=d.nome)
     return _hub_publico(transmissor.hub(d.id))
 
 
 @api.post("/hubs/importar/{device_id}")
-def importar_hub(device_id: str):
-    """Cadastra (ou atualiza) um transmissor a partir da conta Smart Life: traz Local Key e formato."""
+def importar_hub(device_id: str, projeto_id: int | None = None):
+    """Cadastra (ou atualiza) um transmissor a partir da conta Smart Life: traz Local Key e formato.
+    projeto_id = sala onde ele vai ficar (antes todo transmissor novo caía no primeiro projeto)."""
+    if projeto_id:
+        _exigir_projeto(projeto_id)
     try:
         info = tuya_nuvem.detalhes(device_id)
     except Exception as e:  # noqa: BLE001
@@ -959,7 +1002,14 @@ def importar_hub(device_id: str):
         db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, control_type, funcoes_nuvem, projeto_id, criado_em) "
                     "VALUES (?,?,?,?,?,?,?,?,?)",
                     (device_id, info["nome"], ip, cripto.cifrar(info["local_key"], "hub:local_key"), versao, info["control_type"],
-                     json.dumps(info["funcoes"]), (db.um("SELECT min(id) AS id FROM projetos") or {}).get("id"), db.agora()))
+                     json.dumps(info["funcoes"]), projeto_id or (db.um("SELECT min(id) AS id FROM projetos") or {}).get("id"), db.agora()))
+        volta = _restaurar_removido(device_id)
+        if volta:
+            db.registrar("painel", "Transmissor removido voltou", detalhe=volta)
+            if projeto_id:   # quem importou escolheu a sala agora: vale a escolha
+                db.executar("UPDATE hubs SET projeto_id = ? WHERE id = ?", (projeto_id, device_id))
+    if existente and projeto_id:
+        db.executar("UPDATE hubs SET projeto_id = ? WHERE id = ?", (projeto_id, device_id))
     transmissor.atualizar_online()
     db.registrar("painel", "Transmissor importado da conta Smart Life", detalhe=info["nome"])
     return _hub_publico(transmissor.hub(device_id))
@@ -983,9 +1033,15 @@ def editar_hub(hub_id: str, d: HubEdit):
 
 @api.delete("/hubs/{hub_id}")
 def apagar_hub(hub_id: str):
+    h = db.um("SELECT * FROM hubs WHERE id = ?", (hub_id,))
+    if not h:
+        raise HTTPException(404, "Transmissor não encontrado.")
+    _exigir_hub_inteiro(hub_id)   # quem não cuida de todos os ares dele não pode tirar o transmissor deles
+    ares = [r["nome"] for r in db.consultar("SELECT nome FROM aparelhos WHERE hub_id = ? ORDER BY nome", (hub_id,))]
+    _guardar_removido(dict(h))
     db.executar("DELETE FROM hubs WHERE id = ?", (hub_id,))
-    db.registrar("painel", "Transmissor removido", detalhe=hub_id)
-    return {"ok": True}
+    db.registrar("painel", "Transmissor removido", detalhe=f"{h['nome']} ({hub_id})" + (f"; sem transmissor agora: {', '.join(ares)}" if ares else ""))
+    return {"ok": True, "ares_sem_transmissor": ares}
 
 
 # ---------------- agendamentos ----------------

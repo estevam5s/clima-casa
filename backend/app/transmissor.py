@@ -90,6 +90,16 @@ def _aprender_local(h: dict, timeout=30) -> tuple[str, int]:
         raise RuntimeError("O transmissor precisa de IP e Local Key para aprender botões.")
     if not porta_aberta(h["ip"]):
         raise RuntimeError(f"Transmissor fora da rede local ({h['ip']}).")
+    # antes de esperar pelo controle: o transmissor aceita a conexão? Com o protocolo errado ele recusa e a gravação
+    # terminava em "Nenhum sinal recebido" mesmo com o controle apontado certo
+    diag = diagnosticar(h)
+    if diag != "ok":
+        novo = _acertar_versao(h)
+        if novo:
+            h = novo
+        elif diag == "chave":
+            raise RuntimeError("O transmissor está na rede, mas recusou a conexão (chave ou protocolo). Em Transmissores, "
+                               "clique em “Reconectar agora” e grave de novo.")
     for tipo in ([h["control_type"]] if h["control_type"] else [2, 1]):
         with _trava(h["id"]):
             ir = _ir(h, tipo)
@@ -357,6 +367,31 @@ def diagnosticar(h: dict) -> str:
     return "ok"
 
 
+VERSOES_TUYA = ("3.3", "3.4", "3.5")
+
+
+def _acertar_versao(h: dict) -> dict | None:
+    """Testa as outras versões do protocolo Tuya e grava a que responder com certeza ("ok" no diagnóstico).
+    Por que existe: o transmissor pode vir cadastrado com a versão errada (a importação pela nuvem não sabe qual é e a
+    varredura UDP às vezes informa outra). Com a versão errada ele recusa a conexão e a gravação dizia só "Nenhum sinal
+    recebido". Só troca quando outra versão funciona; senão devolve None e nada muda."""
+    if not (h.get("ip") and h.get("local_key")) or not porta_aberta(h["ip"]):
+        return None
+    atual = str(h.get("versao") or "")
+    for v in VERSOES_TUYA:
+        if v == atual:
+            continue
+        try:
+            ok = diagnosticar({**h, "versao": v}) == "ok"
+        except Exception:  # noqa: BLE001
+            ok = False
+        if ok:
+            db.executar("UPDATE hubs SET versao = ? WHERE id = ?", (v, h["id"]))
+            db.registrar("sistema", f"Transmissor {h['nome']}: protocolo corrigido", detalhe=f"{atual or '—'} → {v}")
+            return hub(h["id"])
+    return None
+
+
 def _registrar_reparo(h: dict, mudancas: list[str]):
     db.executar("UPDATE hubs SET problema = NULL, reparado_em = ?, online = 1, visto_em = ? WHERE id = ?",
                 (db.agora(), db.agora(), h["id"]))
@@ -385,6 +420,13 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
         if h.get("problema"):
             db.executar("UPDATE hubs SET problema = NULL WHERE id = ?", (h["id"],))
         return True, "funcionando"
+
+    # 0) responde na rede, mas recusa a conexão: pode ser só o protocolo cadastrado errado
+    if h.get("ip") and h.get("local_key"):
+        novo = _acertar_versao(h)
+        if novo:
+            mudancas.append(f"protocolo {h.get('versao') or '—'} → {novo['versao']}")
+            h, diag = novo, "ok"
 
     # 1) IP novo: procura o mesmo aparelho na rede pelo ID
     if diag == "rede":
@@ -436,6 +478,11 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
                         mudancas.append(f"IP → {ip_achado}")
                 h = hub(h["id"])
             diag = diagnosticar(h)
+            if diag != "ok":   # chave nova certa, mas o protocolo cadastrado pode estar errado
+                novo = _acertar_versao(h)
+                if novo:
+                    mudancas.append(f"protocolo {h.get('versao') or '—'} → {novo['versao']}")
+                    h, diag = novo, "ok"
         except Exception as e:  # noqa: BLE001
             msg = f"Não foi possível se ajustar sozinho: {e}"
             db.executar("UPDATE hubs SET problema = ? WHERE id = ?", (msg[:300], h["id"]))

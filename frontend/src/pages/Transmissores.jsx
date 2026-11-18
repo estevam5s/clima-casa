@@ -8,6 +8,8 @@ import { motion } from 'framer-motion'
 
 function Importar({ onFechar, aoImportar }) {
   const { dados, erro } = useDados(() => api.get('/api/tuya/aparelhos'))
+  const { dados: projetos } = useDados(() => api.get('/api/projetos'))
+  const [sala, setSala] = useState('')
   const [importando, setImportando] = useState(null)
   const toast = useToast()
   if (erro) {
@@ -22,7 +24,7 @@ function Importar({ onFechar, aoImportar }) {
   const importar = async (d) => {
     setImportando(d.id)
     try {
-      await api.post(`/api/hubs/importar/${d.id}`)
+      await api.post(`/api/hubs/importar/${d.id}${sala ? `?projeto_id=${sala}` : ''}`)
       toast(`${d.nome} importado com Local Key.`)
       aoImportar()
       onFechar()
@@ -32,6 +34,15 @@ function Importar({ onFechar, aoImportar }) {
     }
   }
   return (
+    <div>
+      <label className="block pb-3">
+        <span className="rotulo">Sala onde o transmissor vai ficar</span>
+        <select className="campo mt-1" value={sala} onChange={(e) => setSala(e.target.value)} aria-label="Sala do transmissor">
+          <option value="">Manter a atual (novo: primeira sala)</option>
+          {(projetos || []).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+        </select>
+        <span className="ajuda mt-1 block">Um transmissor por sala fechada: o infravermelho não atravessa parede e não tem endereço.</span>
+      </label>
     <div className="divide-y divide-border">
       {lista.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nenhum aparelho na conta Smart Life.</p>}
       {lista.map((d) => (
@@ -45,6 +56,7 @@ function Importar({ onFechar, aoImportar }) {
             : <Botao tamanho="sm" disabled={!d.transmissor_ir} carregando={importando === d.id} onClick={() => importar(d)}>Importar</Botao>}
         </div>
       ))}
+    </div>
     </div>
   )
 }
@@ -140,6 +152,59 @@ function Editar({ hub, onFechar, aoSalvar }) {
 }
 
 // Orientação de troca de Wi-Fi: o que o sistema faz sozinho e o que só a pessoa pode fazer.
+// Cada sala (projeto) e o transmissor dos ares dela: próprio, dividido com outra sala ou nenhum.
+// O infravermelho não atravessa parede e não tem endereço: sala fechada que obedece sozinha = um transmissor só dela.
+function SalasResumo({ hubs }) {
+  const { dados: ares } = useDados(() => api.get('/api/aparelhos'))
+  const [aberto, setAberto] = useState(false)
+  if (!ares || !ares.length) return null
+  const salasDoHub = Object.fromEntries(hubs.map((h) => [h.id, h.salas || []]))
+  const porSala = {}
+  for (const a of ares) {
+    const nome = a.projeto_nome || 'Sem sala'
+    const s = (porSala[nome] ||= { nome, ares: [], sem: [], divididos: new Set() })
+    s.ares.push(a.nome)
+    if (!a.hub_id) s.sem.push(a.nome)
+    else if ((salasDoHub[a.hub_id] || []).length > 1) s.divididos.add(a.hub_nome || 'transmissor')
+  }
+  const salas = Object.values(porSala).sort((x, y) => x.nome.localeCompare(y.nome))
+  const estado = (s) => (s.sem.length === s.ares.length ? 'sem' : s.sem.length ? 'parcial' : s.divididos.size ? 'dividido' : 'proprio')
+  const cont = salas.reduce((c, s) => ({ ...c, [estado(s)]: (c[estado(s)] || 0) + 1 }), {})
+  const tom = { proprio: 'verde', dividido: 'ambar', parcial: 'ambar', sem: 'vermelho' }
+  const texto = (s) => ({
+    proprio: 'Transmissor próprio',
+    dividido: `Divide ${[...s.divididos].join(', ')} com outra sala`,
+    parcial: `Sem transmissor: ${s.sem.join(', ')}`,
+    sem: 'Nenhum transmissor',
+  })[estado(s)]
+  return (
+    <section className="cartao mb-6 p-4">
+      <button onClick={() => setAberto((v) => !v)} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={aberto}>
+        <div>
+          <h2 className="titulo-secao">Salas e transmissores</h2>
+          <p className="text-xs text-muted-foreground">
+            {cont.proprio || 0} com transmissor próprio · {(cont.dividido || 0) + (cont.parcial || 0)} dividindo ou incompletas · {cont.sem || 0} sem transmissor
+          </p>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${aberto ? 'rotate-180' : ''}`} />
+      </button>
+      {aberto && (
+        <>
+          <ul className="mt-3 divide-y divide-border text-sm">
+            {salas.map((s) => (
+              <li key={s.nome} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="min-w-0"><span className="font-medium">{s.nome}</span> <span className="text-xs text-muted-foreground">· {s.ares.join(', ')}</span></span>
+                <Selo cor={tom[estado(s)]}>{texto(s)}</Selo>
+              </li>
+            ))}
+          </ul>
+          <p className="ajuda mt-2">Salão aberto com vários projetos pode dividir um transmissor (os ares iguais mudam juntos). Sala fechada que deve obedecer sozinha precisa do seu.</p>
+        </>
+      )}
+    </section>
+  )
+}
+
 function GuiaRede() {
   const [aberto, setAberto] = useState(() => { try { return localStorage.getItem('clima-guia-rede') !== '0' } catch { return true } })
   const alternar = () => { const v = !aberto; setAberto(v); try { localStorage.setItem('clima-guia-rede', v ? '1' : '0') } catch { /* sem armazenamento */ } }
@@ -505,10 +570,12 @@ export default function Transmissores() {
     try { setDados(await api.post('/api/hubs/verificar')) } finally { setVerificando(false) }
   }
   const remover = async (h) => {
-    await api.del(`/api/hubs/${h.id}`)
-    toast(`${h.nome} removido.`)
-    setModal(null)
-    recarregar()
+    try {
+      await api.del(`/api/hubs/${h.id}`)
+      toast(`${h.nome} removido.`)
+      setModal(null)
+      recarregar()
+    } catch (e) { toast(e.message, 'erro') }
   }
 
   return (
@@ -533,6 +600,7 @@ export default function Transmissores() {
       />
 
       {hubs.length > 0 && <GuiaRede />}
+      {hubs.length > 0 && <SalasResumo hubs={hubs} />}
       {hubs.length > 0 && (
         <div className="mb-6">
           <FaixaMetricas itens={[
@@ -585,6 +653,11 @@ export default function Transmissores() {
                   {[...new Set(h.ares.map((a) => a.projeto_nome || 'Sem sala'))].map((s) => <span key={s} className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">{s}</span>)}
                 </div>
               )}
+              {(h.salas || []).length > 1 && (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                  Atende {h.salas.length} salas. Se forem salas fechadas, cada uma precisa do seu transmissor: o sinal não atravessa parede, e ares iguais que ele alcança mudam juntos.
+                </p>
+              )}
               {h.problema && <div className="mt-3"><Aviso tipo="alerta">{h.problema}</Aviso></div>}
               {h.reparado_em && !h.problema && <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">Reconfigurado sozinho {haQuanto(h.reparado_em)}</p>}
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -619,8 +692,13 @@ export default function Transmissores() {
         {modal?.tipo === 'ares' && <EditarAres hub={modal.hub} onFechar={() => setModal(null)} aoSalvar={recarregar} />}
       </Modal>
       <Modal aberto={modal?.tipo === 'remover'} titulo={`Remover ${modal?.hub?.nome}?`} onFechar={() => setModal(null)}>
+        {(modal?.hub?.ares || []).length > 0 && (
+          <div className="mb-3">
+            <Aviso tipo="alerta">Estes ares param de obedecer: {modal.hub.ares.map((a) => a.nome).join(', ')}.</Aviso>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground dark:text-muted-foreground/70">
-          {modal?.hub?.aparelhos ? `${modal.hub.aparelhos} aparelho(s) ficarão sem transmissor. ` : ''}Os botões gravados continuam salvos.
+          Os botões gravados continuam salvos. Se você importar este transmissor de novo nos próximos 30 dias, ele volta com o mesmo nome, sala e ares.
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <Botao variante="secundario" onClick={() => setModal(null)}>Cancelar</Botao>

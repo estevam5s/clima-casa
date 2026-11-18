@@ -2,6 +2,28 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.10.0",
+      "data": "2026-11-18",
+      "titulo": "Um transmissor por sala",
+      "resumo": "A tela de Transmissores mostra quais salas têm transmissor próprio, o cadastro de ar sugere o transmissor da sala e um transmissor removido por engano volta como estava.",
+      "novo": [
+        "Transmissores → Salas e transmissores: cada sala com transmissor próprio, dividido com outra sala ou sem nenhum",
+        "Ao importar um transmissor, escolha a sala onde ele vai ficar"
+      ],
+      "melhorias": [
+        "Cadastro de ar sugere o transmissor da sala escolhida (antes ia sempre para o primeiro da lista) e avisa quando ele já atende outras salas ou não está respondendo",
+        "Cartão do transmissor avisa quando atende mais de uma sala",
+        "Remover transmissor mostra quais ares param de obedecer; importado de novo em até 30 dias, ele volta com o mesmo nome, sala e ares"
+      ],
+      "seguranca": [
+        "Só quem cuida de todos os ares de um transmissor pode removê-lo"
+      ],
+      "correcoes": [
+        "Transmissor cadastrado com o protocolo errado: o sistema descobre o certo sozinho ao reconectar e antes de gravar (antes a gravação dizia só \"Nenhum sinal recebido\")",
+        "Ações num transmissor que acabou de ser removido por outra pessoa davam erro interno"
+      ]
+    },
+    {
       "versao": "1.9.3",
       "data": "2026-11-18",
       "titulo": "Diagnóstico da Alexa mais completo",
