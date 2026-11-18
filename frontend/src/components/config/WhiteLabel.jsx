@@ -549,6 +549,7 @@ export default function WhiteLabel() {
               <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm">Logo na capa<Interruptor ligado={f.relatorio_logo} onChange={set('relatorio_logo')} rotulo="Logo nos relatórios" /></label>
               <p className="self-center text-xs text-muted-foreground">{f.logo ? (/svg/.test(f.logo.slice(0, 30)) ? 'Logo em SVG não entra no PDF: envie PNG ou JPG.' : 'Usa o logo enviado em Identidade.') : 'Envie um logo em Identidade.'}</p>
               <div className="md:col-span-2"><Campo rotulo="Rodapé dos relatórios" ajuda="Ex.: razão social e CNPJ. Vazio = data de geração."><input className="campo" value={f.relatorio_rodape} onChange={set('relatorio_rodape')} maxLength={200} /></Campo></div>
+              <div className="md:col-span-2"><Campo rotulo="Órgão no cabeçalho oficial" ajuda="3ª linha embaixo de “Prefeitura Municipal de Florianópolis” no modelo Prefeitura (ex.: o nome da secretaria). Vazio = só as duas linhas."><input className="campo" value={f.relatorio_orgao || ''} onChange={set('relatorio_orgao')} maxLength={120} /></Campo></div>
             </div>
           </Bloco>
 

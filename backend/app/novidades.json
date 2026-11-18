@@ -2,6 +2,38 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.7.0",
+      "data": "2026-11-17",
+      "titulo": "Térreo com saída para a rua, Ilha de Florianópolis, relatórios no modelo da Prefeitura e Raspberry Pi",
+      "resumo": "O avatar sai do prédio pela porta automática, a cidade ganhou casas, mais pessoas e aviões, e dá para ver a ilha de cima. Relatórios e documentos de segurança saem no modelo oficial da Prefeitura. Aparelhos e Transmissores ficaram mais completos.",
+      "novo": [
+        "Mapa: porta de vidro automática na recepção; o avatar sai do térreo para a calçada e vê o prédio por fora",
+        "Mapa: botão Ilha mostra a Ilha de Santa Catarina de cima, com o contorno real, as lagoas, as pontes, o aeroporto e o Centro marcados",
+        "Mapa: aviões passando no céu, bairros de casas com telhado e mais pedestres nas calçadas",
+        "Relatórios em PDF e Word no modelo da Prefeitura: brasão e cabeçalho oficial em todas as páginas, identificação, índice, seções numeradas e espaço para assinatura",
+        "Segurança: minutas da Política de Segurança, Uso Aceitável, Classificação, Resposta a Incidentes, Continuidade, Fornecedores, Termo de Confidencialidade e Declaração de Aplicabilidade, no modelo oficial",
+        "Segurança: lista do que falta na conformidade, separando o que se resolve no sistema, o que pede documento aprovado e o que é físico ou de pessoal",
+        "Infra → Agentes: passo a passo do Raspberry Pi, temperatura, memória, disco e IP de cada computador, e Reiniciar agente de qualquer lugar",
+        "Aparelhos: visões em grade, por sala (ligar ou desligar a sala inteira) e em tabela com seleção e ações em lote",
+        "Gravar botão: confere antes se o transmissor responde e se o agente do escritório o enxerga, e ao terminar mostra o próximo ar sem botões",
+        "Menu lateral com busca (tecla /) e grupos que recolhem"
+      ],
+      "melhorias": [
+        "Aparelhos: filtros por sala, transmissor e problema, e ordenação",
+        "Transmissores: busca, filtro por situação e as salas que cada um atende",
+        "Configurações → Marca: órgão (3ª linha) do cabeçalho oficial dos documentos",
+        "Selo de integridade dos registros renovado sozinho a cada hora"
+      ],
+      "seguranca": [
+        "Três controles técnicos da ISO 27001 passaram a ser conferidos pelo sistema (ferramentas privilegiadas, instalação de software e ciclo de desenvolvimento seguro)"
+      ],
+      "correcoes": [
+        "Térreo: o avatar não ficava mais preso na recepção e o térreo deixou de engasgar",
+        "Novidades: a linha do tempo 3D não passa mais por cima do cartão da versão",
+        "Relatórios: sem rolagem lateral no celular"
+      ]
+    },
+    {
       "versao": "1.6.0",
       "data": "2026-11-17",
       "titulo": "Responsável por ar, ares do Fabio, dos Devs e da Reunião, e agente no Raspberry Pi",

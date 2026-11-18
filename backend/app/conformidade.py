@@ -98,14 +98,14 @@ CONTROLES = [
     ("8.15", "Tecnológicos", "Registro de eventos (logs)", "logs", ["27002"]),
     ("8.16", "Tecnológicos", "Monitoramento de atividades", "monitoramento", ["27002"]),
     ("8.17", "Tecnológicos", "Relógios sincronizados", "relogio", ["27002"]),
-    ("8.18", "Tecnológicos", "Uso de utilitários privilegiados", None, ["27002"]),
-    ("8.19", "Tecnológicos", "Instalação de software controlada", None, ["27002"]),
+    ("8.18", "Tecnológicos", "Uso de utilitários privilegiados", "sistema:utilitarios", ["27002"]),
+    ("8.19", "Tecnológicos", "Instalação de software controlada", "sistema:instalacao", ["27002"]),
     ("8.20", "Tecnológicos", "Segurança de redes", "firewall", ["27002", "27033"]),
     ("8.21", "Tecnológicos", "Segurança dos serviços de rede", "tls", ["27002"]),
     ("8.22", "Tecnológicos", "Separação de redes", "sistema:segregacao", ["27002"]),
     ("8.23", "Tecnológicos", "Filtragem de acessos web", "firewall", ["27002"]),
     ("8.24", "Tecnológicos", "Uso de criptografia", "cripto", ["27002", "27018"]),
-    ("8.25", "Tecnológicos", "Ciclo de desenvolvimento seguro", None, ["27002", "27034"]),
+    ("8.25", "Tecnológicos", "Ciclo de desenvolvimento seguro", "sistema:ciclo_seguro", ["27002", "27034"]),
     ("8.26", "Tecnológicos", "Requisitos de segurança das aplicações", "cabecalhos", ["27002", "27034"]),
     ("8.27", "Tecnológicos", "Arquitetura segura", "sistema:arquitetura", ["27002"]),
     ("8.28", "Tecnológicos", "Programação segura", "sistema:codigo_seguro", ["27002", "27034"]),
@@ -174,6 +174,9 @@ SISTEMA = {
     "arquitetura": "Defesa em camadas: borda da Vercel, firewall da aplicação, permissão por rota, RLS no banco e cifra em repouso.",
     "codigo_seguro": "Consultas parametrizadas, validação de entrada (Pydantic), CSP restrita e SVG/CSS de usuário filtrados.",
     "auditoria": "Consultas da tela Supabase rodam em transação só de leitura; auditoria não altera dados de produção.",
+    "utilitarios": "Ferramentas poderosas ficam fechadas: SQL só leitura na tela Supabase, operações da Vercel e da Cloudflare numa lista fechada, executadas só pelo agente e só por dono/admin, com registro.",
+    "instalacao": "O agente só é instalado em outro computador com código de uso único (30 min) gerado por dono/admin; dependências com versão fixa no requirements e serviço do sistema sem permissão de usuário comum.",
+    "ciclo_seguro": "Antes de cada publicação: build, checagem de nomes indefinidos (ruff), rotas sem regra de permissão, varredura de segredos no commit e, nas versões grandes, pip-audit, npm audit e bandit (CLAUDE.md, seções 11 e 12).",
 }
 
 STATUS_VALIDOS = ("implementado", "parcial", "pendente", "nao_aplicavel")

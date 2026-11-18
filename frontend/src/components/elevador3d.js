@@ -195,7 +195,43 @@ export function montarTerreo({ podio, yT, elev, marca = '', noite = false, pisoT
     placa.position.set(x, 1.5, z); placa.rotation.y = ryFrente + Math.PI; grupo.add(placa)
     const pe = caixa(0.05, 1.2, 0.05, inoxC, x, 0.6, z); pe.castShadow = false
     bloquear(x, z, 0.4, 0.3) }
-  // limites do chão andável (com folga das paredes do pódio)
+  // porta automática de vidro no vão da entrada (2,3 m): duas folhas que correm para os lados quando alguém chega perto
+  const fora = [-dentro[0], -dentro[1]]
+  const PE = 0.3, VAO = 2.3, HV = 3.0
+  const linhaP = [portaP[0] + fora[0] * PE / 2, portaP[1] + fora[1] * PE / 2]   // meio da espessura da parede
+  const portaG = new THREE.Group(); portaG.position.set(linhaP[0], 0, linhaP[1]); portaG.rotation.y = horizE ? 0 : Math.PI / 2; grupo.add(portaG)
+  const vidroP = M({ color: 0xdbeafe, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.32, depthWrite: false })
+  const perfil = M({ color: 0x9ca3af, roughness: 0.35, metalness: 0.45 })
+  caixa(VAO + 0.1, 0.22, 0.24, perfil, 0, HV + 0.11, 0, 0, portaG)   // bandeira com o sensor
+  const sensor = caixa(0.18, 0.04, 0.06, M({ color: 0x111827, emissive: 0x22c55e, emissiveIntensity: 0.6 }), 0, HV - 0.02, 0.13, 0, portaG); sensor.castShadow = false
+  const folhasP = [-1, 1].map((sx) => {
+    const f = new THREE.Group(); portaG.add(f)
+    const v = new THREE.Mesh(new THREE.BoxGeometry(VAO / 2, HV - 0.06, 0.025), vidroP); v.position.y = (HV - 0.06) / 2 + 0.03; f.add(v)
+    for (const [w, h, x, y] of [[VAO / 2, 0.05, 0, 0.025], [VAO / 2, 0.05, 0, HV - 0.05], [0.05, HV - 0.06, sx * -(VAO / 4 - 0.025), HV / 2]]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.05), perfil); b.position.set(x, y, 0); f.add(b)
+    }
+    const puxador = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.9, 0.06), perfil); puxador.position.set(sx * -(VAO / 4 - 0.12), 1.1, 0); f.add(puxador)
+    return { f, sx }
+  })
+  let abertura = 0
+  const centroPorta = linhaP
+  const tickPorta = (dt, posicoes) => {
+    const alguem = posicoes.some((q) => q && Math.hypot(q.x - centroPorta[0], q.z - centroPorta[1]) < 3.4)
+    abertura = THREE.MathUtils.clamp(abertura + (alguem ? 1 : -1) * dt / 0.7, 0, 1)
+    const e = abertura * abertura * (3 - 2 * abertura)
+    for (const { f, sx } of folhasP) f.position.x = sx * (VAO / 4 + e * (VAO / 2 - 0.08))
+    sensor.material.emissive.setHex(alguem ? 0x22c55e : 0x7f1d1d)
+  }
+  tickPorta(0, [])
+  // paredes do pódio como obstáculo (com o vão da porta livre: ela abre antes de a pessoa chegar)
+  const paredes = []
+  const seg = (horiz, k, n, a, b) => { if (b - a < 0.05) return; const meio = k + n * PE / 2; paredes.push(horiz ? { x: (a + b) / 2, z: meio, w: b - a, d: PE, ry: 0 } : { x: meio, z: (a + b) / 2, w: PE, d: b - a, ry: 0 }) }
+  for (const [nome, horiz, k, n, a, b] of [['norte', true, bz0, -1, bx0 - PE, bx1 + PE], ['sul', true, bz1, 1, bx0 - PE, bx1 + PE], ['oeste', false, bx0, -1, bz0 - PE, bz1 + PE], ['leste', false, bx1, 1, bz0 - PE, bz1 + PE]]) {
+    if (nome === ent) { seg(horiz, k, n, a, ce - VAO / 2); seg(horiz, k, n, ce + VAO / 2, b) } else seg(horiz, k, n, a, b)
+  }
+  // limites do chão andável: dentro (com folga das paredes) e fora (a calçada em volta do quarteirão)
   const limites = [bx0 + 0.4, bz0 + 0.4, bx1 - 0.4, bz1 - 0.4]
-  return { grupo, obst, limites, posRecep, ryRecep: ryFrente + Math.PI, em, ryFrente }
+  const CALC = 5.2
+  const limitesFora = [bx0 - CALC, bz0 - CALC, bx1 + CALC, bz1 + CALC]
+  return { grupo, obst, limites, limitesFora, paredes, tickPorta, centroPorta, fora, posRecep, ryRecep: ryFrente + Math.PI, em, ryFrente }
 }

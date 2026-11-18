@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, AirVent, BarChart3, BookOpen, CalendarClock, Check, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Workflow, Wrench, X } from 'lucide-react'
+import { Activity, AirVent, BarChart3, BookOpen, CalendarClock, Check, ChevronDown, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, Inbox, Laptop, LifeBuoy, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Workflow, Wrench, X } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -48,6 +48,19 @@ export const GRUPOS = [
   ] },
 ]
 const TODAS = GRUPOS.flatMap((g) => g.itens)
+// sinônimos para a busca do menu (o rótulo já conta)
+const CHAVES = {
+  '/': 'inicio dashboard resumo', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
+  '/relatorios': 'pdf exportar consumo gasto energia', '/aparelhos': 'ar condicionado ares split botoes gravar', '/cenas': 'atalhos',
+  '/automacoes': 'regras gatilhos', '/agendamentos': 'horario agenda temporizador', '/transmissores': 'ir infravermelho smart ir tuya hub controle remoto',
+  '/musica': 'spotify som', '/integracoes': 'alexa google sinric echo voz', '/comandos-alexa': 'frases voz alexa', '/emails': 'resend correio',
+  '/alexa': 'skill', '/supabase': 'banco dados tabelas sql backup', '/infra': 'vercel cloudflare dns agentes raspberry pi computador servidor',
+  '/atividade': 'historico log eventos', '/seguranca': 'firewall conformidade iso 27001 ips ataques', '/mensagens': 'contato site',
+  '/configuracoes': 'usuarios contas perfil marca senha 2fa', '/apps': 'android desktop windows mac download', '/guia': 'ajuda manual tutorial',
+  '/novidades': 'versoes changelog atualizacoes',
+}
+const semAcento = (t) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+function lerFechados() { try { return JSON.parse(localStorage.getItem('clima-menu-fechados') || '[]') } catch { return [] } }
 const FECHADA = 64
 const MOLA = { type: 'spring', stiffness: 380, damping: 34 }
 
@@ -149,14 +162,28 @@ function usePerfil() {
   return perfil
 }
 
-function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores }) {
+function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores, aoBuscar }) {
   const perfil = usePerfil()
   const { sessao } = useProjeto()
   const { marca } = useMarca()
   const navegar = useNavigate()
   const sair = async () => { await (await supabase()).auth.signOut().catch(() => {}); navegar('/login') }
   const email = sessao?.email || ''
-  const grupos = useGrupos()
+  const gruposTodos = useGrupos()
+  const [busca, setBusca] = useState('')
+  const [fechados, setFechados] = useState(lerFechados)
+  const buscaRef = useRef(null)
+  const q = semAcento(busca.trim())
+  const grupos = q ? gruposTodos.map((g) => ({ ...g, itens: g.itens.filter((i) => semAcento(`${i.rotulo} ${CHAVES[i.para] || ''}`).includes(q)) })).filter((g) => g.itens.length) : gruposTodos
+  const alternarGrupo = (t) => setFechados((f) => { const n = f.includes(t) ? f.filter((x) => x !== t) : [...f, t]; try { localStorage.setItem('clima-menu-fechados', JSON.stringify(n)) } catch { /* sem armazenamento */ } return n })
+  useEffect(() => {   // "/" foca a busca do menu (fora de campos de texto)
+    const tecla = (e) => { if (e.key === '/' && aberta && !/input|textarea|select/i.test(document.activeElement?.tagName || '') && !document.activeElement?.isContentEditable) { e.preventDefault(); buscaRef.current?.focus() } }
+    window.addEventListener('keydown', tecla); return () => window.removeEventListener('keydown', tecla)
+  }, [aberta])
+  const irPrimeiro = (e) => {
+    if (e.key === 'Escape') { setBusca(''); e.currentTarget.blur() }
+    if (e.key === 'Enter') { const i = grupos[0]?.itens[0]; if (i) { navegar(i.para); setBusca(''); aoNavegar?.() } }
+  }
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden px-3 py-4">
       <div className="flex items-center justify-between">
@@ -169,15 +196,38 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores 
         )}
       </div>
       <SeletorProjeto aberta={aberta} />
+      {aberta ? (
+        <label className="relative -mb-1 block">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={irPrimeiro} placeholder="Buscar no menu" aria-label="Buscar no menu"
+            className="h-9 w-full rounded-lg border border-border bg-background/60 pl-8 pr-8 text-[13px] outline-none placeholder:text-muted-foreground focus:border-primary/60" />
+          {busca ? <button onClick={() => setBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Limpar busca"><X className="h-3.5 w-3.5" /></button>
+            : <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border px-1 text-[10px] text-muted-foreground">/</kbd>}
+        </label>
+      ) : (
+        <button onClick={aoBuscar} className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" title="Buscar (⌘K)" aria-label="Buscar"><Search className="h-[18px] w-[18px]" /></button>
+      )}
       <nav className="sem-barra -mx-1 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-1 [mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%-16px),transparent)] py-1"> {/* marca: esmaecer a rolagem do menu */}
-        {grupos.map((g) => (
-          <div key={g.titulo}>
-            {aberta
-              ? <p className="mb-1 whitespace-pre px-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">{g.titulo}</p>
-              : <div className="mx-2.5 mb-2 mt-1 border-t border-border" />}
-            <div className="space-y-0.5">{g.itens.map((i) => <ItemNav key={i.para} item={i} aberta={aberta} onClick={aoNavegar} contadores={contadores} />)}</div>
+        {grupos.map((g) => {
+          const recolhido = aberta && !q && fechados.includes(g.titulo)
+          return (
+            <div key={g.titulo}>
+              {aberta
+                ? <button onClick={() => alternarGrupo(g.titulo)} aria-expanded={!recolhido} className="group/g mb-1 flex w-full items-center gap-1 whitespace-pre rounded px-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70 hover:text-foreground">
+                    {g.titulo}<span className="ml-1 tabular normal-case tracking-normal opacity-0 group-hover/g:opacity-100">{recolhido ? g.itens.length : ''}</span>
+                    <ChevronDown className={`ml-auto h-3.5 w-3.5 transition-transform ${recolhido ? '-rotate-90' : ''}`} />
+                  </button>
+                : <div className="mx-2.5 mb-2 mt-1 border-t border-border" />}
+              {!recolhido && <div className="space-y-0.5">{g.itens.map((i) => <ItemNav key={i.para} item={i} aberta={aberta} onClick={() => { setBusca(''); aoNavegar?.() }} contadores={contadores} />)}</div>}
+            </div>
+          )
+        })}
+        {q && !grupos.length && (
+          <div className="px-2.5 py-2 text-[13px] text-muted-foreground">
+            <p>Nada no menu com “{busca.trim()}”.</p>
+            <button onClick={() => { aoBuscar?.(); setBusca('') }} className="mt-1 font-medium text-primary hover:underline">Buscar em tudo (⌘K)</button>
           </div>
-        ))}
+        )}
       </nav>
       {marca.mostrar_link_site !== false && <a href={siteComSessao(true)} className="mb-2 flex h-9 items-center gap-3 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" title="Voltar ao site">
         <Globe className="h-[18px] w-[18px] shrink-0" />
@@ -436,7 +486,7 @@ export default function Layout() {
         transition={MOLA}
         onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       >
-        <ConteudoSidebar aberta={aberta} fixada={fixada} alternarFixar={alternarFixar} contadores={central.dados?.status} />
+        <ConteudoSidebar aberta={aberta} fixada={fixada} alternarFixar={alternarFixar} contadores={central.dados?.status} aoBuscar={() => setPaleta(true)} />
       </motion.aside>
 
       {/* Celular: gaveta lateral */}
@@ -447,7 +497,7 @@ export default function Layout() {
             <motion.aside className="fixed inset-y-0 left-0 z-50 w-[280px] border-r border-border bg-sidebar md:hidden"
               initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ duration: 0.25, ease: 'easeInOut' }}>
               <button onClick={() => setMovel(false)} className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-muted-foreground" aria-label="Fechar menu"><X className="h-5 w-5" /></button>
-              <ConteudoSidebar aberta aoNavegar={() => setMovel(false)} contadores={central.dados?.status} />
+              <ConteudoSidebar aberta aoNavegar={() => setMovel(false)} contadores={central.dados?.status} aoBuscar={() => { setMovel(false); setPaleta(true) }} />
             </motion.aside>
           </>
         )}

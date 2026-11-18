@@ -309,6 +309,25 @@ def preferido(d: Preferido):
     return agentes()
 
 
+class Reiniciar(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+
+
+@rotas_infra.post("/agentes/reiniciar")
+def reiniciar_agente(d: Reiniciar):
+    """Pede a um computador que reinicie o agente (ele lê o pedido em até ~10 s e o serviço do sistema o liga de novo).
+    Útil no Raspberry Pi sem tela: destrava sem precisar de SSH."""
+    u = _papel("dono", "admin")
+    m = db.cfg(f"agente_maquina:{d.id}")
+    if not m:
+        raise HTTPException(404, "Computador não encontrado.")
+    if time.time() - int(m.get("visto") or 0) > coordenador.ALUGUEL:
+        raise HTTPException(409, "Esse computador está desligado ou sem internet: ele não recebe o pedido.")
+    db.set_cfg(f"agente_ordem:{d.id}", {"acao": "reiniciar", "em": int(time.time()), "por": u.get("email", "")})
+    db.registrar("sistema", f"Pedido para reiniciar o agente em {m.get('nome') or d.id}", detalhe=f"por {u.get('email', '')}")
+    return {"ok": True, "mensagem": f"{m.get('nome') or 'O computador'} reinicia o agente em até 15 s e volta em cerca de 1 minuto."}
+
+
 class Esquecer(BaseModel):
     id: str = Field(min_length=1, max_length=40)
 

@@ -364,6 +364,37 @@ def _sinric_automatico(aid: int):
         db.registrar("sistema", "Não foi possível criar no Sinric Pro", ok=False, aparelho_id=aid, detalhe=str(e))
 
 
+@api.get("/aparelhos/{aid}/pronto-para-gravar")
+def pronto_para_gravar(aid: int):
+    """Antes de gravar um botão: o ar tem transmissor? ele responde? há um agente principal na rede do escritório que o
+    enxerga? Gravar só funciona com o agente perto do transmissor (o sinal vem do controle original para o transmissor)."""
+    from .. import coordenador, zonas
+    try:
+        a = clima.aparelho(aid)
+    except KeyError as e:
+        _erro(e)
+    itens = []
+    hub = db.um("SELECT id, nome, online, visto_em FROM hubs WHERE id = ?", (a["hub_id"],)) if a.get("hub_id") else None
+    itens.append({"chave": "transmissor", "ok": bool(hub), "titulo": "Transmissor vinculado",
+                  "detalhe": hub["nome"] if hub else "Este ar não tem transmissor: escolha um em Ajustes antes de gravar."})
+    if hub:
+        itens.append({"chave": "online", "ok": bool(hub["online"]), "titulo": "Transmissor respondendo",
+                      "detalhe": "Online." if hub["online"] else "Sem resposta: confira a tomada e o Wi-Fi 2,4 GHz; em Transmissores, “Reconectar agora”."})
+    principal = next((m for m in coordenador.maquinas() if m.get("principal")), None)
+    ve = (principal or {}).get("ve_transmissores")
+    itens.append({"chave": "agente", "ok": bool(principal) and bool(ve),
+                  "titulo": "Agente no escritório",
+                  "detalhe": (f"{principal['nome']} no comando, enxergando {ve} de {principal.get('total_transmissores')} transmissor(es)."
+                              if principal and ve else f"{principal['nome']} está no comando mas não enxerga os transmissores (fora da rede do escritório)."
+                              if principal else "Nenhum agente ligado: ligue o PC ou o Raspberry Pi do escritório.")})
+    z = next((x for x in zonas.listar() if aid in x.get("aparelhos", [])), None)
+    outros = [n["nome"] for n in db.consultar(f"SELECT nome FROM aparelhos WHERE id IN ({','.join('?' * len(z['aparelhos']))}) AND id <> ?", (*z["aparelhos"], aid))] if z else []
+    total = db.um("SELECT count(*) n FROM codigos WHERE aparelho_id = ?", (aid,))["n"]
+    tem_desligar = bool(db.um("SELECT 1 FROM codigos WHERE aparelho_id = ? AND chave = 'desligar'", (aid,)))
+    gree = "gree" in (a.get("marca") or "").lower()
+    return {"pronto": all(i["ok"] for i in itens), "itens": itens, "zona_outros": outros, "botoes": total, "tem_desligar": tem_desligar, "gree": gree}
+
+
 @api.get("/aparelhos/{aid}")
 def ver_aparelho(aid: int):
     try:
@@ -1984,14 +2015,19 @@ def relatorio_completo(dias: int = 30, inicio: str | None = None, fim: str | Non
 
 
 @api.get("/relatorios/exportar")
-def relatorio_exportar(formato: str = "pdf", dias: int = 30, inicio: str | None = None, fim: str | None = None,
-                       projeto_id: int | None = None, aparelho_id: int | None = None):
+def relatorio_exportar(request: Request, formato: str = "pdf", dias: int = 30, inicio: str | None = None, fim: str | None = None,
+                       projeto_id: int | None = None, aparelho_id: int | None = None, modelo: str = "pmf"):
     from fastapi.responses import Response
     from .. import relatorio
     if formato not in relatorio.FORMATOS:
         raise HTTPException(400, f"Formato inválido. Use: {', '.join(relatorio.FORMATOS)}.")
+    if modelo not in ("pmf", "moderno"):
+        raise HTTPException(400, "Modelo inválido. Use pmf (Prefeitura) ou moderno.")
     a, b = _intervalo(dias, inicio, fim)
-    corpo, tipo, ext = relatorio.FORMATOS[formato](relatorio.montar(a, b, projeto_id, aparelho_id))
+    dados = relatorio.montar(a, b, projeto_id, aparelho_id)
+    u = getattr(request.state, "u", None) or {}
+    dados["gerado_por"] = " · ".join(x for x in (u.get("nome"), u.get("cargo")) if x) or u.get("email") or ""
+    corpo, tipo, ext = relatorio.exportar(formato, dados, modelo)
     nome = f"relatorio-clima-{time.strftime('%Y%m%d-%H%M')}.{ext}"
     db.registrar("painel", "Relatório exportado", detalhe=formato.upper())
     return Response(corpo, media_type=tipo, headers={"Content-Disposition": f'attachment; filename="{nome}"'})
@@ -3500,6 +3536,28 @@ def declaracao_aplicabilidade(formato: str = "csv"):
     return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{nome}.csv"'})
 
 
+@api.get("/seguranca/documentos")
+def documentos_seguranca():
+    from .. import documentos
+    return {"documentos": documentos.lista()}
+
+
+@api.get("/seguranca/documentos/{tipo}")
+def documento_seguranca(tipo: str, request: Request, formato: str = "pdf"):
+    """Minuta de política/plano/termo no modelo oficial (PDF ou Word), com os fatos do sistema."""
+    from fastapi.responses import Response
+    from .. import documentos
+    if formato not in ("pdf", "docx"):
+        raise HTTPException(400, "Formato inválido. Use pdf ou docx.")
+    u = getattr(request.state, "u", None) or {}
+    try:
+        corpo, tipo_mime, ext, titulo = documentos.gerar(tipo, formato, " · ".join(x for x in (u.get("nome"), u.get("cargo")) if x) or u.get("email", ""))
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'")) from e
+    db.registrar("painel", "Documento de segurança gerado", detalhe=f"{titulo} ({ext.upper()})")
+    return Response(corpo, media_type=tipo_mime, headers={"Content-Disposition": f'attachment; filename="{tipo}-{time.strftime("%Y%m%d")}.{ext}"'})
+
+
 @api.get("/seguranca/testes")
 def ver_testes_seguranca():
     from .. import conformidade
@@ -3833,7 +3891,7 @@ MARCA_PADRAO = {
     "login_layout": "dividido", "login_aviso": "", "pagina_inicial": "/", "mostrar_link_site": True,
     "manutencao": False, "manutencao_mensagem": "", "manutencao_previsao": "",
     # relatórios exportados
-    "relatorio_logo": True, "relatorio_rodape": "",
+    "relatorio_logo": True, "relatorio_rodape": "", "relatorio_orgao": "",   # orgão = 3ª linha do cabeçalho oficial (modelo Prefeitura)
     # cores e tipografia avançadas
     "cor_sucesso": "#16a34a", "cor_aviso": "#d97706", "fonte_titulos": "mesma", "peso_titulos": 600, "espaco_letras": 0,
     "sombra": "suave", "borda_espessura": 1, "fundo_app": "liso", "cabecalho_estilo": "vidro", "menu_largura": 264,
@@ -3903,7 +3961,7 @@ def _validar_marca(m: dict) -> dict:
     limpo["icone_espessura"] = max(12, min(28, limpo["icone_espessura"]))
     if limpo["pagina_inicial"] not in ROTAS_MENU: limpo["pagina_inicial"] = "/"
     if limpo["manutencao_previsao"] and not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$", limpo["manutencao_previsao"]): limpo["manutencao_previsao"] = ""
-    for k in ("login_aviso", "manutencao_mensagem", "relatorio_rodape"):
+    for k in ("login_aviso", "manutencao_mensagem", "relatorio_rodape", "relatorio_orgao"):
         limpo[k] = limpo[k].strip()[:300]
     if limpo["densidade"] not in ("compacta", "confortavel", "espacosa"): limpo["densidade"] = "confortavel"
     for k, padrao_cor in (("cor_sucesso", "#16a34a"), ("cor_aviso", "#d97706"), ("sazonal_cor", "#b91c1c"), ("sazonal_destaque", "#15803d")):

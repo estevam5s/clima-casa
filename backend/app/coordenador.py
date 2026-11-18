@@ -55,6 +55,69 @@ def _eu() -> str:
     return MEU_ID
 
 
+_INICIO = time.time()
+
+
+def _ler(caminho: str) -> str:
+    try:
+        with open(caminho, encoding="utf-8", errors="ignore") as f:
+            return f.read().strip().strip("\x00")
+    except OSError:
+        return ""
+
+
+def saude() -> dict:
+    """Como está este computador: modelo (Raspberry Pi informa), IP na rede local, temperatura do processador, memória,
+    disco e carga. Só leitura do próprio sistema; o que não der para saber fica None (a tela mostra "—")."""
+    import shutil
+    d: dict = {"arquitetura": platform.machine(), "modelo": _ler("/proc/device-tree/model") or None, "ip": None,
+               "temperatura": None, "memoria_total_mb": None, "memoria_livre_mb": None, "disco_livre_gb": None,
+               "carga": None, "ligado_ha_s": int(time.time() - _INICIO)}
+    try:   # IP da rede local (rota até a internet; nada é enviado)
+        s_ = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s_.settimeout(0.5); s_.connect(("1.1.1.1", 80)); d["ip"] = s_.getsockname()[0]; s_.close()
+    except OSError:
+        pass
+    t = _ler("/sys/class/thermal/thermal_zone0/temp")
+    if t.isdigit():
+        d["temperatura"] = round(int(t) / 1000, 1)
+    mem = _ler("/proc/meminfo")
+    if mem:
+        kv = {l.split(":")[0]: int(l.split()[1]) for l in mem.splitlines() if len(l.split()) >= 2 and l.split()[1].isdigit()}
+        d["memoria_total_mb"] = kv.get("MemTotal", 0) // 1024 or None
+        d["memoria_livre_mb"] = kv.get("MemAvailable", 0) // 1024 or None
+    try:
+        d["disco_livre_gb"] = round(shutil.disk_usage(os.path.dirname(os.path.abspath(__file__))).free / 1e9, 1)
+    except OSError:
+        pass
+    if hasattr(os, "getloadavg"):
+        try:
+            d["carga"] = round(os.getloadavg()[0], 2)
+        except OSError:
+            pass
+    return d
+
+
+def ordem_pendente() -> dict | None:
+    """Pedido feito pelo painel para ESTE computador (ex.: reiniciar o agente), mais novo que o processo atual."""
+    o = db.cfg(f"agente_ordem:{_eu()}")
+    if o and int(o.get("em") or 0) > _INICIO:
+        return o
+    return None
+
+
+def cumprir_ordens(papel: str):
+    o = ordem_pendente()
+    if not o:
+        return
+    db.set_cfg(f"agente_ordem:{_eu()}", None)
+    if o.get("acao") == "reiniciar":
+        db.registrar("agente", f"{socket.gethostname().split('.')[0]} reiniciando o agente a pedido do painel", detalhe=f"por {o.get('por') or '?'}")
+        if papel == "principal":   # libera o posto na hora para um reserva assumir (ou este mesmo, ao voltar)
+            db.executar("UPDATE config SET valor = ? WHERE chave = 'agente_lider'", (json.dumps({"id": "", "visto": 0}),))
+        log.info("reiniciando a pedido do painel")
+        os._exit(3)
+
+
 def info(papel: str) -> dict:
     sistema = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}.get(platform.system(), platform.system())
     versao = platform.mac_ver()[0] if sistema == "macOS" else platform.release()
@@ -87,7 +150,8 @@ def anunciar(papel: str):
             ve, total = ve_transmissores()
             _visao.update({"ve": ve, "total": total, "em": time.time()})
         ve, total = _visao["ve"], _visao["total"]
-        db.set_cfg(f"agente_maquina:{_eu()}", {**info(papel), "ve_transmissores": ve, "total_transmissores": total})
+        db.set_cfg(f"agente_maquina:{_eu()}", {**info(papel), "ve_transmissores": ve, "total_transmissores": total, "saude": saude()})
+        cumprir_ordens(papel)
     except Exception as e:  # noqa: BLE001
         log.warning("não deu para anunciar o computador: %s", e)
 

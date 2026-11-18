@@ -138,7 +138,7 @@ export function montarVida({ calcadas = [], pracas = [], terminal: posTerminal =
   const termi = posTerminal ? terminal(posTerminal.x, posTerminal.z, noite, r) : null
   if (termi) grupo.add(termi.g)
   // pedestres pelas calçadas + passageiros nas plataformas do terminal
-  const N_PED = Math.min(60, calcadas.length * 3), N_PAS = termi ? 26 : 0, N_TRA = travessias.length * 3
+  const N_PED = Math.min(150, calcadas.length * 5), N_PAS = termi ? 26 : 0, N_TRA = travessias.length * 3
   const povo = multidao(N_PED + N_PAS + N_TRA, r)
   povo.partes.forEach((p) => grupo.add(p))
   const peds = []
@@ -183,7 +183,37 @@ export function montarVida({ calcadas = [], pracas = [], terminal: posTerminal =
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), v = new THREE.Vector3(), um = new THREE.Vector3(1, 1, 1)
   const eY = new THREE.Vector3(0, 1, 0), eZ = new THREE.Vector3(0, 0, 1), eX = new THREE.Vector3(1, 0, 0)
 
+  // aviões passando alto (ilustração: rota de aproximação do aeroporto, sem companhia nem marca). À noite: luzes de
+  // navegação (vermelha à esquerda, verde à direita) e o pisca branco
+  const centroAv = calcadas[0] ? [(calcadas[0][0] + calcadas[0][2]) / 2, (calcadas[0][1] + calcadas[0][3]) / 2] : [0, 0]
+  const avioes = []
+  const branco = M({ color: 0xf1f5f9, roughness: 0.4, metalness: 0.3, fog: false }), cinzaA = M({ color: 0x94a3b8, roughness: 0.5, metalness: 0.3, fog: false })   // sem névoa: ficam visíveis no céu
+  const luz = (cor) => new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), new THREE.MeshBasicMaterial({ color: cor, fog: false }))
+  for (let i = 0; i < 3; i++) {
+    const a = new THREE.Group()
+    const fus = new THREE.Mesh(new THREE.CapsuleGeometry(1.9, 30, 6, 12), branco); fus.rotation.z = Math.PI / 2; a.add(fus)
+    const asa = new THREE.Mesh(new THREE.BoxGeometry(7, 0.4, 34), branco); asa.position.set(-1, -0.6, 0); asa.rotation.y = 0.12; a.add(asa)
+    const est = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.3, 12), branco); est.position.set(-15.5, 0.8, 0); a.add(est)
+    const deriva = new THREE.Mesh(new THREE.BoxGeometry(4.5, 7, 0.4), cinzaA); deriva.position.set(-15, 4, 0); deriva.rotation.z = -0.35; a.add(deriva)
+    for (const sz of [-1, 1]) { const mot = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 4.2, 12), cinzaA); mot.rotation.z = Math.PI / 2; mot.position.set(1.5, -1.6, sz * 6.5); a.add(mot) }
+    const le = luz(0xef4444), ld = luz(0x22c55e), pisca = luz(0xffffff)
+    le.position.set(-1.4, -0.6, -17); ld.position.set(-1.4, -0.6, 17); pisca.position.set(0, 2.1, 0)
+    a.add(le, ld, pisca); [le, ld, pisca].forEach((l) => { l.visible = noite })
+    a.scale.setScalar(0.85); grupo.add(a)
+    avioes.push({ a, pisca, ang: (i / 3) * Math.PI * 2 + r(), alt: 170 + i * 45, dist: 520, vel: 55 + r() * 15, fase: r() * 10, desce: i === 0 })
+  }
   const tick = (dt, t, chovendo, sinal = {}) => {
+    // cada avião cruza o céu numa reta de ~1,8 km e volta por outra rota
+    for (const p of avioes) {
+      p.fase += dt * p.vel / (p.dist * 2)
+      if (p.fase > 1) { p.fase -= 1; p.ang += 2.1 }
+      const k = p.fase * 2 - 1, dx = Math.cos(p.ang), dz = Math.sin(p.ang)
+      const lado = 90
+      const y = p.desce ? p.alt - (k + 1) * 18 : p.alt   // aproximação suave, sempre acima dos prédios
+      p.a.position.set(centroAv[0] + dx * k * p.dist - dz * lado, y, centroAv[1] + dz * k * p.dist + dx * lado)
+      p.a.rotation.set(0, -p.ang, p.desce ? -0.05 : 0)
+      if (noite) p.pisca.visible = (t * 1.2 + p.fase * 10) % 1 < 0.12
+    }
     // pedestres
     peds.forEach((p, i) => {
       p.s += p.vel * dt; p.fase += Math.abs(p.vel) * dt * 4.2

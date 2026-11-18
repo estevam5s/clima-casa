@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
-import { Box, Building2, Clock, CloudRain, DoorOpen, Eye, Maximize2, Minimize2, Moon, Pause, PenLine, Play, RotateCcw, Sun } from 'lucide-react'
+import { Box, Building2, Clock, CloudRain, DoorOpen, Eye, MapPinned, Maximize2, Minimize2, Moon, Pause, PenLine, Play, RotateCcw, Sun } from 'lucide-react'
 import { api } from '../api'
 import { BarraControle, CartaoMapa, RascunhoEscrita } from './CartoesMapa3D'
 import { animarDispositivos, montarDispositivo } from './dispositivos3d'
@@ -12,6 +12,7 @@ import { salasPrivativas } from '../mapaUtil'
 import { useMarca } from '../marca'
 import { caminho, criarGrade, celulaLivre, livreProxima, montarPredio, visaoLivre } from './predio3d'
 import { ELEV, montarElevador, montarTerreo } from './elevador3d'
+const VistaIlha3D = lazy(() => import('./VistaIlha3D'))
 import { ROTULO_PAPEL, desenharTela, papelDaSala, sementeDe } from './telas3d'
 
 // Escritório em 3D montado a partir da mesma planta do mapa 2D (config.mapa):
@@ -405,6 +406,9 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   const estado = useRef({})
   const [girando, setGirando] = useState(compacto && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const [paredesAltas, setParedesAltas] = useState(true)
+  const [ilha, setIlha] = useState(false)   // vista da Ilha de Santa Catarina de cima (o prédio para de desenhar enquanto isso)
+  const fecharIlha = useMemo(() => () => setIlha(false), [])
+  useEffect(() => { estado.current.naIlha = ilha }, [ilha])
   const [pronto, setPronto] = useState(false)
   const [hora, setHora] = useState('agora')   // agora | dia | noite
   // tempo no 3D: previsão real (Open-Meteo pelo backend) ou pré-visualização escolhida
@@ -519,7 +523,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const relogio = new THREE.Clock()
     const laco = () => {
       quadro = requestAnimationFrame(laco)
-      if (document.hidden || estado.current.foraDaTela) { relogio.getDelta(); return }   // fora da tela não desenha (não pesa na rolagem)
+      if (document.hidden || estado.current.foraDaTela || estado.current.naIlha) { relogio.getDelta(); return }   // fora da tela não desenha (não pesa na rolagem)
       const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime
       estado.current.tick?.(dt, calmo ? 0 : t)
       if (!estado.current.ctrl) controles.update()
@@ -1218,7 +1222,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
 
     // térreo (recepção do prédio): montado escondido dentro do pódio, no chão da rua (y = -yA). O elevador leva o
     // avatar controlado até lá e de volta. Tem grade de colisão própria, recepcionista, segurança e gente andando.
-    E.gradeAtiva = grade; E.nivel = 'andar'; E.yBase = 0; E.elevTerreo = null; E.viagem = null
+    E.gradeAtiva = grade; E.nivel = 'andar'; E.yBase = 0; E.elevTerreo = null; E.terreo = null; E.viagem = null
     E.setNivel?.('andar')
     const genteT = { recep: null, guarda: null, andam: [] }
     if (predio && E.elevAndar && E.elevInfo) {
@@ -1234,8 +1238,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const elT = montarElevador({ rotuloAndar: 'T', escuro })
       elT.grupo.position.set(ox, 0, oz); elT.grupo.rotation.y = Math.atan2(n[0], n[1]); T.grupo.add(elT.grupo)
       const obT = [...T.obst, { x: ox + n[0] * ELEV.prof / 2, z: oz + n[1] * ELEV.prof / 2, w: n[0] ? ELEV.prof : ELEV.larg, d: n[0] ? ELEV.larg : ELEV.prof, ry: 0 }]
-      const L = T.limites
-      const gradeT = criarGrade(L[0], L[1], L[2], L[3], obT, () => true, 0.22, 0.1)
+      const L = T.limites, LF = T.limitesFora
+      // grade do térreo: recepção + calçada em volta (sai pela porta automática). Célula de 20 cm: a de 10 cm deixava o
+      // caminho dos figurantes pesado e o térreo engasgava
+      const gradeT = criarGrade(LF[0], LF[1], LF[2], LF[3], [...obT, ...T.paredes], () => true, 0.22, 0.2)
+      E.terreo = T
       E.elevTerreo = { el: elT, nivel: 'terreo', yBase: yT, carros: elT.carros.map((c, i) => ({ c, frente: E.elevAndar.carros[i].frente, cabine: E.elevAndar.carros[i].cabine, porta: E.elevAndar.carros[i].porta })) }
       // recepcionista sentada atrás do balcão, segurança em pé perto das catracas, duas pessoas andando
       const rec = pessoa(r, true); cadeira(T.grupo, T.posRecep.x, T.posRecep.z, T.ryFrente + Math.PI)
@@ -1662,13 +1669,14 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (camera.near !== nearAlvo) { camera.near = nearAlvo; camera.updateProjectionMatrix() }
       E.elevAndar?.el.tick(dt); E.elevTerreo?.el.tick(dt)
       if (E.nivel === 'terreo') {
+        E.terreo?.tickPorta(dt, [E.ctrl?.av.position, ...genteT.andam.map((a) => a.p.position)])
         if (genteT.recep) animarPessoa(genteT.recep, t)
         if (genteT.guarda) animarAndar(genteT.guarda, 0, 0, t)
         genteT.andam.forEach((a) => moverAndarilho(a, dt, t))
       }
       predio?.tick(dt, t)
       if (predio) {
-        const alvoK = E.aberto ? 1 : 0
+        const alvoK = E.aberto && E.nivel !== 'terreo' ? 1 : 0   // no térreo o prédio fica inteiro: dá para sair e olhar
         if (Math.abs(predio.k - alvoK) > 0.001) predio.aplicar(THREE.MathUtils.clamp(predio.k + Math.sign(alvoK - predio.k) * dt / 1.4, 0, 1))
         if (E.placaAndar) E.placaAndar.visible = predio.k < 0.05
         if (E.fachadaAndar) E.fachadaAndar.visible = predio.k > 0.6
@@ -1801,6 +1809,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     <div ref={caixaRef} className={`w-full overflow-hidden bg-background ${cheia === 'janela' ? 'fixed inset-0 z-[60] h-[100dvh]' : `relative ${cheia ? 'h-full' : compacto ? 'h-full' : 'h-[68vh] min-h-[440px]'}`}`}>
       <div ref={ref} className="h-full w-full touch-none [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label="Escritório em 3D com as salas, os ares e as pessoas; arraste para girar, role para aproximar" />
       <div ref={rotulosRef} className={`pointer-events-none absolute inset-0 ${nivel === 'terreo' ? 'hidden' : ''}`} />
+      {ilha && <Suspense fallback={<div className="absolute inset-0 z-30 grid place-items-center bg-sky-200 text-sm text-slate-700">Montando a ilha…</div>}><VistaIlha3D aoFechar={fecharIlha} /></Suspense>}
       {viagem && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/80" role="status" aria-live="polite">
           <div className="text-center text-white">
@@ -1851,6 +1860,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         {comPredio && <button onClick={() => setAberto((v) => !v)} className={`${botao} border-r border-border font-medium`} title={aberto ? 'Fechar e ver o prédio por fora' : 'Abrir o andar do escritório'}>{aberto ? <Building2 className="h-3.5 w-3.5" /> : <DoorOpen className="h-3.5 w-3.5" />}{aberto ? 'Ver prédio' : 'Abrir andar'}</button>}
         <button onClick={() => estado.current.enquadrar?.(false)} className={botao} title="Vista inicial"><RotateCcw className="h-3.5 w-3.5" />Inicial</button>
         <button onClick={() => estado.current.enquadrar?.(true)} className={`${botao} border-l border-border`} title="Ver de cima"><Eye className="h-3.5 w-3.5" />De cima</button>
+        {comPredio && <button onClick={() => setIlha(true)} className={`${botao} border-l border-border`} title="Ver a Ilha de Santa Catarina de cima"><MapPinned className="h-3.5 w-3.5" />Ilha</button>}
         <button onClick={() => setParedesAltas((v) => !v)} className={`${botao} border-l border-border`} title="Altura das paredes">{paredesAltas ? <Box className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}{paredesAltas ? 'Paredes baixas' : 'Paredes altas'}</button>
         <button onClick={() => setGirando((g) => !g)} className={`${botao} border-l border-border`} title={girando ? 'Parar' : 'Girar'}>{girando ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{girando ? 'Parar' : 'Girar'}</button>
       </div>

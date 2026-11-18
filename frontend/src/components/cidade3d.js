@@ -86,6 +86,11 @@ function fachadas(cx, cz, w, d, y0, h, e, ou, ov) {
 }
 
 const caixaGeo = (w, h, d, x, y, z) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g }
+// telhado de duas águas: prisma triangular de largura w (ao longo da cumeeira), profundidade d e altura h
+const telhadoGeo = (w, d, h, x, y, z, giro = 0) => {
+  const g = new THREE.CylinderGeometry(1, 1, 1, 3); g.rotateZ(Math.PI / 2); g.rotateX(-Math.PI / 2)   // ponta para cima, de -0,5 a 1
+  g.scale(w, h / 1.5, d / 1.732); g.translate(0, h / 3, 0); if (giro) g.rotateY(giro); g.translate(x, y, z); return g
+}
 const planoGeo = (w, d, x, y, z) => { const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2); g.translate(x, y, z); return g }
 
 export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 }) {
@@ -95,6 +100,7 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   const porEstilo = Object.fromEntries(Object.keys(ESTILOS).map((k) => [k, { perto: [], longe: [] }]))
   const tetos = [], parapeitos = [], sacadas = [], maquinas = [], caixas = [], calcadas = [], gramados = [], toldos = []
   const arvores = [], postes = []
+  const casasP = [[], [], []], telhas = [], muros = []   // bairro de casas: paredes (3 cores), telhados, muros baixos
   const andaveis = [], pracas = []   // para vida3d: perímetro das calçadas das quadras e centro das praças
   const camN = Math.hypot(camera[0], camera[1]) || 1, cam = [camera[0] / camN, camera[1] / camN]
   const cruza = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
@@ -115,6 +121,22 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
       arvores.push(k < 2 ? [lx + ao, lz + lado * (LOTE / 2 + 1.4)] : [lx + lado * (LOTE / 2 + 1.4), lz + ao])
     }
     const sorte = r()
+    // lotes mais afastados: parte vira bairro de casas (2 fileiras de sobrados com quintal e telhado de duas águas)
+    if (!naFrente && dist > 95 && sorte > 0.62) {
+      gramados.push(planoGeo(LOTE - 1, LOTE - 1, lx, 0.02, lz))
+      const giro = r() < 0.5 ? 0 : Math.PI / 2
+      for (let fil = -1; fil <= 1; fil += 2) for (let k = 0; k < 4; k++) {
+        const u = -LOTE / 2 + 3 + k * ((LOTE - 6) / 3), v = fil * 5.4
+        const [hx, hz] = giro ? [lx + v, lz + u] : [lx + u, lz + v]
+        const w = 4.6 + r() * 0.8, d = 6 + r() * 1.5, pav = r() < 0.6 ? 2 : 1, h = pav * 2.9
+        const [gw, gd] = giro ? [d, w] : [w, d]
+        casasP[Math.floor(r() * 3)].push(caixaGeo(gw, h, gd, hx, h / 2, hz))
+        telhas.push(telhadoGeo(d + 0.6, w + 0.6, 1.6 + r() * 0.5, hx, h, hz, giro ? 0 : Math.PI / 2))
+        muros.push(giro ? caixaGeo(0.15, 1, LOTE / 4.6, hx + fil * (d / 2 + 2.2), 0.5, hz) : caixaGeo(LOTE / 4.6, 1, 0.15, hx, 0.5, hz + fil * (d / 2 + 2.2)))
+        if (r() < 0.6) arvores.push(giro ? [hx + fil * (d / 2 + 1.2), hz + 1.5] : [hx + 1.5, hz + fil * (d / 2 + 1.2)])
+      }
+      continue
+    }
     if (sorte < 0.1 || (naFrente && sorte < 0.45)) {   // praça: gramado com árvores
       gramados.push(planoGeo(LOTE - 1, LOTE - 1, lx, 0.02, lz))
       pracas.push([lx, lz])
@@ -196,6 +218,9 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
     malha(porEstilo[k].longe, mat, false)
   }
   malha(tetos, M({ color: 0x8e8b86, roughness: 0.95 }), false)
+  ;[0xf1e4c8, 0xdbe7e4, 0xf3d1c3].forEach((cor, i) => malha(casasP[i], M({ color: cor, roughness: 0.9 })))
+  malha(telhas, M({ color: noite ? 0x5a2a1a : 0xa4472a, roughness: 0.85, flatShading: true }))
+  malha(muros, M({ color: 0xe7e5e4, roughness: 0.95 }), false)
   malha(parapeitos, M({ color: 0xd6d3d1, roughness: 0.85 }))
   malha(sacadas, M({ color: 0xf5f5f4, roughness: 0.8 }))
   malha(maquinas, M({ color: 0xcbd5e1, roughness: 0.6, metalness: 0.2 }))

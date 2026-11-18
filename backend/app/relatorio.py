@@ -4,6 +4,7 @@ import datetime
 import html
 import io
 import json
+import os
 import re
 import zipfile
 from xml.etree import ElementTree as ET
@@ -308,6 +309,55 @@ def _marca_rel():
         except Exception:  # noqa: BLE001
             logo = None
     return logo, (m.get("relatorio_rodape") or "").strip()
+
+
+# ---------- modelo oficial (Prefeitura Municipal de Florianópolis) ----------
+# Mesma estrutura dos documentos da PMF (ex.: manual da VPN): brasão à esquerda e "Estado de Santa Catarina /
+# Prefeitura Municipal de Florianópolis" centralizado em fonte serifada em todas as páginas, linha embaixo, título
+# centralizado e seções numeradas "1 – …" / "1.1 – …". O texto do cabeçalho e o órgão saem do white label.
+MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+SECOES_RELATORIO = ["Sumário executivo", "Uso ao longo do tempo", "Quando os ares são usados", "Consumo e custo", "Hábitos de uso",
+                    "Confiabilidade", "Metodologia"]
+AZUL_PMF = "#1f3864"
+
+
+def _cabecalho_oficial() -> list[str]:
+    m = db.cfg("white_label") or {}
+    linhas = [x for x in (m.get("relatorio_cabecalho") or ["Estado de Santa Catarina", "Prefeitura Municipal de Florianópolis"]) if x]
+    org = (m.get("relatorio_orgao") or "").strip()
+    return linhas + ([org] if org else [])
+
+
+def _brasao() -> bytes | None:
+    try:
+        with open(os.path.join(os.path.dirname(__file__), "assets", "brasao-pmf.png"), "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def _data_extenso(ts) -> str:
+    dt = _data(ts)
+    return f"{dt.day} de {MESES[dt.month - 1]} de {dt.year}"
+
+
+def _identificacao(d) -> list[list[str]]:
+    r = d["resumo"]
+    filtros = " · ".join(x for x in (d["filtros"]["projeto"] and f"Projeto {d['filtros']['projeto']}", d["filtros"]["aparelho"] and f"Aparelho {d['filtros']['aparelho']}") if x) or "Todos os projetos e aparelhos"
+    org = _cabecalho_oficial()
+    return [["Órgão", " · ".join(org[1:]) or org[0]], ["Documento", "Relatório de uso dos ares-condicionados"], ["Período", _periodo(d)],
+            ["Abrangência", filtros], ["Ares no relatório", str(r["aparelhos"])], ["Expediente considerado", d["expediente"]],
+            ["Tarifa de energia", f"{_brl(d['tarifa_kwh'])} por kWh"], ["Emissão", f"{_data(d['gerado_em']):%d/%m/%Y às %H:%M}"],
+            ["Emitido por", d.get("gerado_por") or "Sistema Clima Escritório"]]
+
+
+def exportar(formato: str, d: dict, modelo: str = "pmf"):
+    """Gera o arquivo no formato pedido. PDF e Word aceitam o modelo: 'pmf' (oficial da Prefeitura) ou 'moderno'."""
+    if formato == "pdf":
+        return exportar_pdf(d, modelo)
+    if formato == "docx":
+        return exportar_docx(d, modelo)
+    return FORMATOS[formato](d)
 
 
 def _tabela_aparelhos(d):
@@ -669,24 +719,52 @@ def _png_barras(titulo, rotulos, valores, cor, horizontal=False, largura=1600, a
     return b
 
 
-def exportar_docx(d):
+def exportar_docx(d, modelo="pmf"):
     """Word do relatório completo, gerado sem python-docx (ver docx_simples)."""
     from .docx_simples import Documento, trecho
-    cor = _cor().lstrip("#")
-    r = d["resumo"]
+    pmf = modelo == "pmf"
+    cor = AZUL_PMF.lstrip("#") if pmf else _cor().lstrip("#")
     doc = Documento(cor_titulo=cor)
     cinza = "52525B"
+    num = [0, 0]
+
+    def sec(t):
+        num[0] += 1; num[1] = 0
+        doc.titulo_secao(f"{num[0]} – {t}" if pmf else f"{num[0]}. {t}", 1)
+
+    def sub(t):
+        num[1] += 1
+        doc.titulo_secao(f"{num[0]}.{num[1]} – {t}" if pmf else t, 2)
 
     def tabela(cab, linhas):
         doc.tabela([str(c) for c in cab], [[str(v) for v in l] for l in linhas], cor=cor)
 
-    # capa
     logo, rodape = _marca_rel()
-    if logo:
+    if pmf:   # cabeçalho oficial em todas as páginas, título, identificação e índice
+        doc.cabecalho = {"imagem": _brasao(), "linhas": _cabecalho_oficial(), "fonte": "Times New Roman", "largura_cm": 1.5}
+        doc.numerar_paginas = True
+        doc.paragrafo(trecho("Relatório de Uso dos Ares-Condicionados", negrito=True, tam=16), alinhar="center", depois=40)
+        doc.paragrafo(trecho(_periodo(d), tam=11, cor=cinza), alinhar="center", depois=200)
+        doc.tabela(["Identificação", ""], _identificacao(d), cor=cor)
+        doc.paragrafo(trecho("Índice", negrito=True, tam=12))
+        for i, t in enumerate(SECOES_RELATORIO + ["Encerramento"], start=1):
+            doc.paragrafo(f"{i} – {t}", depois=20)
+        doc.quebra_pagina()
+    if not pmf and logo:   # capa do modelo moderno
         try:
             doc.imagem(logo, 2.2)
         except Exception:  # noqa: BLE001
             pass
+    if not pmf:
+        _capa_docx_moderna(doc, d, cor, cinza, trecho)
+    _corpo_docx(doc, d, cor, sec, sub, tabela, trecho, pmf)
+    doc.rodape = rodape or f"{d['titulo']} · {_periodo(d)}"
+    doc.titulo, doc.autor = d["titulo"], d["marca"] or ""
+    return doc.salvar(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
+
+
+def _capa_docx_moderna(doc, d, cor, cinza, trecho):
+    r = d["resumo"]
     doc.paragrafo(trecho((d["marca"] or "").upper(), negrito=True, tam=11, cor=cor))
     doc.paragrafo(trecho("Relatório de uso dos ares-condicionados", negrito=True, tam=26))
     doc.paragrafo(trecho(_periodo(d), tam=16, cor=cinza))
@@ -698,64 +776,72 @@ def exportar_docx(d):
     doc.tabela(None, [[celula(*k) for k in kpis[:3]], [celula(*k) for k in kpis[3:]]], zebra=None)
     doc.quebra_pagina()
 
-    doc.titulo_secao("1. Sumário executivo", 1)
+
+def _corpo_docx(doc, d, cor, sec, sub, tabela, trecho, pmf):
+    r = d["resumo"]  # noqa: F841
+
+    sec("Sumário executivo")
     for c in d["conclusoes"]:
         pre = {"alerta": ("Atenção: ", "D97706"), "bom": ("Positivo: ", "059669"), "info": ("", None)}[c["tipo"]]
         doc.marcador(trecho(pre[0], negrito=True, cor=pre[1]), c["texto"])
-    doc.titulo_secao("Comparativo com o período anterior", 2)
+    sub("Comparativo com o período anterior")
     cp = _comparativo(d); tabela(cp[0], cp[1:])
-    doc.titulo_secao("Indicadores", 2)
+    sub("Indicadores")
     tabela(["Indicador", "Valor"], _resumo_linhas(d))
 
-    doc.titulo_secao("2. Uso ao longo do tempo", 1)
+    sec("Uso ao longo do tempo")
     if d["por_dia"]:
         doc.imagem(_png_barras("Comandos por dia", [x["dia"][8:] for x in d["por_dia"]], [x["comandos"] for x in d["por_dia"]], "#" + cor), 17)
         doc.imagem(_png_barras("Horas ligado por dia", [x["dia"][8:] for x in d["por_dia"]], [x["horas"] for x in d["por_dia"]], "#f59e0b", formato=lambda v: _n(v)), 17)
     else:
         doc.paragrafo("Sem comandos no período.")
-    doc.titulo_secao("3. Quando os ares são usados", 1)
+    sec("Quando os ares são usados")
     doc.imagem(_png_barras("Comandos por hora do dia", [f"{h['hora']}h" for h in d["por_hora"]], [h["comandos"] for h in d["por_hora"]], "#" + cor), 17)
     tabela(["Dia", "Comandos", "Horas ligado"], [[x["dia"], x["comandos"], _n(x["horas"])] for x in d["por_dia_semana"]])
 
-    doc.titulo_secao("4. Consumo e custo", 1)
+    sec("Consumo e custo")
     top = sorted(d["por_aparelho"], key=lambda a: -a["custo"])[:12]
     if top and any(a["custo"] for a in top):
         doc.imagem(_png_barras("Custo estimado por aparelho", [a["nome"] for a in top], [a["custo"] for a in top], "#" + cor, horizontal=True,
                                altura=120 + 70 * len(top), formato=_brl), 17)
     doc.nova_secao(deitado=True)   # as tabelas largas vão em página deitada
-    doc.titulo_secao("Detalhe por aparelho", 2)
+    sub("Detalhe por aparelho")
     tabela(*_tabela_aparelhos(d))
-    doc.titulo_secao("Por projeto", 2)
+    sub("Por projeto")
     tabela(["Projeto", "Aparelhos", "Comandos", "Falhas", "Horas", "kWh", "Custo"], [[x["projeto"], x["aparelhos"], x["comandos"], x["falhas"], _n(x["horas_ligado"]), _n(x["kwh"]), _brl(x["custo"])] for x in d["por_projeto"]])
-    doc.titulo_secao("5. Hábitos de uso", 1)
+    sec("Hábitos de uso")
     if d["modos"]:
         tabela(["Modo", "Vezes"], [[m["modo"], m["vezes"]] for m in d["modos"]])
     if d["temperaturas"]:
         tabela(["Temperatura", "Vezes"], [[f"{t['temperatura']}°C", t["vezes"]] for t in d["temperaturas"]])
-    doc.titulo_secao("Sessões mais longas", 2)
+    sub("Sessões mais longas")
     if d["sessoes"]:
         tabela(["Aparelho", "Ligou", "Desligou", "Horas", "Fora exped.", "Ligado por", "Desligado por"],
                [[x["aparelho"], f"{_data(x['inicio']):%d/%m %H:%M}", f"{_data(x['fim']):%d/%m %H:%M}", _n(x["horas"]), _n(x["fora_expediente_h"]), _origem(x["origem"]), _origem(x["origem_fim"])] for x in d["sessoes"][:20]])
     else:
         doc.paragrafo("Nenhuma sessão completa no período.")
-    doc.titulo_secao("6. Confiabilidade", 1)
+    sec("Confiabilidade")
     if d["por_transmissor"]:
         tabela(["Transmissor", "Aparelhos", "Comandos", "Falhas", "Sucesso"], [[x["transmissor"], x["aparelhos"], x["comandos"], x["falhas"], f"{_n(x['sucesso_pct'])}%"] for x in d["por_transmissor"]])
     if d["rotinas"]:
         tabela(["Tipo", "Nome", "Execuções", "Falhas"], [[x["tipo"], x["nome"], x["execucoes"], x["falhas"]] for x in d["rotinas"]])
     if d["falhas"]:
-        doc.titulo_secao("Falhas", 2)
+        sub("Falhas")
         tabela(["Quando", "Aparelho", "Ação", "Origem", "Detalhe"], [[f"{_data(x['quando']):%d/%m %H:%M}", x["aparelho"], x["acao"], _origem(x["origem"]), x["detalhe"][:140]] for x in reversed(d["falhas"])])
-    doc.titulo_secao("7. Metodologia", 1)
+    sec("Metodologia")
     for a, b in METODOLOGIA:
         doc.paragrafo(trecho(f"{a}. ", negrito=True), b)
-    doc.rodape = rodape or f"{d['titulo']} · {_periodo(d)}"
-    doc.titulo, doc.autor = d["titulo"], d["marca"] or ""
-    return doc.salvar(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
+    if pmf:
+        sec("Encerramento")
+        doc.paragrafo("Relatório emitido pelo sistema Clima Escritório a partir dos registros de uso dos ares-condicionados no período indicado. "
+                      "Consumo e custo são estimativas (ver Metodologia).")
+        doc.paragrafo(f"Florianópolis, {_data_extenso(d['gerado_em'])}.", alinhar="right", depois=600)
+        doc.tabela(None, [[[trecho("_______________________________\n"), trecho("Emitido por\n", negrito=True), trecho(d.get("gerado_por") or "", tam=9)],
+                           [trecho("_______________________________\n"), trecho("Responsável pelo setor\n", negrito=True), trecho("Nome e matrícula", tam=9, cor="71717A")]]], zebra=None)
 
 
 # ---------- PDF ----------
-def exportar_pdf(d):
+def exportar_pdf(d, modelo="pmf"):
     from reportlab.graphics.charts.barcharts import HorizontalBarChart, VerticalBarChart
     from reportlab.graphics.charts.lineplots import LinePlot
     from reportlab.graphics.charts.piecharts import Pie
@@ -767,7 +853,8 @@ def exportar_pdf(d):
     from reportlab.pdfgen import canvas as rl_canvas
     from reportlab.platypus import (CondPageBreak, KeepTogether, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table,
                                     TableStyle, BaseDocTemplate, Frame)
-    cor_hex = _cor(); cor = colors.HexColor(cor_hex)
+    pmf = modelo == "pmf"
+    cor_hex = AZUL_PMF if pmf else _cor(); cor = colors.HexColor(cor_hex)
     cinza, cinza_claro, texto = colors.HexColor("#71717a"), colors.HexColor("#e4e4e7"), colors.HexColor("#18181b")
     r = d["resumo"]; L, A = A4
     est = getSampleStyleSheet()
@@ -791,7 +878,7 @@ def exportar_pdf(d):
             total = len(self._paginas)
             for i, estado in enumerate(self._paginas, start=1):
                 self.__dict__.update(estado)
-                if i > 1:
+                if i > 1 or pmf:
                     self.setFont("Helvetica", 7.5); self.setFillColor(cinza)
                     self.drawRightString(L - 18 * mm, 10 * mm, f"Página {i} de {total}")
                 super().showPage()
@@ -846,10 +933,36 @@ def exportar_pdf(d):
         c.drawString(18 * mm, 10 * mm, _marca_rel()[1][:110] or f"Gerado em {_data(d['gerado_em']):%d/%m/%Y %H:%M}")
         c.restoreState()
 
-    doc = BaseDocTemplate(buf, pagesize=A4, title=d["titulo"], author=d["marca"] or "", leftMargin=18 * mm, rightMargin=18 * mm, topMargin=20 * mm, bottomMargin=20 * mm)
-    quadro = Frame(18 * mm, 20 * mm, L - 36 * mm, A - 40 * mm, id="q")
-    doc.addPageTemplates([PageTemplate("capa", [Frame(0, 0, L, A, id="c")], onPage=capa), PageTemplate("interna", [quadro], onPage=interna)])
-    larg = L - 36 * mm
+    brasao = _brasao() if pmf else None
+    linhas_cab = _cabecalho_oficial() if pmf else []
+
+    def oficial(c, doc_):
+        """Cabeçalho e rodapé do modelo da Prefeitura, iguais em todas as páginas."""
+        c.saveState()
+        if brasao:
+            try:
+                from reportlab.lib.utils import ImageReader
+                c.drawImage(ImageReader(io.BytesIO(brasao)), 22 * mm, A - 41 * mm, 18 * mm, 25 * mm, preserveAspectRatio=True, mask="auto")
+            except Exception:  # noqa: BLE001
+                pass
+        c.setFillColor(colors.black)
+        for i, t in enumerate(linhas_cab[:3]):
+            c.setFont("Times-Roman", 12.5 if i < 2 else 11); c.drawCentredString(L / 2 + 14 * mm, A - 22 * mm - i * 5.6 * mm, t)
+        c.setStrokeColor(colors.black); c.setLineWidth(0.6); c.line(20 * mm, A - 45 * mm, L - 20 * mm, A - 45 * mm)
+        c.setStrokeColor(cinza_claro); c.setLineWidth(0.4); c.line(20 * mm, 15 * mm, L - 20 * mm, 15 * mm)
+        c.setFont("Helvetica", 7.5); c.setFillColor(cinza)
+        c.drawString(20 * mm, 10 * mm, (_marca_rel()[1][:90] or f"Relatório de uso dos ares-condicionados · {_periodo(d)}"))
+        c.restoreState()
+
+    if pmf:
+        doc = BaseDocTemplate(buf, pagesize=A4, title=d["titulo"], author=" · ".join(linhas_cab[1:2]) or "", leftMargin=20 * mm, rightMargin=20 * mm, topMargin=50 * mm, bottomMargin=20 * mm)
+        doc.addPageTemplates([PageTemplate("interna", [Frame(20 * mm, 20 * mm, L - 40 * mm, A - 70 * mm, id="q")], onPage=oficial)])
+        larg = L - 40 * mm
+    else:
+        doc = BaseDocTemplate(buf, pagesize=A4, title=d["titulo"], author=d["marca"] or "", leftMargin=18 * mm, rightMargin=18 * mm, topMargin=20 * mm, bottomMargin=20 * mm)
+        quadro = Frame(18 * mm, 20 * mm, L - 36 * mm, A - 40 * mm, id="q")
+        doc.addPageTemplates([PageTemplate("capa", [Frame(0, 0, L, A, id="c")], onPage=capa), PageTemplate("interna", [quadro], onPage=interna)])
+        larg = L - 36 * mm
 
     def tab(linhas, larguras=None, num_a_partir=1, zebra=True):
         dados = [[Paragraph(html.escape(str(v)), cab_st) for v in linhas[0]]]
@@ -929,33 +1042,50 @@ def exportar_pdf(d):
             dr.add(String(50 * mm + 9, y + 0.5, f"{n_}: {v} ({round(v / tot * 100)}%)", fontSize=7.5, fillColor=texto))
         return dr
 
-    el = [NextPageTemplate("interna"), PageBreak()]
+    num = [0, 0]
+
+    def S(t):   # seção numerada: "1 – Título" (oficial) ou "1. Título"
+        num[0] += 1; num[1] = 0
+        return Paragraph(html.escape(f"{num[0]} – {t}" if pmf else f"{num[0]}. {t}"), h1)
+
+    def SS(t):  # subseção: "1.1 – Título" (oficial)
+        num[1] += 1
+        return Paragraph(html.escape(f"{num[0]}.{num[1]} – {t}" if pmf else t), h2)
+
+    if pmf:
+        titulo_st = ParagraphStyle("tit", parent=corpo, fontName="Helvetica-Bold", fontSize=15, leading=19, alignment=1, spaceAfter=2)
+        sub_st = ParagraphStyle("sub", parent=corpo, alignment=1, textColor=cinza, spaceAfter=12)
+        ident = tab([["Identificação", ""], *_identificacao(d)], [larg * 0.3, larg * 0.7], num_a_partir=9)
+        indice = [Paragraph("Índice", h2)] + [Paragraph(f"{i} – {html.escape(t)}", corpo) for i, t in enumerate(SECOES_RELATORIO + ["Encerramento"], start=1)]
+        el = [Paragraph("Relatório de Uso dos Ares-Condicionados", titulo_st), Paragraph(html.escape(_periodo(d)), sub_st), ident, Spacer(1, 10), *indice, PageBreak()]
+    else:
+        el = [NextPageTemplate("interna"), PageBreak()]
     # 1. sumário
-    el += [Paragraph("1. Sumário executivo", h1)]
+    el += [S("Sumário executivo")]
     cores_c = {"alerta": "#d97706", "bom": "#059669", "info": "#2563a8"}
     for c_ in d["conclusoes"]:
         el.append(Table([[ "", Paragraph(html.escape(c_["texto"]), corpo)]], colWidths=[3 * mm, larg - 3 * mm],
                         style=TableStyle([("BACKGROUND", (0, 0), (0, 0), colors.HexColor(cores_c[c_["tipo"]])), ("LEFTPADDING", (1, 0), (1, 0), 8),
                                           ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]), hAlign="LEFT"))
         el.append(Spacer(1, 4))
-    el += [Paragraph("Comparativo com o período anterior", h2), tab(_comparativo(d), [larg * 0.34, larg * 0.22, larg * 0.24, larg * 0.2])]
-    el += [Paragraph("Indicadores do período", h2), tab([["Indicador", "Valor"], *[[a, b] for a, b in _resumo_linhas(d)]], [larg * 0.34, larg * 0.66], num_a_partir=9)]
+    el += [SS("Comparativo com o período anterior"), tab(_comparativo(d), [larg * 0.34, larg * 0.22, larg * 0.24, larg * 0.2])]
+    el += [SS("Indicadores do período"), tab([["Indicador", "Valor"], *[[a, b] for a, b in _resumo_linhas(d)]], [larg * 0.34, larg * 0.66], num_a_partir=9)]
     # 2. tempo
-    el += [PageBreak(), Paragraph("2. Uso ao longo do tempo", h1)]
+    el += [PageBreak(), S("Uso ao longo do tempo")]
     if d["por_dia"]:
         rot = [x["dia"][8:] + "/" + x["dia"][5:7] for x in d["por_dia"]]
-        el += [Paragraph("Comandos por dia, por origem", h2),
+        el += [SS("Comandos por dia, por origem"),
                barras(rot, [[x[k] for x in d["por_dia"]] for k in ("painel", "alexa", "agenda", "automacao", "cena")], [cor, "#2563a8", "#c2410c", "#7c3aed", "#0891b2"],
                       empilhado=True, legenda=[("Painel", cor), ("Alexa", "#2563a8"), ("Agenda", "#c2410c"), ("Automação", "#7c3aed"), ("Cena", "#0891b2")], altura=70 * mm),
-               Paragraph("Horas ligado por dia", h2), linha_horas()]
+               SS("Horas ligado por dia"), linha_horas()]
     else:
         el.append(Paragraph("Sem comandos no período.", corpo))
     # 3. quando
-    el += [CondPageBreak(110 * mm), Paragraph("3. Quando os ares são usados", h1), Paragraph("Mapa de uso: dia da semana × hora do dia", h2), calor(),
-           Paragraph("Comandos por hora do dia", h2), barras([f"{h['hora']}h" for h in d["por_hora"]], [[h["comandos"] for h in d["por_hora"]]], [cor], altura=48 * mm),
-           KeepTogether([Paragraph("Por dia da semana", h2), tab([["Dia", "Comandos", "Horas ligado"], *[[x["dia"], x["comandos"], _n(x["horas"])] for x in d["por_dia_semana"]]], [larg * 0.3, larg * 0.35, larg * 0.35])])]
+    el += [CondPageBreak(110 * mm), S("Quando os ares são usados"), SS("Mapa de uso: dia da semana × hora do dia"), calor(),
+           SS("Comandos por hora do dia"), barras([f"{h['hora']}h" for h in d["por_hora"]], [[h["comandos"] for h in d["por_hora"]]], [cor], altura=48 * mm),
+           KeepTogether([SS("Por dia da semana"), tab([["Dia", "Comandos", "Horas ligado"], *[[x["dia"], x["comandos"], _n(x["horas"])] for x in d["por_dia_semana"]]], [larg * 0.3, larg * 0.35, larg * 0.35])])]
     # 4. consumo
-    el += [PageBreak(), Paragraph("4. Consumo e custo", h1)]
+    el += [PageBreak(), S("Consumo e custo")]
     top = sorted(d["por_aparelho"], key=lambda a: -a["custo"])[:12]
     if top and any(a["custo"] for a in top):
         alt = 12 * mm + 8 * mm * len(top)
@@ -963,44 +1093,53 @@ def exportar_pdf(d):
         hb.data = [[a["custo"] for a in reversed(top)]]; hb.categoryAxis.categoryNames = [a["nome"][:26] for a in reversed(top)]
         hb.categoryAxis.labels.fontSize = 7.5; hb.valueAxis.labels.fontSize = 7; hb.valueAxis.valueMin = 0; hb.bars[0].fillColor = cor; hb.bars[0].strokeColor = None
         hb.barLabelFormat = lambda v: _brl(v); hb.barLabels.fontSize = 7; hb.barLabels.boxAnchor = "w"; hb.barLabels.dx = 3
-        dr.add(hb); el += [Paragraph("Custo estimado por aparelho", h2), dr]
+        dr.add(hb); el += [SS("Custo estimado por aparelho"), dr]
     cab, linhas = _tabela_aparelhos(d)
     cab_pdf = ["Aparelho", "Projeto", "Cmds.", "Falhas", "Sessões", "Horas", "Fora exp.", "kWh", "Custo", "Anterior"]
-    el += [Paragraph("Detalhe por aparelho", h2), tab([cab_pdf, *linhas], [larg * w for w in (0.18, 0.15, 0.07, 0.07, 0.08, 0.08, 0.09, 0.08, 0.1, 0.1)], num_a_partir=2),
+    el += [SS("Detalhe por aparelho"), tab([cab_pdf, *linhas], [larg * w for w in (0.18, 0.15, 0.07, 0.07, 0.08, 0.08, 0.09, 0.08, 0.1, 0.1)], num_a_partir=2),
            Paragraph("Cmds. = comandos enviados · Fora exp. = horas ligado fora do expediente · Anterior = custo no período anterior.", pq)]
-    el += [Paragraph("Por projeto", h2), tab([["Projeto", "Aparelhos", "Comandos", "Falhas", "Horas", "kWh", "Custo"],
+    el += [SS("Por projeto"), tab([["Projeto", "Aparelhos", "Comandos", "Falhas", "Horas", "kWh", "Custo"],
                                               *[[x["projeto"], x["aparelhos"], x["comandos"], x["falhas"], _n(x["horas_ligado"]), _n(x["kwh"]), _brl(x["custo"])] for x in d["por_projeto"]]],
                                              [larg * w for w in (0.28, 0.11, 0.12, 0.1, 0.12, 0.12, 0.15)])]
     # 5. hábitos
-    el += [CondPageBreak(90 * mm), Paragraph("5. Hábitos de uso", h1)]
+    el += [CondPageBreak(90 * mm), S("Hábitos de uso")]
     blocos = []
     if d["modos"]:
-        blocos.append([Paragraph("Modos escolhidos", h2), rosca([(m["modo"], m["vezes"]) for m in d["modos"]])])
+        blocos.append([SS("Modos escolhidos"), rosca([(m["modo"], m["vezes"]) for m in d["modos"]])])
     if d["temperaturas"]:
-        blocos.append([Paragraph("Temperaturas pedidas", h2), tab([["Temperatura", "Vezes"], *[[f"{t['temperatura']}°C", t["vezes"]] for t in d["temperaturas"]]], [larg * 0.22, larg * 0.2])])
+        blocos.append([SS("Temperaturas pedidas"), tab([["Temperatura", "Vezes"], *[[f"{t['temperatura']}°C", t["vezes"]] for t in d["temperaturas"]]], [larg * 0.22, larg * 0.2])])
     if blocos:
         el.append(Table([blocos], colWidths=[larg / 2] * len(blocos), style=TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]), hAlign="LEFT"))
-    el.append(Paragraph("Sessões mais longas", h2))
+    el.append(SS("Sessões mais longas"))
     el.append(tab([["Aparelho", "Ligou", "Desligou", "Horas", "Fora exped.", "Ligado por", "Desligado por"],
                    *[[x["aparelho"], f"{_data(x['inicio']):%d/%m %H:%M}", f"{_data(x['fim']):%d/%m %H:%M}", _n(x["horas"]), _n(x["fora_expediente_h"]), _origem(x["origem"]), _origem(x["origem_fim"])] for x in d["sessoes"][:20]]],
                   [larg * w for w in (0.2, 0.13, 0.13, 0.09, 0.11, 0.17, 0.17)], num_a_partir=3) if d["sessoes"] else Paragraph("Nenhuma sessão completa no período.", corpo))
     # 6. confiabilidade
-    el += [CondPageBreak(80 * mm), Paragraph("6. Confiabilidade", h1)]
-    el += [Paragraph("Transmissores", h2), tab([["Transmissor", "Aparelhos", "Comandos", "Falhas", "Sucesso"], *[[x["transmissor"], x["aparelhos"], x["comandos"], x["falhas"], f"{_n(x['sucesso_pct'])}%"] for x in d["por_transmissor"]]],
+    el += [CondPageBreak(80 * mm), S("Confiabilidade")]
+    el += [SS("Transmissores"), tab([["Transmissor", "Aparelhos", "Comandos", "Falhas", "Sucesso"], *[[x["transmissor"], x["aparelhos"], x["comandos"], x["falhas"], f"{_n(x['sucesso_pct'])}%"] for x in d["por_transmissor"]]],
                                                [larg * w for w in (0.36, 0.16, 0.16, 0.16, 0.16)]) if d["por_transmissor"] else Paragraph("Sem dados.", corpo)]
-    el += [Paragraph("Automações e cenas", h2), tab([["Tipo", "Nome", "Execuções", "Falhas"], *[[x["tipo"], x["nome"], x["execucoes"], x["falhas"]] for x in d["rotinas"]]], [larg * w for w in (0.18, 0.46, 0.18, 0.18)], num_a_partir=2)
+    el += [SS("Automações e cenas"), tab([["Tipo", "Nome", "Execuções", "Falhas"], *[[x["tipo"], x["nome"], x["execucoes"], x["falhas"]] for x in d["rotinas"]]], [larg * w for w in (0.18, 0.46, 0.18, 0.18)], num_a_partir=2)
            if d["rotinas"] else Paragraph("Nenhuma automação ou cena rodou no período.", corpo)]
     if d["alertas"]:
-        el += [Paragraph("Alertas", h2), tab([["Quando", "Tipo", "Mensagem", "Situação"], *[[f"{_data(x['criado_em']):%d/%m %H:%M}", x["tipo"], x["mensagem"], "resolvido" if x["resolvido"] else "aberto"] for x in d["alertas"]]],
+        el += [SS("Alertas"), tab([["Quando", "Tipo", "Mensagem", "Situação"], *[[f"{_data(x['criado_em']):%d/%m %H:%M}", x["tipo"], x["mensagem"], "resolvido" if x["resolvido"] else "aberto"] for x in d["alertas"]]],
                                              [larg * w for w in (0.15, 0.17, 0.53, 0.15)], num_a_partir=9)]
     if d["falhas"]:
-        el += [Paragraph("Falhas", h2), tab([["Quando", "Aparelho", "Ação", "Origem", "Detalhe"],
+        el += [SS("Falhas"), tab([["Quando", "Aparelho", "Ação", "Origem", "Detalhe"],
                                              *[[f"{_data(x['quando']):%d/%m %H:%M}", x["aparelho"], x["acao"], _origem(x["origem"]), Paragraph(html.escape(x["detalhe"][:160]), cel)] for x in reversed(d["falhas"])]],
                                             [larg * w for w in (0.12, 0.17, 0.18, 0.13, 0.4)], num_a_partir=9)]
     # 7. metodologia
-    el += [CondPageBreak(70 * mm), Paragraph("7. Metodologia", h1)]
+    el += [CondPageBreak(70 * mm), S("Metodologia")]
     for a, b in METODOLOGIA:
         el.append(Paragraph(f"<b>{html.escape(a)}.</b> {html.escape(b)}", corpo)); el.append(Spacer(1, 4))
+    if pmf:   # encerramento: local, data por extenso e assinaturas (nomes não são inventados: quem emitiu + campo em branco)
+        dir_st = ParagraphStyle("dir", parent=corpo, alignment=2)
+        ass = ParagraphStyle("ass", parent=corpo, alignment=1, fontSize=9, leading=12)
+        assin = Table([[Paragraph("_______________________________<br/><b>Emitido por</b><br/>" + html.escape(d.get("gerado_por") or ""), ass),
+                        Paragraph("_______________________________<br/><b>Responsável pelo setor</b><br/>Nome e matrícula", ass)]], colWidths=[larg / 2, larg / 2])
+        el += [CondPageBreak(80 * mm), S("Encerramento"),
+               Paragraph("Relatório emitido pelo sistema Clima Escritório a partir dos registros de uso dos ares-condicionados no período indicado. "
+                         "Consumo e custo são estimativas (ver Metodologia).", corpo), Spacer(1, 14),
+               Paragraph(f"Florianópolis, {_data_extenso(d['gerado_em'])}.", dir_st), Spacer(1, 36), assin]
     doc.build(el, canvasmaker=Numerada)
     return buf.getvalue(), "application/pdf", "pdf"
 

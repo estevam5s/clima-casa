@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Copy, Cpu, KeyRound, Laptop, Monitor, Radio, Star, Trash2 } from 'lucide-react'
+import { Check, Copy, Cpu, HardDrive, KeyRound, Laptop, MemoryStick, Monitor, Radio, RotateCw, Star, Thermometer, Trash2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Esqueleto, Selo, useToast } from '../ui'
 
@@ -8,6 +8,51 @@ import { Aviso, Botao, Esqueleto, Selo, useToast } from '../ui'
 const SERVIDOR = 'https://app.zynio.com.br'
 const comandoLinux = (codigo) => `curl -fsSL ${SERVIDOR}/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh ${codigo}`
 const comando = (codigo) => `powershell -ExecutionPolicy Bypass -Command "irm ${SERVIDOR}/instalar-agente.ps1 -OutFile $env:TEMP\\ia.ps1; & $env:TEMP\\ia.ps1 -Codigo ${codigo}"`
+const duracao = (s) => (s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`)
+// saúde do computador (o que ele mesmo informa a cada 10 s; "—" = o sistema não informa)
+function Saude({ s }) {
+  if (!s) return null
+  const temp = s.temperatura, mem = s.memoria_total_mb ? Math.round(100 - (s.memoria_livre_mb / s.memoria_total_mb) * 100) : null
+  const corTemp = temp == null ? '' : temp >= 75 ? 'text-red-600 dark:text-red-400' : temp >= 65 ? 'text-amber-700 dark:text-amber-400' : ''
+  return (
+    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
+      <div className="flex items-center gap-1" title="IP na rede do escritório"><Wifi className="h-3.5 w-3.5 text-muted-foreground" /><dd className="tabular">{s.ip || '—'}</dd></div>
+      <div className={`flex items-center gap-1 ${corTemp}`} title="Temperatura do processador"><Thermometer className="h-3.5 w-3.5 text-muted-foreground" /><dd className="tabular">{temp == null ? '—' : `${temp} °C`}</dd></div>
+      <div className="flex items-center gap-1" title="Memória em uso"><MemoryStick className="h-3.5 w-3.5 text-muted-foreground" /><dd className="tabular">{mem == null ? '—' : `${mem}% de ${(s.memoria_total_mb / 1024).toFixed(1)} GB`}</dd></div>
+      <div className="flex items-center gap-1" title="Espaço livre no disco"><HardDrive className="h-3.5 w-3.5 text-muted-foreground" /><dd className="tabular">{s.disco_livre_gb == null ? '—' : `${s.disco_livre_gb} GB livres`}</dd></div>
+      {s.modelo && <p className="col-span-full truncate text-muted-foreground" title={s.modelo}>{s.modelo}{s.arquitetura ? ` · ${s.arquitetura}` : ''}</p>}
+      {s.ligado_ha_s != null && <p className="col-span-full text-muted-foreground">agente ligado há {duracao(s.ligado_ha_s)}{s.carga != null ? ` · carga ${s.carga}` : ''}</p>}
+    </dl>
+  )
+}
+
+// Raspberry Pi: do cartão de memória ao agente no comando (passo a passo; o comando de instalação sai do código abaixo)
+function GuiaRaspberry() {
+  const [so, setSo] = useState('mac')
+  const ssh = 'ssh clima@clima-agente.local'
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><Cpu className="h-4 w-4" />Raspberry Pi como agente fixo do escritório</h2>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Um Raspberry Pi 3B, 4 ou 5 ligado o tempo todo na rede do escritório vira o agente principal: gasta pouca energia e não depende de ninguém deixar o PC ligado. Depois de instalado, qualquer pessoa com conta controla os ares e os transmissores de todas as salas em app.zynio.com.br, do Windows, Mac, Linux ou celular, de casa ou do escritório: os comandos passam pelo Raspberry.</p>
+      <ol className="mt-4 space-y-3 text-sm">
+        <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>1.</b><span>No seu computador, instale o <b>Raspberry Pi Imager</b> (raspberrypi.com/software). Escolha o modelo, <b>Raspberry Pi OS Lite (64-bit)</b> e o cartão. Em “Editar configurações”: nome do computador <code className="rounded bg-muted px-1">clima-agente</code>, usuário <code className="rounded bg-muted px-1">clima</code> com uma senha sua, o <b>Wi-Fi 2,4 GHz do escritório</b> (o mesmo dos transmissores), fuso America/Sao_Paulo e, na aba Serviços, <b>ligar o SSH</b>.</span></li>
+        <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>2.</b><span>Coloque o cartão no Raspberry, ligue na tomada perto do roteador (cabo de rede é ainda melhor) e espere 2 minutos.</span></li>
+        <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>3.</b><div className="min-w-0 space-y-2"><span>Entre nele pela rede, de um computador no mesmo Wi-Fi:</span>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Sistema do seu computador">
+            {[['mac', 'Mac'], ['windows', 'Windows'], ['linux', 'Linux']].map(([k, r]) => <button key={k} onClick={() => setSo(k)} aria-pressed={so === k} className={`h-7 rounded-md border px-2.5 text-xs ${so === k ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'}`}>{r}</button>)}
+          </div>
+          <p className="text-xs text-muted-foreground">{so === 'windows' ? 'Abra o PowerShell (menu Iniciar → PowerShell) e cole:' : 'Abra o Terminal e cole:'}</p>
+          <pre className="overflow-x-auto rounded-md bg-zinc-950 p-3 text-[11px] text-zinc-100">{ssh}</pre>
+          <Copiar texto={ssh} rotulo="Copiar" />
+          <p className="text-xs text-muted-foreground">Na primeira vez ele pergunta se confia no computador: digite <b>yes</b> e depois a senha que você escolheu. {so === 'windows' ? 'Se “clima-agente.local” não for achado, use o IP do Raspberry (aparece na lista de aparelhos do roteador).' : 'Sem resposta? Use o IP do Raspberry no lugar de clima-agente.local.'}</p></div></li>
+        <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>4.</b><span>Gere o código de instalação aqui embaixo, abra “É um Raspberry Pi ou um Linux?” e cole o comando no Raspberry (pela janela do SSH). Leva de 10 a 20 minutos no Pi 3B.</span></li>
+        <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>5.</b><span>Quando ele aparecer na lista acima, clique em <b>Preferir este</b>: ele fica no comando sempre que estiver ligado e enxergando os transmissores. O Mac e os PCs viram reserva.</span></li>
+      </ol>
+      <p className="mt-4 text-xs text-muted-foreground">Precisa destravar? “Reiniciar agente” no cartão do Raspberry funciona de qualquer lugar, sem SSH. Atualizar o sistema dele: gere um código novo e rode o mesmo comando. Use o sistema de 64 bits; Arduino, ESP32 e ESP8266 não rodam o agente.</p>
+    </section>
+  )
+}
+
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 function Copiar({ texto, rotulo = 'Copiar' }) {
@@ -84,6 +129,7 @@ export default function Agentes({ dono, admin }) {
   // o dono vê a seção de instalação: atualiza a cada 5 s para avisar logo que o PC conectou
   useEffect(() => { carregar(); const t = setInterval(carregar, pode ? 5000 : 10000); return () => clearInterval(t) }, [carregar, pode])
   const preferir = async (id) => { try { setD(await api.post('/api/agentes/preferido', { id })); toast(id ? 'Salvo. Ele assume em até 1 minuto se estiver ligado e enxergar os transmissores.' : 'Sem preferência: fica no comando quem já está, desde que enxergue os transmissores.') } catch (e) { toast(e.message, 'erro') } }
+  const reiniciar = async (m) => { if (!window.confirm(`Reiniciar o agente em ${m.nome}? Ele fica uns 30 a 60 segundos sem mandar comandos.`)) return; try { const r = await api.post('/api/agentes/reiniciar', { id: m.id }); toast(r.mensagem) } catch (e) { toast(e.message, 'erro') } }
   const esquecer = async (id) => { if (!window.confirm('Tirar este computador da lista?')) return; try { setD(await api.post('/api/agentes/esquecer', { id })) } catch (e) { toast(e.message, 'erro') } }
   if (!d) return <Esqueleto className="h-64" />
   const preferido = d.maquinas.find((m) => m.id === d.preferido)
@@ -105,11 +151,13 @@ export default function Agentes({ dono, admin }) {
                   <p className="mt-1 flex items-center gap-1.5 text-xs"><Radio className="h-3.5 w-3.5 text-muted-foreground" />{ve == null ? <span className="text-muted-foreground">visão dos transmissores: atualize o agente</span>
                     : ve > 0 ? <span>enxerga {ve} de {tot} transmissor{tot > 1 ? 'es' : ''}</span> : <span className="text-amber-700 dark:text-amber-400">não enxerga os transmissores (fora do escritório?)</span>}</p>
                   <p className="text-xs text-muted-foreground">{m.online ? 'visto agora' : `visto ${haQuanto(m.visto)}`} · id {m.id}</p>
+                  {m.online && <Saude s={m.saude} />}
                 </div>
               </div>
               {pode && (
                 <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
                   {d.preferido === m.id ? <Botao tamanho="sm" variante="secundario" icone={Star} onClick={() => preferir(null)}>Tirar preferência</Botao> : <Botao tamanho="sm" variante="secundario" icone={Star} onClick={() => preferir(m.id)}>Preferir este</Botao>}
+                  {m.online && <Botao tamanho="sm" variante="secundario" icone={RotateCw} onClick={() => reiniciar(m)}>Reiniciar agente</Botao>}
                   {dono && !m.online && <Botao tamanho="sm" variante="secundario" icone={Trash2} onClick={() => esquecer(m.id)}>Tirar da lista</Botao>}
                 </div>
               )}
@@ -117,6 +165,7 @@ export default function Agentes({ dono, admin }) {
           ) })}
         </div>
       </section>
+      {pode && <GuiaRaspberry />}
       {pode ? <Instalar maquinas={d.maquinas} aoConectar={carregar} />
         : <p className="text-xs text-muted-foreground">Instalar o agente em outro computador é do dono e dos administradores (o código de instalação abre todas as chaves do sistema).</p>}
     </div>

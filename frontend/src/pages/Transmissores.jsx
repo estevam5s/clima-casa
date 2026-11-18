@@ -482,6 +482,8 @@ export default function Transmissores() {
   const { filtro } = useProjeto()
   const { dados: hubs, erro, recarregar, setDados } = useDados(() => api.get(comFiltro('/api/hubs', filtro)), [filtro])
   const [modal, setModal] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [situacao, setSituacao] = useState('todos')
   const [verificando, setVerificando] = useState(false)
   const [reparando, setReparando] = useState(false)
   const reparar = async () => {
@@ -541,12 +543,32 @@ export default function Transmissores() {
           ]} />
         </div>
       )}
+      {hubs.length > 1 && (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="relative sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <input className="campo pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, sala, ar ou IP" aria-label="Buscar transmissores" />
+          </label>
+          <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-0.5" role="group" aria-label="Situação">
+            {[['todos', 'Todos'], ['online', 'Online'], ['offline', 'Sem resposta'], ['problema', 'Com aviso']].map(([k, r]) => (
+              <button key={k} onClick={() => setSituacao(k)} aria-pressed={situacao === k} className={`rounded-md px-3 py-1.5 text-sm ${situacao === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}>{r}</button>
+            ))}
+          </div>
+        </div>
+      )}
       {hubs.length === 0 ? (
         <Vazio icone={Radio} titulo="Nenhum transmissor"
           texto="Pareie o SRW-004 no app Smart Life (Wi-Fi 2.4 GHz), conecte a conta em Configurações → Contas e importe por aqui." />
       ) : (
         <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
-          {hubs.map((h) => (
+          {hubs.filter((h) => {
+            const q = busca.trim().toLowerCase()
+            if (q && !`${h.nome} ${h.projeto_nome || ''} ${h.ip || ''} ${(h.ares || []).map((a) => `${a.nome} ${a.projeto_nome || ''}`).join(' ')}`.toLowerCase().includes(q)) return false
+            if (situacao === 'online') return h.online
+            if (situacao === 'offline') return !h.online
+            if (situacao === 'problema') return !!h.problema || !h.tem_chave || !h.online
+            return true
+          }).sort((a, b) => (a.online - b.online) || a.nome.localeCompare(b.nome)).map((h) => (
             <motion.div key={h.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="cartao p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -558,6 +580,11 @@ export default function Transmissores() {
                   <button className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600 " onClick={() => setModal({ tipo: 'remover', hub: h })} aria-label="Remover"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
+              {(h.ares || []).length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1" aria-label="Salas atendidas">
+                  {[...new Set(h.ares.map((a) => a.projeto_nome || 'Sem sala'))].map((s) => <span key={s} className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">{s}</span>)}
+                </div>
+              )}
               {h.problema && <div className="mt-3"><Aviso tipo="alerta">{h.problema}</Aviso></div>}
               {h.reparado_em && !h.problema && <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">Reconfigurado sozinho {haQuanto(h.reparado_em)}</p>}
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">

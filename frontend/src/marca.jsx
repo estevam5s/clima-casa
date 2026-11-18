@@ -18,7 +18,7 @@ export const MARCA_PADRAO = {
   banner_inicio: '', banner_fim: '',
   tom_neutro: 'zinco', estilo_botao: 'solido', estilo_cartao: 'borda', largura: 'padrao', icone_espessura: 20,
   login_layout: 'dividido', login_aviso: '', pagina_inicial: '/', mostrar_link_site: true,
-  manutencao: false, manutencao_mensagem: '', manutencao_previsao: '', relatorio_logo: true, relatorio_rodape: '',
+  manutencao: false, manutencao_mensagem: '', manutencao_previsao: '', relatorio_logo: true, relatorio_rodape: '', relatorio_orgao: '',
   cor_sucesso: '#16a34a', cor_aviso: '#d97706', fonte_titulos: 'mesma', peso_titulos: 600, espaco_letras: 0,
   sombra: 'suave', borda_espessura: 1, fundo_app: 'liso', cabecalho_estilo: 'vidro', menu_largura: 264,
   alto_contraste: false, foco_reforcado: false, sublinhar_links: false, reduzir_transparencia: false,

@@ -40,6 +40,9 @@ function MenuExportar({ consulta }) {
   const toast = useToast()
   const [aberto, setAberto] = useState(false)
   const [baixando, setBaixando] = useState(null)
+  // modelo do PDF/Word: oficial da Prefeitura (brasão, cabeçalho e seções numeradas) ou o moderno da marca
+  const [modelo, setModelo] = useState(() => { try { return localStorage.getItem('clima-rel-modelo') || 'pmf' } catch { return 'pmf' } })
+  const mudarModelo = (m) => { setModelo(m); try { localStorage.setItem('clima-rel-modelo', m) } catch { /* sem armazenamento */ } }
   const ref = useRef(null)
   useEffect(() => {
     const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberto(false) }
@@ -49,7 +52,7 @@ function MenuExportar({ consulta }) {
   const baixar = async (f) => {
     setBaixando(f)
     try {
-      const nome = await api.baixar(`/api/relatorios/exportar?formato=${f}&${consulta}`)
+      const nome = await api.baixar(`/api/relatorios/exportar?formato=${f}&modelo=${modelo}&${consulta}`)
       toast(`Relatório salvo: ${nome}`)
       setAberto(false)
     } catch (e) { toast(e.message, 'erro') } finally { setBaixando(null) }
@@ -61,6 +64,15 @@ function MenuExportar({ consulta }) {
         {aberto && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
             className="absolute right-0 z-30 mt-2 w-80 rounded-xl border border-border bg-card p-1.5 shadow-xl"> {/* marca: menu flutua */}
+            <div className="mb-1 border-b border-border px-3 pb-2 pt-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Modelo do PDF e do Word</p>
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5" role="group" aria-label="Modelo do documento">
+                {[['pmf', 'Prefeitura', 'Brasão, cabeçalho oficial, seções 1 – 1.1'], ['moderno', 'Moderno', 'Capa colorida com a marca']].map(([k, r, dsc]) => (
+                  <button key={k} onClick={() => mudarModelo(k)} aria-pressed={modelo === k} title={dsc}
+                    className={`rounded-md border px-2 py-1.5 text-left text-xs ${modelo === k ? 'border-primary bg-primary/10 font-medium' : 'border-border hover:bg-muted'}`}>{r}<span className="block text-[10px] font-normal text-muted-foreground">{dsc}</span></button>
+                ))}
+              </div>
+            </div>
             {FORMATOS.map(([f, nome, desc, Icone]) => (
               <button key={f} onClick={() => baixar(f)} disabled={!!baixando}
                 className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-muted disabled:opacity-60">
@@ -198,7 +210,7 @@ export default function Relatorios() {
       {!dados && !erro && <div className="grid gap-4"><Esqueleto className="h-24" /><Esqueleto className="h-72" /><Esqueleto className="h-56" /></div>}
 
       {dados && (
-        <div className="grid gap-6">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
           <FaixaMetricas itens={[
             { rotulo: 'Comandos no período', valor: r.comandos, tom: variacao == null ? undefined : variacao >= 0 ? 'bom' : 'ruim',
               dica: variacao == null ? 'Sem dados do período anterior' : `${variacao > 0 ? '+' : ''}${variacao.toLocaleString('pt-BR')}% vs período anterior (${r.comandos_periodo_anterior})` },
@@ -207,7 +219,7 @@ export default function Relatorios() {
             { rotulo: 'Custo estimado', valor: brl(r.custo), tom: r.variacao_custo_pct == null ? undefined : r.variacao_custo_pct <= 0 ? 'bom' : 'ruim', dica: `${varTxt(r.variacao_custo_pct)} vs anterior · projeção ${brl(r.projecao_mes ?? 0)}/mês` },
           ]} />
 
-          <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <Secao titulo="O que os números dizem" contexto="Leitura automática do período, a mesma que abre o PDF">
               <ul className="-my-1 space-y-2.5">
                 {(dados.conclusoes || []).map((c, i) => {
@@ -252,7 +264,7 @@ export default function Relatorios() {
             </div>
           </Secao>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Secao titulo="Horários de uso" contexto={pico.comandos ? `Pico às ${pico.rotulo} (horário de Brasília)` : 'Horário de Brasília'}>
               <div className="h-56">
                 <ResponsiveContainer><BarChart data={horas} margin={{ left: 0, right: 0 }} maxBarSize={32}>
@@ -278,7 +290,7 @@ export default function Relatorios() {
             </Secao>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <Secao titulo="Mapa de uso" contexto="Dia da semana × hora do dia" className="lg:col-span-2">
               <MapaCalor mapa={dados.mapa_calor} />
             </Secao>
@@ -329,7 +341,7 @@ export default function Relatorios() {
             </div>
           </Secao>
 
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <Secao titulo="Horas ligado por dia" contexto="Soma de todos os aparelhos" className="lg:col-span-2">
               <div className="h-56">
                 {diario.length === 0 ? <p className="pt-20 text-center text-sm text-muted-foreground">Sem sessões no período.</p> : (
@@ -353,7 +365,7 @@ export default function Relatorios() {
             </Secao>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Secao titulo="Por dia da semana" contexto="Comandos e horas ligado">
               <div className="h-52">
                 <ResponsiveContainer><BarChart data={dados.por_dia_semana || []} margin={{ left: 0, right: 0 }}>
@@ -390,7 +402,7 @@ export default function Relatorios() {
             )}
           </Secao>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Secao titulo="Transmissores" contexto="Taxa de sucesso dos envios">
               {!(dados.por_transmissor || []).length ? <p className="text-sm text-muted-foreground">Sem dados.</p> : (
                 <ul className="-my-2 divide-y divide-border">{dados.por_transmissor.map((h) => (

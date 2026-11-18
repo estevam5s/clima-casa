@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, CircleDot, Minus, Plus, Power, Radio, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, CircleDot, Minus, Plus, Power, Radio, Trash2, XCircle } from 'lucide-react'
 import { MODOS, VENTILACAO, api, haQuanto, rotuloOrigem } from '../api'
 import FormAparelho from '../components/FormAparelho'
 import { Aviso, Botao, Carregando, Dial, FaixaMetricas, Modal, Ponto, Selo, useDados, useToast } from '../components/ui'
@@ -31,10 +31,14 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
   const [extra, setExtra] = useState('')
   const [job, setJob] = useState(null)
   const [erro, setErro] = useState('')
+  const [pronto, setPronto] = useState(null)        // checagem antes de gravar (transmissor, agente na rede)
+  const [feito, setFeito] = useState(null)          // depois de gravar: próximos passos
+  const [mesmoAssim, setMesmoAssim] = useState(false)
   const timer = useRef(null)
   const toast = useToast()
 
   useEffect(() => () => clearInterval(timer.current), [])
+  useEffect(() => { api.get(`/api/aparelhos/${ar.id}/pronto-para-gravar`).then(setPronto).catch(() => setPronto(null)) }, [ar.id])
 
   const chave = tipo === 'desligar' ? 'desligar'
     : tipo === 'extra' ? `extra_${extra.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`
@@ -53,7 +57,10 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
             clearInterval(timer.current)
             toast('Botão gravado.')
             aoGravar()
-            onFechar()
+            setJob(null)
+            // próximos passos: Gree com Desligar gravado gera o resto; e o próximo ar que ainda não tem botões
+            const ares = await api.get('/api/aparelhos').catch(() => [])
+            setFeito({ chave, semBotoes: (Array.isArray(ares) ? ares : ares.aparelhos || []).filter((x) => x.id !== ar.id && !x.total_codigos) })
           } else if (j.estado === 'erro') {
             clearInterval(timer.current)
             setErro(j.erro)
@@ -68,6 +75,27 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
     } catch (e) {
       setErro(e.message)
     }
+  }
+
+  if (feito) {
+    const gree = pronto?.gree && feito.chave === 'desligar'
+    return (
+      <div className="space-y-4">
+        <Aviso tipo="ok">Botão gravado em {ar.nome}.</Aviso>
+        {gree && <p className="text-sm">Ar Gree com o Desligar gravado: na aba Botões, use <b>Controle Gree → Conferir → Testar → Gerar</b> para criar os 300 ajustes sem gravar um por um.</p>}
+        {feito.semBotoes.length > 0 ? (
+          <div>
+            <p className="rotulo">Próximo ar sem botões</p>
+            <p className="ajuda mb-2">Leve o transmissor (ou vá até o transmissor) do próximo ar, aponte o controle dele e grave. Em Transmissores, “Levar para o próximo ar” guia a troca sem interferir no anterior.</p>
+            <ul className="space-y-1.5">{feito.semBotoes.slice(0, 6).map((x) => (
+              <li key={x.id}><Link to={`/aparelhos/${x.id}?aba=botoes`} onClick={onFechar} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm hover:bg-muted">
+                <span>{x.nome}<span className="ml-2 text-xs text-muted-foreground">{x.projeto_nome || ''}{x.hub_nome ? ` · ${x.hub_nome}` : ' · sem transmissor'}</span></span><ArrowRight className="h-4 w-4" /></Link></li>))}
+            </ul>
+          </div>
+        ) : <p className="text-sm text-muted-foreground">Todos os outros ares já têm botões.</p>}
+        <div className="flex justify-end gap-2"><Link to="/transmissores" onClick={onFechar} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm hover:bg-muted">Ir para Transmissores</Link><Botao onClick={onFechar}>Concluir</Botao></div>
+      </div>
+    )
   }
 
   if (job) {
@@ -90,6 +118,19 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
 
   return (
     <div className="space-y-4">
+      {pronto && (
+        <div className="rounded-lg border border-border p-3">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Antes de gravar</p>
+          <ul className="space-y-1.5 text-sm">
+            {pronto.itens.map((i) => (
+              <li key={i.chave} className="flex gap-2">{i.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />}
+                <span><b className="font-medium">{i.titulo}</b> · <span className="text-muted-foreground">{i.detalhe}</span></span></li>
+            ))}
+          </ul>
+          {pronto.zona_outros.length > 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">Este transmissor também atinge {pronto.zona_outros.join(', ')}. O botão gravado vale para eles se forem do mesmo modelo; gravar não separa ares iguais.</p>}
+          {pronto.gree && !pronto.tem_desligar && <p className="mt-2 text-xs text-muted-foreground">Ar Gree: grave só o <b>Desligar</b>; depois o sistema gera os 300 ajustes (Controle Gree na aba Botões).</p>}
+        </div>
+      )}
       <div>
         <span className="rotulo">O que você vai gravar</span>
         <Segmentos opcoes={[['estado', 'Ligar em um ajuste'], ['desligar', 'Desligar'], ['extra', 'Outro botão']]} valor={tipo} onChange={setTipo} />
@@ -127,7 +168,9 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
       {erro && <Aviso>{erro}</Aviso>}
       <div className="flex justify-end gap-2">
         <Botao variante="secundario" onClick={onFechar}>Cancelar</Botao>
-        <Botao onClick={iniciar} icone={CircleDot} disabled={tipo === 'extra' && chave.length <= 6}>Começar a gravar</Botao>
+        {pronto && !pronto.pronto && !mesmoAssim
+          ? <Botao variante="secundario" onClick={() => setMesmoAssim(true)}>Tentar mesmo assim</Botao>
+          : <Botao onClick={iniciar} icone={CircleDot} disabled={tipo === 'extra' && chave.length <= 6}>Começar a gravar</Botao>}
       </div>
     </div>
   )

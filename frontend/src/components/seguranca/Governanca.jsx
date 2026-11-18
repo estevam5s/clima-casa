@@ -33,6 +33,62 @@ function Situacao({ status }) {
 }
 
 // ---------------------------------------------------------------- Conformidade ISO
+// minutas no modelo da Prefeitura: a direção revisa e assina; depois o controle é marcado com a evidência
+function Documentos() {
+  const toast = useToast()
+  const { dados } = useDados(() => api.get('/api/seguranca/documentos'))
+  const [baixando, setBaixando] = useState('')
+  const baixar = async (tipo, f) => { setBaixando(tipo + f); try { await api.baixar(`/api/seguranca/documentos/${tipo}?formato=${f}`) } catch (e) { toast(e.message, 'erro') } finally { setBaixando('') } }
+  return (
+    <Secao titulo="Documentos do sistema de gestão" contexto="Minutas no modelo oficial da Prefeitura, montadas com os fatos deste sistema: revise, aprove, assine e marque o controle com a evidência">
+      {!dados ? <div className="p-5"><Esqueleto className="h-32" /></div> : (
+        <ul className="divide-y divide-border">
+          {dados.documentos.map((d) => (
+            <li key={d.tipo} className="flex flex-wrap items-center gap-3 px-5 py-3">
+              <div className="min-w-0 flex-1"><p className="text-sm font-medium">{d.titulo}</p><p className="text-xs text-muted-foreground">Atende {d.controles.join(', ')}</p></div>
+              <div className="flex gap-1.5">
+                <Botao tamanho="sm" variante="secundario" icone={Download} carregando={baixando === d.tipo + 'pdf'} onClick={() => baixar(d.tipo, 'pdf')}>PDF</Botao>
+                <Botao tamanho="sm" variante="secundario" icone={Download} carregando={baixando === d.tipo + 'docx'} onClick={() => baixar(d.tipo, 'docx')}>Word</Botao>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Secao>
+  )
+}
+
+// o que falta para subir a nota, em ordem: o que o sistema já confere (depende de uma ação aqui), o que pede documento
+// aprovado e o que é físico ou de pessoal (fora do software: só a organização resolve)
+function ProximosPassos({ dados }) {
+  const todos = [...dados.controles, ...dados.clausulas]
+  const aqui = todos.filter((c) => c.origem === 'automatico' && (c.status === 'pendente' || c.status === 'parcial'))
+  const fisico = dados.controles.filter((c) => (c.tema === 'Físicos' || c.tema === 'Pessoas') && c.status === 'pendente')
+  const decl = todos.filter((c) => c.origem === 'manual' && c.status === 'pendente' && c.tema !== 'Físicos' && c.tema !== 'Pessoas')
+  if (!aqui.length && !fisico.length && !decl.length) return null
+  return (
+    <Secao titulo="O que falta, em ordem" contexto="Nada aqui é marcado como feito sozinho: cada item pede uma ação real">
+      <div className="grid gap-px bg-border lg:grid-cols-3">
+        <div className="bg-card p-4">
+          <p className="text-sm font-semibold">1. Ações no sistema ({aqui.length})</p>
+          <p className="mb-2 text-xs text-muted-foreground">O sistema confere sozinho assim que for feito.</p>
+          <ul className="space-y-1.5 text-xs">{aqui.slice(0, 10).map((c) => <li key={c.chave}><b className="tabular">{c.id}</b> · {c.detalhe || c.titulo}</li>)}</ul>
+        </div>
+        <div className="bg-card p-4">
+          <p className="text-sm font-semibold">2. Documentos para aprovar ({decl.length})</p>
+          <p className="mb-2 text-xs text-muted-foreground">Baixe a minuta abaixo, aprove e assine; depois marque o controle com a evidência.</p>
+          <ul className="space-y-1 text-xs">{decl.slice(0, 10).map((c) => <li key={c.chave}><b className="tabular">{c.id}</b> · {c.titulo}</li>)}{decl.length > 10 && <li className="text-muted-foreground">e mais {decl.length - 10}</li>}</ul>
+        </div>
+        <div className="bg-card p-4">
+          <p className="text-sm font-semibold">3. Físicos e de pessoal ({fisico.length})</p>
+          <p className="mb-2 text-xs text-muted-foreground">Portaria, salas, treinamento, contratação: a organização resolve e registra a evidência. Se o controle não se aplica ao escopo, marque “Não se aplica” com o motivo.</p>
+          <ul className="space-y-1 text-xs">{fisico.slice(0, 8).map((c) => <li key={c.chave}><b className="tabular">{c.id}</b> · {c.titulo}</li>)}{fisico.length > 8 && <li className="text-muted-foreground">e mais {fisico.length - 8}</li>}</ul>
+        </div>
+      </div>
+    </Secao>
+  )
+}
+
 export function Conformidade() {
   const toast = useToast()
   const { dados, recarregar } = useDados(() => api.get('/api/seguranca/conformidade'))
@@ -82,6 +138,9 @@ export function Conformidade() {
         </div>
         {!dados.testes_em && <div className="mt-4"><Aviso tipo="alerta">Rode os testes ao vivo (aba Testes ao vivo) para o sistema conferir cabeçalhos, TLS e arquivos expostos; alguns controles dependem deles.</Aviso></div>}
       </section>
+
+      <ProximosPassos dados={dados} />
+      <Documentos />
 
       <Secao titulo="Normas cobertas" contexto="Quanto de cada norma da família ISO 27000 (e da LGPD) os controles atendem hoje">
         <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">

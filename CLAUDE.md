@@ -59,6 +59,15 @@ caminhos de serviço e o projeto da Vercel).
 | Firewall / anti-robô | `firewall.py`, `turnstile.py`, `middleware.js` |
 | Passo a passo para o usuário | `pages/Guia.jsx` (e `docs/MANUAL.md`) |
 | Instalar o agente em outro PC (código de uso único) | `backend/app/convite.py`, `backend/convite_env.py`, `frontend/public/instalar-agente.ps1` (Windows) e `instalar-agente.sh` (Linux/Raspberry Pi 64 bits), `components/infra/Agentes.jsx` |
+| Térreo: porta automática, sair para a calçada | `components/elevador3d.js` (`montarTerreo` → `tickPorta`, `paredes`, `limitesFora`), `Mapa3D.jsx` (`E.terreo`, grade do térreo com célula de 20 cm) |
+| Vista da Ilha de Santa Catarina (botão "Ilha" no mapa) | `components/VistaIlha3D.jsx`, `components/ilhaDados.json` (contorno OSM, ODbL, metros a partir de 27,60°S 48,50°O) |
+| Aviões, casas e pedestres da cidade | `components/vida3d.js` (`avioes`, `N_PED`), `components/cidade3d.js` (bairros de casas, `telhadoGeo`) |
+| Relatório no modelo da Prefeitura (brasão, cabeçalho oficial) | `backend/app/relatorio.py` (`exportar(formato, d, modelo)`, `_cabecalho_oficial`, `_brasao`, `AZUL_PMF`), `assets/brasao-pmf.png`, `docx_simples.py` (`cabecalho`, `numerar_paginas`, `alinhar`), `pages/Relatorios.jsx` (modelo no menu Exportar) |
+| Minutas de segurança (política, termos, SoA) | `backend/app/documentos.py`, `GET /api/seguranca/documentos[/{tipo}]`, `components/seguranca/Governanca.jsx` (`Documentos`, `ProximosPassos`) |
+| Saúde do computador do agente, reiniciar à distância, Raspberry Pi | `coordenador.py` (`saude`, `cumprir_ordens`, `agente_ordem:<id>`), `rotas/infra.py` (`/agentes/reiniciar`), `components/infra/Agentes.jsx` (`Saude`, `GuiaRaspberry`) |
+| Checagem antes de gravar botão / próximo ar | `GET /api/aparelhos/{id}/pronto-para-gravar` (`rotas/api.py`), `pages/Aparelho.jsx` (`Gravar`) |
+| Aparelhos (grade, por sala, tabela, lote) | `pages/Aparelhos.jsx` (`problemasDoAr`, `emLote`), `components/ArCartao.jsx` |
+| Busca no menu lateral | `components/Layout.jsx` (`CHAVES`, `ConteudoSidebar`) |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
@@ -504,6 +513,15 @@ segurar os comandos de infravermelho; os demais tipos seguem um por vez.
 Onde ver: Atividade (filtro falhas), `fila_comandos` (estado/erro), Infra → Agentes (quem é o principal e o que enxerga),
 log do agente (`~/Library/Logs/ClimaCasa.log`, `data\agente.log` no Windows).
 
+### 7.14b Raspberry Pi e saúde dos agentes (1.6.0 e 1.7.0)
+- Instalação por código: `curl -fsSL https://app.zynio.com.br/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh <código>` (só 64 bits;
+  Python 3.13 à parte pelo uv em `/opt/clima-escritorio/python`; código em `/opt/clima-escritorio/ar-controle`; serviço systemd do
+  `instalar-linux.sh`). Passo a passo na tela Infra → Agentes (`GuiaRaspberry`): Imager com hostname `clima-agente`, usuário `clima`, SSH e
+  Wi-Fi 2,4 GHz do escritório; `ssh clima@clima-agente.local`.
+- Cada agente anuncia `saude` (modelo, IP, temperatura, memória, disco, carga, ligado há) em `agente_maquina:<id>`.
+- "Reiniciar agente": `POST /api/agentes/reiniciar {id}` grava `agente_ordem:<id>`; o computador lê no próximo anúncio (~10 s), libera o
+  posto se for principal e sai com `os._exit(3)` (o serviço o liga de novo).
+
 ### 7.15 Novidades a cada versão
 `backend/app/novidades.json` → `GET /api/novidades` (logado; devolve `versoes`, `atual`, `vista`, `mostrar`) e
 `POST /api/novidades/vista {versao}` (grava `usuarios.novidades_vista`). O `NovidadesModal` (no `Layout`, fora do bloco que remonta por
@@ -753,6 +771,9 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
     senha do app Android** para (ele chama o Supabase direto, sem Turnstile; Google continua) e o reserva do "esqueci a senha"
     (`/auth/v1/recover`) também; o caminho principal pelo Resend segue. Perfil confere a senha atual pelo servidor (`/api/conta/conferir-senha`).
   - Apps: Android com PKCE e desktop com filtro de esquema **só valem no próximo build/release**.
+- **Conformidade ISO 27001 (17/11)**: nota 56% (anexo 60%). O sistema sela a integridade a cada hora (agente, `agenda.laco`). 8.18, 8.19 e
+  8.25 são "do sistema" (`conformidade.SISTEMA`). Minutas no modelo da Prefeitura em `documentos.py` (nada vira "implementado" sozinho: a
+  direção aprova e o admin marca com a evidência). Físicos e de pessoal: só a organização resolve; nunca marcar sem evidência.
 
 ---
 
@@ -805,11 +826,20 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | Ligaram pelo controle remoto e o painel não mudou | não tem como saber sozinho (IR só vai num sentido, o SRW-004 não tem sensor). Painel → "Ligaram ou mudaram pelo controle?" (`POST /aparelhos/{id}/estado-real`, sem sinal). Ar de sala fechada mudando "junto" no sistema: `POST /aparelhos/{id}/zona {junto:false}` (marca o transmissor como conferido) ou o teste de interferência |
 | Superfície piscando no 3D só de longe | planos muito próximos brigam no buffer de profundidade: afastar ≥ 5 cm e/ou `polygonOffset`; o `camera.near` sobe para 0,6 m com a câmera longe (tick do Mapa3D) |
 | Retenção da Vercel dá 400 "additional property `deploymentExpiration`" | a Vercel tirou a retenção da API (nov/2026): `infra.op_retencao` só avisa; mudar no painel (Settings → Build and Deployment → Deployment Retention Policy). Apagar publicações (`op_limpar`) continua pela API |
+| 3D vaza por cima de outro cartão só em tela retina | `renderer.setSize(w, h, false)` não ajusta o CSS do canvas: use `setSize(w, h)` ou CSS `w-full h-full` no canvas |
+| Rolagem lateral numa tela com gráficos/tabelas | grade sem coluna base (`grid gap-6 lg:grid-cols-…`) cresce pelo conteúdo no celular: `grid-cols-1` ou `minmax(0,1fr)` |
+| `pip download --platform …` dá "Invalid requirement" no zsh | variável com várias opções não se divide no zsh: escreva as opções por extenso |
+| Avatar preso na recepção do térreo | a grade do térreo precisa incluir `T.limitesFora` e as `T.paredes` (vão da porta livre); a porta automática abre a 3,4 m |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
 
 ## 14. Estado atual e pendências (16/11/2026, noite)
+
+- **17/11, noite (1.7.0)**: diário completo da sessão e o comando para continuar numa sessão nova em
+  `docs/continuar/sessao-2026-11-17/` (`continuar.sh`). Pendências principais: Alexa nova (descobrir dispositivos), Raspberry Pi em
+  hardware, teste de interferência no salão, transmissor C, conformidade (2FA do Deison, responsável do plano, minutas aprovadas) e
+  release dos apps.
 
 - **17/11, fim da tarde (1.6.0)**: #12 **Ar do Fabio** (projeto 8, transmissor "Smart IR · Fabio e Devs"), #13 **Ar da reunião** (projeto 5,
   **sem transmissor** até o C ser comprado) e #4 **Ar dos devs** com 301 botões copiados do #1 (marca Gree). No mapa não sobram vagas.

@@ -16,6 +16,7 @@ export default function LinhaVersoes3D({ versoes, ir }) {
     const escuro = document.documentElement.classList.contains('dark')
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.domElement.style.display = 'block'
     el.appendChild(renderer.domElement)
     const cena = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100)
@@ -60,7 +61,7 @@ export default function LinhaVersoes3D({ versoes, ir }) {
     chao.rotation.x = -Math.PI / 2; chao.position.y = -1.6; cena.add(chao)
     const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-9, -9)
     let sobre = null
-    const medir = () => { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.position.z = w < 640 ? 13 : 9.5; camera.updateProjectionMatrix() }
+    const medir = () => { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.position.z = w < 640 ? 13 : 9.5; camera.updateProjectionMatrix() }
     medir()
     const ro = new ResizeObserver(medir); ro.observe(el)
     const mv = (e) => { const r = el.getBoundingClientRect(); mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1) }
@@ -101,7 +102,7 @@ export default function LinhaVersoes3D({ versoes, ir }) {
   }, [versoes, ir])
   return (
     <div className="relative h-full w-full">
-      <div ref={ref} className="h-full w-full" role="img" aria-label={`Linha do tempo com ${versoes?.length || 0} versões; passe o mouse para ver cada uma e clique para ir até ela`} />
+      <div ref={ref} className="h-full w-full overflow-hidden" role="img" aria-label={`Linha do tempo com ${versoes?.length || 0} versões; passe o mouse para ver cada uma e clique para ir até ela`} />
       {dica && (
         <div className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[130%] rounded-md border border-border bg-card px-2.5 py-1.5 text-xs shadow-md" /* marca: dica flutua */ style={{ left: `${dica.x}%`, top: `${dica.y}%` }}>
           <p className="font-semibold">Versão {dica.v.versao}</p>

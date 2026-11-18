@@ -32,6 +32,7 @@ export default function Novidades() {
   }, [versoes, tipo, busca])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
+  if (!versoes?.length) return <Vazio icone={Search} titulo="Nenhuma versão registrada" texto="As novidades aparecem aqui a cada atualização do sistema." />
   const somas = Object.fromEntries(SECOES.map(([k]) => [k, versoes.reduce((s, v) => s + (v[k]?.length || 0), 0)]))
   const tudo = Object.values(somas).reduce((a, b) => a + b, 0)
   const primeira = versoes[versoes.length - 1]
@@ -43,7 +44,7 @@ export default function Novidades() {
 
       {/* linha do tempo 3D com a versão atual ao lado */}
       <section className="cartao mb-6 grid grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="h-[220px] border-b border-border sm:h-[280px] lg:border-b-0 lg:border-r">
+        <div className="relative h-[220px] min-w-0 overflow-hidden border-b border-border sm:h-[280px] lg:border-b-0 lg:border-r">
           <Suspense fallback={<div className="h-full w-full animate-pulse bg-muted/40" />}><LinhaVersoes3D versoes={versoes} ir={ir} /></Suspense>
         </div>
         <div className="flex flex-col justify-between gap-4 p-5">

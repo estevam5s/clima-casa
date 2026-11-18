@@ -52,7 +52,7 @@ export default function ArCartao({ ar, aoMudar, indice = 0 }) {
         <span className="flex items-center gap-1.5"><Ponto ativo={ar.hub_online} />{semIR ? 'Sem transmissor' : ar.hub_nome || 'Transmissor'}</span>
         <span className="flex items-center gap-2">
           {ar.sinric_device_id && <span title="Disponível na Alexa e no Google Home">Alexa</span>}
-          <span className="tabular">{ar.total_codigos} botões</span>
+          {ar.total_codigos ? <span className="tabular">{ar.total_codigos} botões</span> : <Link to={`/aparelhos/${ar.id}?aba=botoes`} className="font-medium text-red-600 underline dark:text-red-400">sem botões: gravar</Link>}
         </span>
       </div>
     </motion.div>
