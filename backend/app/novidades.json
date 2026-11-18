@@ -2,6 +2,18 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.7.1",
+      "data": "2026-11-17",
+      "titulo": "Menu recolhido com o seletor de projeto ajustado",
+      "resumo": "Com o menu lateral recolhido, o seletor de projeto ficou centralizado, com espaço igual em volta da sigla.",
+      "novo": [],
+      "melhorias": [
+        "Menu lateral recolhido: seletor de projeto centralizado, sem a borda encostando na sigla"
+      ],
+      "seguranca": [],
+      "correcoes": []
+    },
+    {
       "versao": "1.7.0",
       "data": "2026-11-17",
       "titulo": "Térreo com saída para a rua, Ilha de Florianópolis, relatórios no modelo da Prefeitura e Raspberry Pi",

@@ -96,15 +96,16 @@ function SeletorProjeto({ aberta }) {
   const cor = projeto?.cor || 'hsl(var(--muted-foreground))'
   return (
     <div className="relative">
-      <button onClick={() => setMenu(!menu)} aria-label="Trocar projeto"
-        className="flex h-11 w-full items-center gap-2.5 rounded-lg border border-border bg-card px-[7px] text-left hover:bg-muted">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold text-white" style={{ background: cor }}>
+      {/* recolhida (64 px, 40 de área útil): quadrado centralizado com folga igual em volta da sigla; aberta: largura toda */}
+      <button onClick={() => setMenu(!menu)} aria-label="Trocar projeto" title={aberta ? undefined : projeto?.nome || 'Todos os projetos'}
+        className={`flex items-center rounded-lg border border-border bg-card text-left transition-colors hover:bg-muted ${aberta ? 'h-11 w-full gap-2.5 px-2' : 'mx-auto h-10 w-10 justify-center p-0'}`}>
+        <span className={`flex shrink-0 items-center justify-center rounded-md font-semibold text-white ${aberta ? 'h-7 w-7 text-[11px]' : 'h-6 w-6 text-[10px]'}`} style={{ background: cor }}>
           {(projeto?.nome || 'Todos').slice(0, 2).toUpperCase()}
         </span>
-        <motion.span animate={{ opacity: aberta ? 1 : 0 }} className="min-w-0 flex-1 whitespace-pre">
+        {aberta && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-w-0 flex-1 whitespace-pre">
           <span className="block truncate text-[13px] font-medium leading-tight">{projeto?.nome || 'Todos os projetos'}</span>
           <span className="block truncate text-[11px] text-muted-foreground">{projetos.length} projeto{projetos.length === 1 ? '' : 's'}</span>
-        </motion.span>
+        </motion.span>}
         {aberta && <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
       </button>
       <AnimatePresence>
