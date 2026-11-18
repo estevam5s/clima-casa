@@ -58,6 +58,7 @@ caminhos de serviço e o projeto da Vercel).
 | Permissões de rota | `backend/app/acesso.py` (`REGRAS`) |
 | Firewall / anti-robô | `firewall.py`, `turnstile.py`, `middleware.js` |
 | Passo a passo para o usuário | `pages/Guia.jsx` (e `docs/MANUAL.md`) |
+| Login do app Android com senha (CAPTCHA) pelo navegador | `apps/android/src/lib/entrarNavegador.ts` (expo-crypto, PKCE SHA-256), `pages/EntrarApp.jsx` (`/entrar-app`, volta fixa `climacasa://auth`), `POST /api/apps/login/codigo` (logado) e `/api/apps/login/trocar` (público, uso único, 2 min) |
 | Instalar o agente em outro PC (código de uso único) | `backend/app/convite.py`, `backend/convite_env.py`, `frontend/public/instalar-agente.ps1` (Windows) e `instalar-agente.sh` (Linux/Raspberry Pi 64 bits), `components/infra/Agentes.jsx` |
 | Térreo: porta automática, sair para a calçada | `components/elevador3d.js` (`montarTerreo` → `tickPorta`, `paredes`, `limitesFora`), `Mapa3D.jsx` (`E.terreo`, grade do térreo com célula de 20 cm) |
 | Vista da Ilha de Santa Catarina (botão "Ilha" no mapa) | `components/VistaIlha3D.jsx`, `components/ilhaDados.json` (contorno OSM, ODbL, metros a partir de 27,60°S 48,50°O) |

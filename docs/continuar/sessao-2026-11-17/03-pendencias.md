@@ -6,7 +6,7 @@
 3. **Teste de interferência** no salão (Transmissores → Testar interferência) com agente no escritório: grava as zonas reais.
 4. **Transmissor C** (Reunião): comprar, parear no Smart Life, importar e vincular ao "Ar da reunião".
 5. **Conformidade**: Deison ativar 2FA; dono definir responsável do plano de incidentes e escopo; aprovar os riscos sugeridos; revisar acessos; aprovar e assinar as minutas (Segurança → Conformidade → Documentos) e marcar os controles com a evidência.
-6. **Apps**: nova release Android/desktop (ver `CLAUDE.md` §10). Só depois subir `versao_apps.json`.
+6. **Apps 1.3.0** publicados (release v1.3.0 no GitHub, `versao_apps.json` atualizado). Falta testar num celular o "Entrar com e-mail e senha" pelo navegador (código de uso único + PKCE).
 
 ## Técnicas (posso fazer sem perguntar)
 - Relatórios: o Word do modelo Prefeitura tem o cabeçalho com brasão; conferir num Word de verdade (só foi visto pelo QuickLook do macOS).

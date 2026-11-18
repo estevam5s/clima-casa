@@ -32,4 +32,4 @@
 - Pendências técnicas que dependem de pessoas: 2FA dos admins, revisão de acessos, responsável do plano de incidentes, riscos (botão "riscos sugeridos"), escopo.
 
 ## Versões
-- Web: 1.7.0 (17/11). Apps (Android/desktop): ver `backend/app/versao_apps.json` e as releases do GitHub.
+- Web: 1.7.0 (17/11). Apps 1.3.0 (17/11): Android entra com e-mail e senha pelo navegador (`/entrar-app` → `climacasa://auth?codigo=` → `POST /api/apps/login/trocar`); instaladores Mac, Windows e Linux x64/ARM64.
