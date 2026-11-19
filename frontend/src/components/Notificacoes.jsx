@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AirVent, AlertTriangle, ArrowLeft, MessageCircle, Bell, BellOff, CheckCheck, CheckCircle2, Cpu, Mic, Radio, Settings, ShieldAlert, Trash2, Wrench, X, Zap,
+  AirVent, AlertTriangle, ArrowLeft, MessageCircle, Bell, BellOff, CheckCheck, CheckCircle2, Cpu, Mic, Radio, Search, Settings, ShieldAlert, Trash2, Wrench, X, Zap,
 } from 'lucide-react'
 import { api, haQuanto, rotaSegura } from '../api'
 import { atualizarAba } from '../favicon'
@@ -21,6 +21,13 @@ export const ICONES = {
   mensagem: [MessageCircle, 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'],
 }
 const ABAS = [['todas', 'Todas'], ['nao_lidas', 'Não lidas'], ['importantes', 'Importantes'], ['seguranca', 'Segurança']]
+const GRAV = { critica: ['Crítica', 'border-l-red-600', 'bg-red-600 text-white'], alta: ['Importante', 'border-l-red-500', 'bg-red-500/15 text-red-700 dark:text-red-300'],
+  media: ['Média', 'border-l-amber-500', ''], baixa: ['Baixa', 'border-l-transparent', ''] }
+const rotuloDia = (ts) => {
+  const d = new Date(ts * 1000), h = new Date(); h.setHours(0, 0, 0, 0)
+  const dif = Math.floor((h - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000)
+  return dif <= 0 ? 'Hoje' : dif === 1 ? 'Ontem' : dif < 7 ? 'Nesta semana' : 'Mais antigas'
+}
 const diaHora = (ts) => new Date(ts * 1000).toLocaleString('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).replace('.', '')
 
 
@@ -53,6 +60,8 @@ function Item({ n, aoAbrir, aoAtualizar }) {
   const toast = useToast()
   const [ocupado, setOcupado] = useState(false)
   const [Icone, cor] = ICONES[n.tipo] || ICONES.sistema
+  const [mais, setMais] = useState(false)
+  const [rotG, bordaG, chipG] = GRAV[n.gravidade] || GRAV.baixa
   const acao = async (e) => {
     e.stopPropagation()
     if (n.acao.tipo === 'link') { aoAbrir(n, n.acao.para); return }
@@ -64,18 +73,24 @@ function Item({ n, aoAbrir, aoAtualizar }) {
   return (
     <motion.li layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24, height: 0, paddingTop: 0, paddingBottom: 0 }}
       transition={{ duration: 0.18 }} onClick={() => aoAbrir(n, n.link)}
-      className={`group relative flex cursor-pointer gap-3 border-b border-dashed border-border px-4 py-4 last:border-0 hover:bg-muted/50 ${n.resolvida ? 'opacity-60' : ''}`}>
+      className={`group relative flex cursor-pointer gap-3 border-b border-l-[3px] border-b-border px-4 py-3.5 last:border-b-0 hover:bg-muted/50 ${n.lida || n.resolvida ? 'border-l-transparent' : bordaG} ${n.resolvida ? 'opacity-60' : ''}`}>
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${cor}`}><Icone className="h-[18px] w-[18px]" /></span>
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
-          <p className={`flex-1 text-sm leading-snug ${n.lida ? 'text-muted-foreground' : 'font-medium text-foreground'}`}>{n.titulo}</p>
+          <p className={`flex-1 text-sm leading-snug ${n.lida ? 'text-muted-foreground' : 'font-medium text-foreground'}`}>{n.titulo}
+            {chipG && !n.resolvida && <span className={`ml-1.5 inline-block rounded px-1.5 py-px align-middle text-[10px] font-semibold ${chipG}`}>{rotG}</span>}</p>
           {!n.lida && <button onClick={alternarLida} title="Marcar como lida" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-label="Marcar como lida" />}
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="capitalize">{diaHora(n.atualizado_em)}{n.ocorrencias > 1 ? ` · ${n.ocorrencias}×` : ''}</span>
           <span>{n.resolvida ? <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />resolvida</span> : haQuanto(n.atualizado_em)}</span>
         </div>
-        {n.detalhe && <p className="mt-2 rounded-lg bg-muted px-3 py-2.5 text-[13px] leading-relaxed text-foreground/85">{n.detalhe}</p>}
+        {n.detalhe && (
+          <div className="mt-2 rounded-lg bg-muted px-3 py-2 text-[13px] leading-relaxed text-foreground/85">
+            <p className={mais ? '' : 'line-clamp-2'}>{n.detalhe}</p>
+            {n.detalhe.length > 120 && <button onClick={(e) => { e.stopPropagation(); setMais((v) => !v) }} className="mt-0.5 text-xs font-medium text-primary hover:underline">{mais ? 'ver menos' : 'ver mais'}</button>}
+          </div>
+        )}
         {n.acao && !n.resolvida && (
           <div className="mt-2.5 flex gap-2">
             <button onClick={arquivar} className="h-8 rounded-lg border border-border bg-background px-3 text-xs font-medium hover:bg-muted">Dispensar</button>
@@ -167,6 +182,7 @@ export default function Notificacoes({ central }) {
   const [aberto, setAberto] = useState(false)
   const [config, setConfig] = useState(false)
   const [menuLimpar, setMenuLimpar] = useState(false)
+  const [busca, setBusca] = useState('')
   const navegar = useNavigate()
   const toast = useToast()
   const ref = useRef(null)
@@ -206,7 +222,10 @@ export default function Notificacoes({ central }) {
           <motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={{ duration: 0.15 }}
             className="absolute right-0 top-11 z-50 w-[440px] max-w-[calc(100vw-1.5rem)] origin-top-right overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"> {/* marca: painel flutua */}
             <div className="flex items-center justify-between px-4 pb-3 pt-4">
-              <p className="text-base font-semibold">{config ? 'Preferências' : 'Suas notificações'}</p>
+              <div>
+                <p className="text-base font-semibold">{config ? 'Preferências' : 'Notificações'}</p>
+                {!config && <p className="text-xs text-muted-foreground">{cont.nao_lidas || 0} não lida(s){cont.importantes ? ` · ${cont.importantes} importante(s) aberta(s)` : ''}</p>}
+              </div>
               {!config && (
                 <div className="relative flex items-center gap-0.5">
                   <button onClick={lerTodas} title="Marcar todas como lidas" aria-label="Marcar todas como lidas" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><CheckCheck className="h-4 w-4" /></button>
@@ -238,10 +257,26 @@ export default function Notificacoes({ central }) {
                     ))}
                   </div>
                 </div>
-                <ul className="mt-2 max-h-[min(520px,calc(100vh-220px))] overflow-y-auto">
-                  <AnimatePresence initial={false}>
-                    {dados.itens.map((n) => <Item key={n.id} n={n} aoAbrir={abrir} aoAtualizar={carregar} />)}
-                  </AnimatePresence>
+                <label className="mx-4 mt-2 flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5">
+                  <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                  <input type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Procurar nas notificações" aria-label="Procurar nas notificações" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
+                </label>
+                <ul className="mt-2 max-h-[min(520px,calc(100vh-260px))] overflow-y-auto">
+                  {(() => {
+                    const t = busca.trim().toLowerCase()
+                    const itens = dados.itens.filter((n) => !t || `${n.titulo} ${n.detalhe || ''}`.toLowerCase().includes(t))
+                    const grupos = []
+                    for (const n of itens) { const g = rotuloDia(n.atualizado_em); if (!grupos.length || grupos[grupos.length - 1][0] !== g) grupos.push([g, []]); grupos[grupos.length - 1][1].push(n) }
+                    return grupos.map(([g, lista]) => (
+                      <li key={g}>
+                        <p className="sticky top-0 z-[1] bg-card/95 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground backdrop-blur">{g}</p>
+                        <ul><AnimatePresence initial={false}>{lista.map((n) => <Item key={n.id} n={n} aoAbrir={abrir} aoAtualizar={carregar} />)}</AnimatePresence></ul>
+                      </li>
+                    ))
+                  })()}
+                  {busca && !dados.itens.some((n) => `${n.titulo} ${n.detalhe || ''}`.toLowerCase().includes(busca.trim().toLowerCase())) && (
+                    <li className="px-6 py-8 text-center text-sm text-muted-foreground">Nada com “{busca}”.</li>
+                  )}
                   {dados.itens.length === 0 && (
                     <li className="flex flex-col items-center gap-2 px-6 py-12 text-center">
                       <BellOff className="h-6 w-6 text-muted-foreground" />

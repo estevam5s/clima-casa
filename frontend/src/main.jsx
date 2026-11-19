@@ -18,6 +18,7 @@ import Luzes from './pages/Luzes'
 import Telegram from './pages/Telegram'
 import Bugs from './pages/Bugs'
 import Ia from './pages/Ia'
+import Backup from './pages/Backup'
 import Alexa from './pages/Alexa'
 import Configuracoes from './pages/Configuracoes'
 import Autorizar from './pages/Autorizar'
@@ -119,6 +120,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="telegram" element={<Telegram />} />
             <Route path="bugs" element={<Bugs />} />
             <Route path="ia" element={<Ia />} />
+            <Route path="backup" element={<Backup />} />
             <Route path="alexa" element={<Alexa />} />
             <Route path="supabase" element={<Supabase />} />
             <Route path="projetos" element={<Projetos />} />

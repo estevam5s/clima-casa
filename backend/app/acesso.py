@@ -73,6 +73,7 @@ REGRAS = [
     ("POST", r"^/api/mapa/ares/\{aid\}/aparencia$", "projetos.gerenciar"),
     ("POST", r"^/api/mapa/salas/\{pid\}/aparencia$", None),
     ("POST", r"^/api/apps/login/codigo$", None),
+    ("PUT", r"^/api/apps/github$", None),   # a rota exige o papel de dono
     ("POST", r"^/api/(conta/termo/aceitar|treinamento/responder)$", None),   # cada pessoa aceita o termo e faz o treinamento
     # cafeteira, persianas e fechadura: comandar = controlar ares; cadastrar/configurar = gerenciar transmissores;
     # a fechadura é conferida na rota (só dono/admin, e destrancar pede a senha)

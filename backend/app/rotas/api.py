@@ -2006,13 +2006,80 @@ def apps_codigo(arquivo: str):
     return {"url": f"{url}/storage/v1{assinado}&download={arquivo}", "expira_em": db.agora() + 120}
 
 
+# ---------------- downloads dos apps (repositório privado) ----------------
+# Quem não tem acesso ao repositório no GitHub baixa mesmo assim: o servidor pede o arquivo à API do GitHub com um
+# token SÓ DE LEITURA desse repositório (fine-grained, Contents: Read-only, cifrado em config.github_apps) e devolve o
+# link temporário (~5 min) que o GitHub gera. O token nunca vai para o navegador.
+REPO_APPS = "estevam5s/clima-casa"
+ARQUIVOS_APPS = {"ClimaCasa-android.apk", "ClimaCasa-mac-apple-silicon.dmg", "ClimaCasa-mac-intel.dmg", "ClimaCasa-windows.exe",
+                 "ClimaCasa-linux-x64.AppImage", "ClimaCasa-linux-arm64.AppImage"}
+
+
+def _gh(token: str, caminho: str, **kw):
+    import httpx
+    return httpx.get(f"https://api.github.com{caminho}", headers={"Authorization": f"Bearer {token}", "X-GitHub-Api-Version": "2022-11-28",
+                                                                   "Accept": kw.pop("accept", "application/vnd.github+json")}, timeout=15, **kw)
+
+
+@api.get("/apps/baixar/{arquivo}")
+def baixar_app(arquivo: str):
+    if arquivo not in ARQUIVOS_APPS:
+        raise HTTPException(404, "Arquivo desconhecido.")
+    publico = f"https://github.com/{REPO_APPS}/releases/latest/download/{arquivo}"
+    token = (db.cfg("github_apps") or {}).get("token")
+    if not token:
+        return {"url": publico, "origem": "github", "aviso": "Sem token configurado: o link só abre para quem tem acesso ao repositório no GitHub."}
+    rel = _gh(token, f"/repos/{REPO_APPS}/releases/latest")
+    if rel.status_code != 200:
+        raise HTTPException(424, f"O GitHub recusou o token ({rel.status_code}). O dono precisa gerar outro em Apps → Downloads sem acesso ao GitHub.")
+    ativo = next((a for a in rel.json().get("assets", []) if a.get("name") == arquivo), None)
+    if not ativo:
+        raise HTTPException(404, "Este arquivo não está no último release.")
+    r = _gh(token, f"/repos/{REPO_APPS}/releases/assets/{ativo['id']}", accept="application/octet-stream", follow_redirects=False)
+    if r.status_code not in (301, 302, 307) or not r.headers.get("location"):
+        raise HTTPException(424, f"O GitHub não liberou o arquivo ({r.status_code}).")
+    db.registrar("painel", "App baixado", detalhe=f"{arquivo} · versão {rel.json().get('tag_name')}")
+    return {"url": r.headers["location"], "origem": "token", "versao": rel.json().get("tag_name"), "tamanho": ativo.get("size")}
+
+
+class GithubAppsIn(BaseModel):
+    token: str = Field("", max_length=300)
+
+
+@api.get("/apps/github")
+def github_apps_estado(request: Request):
+    u = getattr(request.state, "u", None) or {}
+    t = (db.cfg("github_apps") or {}).get("token") or ""
+    return {"configurado": bool(t), "mascara": (t[:11] + "…" + t[-4:]) if len(t) > 20 and u.get("papel") == "dono" else "", "repo": REPO_APPS}
+
+
+@api.put("/apps/github")
+def github_apps_salvar(d: GithubAppsIn, request: Request):
+    u = getattr(request.state, "u", None) or {}
+    if u.get("papel") != "dono":
+        raise HTTPException(403, "Só o dono configura o token de downloads.")
+    t = d.token.strip()
+    if not t:
+        db.set_cfg("github_apps", {}); db.registrar("painel", "Token de downloads dos apps removido")
+        return github_apps_estado(request)
+    r = _gh(t, f"/repos/{REPO_APPS}")
+    if r.status_code != 200:
+        raise HTTPException(400, f"Esse token não enxerga o repositório {REPO_APPS} ({r.status_code}). Gere um fine-grained com acesso a ele e Contents: Read-only.")
+    perms = r.json().get("permissions") or {}
+    if perms.get("push") or perms.get("admin"):
+        raise HTTPException(400, "Esse token pode ESCREVER no repositório. Por segurança, use um token só de leitura (Contents: Read-only).")
+    db.set_cfg("github_apps", {"token": t, "em": db.agora()})
+    db.registrar("painel", "Token de downloads dos apps configurado")
+    return github_apps_estado(request)
+
+
 @api.get("/apps/qr")
 def qr_app(alvo: str = "android", request: Request = None):
     """QR Code para abrir o download no celular. Só gera para os destinos conhecidos (nada de URL livre)."""
     import base64
     import io
     import qrcode
-    destinos = {"android": "https://github.com/estevam5s/clima-casa/releases/latest/download/ClimaCasa-android.apk",
+    destinos = {"android": f"https://{request.headers.get('host', 'app.zynio.com.br')}/apps?baixar=android",   # pede login e baixa pelo token
                 "site": f"https://{request.headers.get('host', 'clima-casa-lac.vercel.app')}/"}
     if alvo.startswith("ar:") and alvo[3:].isdigit():   # placa da sala: abre o controle daquele ar (pede login)
         if not db.um("SELECT 1 FROM aparelhos WHERE id = ?", (int(alvo[3:]),)):

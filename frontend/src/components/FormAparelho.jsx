@@ -1,3 +1,4 @@
+import GuiaBotoes from './GuiaBotoes'
 import { useState } from 'react'
 import { MODOS } from '../api'
 import { useProjeto } from '../contexto'
@@ -52,6 +53,12 @@ export default function FormAparelho({ inicial, padrao = {}, hubs, aoSalvar, rot
 
   return (
     <form onSubmit={enviar} className="space-y-4">
+      {!inicial && (
+        <details className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+          <summary className="cursor-pointer font-medium">Depois de adicionar: como gravar os botões do controle</summary>
+          <div className="mt-3"><GuiaBotoes compacto /></div>
+        </details>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="rotulo" htmlFor="nome">Nome</label>

@@ -477,3 +477,19 @@ def registrar_evento(ev: dict):
     ordem = ["enviando", "enviado", "atrasado", "entregue", "aberto", "clicado", "devolvido", "marcado como spam", "falhou"]
     novo = estado if estado and ordem.index(estado) >= ordem.index(linha["estado"] if linha["estado"] in ordem else "enviado") else linha["estado"]
     db.executar("UPDATE email_envios SET estado = ?, eventos = CAST(? AS jsonb), atualizado_em = ? WHERE id = ?", (novo, json.dumps(eventos[-30:]), db.agora(), linha["id"]))
+    # avisa quem cuida do sistema quando um e-mail atrasa (a 1ª vez) ou volta: assim ninguém fica esperando à toa
+    try:
+        primeiro_atraso = tipo == "email.delivery_delayed" and sum(1 for e in eventos if e["tipo"] == "email.delivery_delayed") == 1
+        if primeiro_atraso or tipo in ("email.bounced", "email.complained"):
+            from . import notificacoes
+            l2 = db.um("SELECT para, tipo FROM email_envios WHERE id = ?", (linha["id"],)) or {}
+            dom = str(l2.get("para") or "").split("@")[-1].lower()
+            dica = (" O Outlook/Hotmail segura e-mails de domínios novos por horas (ou manda para o lixo eletrônico): peça para a pessoa "
+                    "procurar no Lixo Eletrônico e marcar 'Não é lixo', ou adicionar nao-responda@zynio.com.br aos remetentes confiáveis."
+                    if dom in ("outlook.com", "hotmail.com", "live.com", "msn.com", "outlook.com.br", "hotmail.com.br") else "")
+            notificacoes.notificar(f"email:{linha['id']}", "sistema", "media" if primeiro_atraso else "alta",
+                                   f"E-mail ({l2.get('tipo')}) {'atrasado' if primeiro_atraso else 'devolvido' if tipo == 'email.bounced' else 'marcado como spam'} para @{dom}",
+                                   ("O servidor de quem recebe ainda não aceitou; o Resend tenta de novo sozinho por até 72 h." if primeiro_atraso
+                                    else str((dados.get("bounce") or {}).get("message") or "O servidor de quem recebe recusou.")) + dica, "/emails?aba=historico")
+    except Exception:  # noqa: BLE001
+        pass

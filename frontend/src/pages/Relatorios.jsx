@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Download, Eye, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe, Info, Mail, Printer, RefreshCw } from 'lucide-react'
+import { avisoEmail } from '../emailAviso'
 import { api, dataHora, rotuloOrigem } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Secao, useDados, useToast } from '../components/ui'
@@ -66,13 +67,13 @@ function MenuExportar({ consulta }) {
       toast(`Relatório salvo: ${nome}`)
       setAberto(false)
       if (porEmail) {
-        try { const para = await enviarEmail(f); toast(`Também enviado por e-mail para ${para.join(', ')}.`) } catch (e) { toast(`Baixado, mas o e-mail não foi: ${e.message}`, 'erro') }
+        try { const para = await enviarEmail(f); toast(avisoEmail(para, 'Também enviado por e-mail para')) } catch (e) { toast(`Baixado, mas o e-mail não foi: ${e.message}`, 'erro') }
       }
     } catch (e) { toast(e.message, 'erro') } finally { setBaixando(null) }
   }
   const soEnviar = async () => {
     setBaixando('email')
-    try { const para = await enviarEmail('pdf'); toast(`Relatório em PDF enviado para ${para.join(', ')}.`); setAberto(false) } catch (e) { toast(e.message, 'erro') } finally { setBaixando(null) }
+    try { const para = await enviarEmail('pdf'); toast(avisoEmail(para, 'Relatório em PDF enviado para')); setAberto(false) } catch (e) { toast(e.message, 'erro') } finally { setBaixando(null) }
   }
   return (
     <div ref={ref} className="relative">

@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Activity, AlertOctagon, Mail, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
+import { avisoEmail } from '../emailAviso'
 import { api, dataHora, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Secao, useDados, useToast, confirmar } from '../components/ui'
 import PainelSeguranca from '../components/config/PainelSeguranca'
@@ -95,12 +96,12 @@ function Exportar({ dias }) {
     setGerando(f)
     try {
       toast(`Relatório salvo: ${await api.baixar(`/api/seguranca/relatorio?formato=${f}&dias=${dias}&modelo=${modelo}`)}`); setAberto(false)
-      if (porEmail) { try { toast(`Também enviado para ${(await enviar(f)).join(', ')}.`) } catch (e) { toast(`Baixado, mas o e-mail não foi: ${e.message}`, 'erro') } }
+      if (porEmail) { try { toast(avisoEmail(await enviar(f), 'Também enviado para')) } catch (e) { toast(`Baixado, mas o e-mail não foi: ${e.message}`, 'erro') } }
     } catch (e) { toast(e.message, 'erro') } finally { setGerando(null) }
   }
   const soEnviar = async () => {
     setGerando('email')
-    try { toast(`Relatório em PDF enviado para ${(await enviar('pdf')).join(', ')}.`); setAberto(false) } catch (e) { toast(e.message, 'erro') } finally { setGerando(null) }
+    try { toast(avisoEmail(await enviar('pdf'), 'Relatório em PDF enviado para')); setAberto(false) } catch (e) { toast(e.message, 'erro') } finally { setGerando(null) }
   }
   return (
     <div ref={ref} className="relative">

@@ -1,3 +1,4 @@
+import GuiaBotoes from '../components/GuiaBotoes'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -120,13 +121,7 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
     <div className="space-y-4">
       <details className="rounded-lg border border-border p-3 text-sm" open={!pronto?.botoes}>
         <summary className="cursor-pointer font-medium">Como gravar (leia antes do primeiro botão)</summary>
-        <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-muted-foreground">
-          <li><b className="text-foreground">O que vale é o visor do controle, não o ar.</b> O controle guarda o estado e, a cada botão, manda tudo junto: ligado ou desligado, modo, temperatura e ventilação. O ar pode estar ligado ou desligado.</li>
-          <li><b className="text-foreground">Comece pelo Desligar.</b> Deixe o visor do controle aceso (ligado). Escolha "Desligar" aqui, clique em Começar a gravar e aperte uma vez o botão liga/desliga, com o controle a 10–20 cm do transmissor.</li>
-          <li><b className="text-foreground">Ar Gree:</b> só o Desligar basta. Depois, na aba Botões, use Controle Gree → Conferir → Testar → Gerar e o sistema cria os 300 ajustes.</li>
-          <li><b className="text-foreground">Outras marcas:</b> grave os ajustes que vão usar (ex.: Frio 22° a 25°). Para cada um: deixe o controle ligado e 1° acima (ex.: 24° para gravar 23°), escolha o ajuste aqui, clique em Começar a gravar e aperte a seta de baixar a temperatura uma vez. O controle manda o ajuste completo já em 23°.</li>
-          <li><b className="text-foreground">Não gravou?</b> Aproxime a 5 cm, longe de lâmpadas e do sol, e aperte uma vez, firme. Sem gravar, a Alexa e o painel respondem "ok", mas o ar não recebe nada.</li>
-        </ol>
+        <div className="mt-3"><GuiaBotoes compacto /></div>
       </details>
       {pronto && (
         <div className="rounded-lg border border-border p-3">
@@ -469,6 +464,7 @@ export default function Aparelho() {
             <Botao icone={CircleDot} disabled={semTransmissor} onClick={() => setGravar({})}>Gravar botão</Botao>
           </div>
 
+          {ar.codigos.length < 2 && <GuiaBotoes />}
           <AtalhosBotoes ar={ar} aoMudar={recarregar} />
 
           <div className="cartao p-4">

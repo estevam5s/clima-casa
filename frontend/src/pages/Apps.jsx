@@ -86,6 +86,52 @@ function Copiar({ texto, rotulo = 'Copiar' }) {
   )
 }
 
+// baixa pelo servidor: com o token só de leitura configurado pelo dono, funciona para quem não tem acesso ao repositório
+// privado no GitHub; sem token, cai no link do GitHub (só abre para quem tem acesso)
+export async function baixarApp(d, toast) {
+  try {
+    const r = await api.get(`/api/apps/baixar/${encodeURIComponent(d.arquivo)}`)
+    if (r.aviso && toast) toast(r.aviso)
+    window.location.href = r.url
+  } catch (e) { toast?.(e.message, 'erro') }
+}
+
+function BotaoBaixar({ d, rotulo = 'Baixar', grande = false }) {
+  const toast = useToast()
+  const [indo, setIndo] = useState(false)
+  const ir = async () => { setIndo(true); await baixarApp(d, toast); setTimeout(() => setIndo(false), 1500) }
+  return grande ? <Botao icone={Download} carregando={indo} onClick={ir}>{rotulo}</Botao>
+    : <button onClick={ir} disabled={indo} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"><Download className="h-4 w-4" />{indo ? 'Gerando link…' : rotulo}</button>
+}
+
+function TokenDownloads() {
+  const toast = useToast()
+  const [estado, setEstado] = useState(null)
+  const [token, setToken] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  useEffect(() => { api.get('/api/apps/github').then(setEstado).catch(() => {}) }, [])
+  const salvar = async (t) => { setSalvando(true); try { setEstado(await api.put('/api/apps/github', { token: t })); setToken(''); toast(t ? 'Token conferido e salvo (cifrado). Os downloads já usam ele.' : 'Token removido.') } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) } }
+  if (!estado) return null
+  return (
+    <section className="cartao mt-6 p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" />Downloads para quem não tem acesso ao GitHub (dono)</h2>
+      <p className="mt-1 text-sm text-muted-foreground">O repositório é privado. Com um token <b>só de leitura</b>, o servidor pede o arquivo ao GitHub e entrega um link temporário: qualquer pessoa logada no painel baixa, sem conta no GitHub. O token fica cifrado e nunca vai ao navegador.</p>
+      <p className="mt-2 text-sm">{estado.configurado ? <>Configurado {estado.mascara && <code className="text-xs">{estado.mascara}</code>}: downloads funcionando para todos.</> : 'Não configurado: hoje só baixa quem tem acesso ao repositório no GitHub.'}</p>
+      <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+        <li>Abra <a className="text-primary hover:underline" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">GitHub → Fine-grained token</a>.</li>
+        <li>Repository access: <b>Only select repositories</b> → <code>{estado.repo}</code>.</li>
+        <li>Permissions → Repository → <b>Contents: Read-only</b> (o resto fica sem acesso). Gere e cole abaixo.</li>
+      </ol>
+      <form onSubmit={(e) => { e.preventDefault(); salvar(token.trim()) }} className="mt-3 flex flex-wrap gap-2">
+        <input type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" value={token} onChange={(e) => setToken(e.target.value)} placeholder="github_pat_…" aria-label="Token do GitHub (só leitura)" className="campo h-9 min-w-0 flex-1 font-mono" />
+        <Botao type="submit" tamanho="sm" carregando={salvando} disabled={token.trim().length < 20}>Conferir e salvar</Botao>
+        {estado.configurado && <Botao type="button" tamanho="sm" variante="secundario" onClick={() => salvar('')}>Remover</Botao>}
+      </form>
+      <p className="mt-2 text-xs text-muted-foreground">O sistema recusa tokens que podem escrever no repositório.</p>
+    </section>
+  )
+}
+
 function CartaoApp({ d, meu, i }) {
   const [aberto, setAberto] = useState(false)
   return (
@@ -100,7 +146,7 @@ function CartaoApp({ d, meu, i }) {
         </div>
       </div>
       <div className="mt-auto flex items-center gap-2 border-t border-border px-5 py-3">
-        <a href={d.url} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Download className="h-4 w-4" />Baixar</a>
+        <BotaoBaixar d={d} />
         <button onClick={() => setAberto((a) => !a)} className="inline-flex h-9 items-center gap-1 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" aria-expanded={aberto}>
           Como instalar<motion.span animate={{ rotate: aberto ? 180 : 0 }}><ChevronDown className="h-4 w-4" /></motion.span>
         </button>
@@ -142,6 +188,11 @@ export default function Apps() {
     return () => window.removeEventListener('beforeinstallprompt', f)
   }, [])
   useEffect(() => { api.get('/api/apps/qr?alvo=android').then(setQr).catch(() => {}) }, [])
+  useEffect(() => {   // veio do QR Code (?baixar=android): já começa o download
+    const alvo = new URLSearchParams(location.search).get('baixar')
+    const d = alvo && DOWNLOADS.find((x) => x.id === alvo)
+    if (d) baixarApp(d, toast)
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   const [qrSite, setQrSite] = useState(null)
   useEffect(() => { api.get('/api/apps/qr?alvo=site').then(setQrSite).catch(() => {}) }, [])
   const desktop = typeof window !== 'undefined' ? window.climaDesktop : null
@@ -166,7 +217,7 @@ export default function Apps() {
           <p className="text-sm">{desatualizado
             ? <>Você está no app <b>v{desktop.versao}</b>. Já existe a <b>{RELEASE.versao}</b>: baixe abaixo e instale por cima, sem perder nada.</>
             : <>Você está usando o app de computador <b>v{desktop.versao || '1.0.0'}</b>, a versão mais nova.</>}</p>
-          {desatualizado && destaque && <a href={destaque.url}><Botao tamanho="sm" icone={Download}>Baixar {RELEASE.versao}</Botao></a>}
+          {desatualizado && destaque && <BotaoBaixar d={destaque} rotulo={`Baixar ${RELEASE.versao}`} />}
         </div>
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -181,7 +232,7 @@ export default function Apps() {
                   <p className="text-sm text-muted-foreground">{[RELEASE.versao, mb(destaque.tamanho), destaque.requisitos].filter(Boolean).join(' · ')}</p>
                 </div>
               </div>
-              <a href={destaque.url} className="shrink-0"><Botao icone={Download}>Baixar {mb(destaque.tamanho)}</Botao></a>
+              <span className="shrink-0"><BotaoBaixar d={destaque} rotulo={`Baixar ${mb(destaque.tamanho)}`} grande /></span>
             </>
           ) : (
             <div className="flex items-center gap-5">
@@ -247,7 +298,7 @@ export default function Apps() {
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted px-3 py-2.5 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            <span>Repositório privado: o download abre para quem está logado no GitHub com acesso. Cada arquivo tem o SHA-256 em "Como instalar" para conferir que é o original.</span>
+            <span>Repositório privado: o botão Baixar pede o arquivo pelo servidor (token só de leitura), então funciona mesmo sem conta no GitHub. Cada arquivo tem o SHA-256 em "Como instalar" para conferir que é o original.</span>
           </div>
           <a href={`${REPO}/releases`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"><IconeMarca nome="github" className="h-4 w-4" />Todas as versões no GitHub</a>
         </Secao>
@@ -285,6 +336,7 @@ export default function Apps() {
           <div className="-my-3">{PROBLEMAS.map(([p, r]) => <Problema key={p} p={p} r={r} />)}</div>
         </Secao>
       </div>
+      {sessao?.papel === 'dono' && <TokenDownloads />}
     </div>
   )
 }
