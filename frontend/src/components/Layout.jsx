@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, AirVent, BarChart3, Bell, Blinds, BookOpen, Bug, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X } from 'lucide-react'
+import { Activity, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -42,6 +42,7 @@ export const GRUPOS = [
   { titulo: 'Integrações', itens: [
     { para: '/integracoes', rotulo: 'Alexa e Google', icone: Plug, perm: 'integracoes.gerenciar' },
     { para: '/comandos-alexa', rotulo: 'Comandos de voz', icone: MessageSquareQuote },
+    { para: '/ia', rotulo: 'Assistente de IA', icone: Bot },
     { para: '/telegram', rotulo: 'Telegram', icone: Send },
     { para: '/emails', rotulo: 'E-mails', icone: Mail, perm: 'configuracoes.gerenciar' },
     { para: '/alexa', rotulo: 'Skill própria', icone: Mic, perm: 'integracoes.gerenciar' },
@@ -65,7 +66,7 @@ export const GRUPOS = [
 const TODAS = GRUPOS.flatMap((g) => g.itens)
 // sinônimos para a busca do menu (o rótulo já conta)
 const CHAVES = {
-  '/': 'inicio dashboard resumo', '/notificacoes': 'avisos alertas sino central historico', '/luzes': 'luz lampada iluminacao anoitecer interruptor', '/telegram': 'bot telegram celular mensagem', '/bugs': 'erro problema defeito falha corrigir ia prompt', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
+  '/': 'inicio dashboard resumo', '/notificacoes': 'avisos alertas sino central historico', '/luzes': 'luz lampada iluminacao anoitecer interruptor', '/telegram': 'bot telegram celular mensagem', '/bugs': 'erro problema defeito falha corrigir ia prompt', '/ia': 'ia inteligencia artificial nvidia chat conversar terminal clima-ia assistente', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
   '/relatorios': 'pdf exportar consumo gasto energia', '/aparelhos': 'ar condicionado ares split botoes gravar', '/cenas': 'atalhos',
   '/automacoes': 'regras gatilhos', '/agendamentos': 'horario agenda temporizador', '/transmissores': 'ir infravermelho smart ir tuya hub controle remoto',
   '/musica': 'spotify som', '/integracoes': 'alexa google sinric echo voz', '/comandos-alexa': 'frases voz alexa', '/emails': 'resend correio',

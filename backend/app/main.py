@@ -20,6 +20,7 @@ from .rotas import correio as rotas_correio
 from .rotas import dispositivos as rotas_dispositivos
 from .rotas import telegram as rotas_telegram
 from .rotas import bugs as rotas_bugs
+from .rotas import ia as rotas_ia
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -159,6 +160,7 @@ app.include_router(rotas_dispositivos.rotas_disp)
 app.include_router(rotas_telegram.publico_telegram)
 app.include_router(rotas_telegram.rotas_telegram)
 app.include_router(rotas_bugs.rotas_bugs)
+app.include_router(rotas_ia.rotas_ia)
 
 
 @app.get("/saude")

@@ -152,7 +152,7 @@ def executar(sql, params=()):
 
 
 # configurações com segredos: guardadas cifradas (AES-256-GCM) — ver cripto.py
-CHAVES_SENSIVEIS = {"tuya_conta", "tuya_qr_pendente", "sinric", "alexa", "segredo_sessao", "spotify", "email", "telegram"}
+CHAVES_SENSIVEIS = {"tuya_conta", "tuya_qr_pendente", "sinric", "alexa", "segredo_sessao", "spotify", "email", "telegram", "ia"}
 
 
 def cfg(chave, padrao=None):

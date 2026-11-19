@@ -2,6 +2,33 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.18.0",
+      "data": "2026-11-19",
+      "titulo": "Assistente de IA no painel e no Telegram, e bot mais completo",
+      "resumo": "Converse com o sistema em português pelo painel ou pelo Telegram: ele vê os ares, transmissores e o agente, e comanda com as suas permissões.",
+      "novo": [
+        "Assistente de IA (menu Integrações): pergunte o estado dos ares, por que um comando não chegou, ou peça para ligar, desligar, mudar modo, temperatura, ventilação e programar timer",
+        "Desligar todos e cenas pela IA só depois de tocar em Confirmar",
+        "Telegram: escreva normalmente e a IA responde e executa; /esquecer apaga a conversa",
+        "Telegram: painel de cada ar no estilo do controle remoto (−1°/+1°, temperaturas prontas, modo, ventilação, desligar em 30 min, 1 h ou 2 h)",
+        "Telegram: /ligados, /transmissores e /agentes, com a causa quando o comando não chega ao ar",
+        "A tela do assistente mostra como usar o mesmo agente no terminal (clima-ia)"
+      ],
+      "melhorias": [
+        "Bugs: mostra como cada bug foi corrigido e não reabre por erros antigos",
+        "Mensagem clara quando nenhum computador do escritório enxerga os transmissores"
+      ],
+      "seguranca": [
+        "A IA age só com as permissões de quem pergunta, tem limite por hora e a chave da NVIDIA fica cifrada",
+        "O bot ignora a mesma mensagem reenviada pelo Telegram (o comando não roda duas vezes)"
+      ],
+      "correcoes": [
+        "Transmissor importado de novo ficava sem formato de comando e recusava os envios até gravar um botão",
+        "Gravação de botão quebrava quando o transmissor respondia pela metade",
+        "Bugs falsos de transmissor quando só faltava um computador no escritório"
+      ]
+    },
+    {
       "versao": "1.17.0",
       "data": "2026-11-18",
       "titulo": "Relatórios oficiais por e-mail e Guia em PDF",

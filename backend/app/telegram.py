@@ -35,10 +35,11 @@ LIMITE_MIN = 20
 FALHAS_BLOQUEIO = 5
 
 COMANDOS = [
-    ("menu", "Menu principal"), ("status", "Agente, ares ligados e transmissores"), ("ares", "Ares: ligar, desligar e temperatura"),
-    ("desligartodos", "Desligar todos os ares ligados"), ("cenas", "Executar uma cena"), ("luzes", "Acender e apagar as luzes"),
-    ("notificacoes", "Últimas notificações"), ("relatorio", "Resumo dos últimos 7 dias"), ("ajuda", "Como usar e segurança"),
-    ("sair", "Desvincular este Telegram"),
+    ("menu", "Menu principal"), ("status", "Agente, ares ligados e transmissores"), ("ares", "Painel de cada ar: modo, temperatura, ventilação, timer"),
+    ("ligados", "Só os ares ligados agora"), ("desligartodos", "Desligar todos os ares ligados"), ("transmissores", "Transmissores e o que cada um atende"),
+    ("agentes", "Computadores do escritório e quem está no comando"), ("ia", "Conversar com a IA (ou só mande uma mensagem)"),
+    ("cenas", "Executar uma cena"), ("luzes", "Acender e apagar as luzes"), ("notificacoes", "Últimas notificações"),
+    ("relatorio", "Resumo dos últimos 7 dias"), ("ajuda", "Como usar e segurança"), ("sair", "Desvincular este Telegram"),
 ]
 
 
@@ -55,6 +56,7 @@ def _estado() -> dict:
     e = db.cfg(ESTADO) or {}
     for k in ("codigos", "confirmar", "uso", "bloqueios"):
         e.setdefault(k, {})
+    e.setdefault("vistos", [])
     agora = time.time()   # limpa o que venceu
     e["codigos"] = {h: v for h, v in e["codigos"].items() if v.get("expira", 0) > agora}
     e["confirmar"] = {n: v for n, v in e["confirmar"].items() if v.get("expira", 0) > agora}
@@ -182,6 +184,13 @@ def _e(t) -> str:
 
 def processar(upd: dict):
     """Uma atualização do Telegram (mensagem ou clique em botão)."""
+    uid_upd = upd.get("update_id")
+    if uid_upd is not None:   # o Telegram reenvia se a resposta demorar (ex.: IA): o mesmo comando não roda duas vezes
+        ev = _estado()
+        if uid_upd in ev["vistos"]:
+            return
+        ev["vistos"] = (ev["vistos"] + [uid_upd])[-60:]
+        _salvar_estado(ev)
     msg = upd.get("message")
     cb = upd.get("callback_query")
     origem = msg or (cb or {}).get("message") or {}
@@ -247,9 +256,11 @@ def processar(upd: dict):
 
 
 def _menu():
-    return [[{"text": "Status", "callback_data": "m:status"}, {"text": "Ares", "callback_data": "m:ares"}],
+    return [[{"text": "Status", "callback_data": "m:status"}, {"text": "Ares", "callback_data": "m:ares"}, {"text": "Ligados", "callback_data": "m:ligados"}],
+            [{"text": "Transmissores", "callback_data": "m:tx"}, {"text": "Agentes", "callback_data": "m:agentes"}],
             [{"text": "Cenas", "callback_data": "m:cenas"}, {"text": "Luzes", "callback_data": "m:luzes"}],
             [{"text": "Notificações", "callback_data": "m:notif"}, {"text": "Relatório 7 dias", "callback_data": "m:rel"}],
+            [{"text": "Conversar com a IA", "callback_data": "m:ia"}],
             [{"text": "Desligar todos os ares", "callback_data": "m:desligartodos"}]]
 
 
@@ -257,7 +268,7 @@ def _ares_visiveis():
     from . import acesso
     f, p = acesso.filtro_sql("a.projeto_id")
     fa, pa = acesso.filtro_aparelhos("a.id")
-    return db.consultar(f"SELECT a.id, a.nome, a.ligado, a.modo, a.temperatura, a.hub_id FROM aparelhos a WHERE true{f}{fa} ORDER BY a.nome", tuple(p) + pa)
+    return db.consultar(f"SELECT a.id, a.nome, a.ligado, a.modo, a.temperatura, a.ventilador, a.hub_id FROM aparelhos a WHERE true{f}{fa} ORDER BY a.nome", tuple(p) + pa)
 
 
 def _pode(perm):
@@ -269,11 +280,29 @@ def _pode(perm):
 def _comando(cid, texto, u):
     cmd = (texto.split() or [""])[0].split("@")[0].lower()
     resto = texto[len(texto.split()[0]):].strip() if texto.split() else ""
+    if texto and not texto.startswith("/"):
+        return _ia(cid, texto, u)
     if cmd in ("/start", "/menu", ""):
-        return _enviar(cid, f"Olá, {_e((u.get('nome') or '').split(' ')[0] or 'tudo bem')}. O que você quer fazer?", _menu())
+        return _enviar(cid, f"Olá, {_e((u.get('nome') or '').split(' ')[0] or 'tudo bem')}. O que você quer fazer? Também pode escrever o que precisa, "
+                       "por exemplo: <i>coloca o ar do diretor em 23 graus</i>.", _menu())
+    if cmd == "/ia":
+        return _ia(cid, resto, u) if resto else _enviar(cid, "Escreva o que precisa, do seu jeito. Exemplos:\n- quais ares estão ligados?\n"
+                                                              "- liga o ar do Deison em 22 graus, ventilação alta\n- desliga o ar dos devs daqui a 30 minutos\n"
+                                                              "- por que o ar não obedece?\n\nA IA usa as suas permissões. Desligar todos e cenas pedem confirmação. "
+                                                              "/esquecer apaga a conversa.")
+    if cmd == "/esquecer":
+        _historico(cid, limpar=True)
+        return _enviar(cid, "Conversa com a IA apagada.")
+    if cmd == "/ligados":
+        return _lista_ares(cid, so_ligados=True)
+    if cmd == "/transmissores":
+        return _transmissores(cid)
+    if cmd == "/agentes":
+        return _agentes(cid)
     if cmd == "/ajuda":
         return _enviar(cid, "<b>Comandos</b>\n" + "\n".join(f"/{k} · {_e(d)}" for k, d in COMANDOS) +
-                       "\n\n<b>Também por texto:</b> /ligar NOME, /desligar NOME, /temperatura NOME 23\n\n"
+                       "\n\n<b>Também por texto:</b> /ligar NOME, /desligar NOME, /temperatura NOME 23, ou escreva normalmente "
+                       "que a IA entende (ex.: <i>desliga o ar dos devs daqui a 1 hora</i>).\n\n"
                        "<b>Segurança:</b> o bot só responde a quem vinculou o Telegram pelo painel e age com as permissões dessa pessoa. "
                        "Ações em lote pedem confirmação. Perdeu o celular? No painel → Telegram → Desvincular.")
     if cmd == "/status":
@@ -311,27 +340,74 @@ def _status(cid, editar=None):
     _enviar(cid, "\n".join(linhas), [[{"text": "Ares", "callback_data": "m:ares"}, {"text": "Atualizar", "callback_data": "m:status"}], [{"text": "Menu", "callback_data": "m:menu"}]], editar)
 
 
-def _lista_ares(cid, editar=None):
+def _lista_ares(cid, editar=None, so_ligados=False):
     ares = _ares_visiveis()
+    if so_ligados:
+        ares = [a for a in ares if a["ligado"]]
     if not ares:
-        return _enviar(cid, "Nenhum ar sob a sua responsabilidade.", editar=editar)
-    bt = [[{"text": f"{'● ' if a['ligado'] else '○ '}{a['nome']}{' · ' + str(a['temperatura']) + '°' if a['ligado'] else ''}"[:60], "callback_data": f"a:{a['id']}"}] for a in ares[:40]]
-    bt.append([{"text": "Menu", "callback_data": "m:menu"}])
-    _enviar(cid, "Escolha o ar (● ligado, ○ desligado):", bt, editar)
+        return _enviar(cid, "Nenhum ar ligado agora." if so_ligados else "Nenhum ar sob a sua responsabilidade.",
+                       [[{"text": "Todos os ares", "callback_data": "m:ares"}, {"text": "Menu", "callback_data": "m:menu"}]], editar)
+    from . import clima
+    bt = [[{"text": (f"● {a['nome']} · {clima.MODOS.get(a['modo'], a['modo'])} {a['temperatura']}°" if a["ligado"] else f"○ {a['nome']}")[:60],
+            "callback_data": f"a:{a['id']}"}] for a in ares[:40]]
+    bt.append([{"text": "Todos" if so_ligados else "Só ligados", "callback_data": "m:ares" if so_ligados else "m:ligados"},
+               {"text": "Desligar todos", "callback_data": "m:desligartodos"}, {"text": "Menu", "callback_data": "m:menu"}])
+    _enviar(cid, ("Ares ligados" if so_ligados else "Escolha o ar") + " (● ligado, ○ desligado):", bt, editar)
 
 
-def _painel_ar(cid, aid, editar=None):
-    from . import acesso, clima
+def _tempo(seg) -> str:
+    m = max(0, int(seg) // 60)
+    return f"{m} min" if m < 60 else f"{m // 60} h {m % 60:02d} min"
+
+
+def _painel_ar(cid, aid, editar=None, aviso=""):
+    """Painel do ar no estilo do controle remoto: estado completo e todos os ajustes num toque."""
+    from . import acesso, clima, transmissor
     acesso.checar_aparelho(aid)
     a = clima.aparelho(aid)
     acesso.checar_projeto(a["projeto_id"]) if acesso.projetos_permitidos() is not None else None
-    t = a["temperatura"]
-    texto = (f"<b>{_e(a['nome'])}</b>\n{'Ligado' if a['ligado'] else 'Desligado'} · {t}° · {_e(a['modo'])}"
-             + ("" if a.get("hub_id") else "\nSem transmissor: este ar não recebe comandos."))
-    bt = [[{"text": "Ligar", "callback_data": f"l:{aid}"}, {"text": "Desligar", "callback_data": f"d:{aid}"}],
-          [{"text": f"{x}°", "callback_data": f"t:{aid}:{x}"} for x in (max(a["temp_min"], t - 2), max(a["temp_min"], t - 1), min(a["temp_max"], t + 1), min(a["temp_max"], t + 2))],
-          [{"text": "Voltar", "callback_data": "m:ares"}]]
-    _enviar(cid, texto, bt, editar)
+    agora = db.agora()
+    t, modo, vent = a["temperatura"], a["modo"], a["ventilador"]
+    sala = (db.um("SELECT nome FROM projetos WHERE id = ?", (a["projeto_id"],)) or {}).get("nome", "")
+    hub = db.um("SELECT nome, online FROM hubs WHERE id = ?", (a["hub_id"],)) if a.get("hub_id") else None
+    timer = db.um("SELECT executar_em, acao FROM temporizadores WHERE aparelho_id = ? ORDER BY executar_em LIMIT 1", (aid,))
+    linhas = [f"<b>{_e(a['nome'])}</b>" + (f" · {_e(sala)}" if sala else "")]
+    if a["ligado"]:
+        linhas.append(f"<b>Ligado</b> · {_e(clima.MODOS.get(modo, modo))} <b>{t}°</b> · ventilação {_e(clima.VENTILACAO.get(vent, vent).lower())}")
+        if a.get("ligado_desde"):
+            linhas.append(f"Ligado há {_tempo(agora - a['ligado_desde'])}")
+    else:
+        linhas.append(f"<b>Desligado</b> · ao ligar: {_e(clima.MODOS.get(modo, modo))} {t}°")
+    if timer:
+        acao = json.loads(timer["acao"]) if isinstance(timer["acao"], str) else (timer["acao"] or {})
+        linhas.append(f"Timer: {'desliga' if acao.get('ligado') is False else 'liga'} em {_tempo(timer['executar_em'] - agora)}")
+    if not hub:
+        linhas.append("Sem transmissor: este ar não recebe comandos.")
+    else:
+        linhas.append(f"Transmissor {_e(hub['nome'])}: {'online' if hub['online'] else 'sem contato'}")
+        try:
+            from . import zonas
+            z = zonas.de_aparelho(aid)
+            if z and z.get("total", 0) > 1:
+                linhas.append(f"Zona {_e(z['nome'])}: {z['total']} ares iguais mudam juntos")
+        except Exception:  # noqa: BLE001
+            pass
+        if not transmissor.agente_online() or not hub["online"]:
+            linhas.append(f"<i>{_e(transmissor.sem_agente())}</i>")
+    if aviso:
+        linhas.append(f"\n{aviso}")
+    lo, hi = a["temp_min"], a["temp_max"]
+    marca = lambda atual, k, r: ("· " + r + " ·") if atual == k else r  # noqa: E731
+    bt = [[{"text": "Ligar" if not a["ligado"] else "Ligado", "callback_data": f"l:{aid}"}, {"text": "Desligar", "callback_data": f"d:{aid}"}],
+          [{"text": "−1°", "callback_data": f"t:{aid}:{max(lo, t - 1)}"}, {"text": f"{t}°", "callback_data": f"a:{aid}"}, {"text": "+1°", "callback_data": f"t:{aid}:{min(hi, t + 1)}"}],
+          [{"text": f"{x}°", "callback_data": f"t:{aid}:{x}"} for x in (18, 20, 22, 23, 24, 26) if lo <= x <= hi],
+          [{"text": marca(modo, k, r), "callback_data": f"o:{aid}:{k}"} for k, r in (("frio", "Frio"), ("quente", "Quente"), ("ventilar", "Vent."), ("seco", "Seco"), ("auto", "Auto"))],
+          [{"text": marca(vent, k, r), "callback_data": f"v:{aid}:{k}"} for k, r in (("auto", "Vent. auto"), ("baixa", "Baixa"), ("media", "Média"), ("alta", "Alta"))],
+          [{"text": f"Desligar em {r}", "callback_data": f"p:{aid}:{m}"} for m, r in ((30, "30 min"), (60, "1 h"), (120, "2 h"))]
+          + ([{"text": "Sem timer", "callback_data": f"pc:{aid}"}] if timer else []),
+          [{"text": "Atualizar", "callback_data": f"a:{aid}"}, {"text": "Voltar", "callback_data": "m:ares"}]]
+    bt = [r for r in bt if r]
+    _enviar(cid, "\n".join(linhas), bt, editar)
 
 
 def _aplicar(cid, aid, editar=None, **estado):
@@ -340,10 +416,119 @@ def _aplicar(cid, aid, editar=None, **estado):
     acesso.checar_aparelho(aid)
     a = clima.aparelho(aid)
     acesso.checar_projeto(a["projeto_id"]) if acesso.projetos_permitidos() is not None else None
-    r = clima.aplicar(aid, "telegram", **estado)
-    extra = f" (mudou junto: {len(r.get('juntos') or [])} ar(es) iguais à vista do transmissor)" if r.get("juntos") else ""
-    _enviar(cid, f"Feito: <b>{_e(a['nome'])}</b> {'desligado' if estado.get('ligado') is False else 'em ' + str(r.get('temperatura', '')) + '°'}{extra}.")
-    _painel_ar(cid, aid)
+    if estado.get("ligado") is None and any(k in estado for k in ("modo", "temperatura", "ventilador")):
+        estado["ligado"] = True
+    try:
+        r = clima.aplicar(aid, "telegram", **estado)
+    except Exception as e:  # noqa: BLE001
+        return _painel_ar(cid, aid, editar, aviso=f"Não foi: {_e(str(e)[:300])}")
+    extra = ""
+    if r.get("juntos"):
+        nomes = [x["nome"] for x in db.consultar(f"SELECT nome FROM aparelhos WHERE id IN ({','.join('?' * len(r['juntos']))})", tuple(r["juntos"]))]
+        extra = f" Mudou junto: {_e(', '.join(nomes))}."
+    via = {"local": "pela rede do escritório", "agente": "pelo agente do escritório", "nuvem": "pela nuvem"}.get(r.get("via"), "")
+    feito = "Desligado" if estado.get("ligado") is False else f"Enviado: {_e(clima.MODOS.get(r['modo'], r['modo']))} {r['temperatura']}°"
+    _painel_ar(cid, aid, editar, aviso=f"<b>{feito}</b> {via}.{extra}")
+
+
+def _temporizador(cid, aid, minutos, editar=None):
+    from . import acesso, automacao
+    _pode("aparelhos.controlar")
+    acesso.checar_aparelho(aid)
+    if minutos:
+        automacao.criar_temporizador(aid, int(minutos), {"ligado": False}, "telegram")
+        aviso = f"<b>Timer:</b> desliga em {_tempo(int(minutos) * 60)}."
+    else:
+        db.executar("DELETE FROM temporizadores WHERE aparelho_id = ?", (aid,))
+        db.registrar("telegram", "Temporizador cancelado", aparelho_id=aid)
+        aviso = "Timer cancelado."
+    _painel_ar(cid, aid, editar, aviso=aviso)
+
+
+def _transmissores(cid, editar=None):
+    ares = _ares_visiveis()
+    hubs = db.consultar("SELECT id, nome, online, problema, visto_em FROM hubs ORDER BY nome")
+    linhas = []
+    for h in hubs:
+        seus = [a["nome"] for a in ares if a["hub_id"] == h["id"]]
+        if not seus and ares and len(ares) < 50:
+            continue   # transmissor sem nenhum ar desta pessoa
+        visto = f" (visto há {_tempo(db.agora() - h['visto_em'])})" if h["visto_em"] and not h["online"] else ""
+        linhas.append(f"<b>{_e(h['nome'])}</b>: {'online' if h['online'] else 'sem contato'}{visto}"
+                      + (f"\n  {_e(h['problema'])}" if h["problema"] and not h["online"] else "")
+                      + (f"\n  Atende: {_e(', '.join(seus))}" if seus else ""))
+    sem = [a["nome"] for a in ares if not a["hub_id"]]
+    if sem:
+        linhas.append(f"<b>Sem transmissor</b>: {_e(', '.join(sem))}")
+    _enviar(cid, "\n\n".join(linhas) or "Nenhum transmissor.", [[{"text": "Agentes", "callback_data": "m:agentes"}, {"text": "Atualizar", "callback_data": "m:tx"}],
+                                                                  [{"text": "Menu", "callback_data": "m:menu"}]], editar)
+
+
+def _agentes(cid, editar=None):
+    from . import coordenador, transmissor
+    try:
+        maqs = coordenador.maquinas()
+    except Exception:  # noqa: BLE001
+        maqs = []
+    try:
+        pref = coordenador.preferido()
+    except Exception:  # noqa: BLE001
+        pref = None
+    linhas = []
+    for m in maqs:
+        m["preferido"] = m.get("id") == pref
+        papel = "no comando" if m.get("principal") else "reserva"
+        linhas.append(f"<b>{_e(m.get('nome'))}</b> · {'online' if m.get('online') else 'offline'} · {papel}"
+                      + (" · preferido" if m.get("preferido") else "")
+                      + f"\n  Enxerga {m.get('ve_transmissores') or 0} de {m.get('total_transmissores') or 0} transmissor(es)")
+    aviso = "" if any(m.get("principal") and m.get("ve_transmissores") for m in maqs) else f"\n\n<i>{_e(transmissor.sem_agente())}</i>"
+    _enviar(cid, ("\n\n".join(linhas) or "Nenhum computador com o agente.") + aviso,
+            [[{"text": "Transmissores", "callback_data": "m:tx"}, {"text": "Atualizar", "callback_data": "m:agentes"}],
+             [{"text": "Abrir no painel", "url": f"{APP}/infra?aba=agentes"}], [{"text": "Menu", "callback_data": "m:menu"}]], editar)
+
+
+# ---------------- IA (NVIDIA) por texto livre ----------------
+def _historico(cid, nova: list | None = None, limpar=False) -> list:
+    h = db.cfg("telegram_ia") or {}
+    if limpar:
+        h.pop(cid, None)
+    elif nova is not None:
+        h[cid] = nova[-12:]
+    else:
+        return h.get(cid) or []
+    db.set_cfg("telegram_ia", h)
+    return h.get(cid) or []
+
+
+def _md_html(t: str) -> str:
+    import re
+    t = _e(t)
+    t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
+    t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+    t = re.sub(r"^#{1,4}\s*(.+)$", r"<b>\1</b>", t, flags=re.M)
+    return t
+
+
+def _ia(cid, texto, u):
+    from . import ia
+    if (ia.cfg().get("telegram") is False) or not ia.chave():
+        return _enviar(cid, "A conversa com a IA está desligada. Use os botões:", _menu())
+    try:
+        chamar("sendChatAction", chat_id=cid, action="typing")
+    except Exception:  # noqa: BLE001
+        pass
+    hist = _historico(cid) + [{"role": "user", "content": texto[:2000]}]
+    try:
+        r = ia.conversar(hist, "telegram", origem="telegram")
+    except Exception as e:  # noqa: BLE001
+        return _enviar(cid, f"A IA não respondeu: {_e(str(e)[:250])}", _menu())
+    _historico(cid, hist + [{"role": "assistant", "content": r["texto"][:2000]}])
+    partes = [_md_html(r["texto"])]
+    bt = []
+    for c in r.get("confirmacoes") or []:
+        bt.append([{"text": f"Confirmar: {c['descricao']}"[:60], "callback_data": f"i:{c['confirmacao']}"}])
+    bt.append([{"text": "Ares", "callback_data": "m:ares"}, {"text": "Status", "callback_data": "m:status"}, {"text": "Menu", "callback_data": "m:menu"}])
+    _enviar(cid, "\n".join(partes), bt)
 
 
 def _por_texto(cid, cmd, resto):
@@ -426,16 +611,36 @@ def _clique(cid, cb, u):
     tipo, _, arg = dado.partition(":")
     if tipo == "m":
         fn = {"menu": lambda: _enviar(cid, "O que você quer fazer?", _menu(), mid), "status": lambda: _status(cid, mid), "ares": lambda: _lista_ares(cid, mid),
+              "ligados": lambda: _lista_ares(cid, mid, so_ligados=True), "tx": lambda: _transmissores(cid, mid), "agentes": lambda: _agentes(cid, mid),
+              "ia": lambda: _comando(cid, "/ia", u),
               "cenas": lambda: _cenas(cid, mid), "luzes": lambda: _luzes(cid, mid), "notif": lambda: _notificacoes(cid, mid), "rel": lambda: _relatorio(cid, mid),
               "desligartodos": lambda: _pedir_confirmacao(cid, "desligartodos", None, "Desligar <b>todos</b> os ares ligados que você controla?")}.get(arg)
         return fn() if fn else None
     if tipo == "a":
         return _painel_ar(cid, int(arg), mid)
     if tipo in ("l", "d"):
-        return _aplicar(cid, int(arg), ligado=(tipo == "l"))
+        return _aplicar(cid, int(arg), mid, ligado=(tipo == "l"))
     if tipo == "t":
         aid, graus = arg.split(":")
-        return _aplicar(cid, int(aid), ligado=True, temperatura=int(graus))
+        return _aplicar(cid, int(aid), mid, temperatura=int(graus))
+    if tipo == "o":
+        aid, modo = arg.split(":")
+        return _aplicar(cid, int(aid), mid, modo=modo)
+    if tipo == "v":
+        aid, vent = arg.split(":")
+        return _aplicar(cid, int(aid), mid, ventilador=vent)
+    if tipo == "p":
+        aid, minutos = arg.split(":")
+        return _temporizador(cid, int(aid), int(minutos), mid)
+    if tipo == "pc":
+        return _temporizador(cid, int(arg), 0, mid)
+    if tipo == "i":   # confirmação de ação em lote pedida pela IA
+        from . import ia
+        try:
+            r = ia.confirmar(arg, "telegram")
+            return _enviar(cid, _e(r["texto"]), _menu())
+        except Exception as e:  # noqa: BLE001
+            return _enviar(cid, _e(str(e)[:200]), _menu())
     if tipo == "s":
         nome = (db.um("SELECT nome FROM cenas WHERE id = ?", (int(arg),)) or {}).get("nome", "a cena")
         return _pedir_confirmacao(cid, "cena", int(arg), f"Executar a cena <b>{_e(nome)}</b>?")
