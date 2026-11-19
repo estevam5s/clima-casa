@@ -2,6 +2,34 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.24.0",
+      "data": "2026-11-19",
+      "titulo": "Backup completo, treinamento com mais de mil perguntas e páginas de rotina mais completas",
+      "resumo": "Backup e restauração do sistema inteiro, prova de segurança e ISO com resultado na hora e por e-mail, apps baixados sem conta no GitHub e Agenda, Cenas e Automações com modelos prontos.",
+      "novo": [
+        "Backup e restauração: o banco inteiro num .zip (segredos cifrados), lista de backups, download, upload, simulação antes de gravar e restaurar mesclando ou substituindo",
+        "Atalhos do topo com busca, 17 destinos em grupos, Backup completo e Upload",
+        "Treinamento e segurança: banco com 1.017 perguntas (situações e LGPD, ISO/IEC 27001:2022 Anexo A, Estrutura Harmonizada e catálogo de normas ISO), prova sorteada, mapa da prova, resultado na hora com gabarito comentado e envio por e-mail",
+        "Apps: baixar mesmo sem acesso ao repositório no GitHub (o dono configura um token só de leitura; o QR Code do Android já baixa depois do login)",
+        "Guia visual de como gravar os botões do controle, no cadastro do ar e na aba Botões",
+        "Agenda: modelos prontos (expediente, rede de segurança à noite, almoço, sábado) para vários ares de uma vez, timers ativos e últimas execuções",
+        "Cenas sugeridas montadas com os seus ares e histórico de execuções",
+        "Automações: 9 modelos, o esquema quando → se → então e os últimos disparos",
+        "Projetos: comparativo das salas com a projeção de gasto, a meta e o uso"
+      ],
+      "melhorias": [
+        "Notificações agrupadas por dia, com busca, gravidade destacada e texto longo resumido",
+        "Aviso quando um e-mail atrasa ou volta, com a dica do Outlook/Hotmail"
+      ],
+      "seguranca": [
+        "Backup e restauração só para dono ou admin com acesso a todos os projetos; restaurar exige simular e digitar RESTAURAR; sessões e logins nunca são restaurados",
+        "Token de downloads só de leitura, cifrado, recusado se puder escrever no repositório"
+      ],
+      "correcoes": [
+        "Comandos de agenda do Telegram mostravam os dias da semana trocados"
+      ]
+    },
+    {
       "versao": "1.23.0",
       "data": "2026-11-19",
       "titulo": "Assistente de IA com histórico, bot com 498 comandos e carros mais leves",
