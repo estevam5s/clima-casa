@@ -6,7 +6,7 @@
 
 **Liga, desliga e ajusta os ares do escritório pelo navegador, pelo celular, pelo computador ou pela voz, usando um transmissor Wi-Fi de infravermelho de R$ 60 no lugar do controle remoto.**
 
-O sistema grava os sinais do controle original de cada ar e os reenvia por um transmissor **Tuya SRW-004** (NovaDigital / Smart Life). Em cima disso tem painel web instalável (PWA), apps para Android, macOS, Windows e Linux, **Alexa e Google Home**, agenda semanal, automações com gatilhos e condições, cenas, relatórios com consumo e custo estimados, marca própria (white label) e um firewall de aplicação.
+O sistema grava os sinais do controle original de cada ar e os reenvia por um transmissor **Tuya SRW-004** (NovaDigital / Smart Life). Em cima disso tem painel web instalável (PWA), apps para Android, macOS, Windows e Linux, **Alexa e Google Home**, **assistente de IA** (painel, Telegram e terminal), **bot do Telegram** com 498 comandos, agenda, automações, cenas, relatórios com consumo e custo, **mapa 3D multijogador** com o prédio, a cidade e carros dirigíveis, **backup e restauração** do sistema inteiro, **treinamento de segurança e ISO** com mais de mil perguntas, marca própria (white label) e um firewall de aplicação.
 
 🔗 **Painel:** [app.zynio.com.br](https://app.zynio.com.br) · 🌐 **Site:** [zynio.com.br](https://zynio.com.br) · 📦 **Downloads:** [Releases](https://github.com/estevam5s/clima-casa/releases) · 📘 **Manual:** [`docs/MANUAL.md`](docs/MANUAL.md)
 
@@ -39,6 +39,11 @@ O sistema grava os sinais do controle original de cada ar e os reenvia por um tr
 3. [Funcionalidades: controle dos ares](#-funcionalidades-controle-dos-ares)
 4. [Funcionalidades: voz (Alexa e Google)](#-funcionalidades-voz-alexa-e-google)
 5. [Funcionalidades: rotina do escritório](#-funcionalidades-rotina-do-escritório)
+5.1. [Inteligência artificial (painel, Telegram e terminal)](#-inteligência-artificial-painel-telegram-e-terminal)
+5.2. [Bot do Telegram](#-bot-do-telegram)
+5.3. [Mapa 3D: avatares, carros e multijogador](#-mapa-3d-avatares-carros-e-multijogador)
+5.4. [Backup e restauração](#-backup-e-restauração)
+5.5. [Treinamento e conformidade](#-treinamento-e-conformidade)
 6. [Relatórios e exportação](#-relatórios-e-exportação)
 7. [Marca própria (white label)](#-marca-própria-white-label)
 8. [Aparência e tema](#-aparência-e-tema)
@@ -84,15 +89,17 @@ Público: o administrador do lugar. Não há cadastro público: só entra quem t
 
 | Item | Quantidade |
 |---|---|
-| Telas no painel web | 20 |
-| Rotas de API (`/api`, OAuth e Alexa) | 89 |
-| Tabelas no Postgres (todas com RLS) | 19 (+ 2 de log das rotinas) |
+| Telas no painel web | 42 |
+| Rotas de API (`/api`, OAuth, Alexa, Telegram, IA) | 371 |
+| Tabelas no Postgres (todas com RLS) | 40 |
 | Rotinas pg_cron | 10 |
+| Comandos do bot do Telegram | 498 (em 22 categorias) |
+| Perguntas no treinamento de segurança e ISO | 1.017 |
 | Formatos de exportação de relatório | 8 (PDF, DOCX, XLSX, CSV, HTML, XML, JSON, Markdown) |
 | Opções de marca própria | 34 |
 | Apps nativos | 5 (Android, macOS Apple Silicon, macOS Intel, Windows, Linux x64/arm64) |
-| Backend (Python) | ~3.800 linhas |
-| Frontend (React) | ~5.500 linhas |
+| Backend (Python) | ~22.000 linhas |
+| Frontend (React) | ~31.000 linhas |
 
 ---
 
@@ -156,6 +163,62 @@ Prédio de 11 andares na cidade, escritório no 9º, equipe com expediente, moni
 pedestres e terminal de ônibus. Controlando uma pessoa: andar (W A S D), sentar e trabalhar (F), **fazer café na copa (C)**,
 descer ao térreo pelo elevador (R) e **andar pelas ruas, calçadas, praças e terminal**. À noite as salas, o corredor e a copa
 acendem; com as luzes cadastradas, a sala com a lâmpada real apagada fica escura.
+
+---
+
+## 🤖 Inteligência artificial (painel, Telegram e terminal)
+
+Modelos da **NVIDIA** (Nemotron) com ferramentas que veem o estado real e agem **com as permissões de quem pergunta**.
+
+| Onde | Como é |
+|---|---|
+| Painel (`/ia`) | Chat no estilo do Claude: conversas salvas (fixar, renomear, apagar, procurar), comandos com `/`, anexar arquivo de texto, ditado por voz, escolha do modelo por mensagem, copiar, tentar de novo, editar a pergunta e baixar em Markdown |
+| Telegram | Qualquer texto vira conversa com a IA; ações em lote pedem o botão Confirmar |
+| Celular (Android) | Tela Assistente de IA (Mais → Assistente de IA) |
+| Terminal (`clima-ia`) | No jeito do Claude Code: barra de status, modos de permissão (Shift+Tab), `@arquivo`, `!comando`, `#memória`, comandos diretos dos ares (`/ares`, `/ligar`, `/temp`), `/revisar` (git diff). Conhece o projeto (CLAUDE.md, diário) e mascara segredos antes de enviar |
+
+Ferramentas: estado geral, ares, salas, zonas, transmissores, agentes, atividade, cenas, relatório de qualquer período, tempo lá fora, luzes e aparelhos, notificações, comandar um ar, timer, desligar todos e cenas (os dois últimos só com confirmação). A chave fica cifrada no banco.
+
+---
+
+## 💬 Bot do Telegram
+
+498 comandos em 22 categorias, com as permissões de quem vinculou o Telegram (código de uso único gerado no painel).
+`/menu` mostra o estado no topo (ares ligados, agente, tempo lá fora, notificações) e os atalhos; **Todos os comandos** navega por categoria.
+
+- Ares: painel de cada ar no jeito do controle remoto, `/usar NOME` (ar atual), `/23`, `/frio23`, `/frio_alta`, `/mais`, `/timer`, `/diagnostico`.
+- Lote: `/todos23`, `/sala23 NOME`, `/zona23 NOME`, `/desligartodos` (sempre pedem confirmação).
+- Timers prontos (`/ligarpor60`, `/ligarem30`, `/desligarem90`), relatórios por período (`/gasto15d`, `/mespassado`), clima, luzes, persianas, cafeteira, música, segurança e sistema.
+- `/avisos sim` manda os avisos importantes para o Telegram (um por assunto a cada 6 h; `/silenciar 8`).
+
+---
+
+## 🏙️ Mapa 3D: avatares, carros e multijogador
+
+- Prédio de 11 andares, o escritório no 9º, térreo com recepção e uma cidade em volta (avenidas de 640 m, trânsito, estacionamentos, posto, praças, outdoors).
+- **Avatares 3D** (GLB) com editor de aparência (cores, recolorir, pincel, material, forma); modelos grandes ganham versões leves para o mapa.
+- **Carros dirigíveis** com física de verdade: pneus, transferência de peso, câmbio automático P R N D, ABS, controle de tração e de estabilidade, nitro e voo com propulsores. Moto com piloto sentado. Entrar e sair com animação; pegar carro do trânsito ou de um estacionamento.
+- **Multijogador**: quem abre o mapa ao mesmo tempo aparece para os outros (Supabase Realtime, canal privado só para usuários ativos).
+- Mesas com monitor, teclado, mouse e PC 3D; a tela de cada posto mostra o trabalho da sala.
+
+---
+
+## 💾 Backup e restauração
+
+Página `/backup` (dono ou admin com acesso a todos os projetos) e atalho no topo:
+
+1. **Backup completo**: todas as tabelas num `.zip` com manifesto e SHA-256 de cada uma; segredos vão cifrados (como estão no banco). Guardado no Storage privado (`backups-sistema`), com download por link de 10 min.
+2. **Upload** de um `.zip` direto para o Storage (não passa pela Vercel).
+3. **Simular**: por tabela, o que é novo, o que muda, o que é igual e o que só existe hoje.
+4. **Restaurar** mesclando (insere e atualiza) ou substituindo (só tabelas escolhidas), sempre digitando `RESTAURAR`. Sessões, logins, passkeys, OAuth e a fila nunca são restaurados.
+
+Além disso o banco guarda um backup automático por dia (14 mais recentes).
+
+---
+
+## 🎓 Treinamento e conformidade
+
+`/treinamento`: provas sorteadas de um banco com **1.017 perguntas** montadas a partir de dados conferíveis: situações do dia a dia e LGPD, os 93 controles do Anexo A da **ISO/IEC 27001:2022**, a Estrutura Harmonizada (ISO/IEC 27001:2022, 42001:2023, 37301:2021) e o catálogo de normas ISO (foco e se é certificável). Mapa da prova, resultado na hora (nota, acertos por trilha, gabarito comentado) e por e-mail. Aprovação de 70% vale 12 meses e conta no controle 6.3 da conformidade.
 
 ---
 
