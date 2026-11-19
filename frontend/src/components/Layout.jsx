@@ -5,6 +5,7 @@ import { Activity, AirVent, BarChart3, Bell, Blinds, BookOpen, CalendarClock, Ch
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
+import AcessoRapido from './AcessoRapido'
 import Notificacoes, { useCentral } from './Notificacoes'
 import Atalhos from './Atalhos'
 import NovidadesModal from './Novidades'
@@ -532,6 +533,7 @@ export default function Layout() {
             <Link to="/apps" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground lg:flex" title="Baixar os apps">
               <Download className="h-4 w-4" /> Apps
             </Link>
+            <AcessoRapido />
             {marca.mostrar_ajuda && (marca.suporte_email || marca.suporte_telefone || marca.suporte_whatsapp || marca.site) && <Ajuda marca={marca} />}
             <BotaoTema />
             <Notificacoes central={central} />

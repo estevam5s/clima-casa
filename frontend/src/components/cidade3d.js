@@ -102,6 +102,7 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   const arvores = [], postes = []
   const casasP = [[], [], []], telhas = [], muros = []   // bairro de casas: paredes (3 cores), telhados, muros baixos
   const andaveis = [], pracas = []   // para vida3d: perímetro das calçadas das quadras e centro das praças
+  const obstaculos = []   // lotes com prédio ou casas: o avatar anda pelas ruas, calçadas e praças, nunca por dentro deles
   const camN = Math.hypot(camera[0], camera[1]) || 1, cam = [camera[0] / camN, camera[1] / camN]
   const cruza = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
   const nomes = Object.keys(ESTILOS)
@@ -122,7 +123,9 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
     }
     const sorte = r()
     // lotes mais afastados: parte vira bairro de casas (2 fileiras de sobrados com quintal e telhado de duas águas)
+    const ocupado = [lx - LOTE / 2 + 0.4, lz - LOTE / 2 + 0.4, lx + LOTE / 2 - 0.4, lz + LOTE / 2 - 0.4]
     if (!naFrente && dist > 95 && sorte > 0.62) {
+      obstaculos.push(ocupado)
       gramados.push(planoGeo(LOTE - 1, LOTE - 1, lx, 0.02, lz))
       const giro = r() < 0.5 ? 0 : Math.PI / 2
       for (let fil = -1; fil <= 1; fil += 2) for (let k = 0; k < 4; k++) {
@@ -144,6 +147,7 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
       continue
     }
     // 1 prédio grande ou 2 menores no lote
+    obstaculos.push(ocupado)
     const dois = r() < 0.35
     const partes = dois ? [[-LOTE / 4, LOTE / 2 - 1.5], [LOTE / 4, LOTE / 2 - 1.5]] : [[0, LOTE - 3]]
     for (const [off, larg] of partes) {
@@ -241,5 +245,5 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   instancias(new THREE.IcosahedronGeometry(1.7, 1), M({ color: noite ? 0x1f3d2b : 0x3f7d4e, roughness: 0.9, flatShading: true }), arvores, (i) => [3.4, escala[i]])
   instancias(new THREE.CylinderGeometry(0.07, 0.1, 7, 6), M({ color: 0x6b7280, roughness: 0.6, metalness: 0.4 }), postes, () => [3.5, 1], false)
   instancias(new THREE.BoxGeometry(0.5, 0.14, 0.5), M({ color: 0xfff3c4, emissive: 0xffe2a0, emissiveIntensity: noite ? 2.2 : 0.1 }), postes, () => [7.05, 1], false)
-  return { grupo, calcadas: andaveis, pracas }
+  return { grupo, calcadas: andaveis, pracas, obstaculos, limite: [cx - N * PASSO - LOTE / 2 - 4, cz - N * PASSO - LOTE / 2 - 4, cx + N * PASSO + LOTE / 2 + 4, cz + N * PASSO + LOTE / 2 + 4] }
 }

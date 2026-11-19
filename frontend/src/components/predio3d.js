@@ -464,7 +464,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       })
     }
   }
-  let cidadeInfo = { calcadas: [], pracas: [] }, posTerminal = null
+  let cidadeInfo = { calcadas: [], pracas: [], obstaculos: [], limite: null }, posTerminal = null
   if (cidade) {
     plano(400, 400, matAsfalto, cxp, czp, 0.002)   // ruas entre as quadras
     const livres = [[bx0 - CAL - 9, bz0 - CAL - 9, bx1 + CAL + 9, bz1 + CAL + 9]]
@@ -553,5 +553,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   grupo.position.y = -yA
   // podio: interior do térreo (recepção) em coordenadas do grupo; casca/andarG/torre: o térreo esconde o andar e a torre
   return { grupo, alvos, aplicar, tick, definirTempo, get k() { return k }, yA, altura: base + TH + 4, largura: Math.max(BW, BD),
-    podio: { bx0, bx1, bz0, bz1, HP, entrada: ladoEntrada, centroEntrada }, casca, andarG, torre }
+    podio: { bx0, bx1, bz0, bz1, HP, entrada: ladoEntrada, centroEntrada }, casca, andarG, torre,
+    // ruas da cidade para o avatar: fora da calçada do prédio, anda livre desviando dos lotes construídos e do terminal
+    cidade: { obstaculos: cidadeInfo.obstaculos, limite: cidadeInfo.limite, podio: [bx0, bz0, bx1, bz1] } }   // o terminal é aberto: dá para andar nas plataformas
 }

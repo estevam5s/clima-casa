@@ -19,6 +19,9 @@ const GRUPOS = [
 const ANTIGAS = { uso: 'vercel/uso', publicacoes: 'vercel/publicacoes', config: 'vercel/config' }   // abas salvas antes da divisão
 
 function lerAba() {
+  // ?aba=agentes no endereço (atalhos do topo) vence a última aba usada
+  const daUrl = new URLSearchParams(window.location.search).get('aba')
+  if (daUrl) return ANTIGAS[daUrl] || daUrl
   try {
     const a = localStorage.getItem('clima-infra-aba') || 'geral'
     return ANTIGAS[a] || a

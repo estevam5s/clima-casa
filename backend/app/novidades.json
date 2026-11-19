@@ -2,6 +2,21 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.12.0",
+      "data": "2026-11-18",
+      "titulo": "Andar pela cidade e atalhos no topo",
+      "resumo": "No mapa 3D, a pessoa sai do prédio e anda pelas ruas, calçadas, praças e pelo terminal. No topo do painel, um menu de atalhos com backup em um clique.",
+      "novo": [
+        "Mapa 3D: saindo pela porta do térreo, a pessoa anda pelas ruas e calçadas de todas as quadras, pelas praças e pelo terminal, sem atravessar prédios e casas",
+        "Atalhos no topo: Automações, Agenda, Cenas, Iluminação, Notificações, Relatórios, Atividade, Segurança e Agentes a um clique, e Backup agora (dono e admin)"
+      ],
+      "melhorias": [],
+      "seguranca": [],
+      "correcoes": [
+        "Mapa 3D: do lado de fora do prédio a rua ficava preta (o sol e o chão sumiam ao descer ao térreo)"
+      ]
+    },
+    {
       "versao": "1.11.0",
       "data": "2026-11-18",
       "titulo": "Iluminação, central de notificações, relatório por e-mail e café no mapa",

@@ -834,8 +834,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const fx0 = W(x0) - 0.35 - MARGEM, fx1 = W(x1) + 0.35 + MARGEM, fz0 = Z(y0) - 0.35 - MARGEM, fz1 = Z(y1) + 0.35 + MARGEM
     E.limitesAndar = comPredio ? [fx0 + 0.32, fz0 + 0.32, fx1 - 0.32, fz1 - 0.32] : null
     E.elevAndar = null; E.elevInfo = null; E.elevTerreo = null; E.trocarNivel = null   // a cena é refeita: nada da anterior
+    E.cidadeRuas = null
     const predio = comPredio ? montarPredio({ bx0: fx0, bx1: fx1, bz0: fz0, bz1: fz1, entrada, nome: marca?.nome || '', noite: ceu.noite, r, andar, andares }) : null
     if (predio) {
+      E.cidadeRuas = predio.cidade
       mundo.add(predio.grupo); predio.aplicar(E.aberto ? 1 : 0); predio.tick(0, 0)
       chao.position.y = -predio.yA - 0.02; calcada.visible = false
       // piso do corredor (porcelanato) por baixo das salas
@@ -1479,7 +1481,9 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       E.trocarNivel = (nivel) => {
         const c = E.ctrl
         if (nivel === 'terreo' && E.nivel !== 'terreo') {
-          for (const o of mundo.children) if (o !== predio.grupo && o !== T.grupo && o !== c?.av && o.visible) { o.visible = false; ocultos.push(o) }
+          // esconde o andar, mas não o sol, o céu e o chão da cidade: na rua (fora da recepção) ficava tudo preto
+          const fica = (o) => o === predio.grupo || o === T.grupo || o === c?.av || o === chao || (o.isLight && !o.isPointLight) || (o.isObject3D && sol && o === sol.target)
+          for (const o of mundo.children) if (!fica(o) && o.visible) { o.visible = false; ocultos.push(o) }
           T.grupo.visible = true
           E.gradeAtiva = gradeT; E.nivel = 'terreo'; E.yBase = yT
         } else if (nivel === 'andar' && E.nivel !== 'andar') {
@@ -1877,7 +1881,19 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const passo = vel * (f < 0 && !lat ? 0.6 : 1) * dt
         let nx = P.x + mx * passo, nz = P.z + mz * passo
         const G = E.gradeAtiva || grade
-        if (!celulaLivre(G, nx, nz)) { if (celulaLivre(G, nx, P.z)) nz = P.z; else if (celulaLivre(G, P.x, nz)) nx = P.x; else { nx = P.x; nz = P.z } }
+        // térreo: dentro da calçada do prédio vale a grade (portas, catracas, balcão); fora dela a pessoa anda livre pelas
+        // ruas, calçadas, praças e pelo terminal, desviando dos lotes construídos (uma grade da cidade inteira travaria)
+        const LF = E.terreo?.limitesFora, cid = E.cidadeRuas
+        const naRua = (x, z) => E.nivel === 'terreo' && LF && cid && !(x >= LF[0] && x <= LF[2] && z >= LF[1] && z <= LF[3])
+        const livre = (x, z) => {
+          if (!naRua(x, z)) return celulaLivre(G, x, z)
+          const L = cid.limite, m = 0.3
+          if (L && (x < L[0] || x > L[2] || z < L[1] || z > L[3])) return false
+          const [p0, q0, p1, q1] = cid.podio
+          if (x > p0 && x < p1 && z > q0 && z < q1) return false
+          return !cid.obstaculos.some((o) => x > o[0] - m && x < o[2] + m && z > o[1] - m && z < o[3] + m)
+        }
+        if (!livre(nx, nz)) { if (livre(nx, P.z)) nz = P.z; else if (livre(P.x, nz)) nx = P.x; else { nx = P.x; nz = P.z } }
         andou = Math.hypot(nx - P.x, nz - P.z); P.x = nx; P.z = nz
       }
       // perto da porta de um elevador: a barra mostra o botão para descer/subir
