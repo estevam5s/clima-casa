@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Coffee, Moon, Pencil, Play, Plus, Power, Search, Snowflake, Sparkles, Sun, Trash2, X } from 'lucide-react'
+import { CheckCircle2, Copy, Coffee, History, Moon, Pencil, Play, Plus, Power, Search, Snowflake, Sparkles, Sun, Trash2, Wand2, X, XCircle } from 'lucide-react'
 import { MODOS, VENTILACAO, api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
@@ -79,6 +79,71 @@ function Form({ inicial, aparelhos, projetoPadrao, projetos, aoSalvar, onFechar 
   )
 }
 
+// cenas sugeridas: montadas na hora com os ares que existem (só os que têm transmissor e o usuário controla)
+function sugestoes(aparelhos) {
+  const com = aparelhos.filter((a) => a.hub_id)
+  const reuniao = com.filter((a) => /reuni/i.test(`${a.nome} ${a.projeto_nome || ''}`))
+  const lig = (a, t, v = 'auto', m = 'frio') => ({ aparelho_id: a.id, ligado: true, modo: m, temperatura: Math.max(a.temp_min || 16, Math.min(a.temp_max || 30, t)), ventilador: v })
+  const des = (a) => ({ aparelho_id: a.id, ligado: false, modo: null, temperatura: null, ventilador: null })
+  return [
+    { nome: 'Chegada', icone: 'sun', texto: 'Liga todos em frio 23°, ventilação automática', acoes: com.map((a) => lig(a, 23)) },
+    { nome: 'Saída do escritório', icone: 'power', texto: 'Desliga todos', acoes: com.map(des) },
+    { nome: 'Economia', icone: 'snowflake', texto: 'Todos em 25°, ventilação baixa', acoes: com.map((a) => lig(a, 25, 'baixa')) },
+    { nome: 'Dia muito quente', icone: 'snowflake', texto: 'Todos em 21°, ventilação alta (por pouco tempo)', acoes: com.map((a) => lig(a, 21, 'alta')) },
+    reuniao.length && { nome: 'Reunião', icone: 'coffee', texto: `Liga ${reuniao.map((a) => a.nome).join(', ')} em 22°`, acoes: reuniao.map((a) => lig(a, 22)) },
+    { nome: 'Só ventilar', icone: 'moon', texto: 'Todos no modo ventilar (sem resfriar)', acoes: com.map((a) => lig(a, 24, 'media', 'ventilar')) },
+  ].filter((x) => x && x.acoes.length)
+}
+
+function Sugeridas({ aparelhos, existentes, aoCriar }) {
+  const toast = useToast()
+  const [criando, setCriando] = useState(null)
+  const lista = sugestoes(aparelhos).filter((s) => !existentes.some((c) => c.nome.toLowerCase() === s.nome.toLowerCase()))
+  if (!lista.length) return null
+  const criar = async (s) => {
+    setCriando(s.nome)
+    try { await api.post('/api/cenas', { nome: s.nome, icone: s.icone, projeto_id: null, acoes: s.acoes }); toast(`Cena "${s.nome}" criada com ${s.acoes.length} ar(es).`); aoCriar() } catch (e) { toast(e.message, 'erro') } finally { setCriando(null) }
+  }
+  return (
+    <section className="cartao mb-6 p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><Wand2 className="h-4 w-4 text-primary" />Cenas sugeridas</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Montadas com os seus ares (só os que têm transmissor). Um clique cria; depois dá para editar.</p>
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {lista.map((s) => {
+          const I = ICONES[s.icone] || Sparkles
+          return (
+            <div key={s.nome} className="flex items-start gap-3 rounded-xl border border-border p-4">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><I className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1"><p className="text-sm font-medium">{s.nome}</p><p className="text-xs text-muted-foreground">{s.texto} · {s.acoes.length} ar(es)</p></div>
+              <Botao tamanho="sm" variante="secundario" icone={Plus} carregando={criando === s.nome} onClick={() => criar(s)}>Criar</Botao>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function HistoricoCenas() {
+  const { dados } = useDados(() => api.get('/api/atividade?origem=cena&limite=12'))
+  const itens = Array.isArray(dados) ? dados : dados?.itens || []
+  if (!itens.length) return null
+  return (
+    <section className="cartao mt-6 p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><History className="h-4 w-4 text-primary" />Últimas execuções</h2>
+      <ul className="mt-3 divide-y divide-border">
+        {itens.map((e) => (
+          <li key={e.id} className="flex items-center gap-3 py-2 text-sm">
+            {e.ok ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <XCircle className="h-4 w-4 shrink-0 text-red-600" />}
+            <span className="min-w-0 flex-1 truncate"><b className="font-medium">{String(e.origem).replace('cena:', '')}</b> · {e.acao}{e.aparelho_nome ? ` · ${e.aparelho_nome}` : ''}</span>
+            <span className="text-xs text-muted-foreground">{haQuanto(e.quando)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export default function Cenas() {
   const { filtro, projetos, projeto } = useProjeto()
   const { dados, erro, recarregar } = useDados(() => Promise.all([api.get(comFiltro('/api/cenas', filtro)), api.get('/api/aparelhos')]), [filtro])
@@ -144,6 +209,7 @@ export default function Cenas() {
           </div>
         </>
       )}
+      <Sugeridas aparelhos={aparelhos} existentes={cenas} aoCriar={recarregar} />
       {cenas.length === 0 ? (
         <Vazio icone={Sparkles} titulo="Nenhuma cena" texto={aparelhos.length ? 'Crie "Dormir", "Sair de casa" ou "Chegar do trabalho".' : 'Cadastre um aparelho primeiro.'}
           acao={aparelhos.length > 0 && <Botao icone={Plus} onClick={() => setModal({})}>Nova cena</Botao>} />
@@ -180,6 +246,7 @@ export default function Cenas() {
           })}
         </div>
       )}
+      <HistoricoCenas />
       <Modal aberto={!!apagar} titulo={`Apagar a cena ${apagar?.nome || ''}?`} onFechar={() => setApagar(null)}>
         <p className="text-sm text-muted-foreground">Os ares não mudam. Se alguma automação ou frase da Alexa usa esta cena, ela deixa de funcionar.</p>
         <div className="mt-5 flex justify-end gap-2">

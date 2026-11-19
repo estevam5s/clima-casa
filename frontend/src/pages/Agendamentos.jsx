@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
-import { CalendarClock, Copy, Pencil, Plus, Trash2 } from 'lucide-react'
-import { DIAS, MODOS, VENTILACAO, api } from '../api'
+import { useEffect, useMemo, useState } from 'react'
+import { CalendarClock, CheckCircle2, Clock, Copy, History, Moon, Pencil, Plus, Sparkles, Sun, Timer, Trash2, XCircle } from 'lucide-react'
+import { DIAS, MODOS, VENTILACAO, api, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
 import { motion } from 'framer-motion'
 
@@ -95,6 +95,120 @@ function Form({ inicial, aparelhos, aoSalvar, onFechar }) {
   )
 }
 
+// modelos prontos: cada um vira 1 ou 2 agendamentos por ar escolhido
+const MODELOS = [
+  { id: 'expediente', icone: Sun, nome: 'Expediente', texto: 'Liga 7h45 em 23° (frio) e desliga 18h05, dias úteis', itens: [
+    { nome: 'Expediente: ligar', hora: '07:45', dias: [1, 2, 3, 4, 5], ligado: true, modo: 'frio', temperatura: 23, ventilador: 'auto' },
+    { nome: 'Expediente: desligar', hora: '18:05', dias: [1, 2, 3, 4, 5], ligado: false }] },
+  { id: 'esquecido', icone: Moon, nome: 'Rede de segurança', texto: 'Desliga às 19h30 todos os dias, para nada ficar ligado à noite', itens: [
+    { nome: 'Desligar à noite (segurança)', hora: '19:30', dias: [0, 1, 2, 3, 4, 5, 6], ligado: false }] },
+  { id: 'almoco', icone: Clock, nome: 'Pausa do almoço', texto: 'Sobe para 25° às 12h e volta a 23° às 13h15, dias úteis', itens: [
+    { nome: 'Almoço: economia', hora: '12:00', dias: [1, 2, 3, 4, 5], ligado: true, modo: 'frio', temperatura: 25, ventilador: 'baixa' },
+    { nome: 'Almoço: volta', hora: '13:15', dias: [1, 2, 3, 4, 5], ligado: true, modo: 'frio', temperatura: 23, ventilador: 'auto' }] },
+  { id: 'sabado', icone: Sparkles, nome: 'Sábado meio período', texto: 'Liga 8h em 23° e desliga 12h30 aos sábados', itens: [
+    { nome: 'Sábado: ligar', hora: '08:00', dias: [6], ligado: true, modo: 'frio', temperatura: 23, ventilador: 'auto' },
+    { nome: 'Sábado: desligar', hora: '12:30', dias: [6], ligado: false }] },
+]
+
+function Modelos({ aparelhos, aoCriar }) {
+  const toast = useToast()
+  const [modelo, setModelo] = useState(null)
+  const [sel, setSel] = useState(new Set())
+  const [criando, setCriando] = useState(false)
+  const criar = async () => {
+    setCriando(true)
+    let n = 0
+    try {
+      for (const id of sel) for (const it of modelo.itens) { await api.post('/api/agendamentos', { ...it, aparelho_id: id, ativo: true }); n++ }
+      toast(`${n} agendamento(s) criado(s) para ${sel.size} ar(es).`); setModelo(null); setSel(new Set()); aoCriar()
+    } catch (e) { toast(`${n} criado(s); depois deu erro: ${e.message}`, 'erro'); aoCriar() } finally { setCriando(false) }
+  }
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Modelos prontos</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Um clique cria a rotina para vários ares de uma vez. Dá para ajustar cada agendamento depois.</p>
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {MODELOS.map((m) => (
+          <button key={m.id} onClick={() => { setModelo(m); setSel(new Set(aparelhos.filter((a) => a.hub_id).map((a) => a.id))) }} disabled={!aparelhos.length}
+            className="flex flex-col items-start gap-1.5 rounded-xl border border-border p-4 text-left hover:border-primary/40 hover:bg-muted/40 disabled:opacity-50">
+            <m.icone className="h-5 w-5 text-primary" /><span className="text-sm font-medium">{m.nome}</span><span className="text-xs text-muted-foreground">{m.texto}</span>
+          </button>
+        ))}
+      </div>
+      <Modal aberto={!!modelo} titulo={`Modelo: ${modelo?.nome || ''}`} onFechar={() => setModelo(null)}>
+        {modelo && (
+          <div className="space-y-4">
+            <ul className="space-y-1 text-sm">{modelo.itens.map((it) => <li key={it.nome} className="flex gap-2"><span className="w-12 font-semibold tabular-nums">{it.hora}</span><span>{it.ligado ? `Ligar ${MODOS[it.modo].toLowerCase()} ${it.temperatura}°` : 'Desligar'} · {it.dias.length === 7 ? 'todos os dias' : it.dias.map((d) => DIAS[d]).join(', ')}</span></li>)}</ul>
+            <div>
+              <div className="flex items-center justify-between"><span className="rotulo">Para quais ares</span>
+                <button type="button" className="text-xs text-primary hover:underline" onClick={() => setSel(sel.size === aparelhos.length ? new Set() : new Set(aparelhos.map((a) => a.id)))}>{sel.size === aparelhos.length ? 'Nenhum' : 'Todos'}</button></div>
+              <div className="mt-1 grid max-h-56 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
+                {aparelhos.map((a) => (
+                  <label key={a.id} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
+                    <input type="checkbox" checked={sel.has(a.id)} onChange={(e) => { const n = new Set(sel); if (e.target.checked) n.add(a.id); else n.delete(a.id); setSel(n) }} />
+                    <span className="min-w-0 flex-1 truncate">{a.nome}</span>{!a.hub_id && <span className="text-[10px] text-amber-600">sem transmissor</span>}
+                  </label>
+                ))}
+              </div>
+              <p className="ajuda mt-1">Ares iguais na mesma zona mudam juntos: escolher um da zona já basta.</p>
+            </div>
+            <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={() => setModelo(null)}>Cancelar</Botao><Botao carregando={criando} disabled={!sel.size} onClick={criar}>Criar {modelo.itens.length * sel.size} agendamento(s)</Botao></div>
+          </div>
+        )}
+      </Modal>
+    </section>
+  )
+}
+
+function Timers() {
+  const toast = useToast()
+  const { dados, recarregar } = useDados(() => api.get('/api/temporizadores'))
+  const [agora, setAgora] = useState(Date.now() / 1000)
+  useEffect(() => { const t = setInterval(() => setAgora(Date.now() / 1000), 15000); return () => clearInterval(t) }, [])
+  const cancelar = async (t) => { try { await api.del(`/api/aparelhos/${t.aparelho_id}/temporizador`); toast('Timer cancelado.'); recarregar() } catch (e) { toast(e.message, 'erro') } }
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><Timer className="h-4 w-4 text-primary" />Timers ativos</h2>
+      {!dados?.length ? <p className="mt-2 text-sm text-muted-foreground">Nenhum timer agora. No detalhe do ar (ou pelo Telegram, "/desligarem60") dá para marcar "desligar daqui a…".</p> : (
+        <ul className="mt-3 divide-y divide-border">
+          {dados.map((t) => {
+            const acao = typeof t.acao === 'string' ? JSON.parse(t.acao) : (t.acao || {})
+            const min = Math.max(0, Math.round((t.executar_em - agora) / 60))
+            return (
+              <li key={t.id} className="flex items-center gap-3 py-2 text-sm">
+                <span className="w-16 font-semibold tabular-nums">{min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`}</span>
+                <span className="min-w-0 flex-1 truncate">{t.aparelho_nome} · {acao.ligado === false ? 'desliga' : 'liga'} às {new Date(t.executar_em * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}<span className="ml-1 text-xs text-muted-foreground">({t.origem})</span></span>
+                <button onClick={() => cancelar(t)} className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-red-600">Cancelar</button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function Historico() {
+  const { dados } = useDados(() => api.get('/api/atividade?origem=agenda&limite=15'))
+  const itens = Array.isArray(dados) ? dados : dados?.itens || []
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><History className="h-4 w-4 text-primary" />Últimas execuções</h2>
+      {!itens.length ? <p className="mt-2 text-sm text-muted-foreground">Nenhuma execução registrada ainda. Cada horário que roda aparece aqui (e na Atividade).</p> : (
+        <ul className="mt-3 divide-y divide-border">
+          {itens.map((e) => (
+            <li key={e.id} className="flex items-center gap-3 py-2 text-sm">
+              {e.ok ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <XCircle className="h-4 w-4 shrink-0 text-red-600" />}
+              <span className="min-w-0 flex-1 truncate">{e.acao}<span className="ml-1 text-xs text-muted-foreground">{String(e.origem).replace('agenda:', '')}{e.aparelho_nome ? ` · ${e.aparelho_nome}` : ''}</span></span>
+              <span className="text-xs text-muted-foreground">{haQuanto(e.quando)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 function proxima(lista) {
   const agora = new Date()
   let melhor = null
@@ -183,6 +297,7 @@ export default function Agendamentos() {
           </div>
         )
       })()}
+      <div className="mb-6"><Modelos aparelhos={aparelhos} aoCriar={recarregar} /></div>
       {lista.length === 0 ? (
         <Vazio icone={CalendarClock} titulo="Nenhum agendamento"
           texto={aparelhos.length ? 'Exemplo: ligar o ar da recepção às 7h30 em 23°C e desligar às 18h.' : 'Cadastre um aparelho primeiro.'}
@@ -214,6 +329,7 @@ export default function Agendamentos() {
           ))}
         </div>
       )}
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2"><Timers /><Historico /></div>
       <Modal aberto={!!apagar} titulo={`Apagar ${apagar?.nome || 'o agendamento'}?`} onFechar={() => setApagar(null)}>
         <p className="text-sm text-muted-foreground">{apagar?.aparelho_nome} deixa de {apagar?.acao?.ligado ? 'ligar' : 'desligar'} sozinho às {apagar?.hora}. Para só suspender, use o botão Ativo.</p>
         <div className="mt-5 flex justify-end gap-2">

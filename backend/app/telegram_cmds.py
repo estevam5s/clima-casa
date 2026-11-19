@@ -829,15 +829,22 @@ def _agendamentos():
     return db.consultar(f"SELECT g.*, a.nome AS ar FROM agendamentos g LEFT JOIN aparelhos a ON a.id = g.aparelho_id WHERE g.aparelho_id IN ({','.join('?' * len(ids))}) ORDER BY g.hora", tuple(ids))
 
 
-DIAS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]   # como no banco e na tela: 0 = domingo
+
+
+def _lista_dias(d) -> list[int]:
+    if isinstance(d, (list, tuple)):
+        return [int(x) for x in d]
+    return [int(x) for x in str(d or "").replace("[", "").replace("]", "").split(",") if x.strip().isdigit()]
 
 
 def _dias_txt(d):
-    try:
-        lst = json.loads(d) if isinstance(d, str) else (d or [])
-        return ", ".join(DIAS[int(x) % 7] for x in lst) if lst else "todo dia"
-    except Exception:  # noqa: BLE001
-        return str(d)
+    lst = sorted(set(_lista_dias(d)))
+    if not lst or len(lst) == 7:
+        return "todo dia"
+    if lst == [1, 2, 3, 4, 5]:
+        return "dias úteis"
+    return ", ".join(DIAS[x % 7] for x in lst)
 
 
 @cmd("agendamentos", "auto", "Agendamentos dos seus ares")
@@ -848,13 +855,11 @@ def c_agendamentos(ctx, a):
 
 @cmd("agendahoje", "auto", "O que está agendado para hoje")
 def c_agendahoje(ctx, a):
-    hoje = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3))).weekday()
+    hoje = (datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3))).weekday() + 1) % 7   # 0 = domingo, como o agendador
+
     def vale(g):
-        try:
-            d = json.loads(g["dias"]) if isinstance(g["dias"], str) else (g["dias"] or [])
-            return g["ativo"] and (not d or hoje in [int(x) for x in d])
-        except Exception:  # noqa: BLE001
-            return bool(g["ativo"])
+        d = _lista_dias(g["dias"])
+        return bool(g["ativo"]) and (not d or hoje in d)
     lst = [g for g in _agendamentos() if vale(g)]
     ctx.enviar("<b>Hoje</b>\n" + ("\n".join(f"• {_e(g['hora'])} · {_e(g['ar'])} · {_e(g['nome'] or '')}" for g in lst) or "Nada agendado para hoje."))
 
@@ -862,7 +867,8 @@ def c_agendahoje(ctx, a):
 @cmd("proximos", "auto", "Próximos agendamentos de hoje (a partir de agora)")
 def c_proximos(ctx, a):
     agora = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3))).strftime("%H:%M")
-    lst = [g for g in _agendamentos() if g["ativo"] and str(g["hora"]) >= agora]
+    hoje = (datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3))).weekday() + 1) % 7
+    lst = [g for g in _agendamentos() if g["ativo"] and str(g["hora"]) >= agora and (not _lista_dias(g["dias"]) or hoje in _lista_dias(g["dias"]))]
     ctx.enviar("\n".join(f"• {_e(g['hora'])} · {_e(g['ar'])} · {_e(g['nome'] or '')}" for g in lst[:10]) or "Nada mais hoje.")
 
 
@@ -1830,7 +1836,7 @@ def c_quemesta(ctx, a):
 
 @cmd("expediente", "equipe", "Horário de cada pessoa")
 def c_expediente(ctx, a):
-    ctx.enviar("\n".join(f"• {_e(p['nome'])}: {_e(p.get('inicio'))} às {_e(p.get('fim'))}, {_dias_txt([d - 1 for d in (p.get('dias') or [])])}" for p in _pessoas()) or "Ninguém cadastrado.")
+    ctx.enviar("\n".join(f"• {_e(p['nome'])}: {_e(p.get('inicio'))} às {_e(p.get('fim'))}, {_dias_txt([d % 7 for d in (p.get('dias') or [])])}" for p in _pessoas()) or "Ninguém cadastrado.")
 
 
 @cmd("pessoa", "equipe", "Ficha de uma pessoa do mapa", "/pessoa NOME", arg="texto")

@@ -243,6 +243,36 @@ export default function Projetos() {
               ]} />
             </div>
           )}
+          {dados.length > 1 && (() => {
+            // comparativo entre as salas: gasto do mês (barra) com a meta marcada e o uso em 14 dias
+            const max = Math.max(1, ...dados.map((p) => Math.max(p.projecao_mes || 0, p.meta_custo_mes || 0)))
+            const maxUso = Math.max(1, ...dados.map((p) => p.comandos_14d || 0))
+            const ord = [...dados].sort((x, y) => (y.projecao_mes || 0) - (x.projecao_mes || 0))
+            return (
+              <section className="cartao mb-5 p-5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="titulo-secao">Comparativo das salas</h2>
+                  <p className="text-xs text-muted-foreground">Barra = projeção de gasto no mês · traço = meta · número = comandos em 14 dias</p>
+                </div>
+                <ul className="mt-4 space-y-2.5">
+                  {ord.map((p) => {
+                    const acima = p.meta_custo_mes && p.projecao_mes > p.meta_custo_mes
+                    return (
+                      <li key={p.id} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5.5rem_3rem] items-center gap-3 text-xs sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_6rem_4rem]">
+                        <button onClick={() => acoes.relatorio(p)} className="truncate text-left font-medium hover:text-primary" title={`Relatório de ${p.nome}`}>{p.nome}</button>
+                        <div className="relative h-3 rounded-full bg-muted">
+                          <div className={`h-full rounded-full ${acima ? 'bg-red-500' : 'bg-primary'}`} style={{ width: `${((p.projecao_mes || 0) / max) * 100}%` }} />
+                          {p.meta_custo_mes > 0 && <span className="absolute -top-0.5 h-4 w-0.5 rounded bg-foreground/70" style={{ left: `${(p.meta_custo_mes / max) * 100}%` }} title={`Meta ${brl(p.meta_custo_mes)}`} />}
+                        </div>
+                        <span className={`text-right tabular-nums ${acima ? 'font-medium text-red-600' : ''}`}>{brl(p.projecao_mes || 0)}</span>
+                        <span className="flex items-center justify-end gap-1 tabular-nums text-muted-foreground"><span className="inline-block h-1.5 rounded-full bg-sky-500/70" style={{ width: `${Math.max(2, ((p.comandos_14d || 0) / maxUso) * 28)}px` }} />{p.comandos_14d || 0}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )
+          })()}
 
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <label className="relative min-w-[220px] flex-1 sm:max-w-xs">

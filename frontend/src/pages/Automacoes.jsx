@@ -10,7 +10,54 @@ const MODELOS = [
   { nome: 'Boa noite: desligar sozinho', gatilho: { tipo: 'ligou', origem: 'qualquer' }, condicoes: { das: '22:00', ate: '05:00' }, acoes: [{ tipo: 'desligar_apos', minutos: 180 }] },
   { nome: 'Economia: ligado há 4 horas', gatilho: { tipo: 'ligado_ha', minutos: 240 }, condicoes: {}, acoes: [{ tipo: 'aparelho', ligado: true, temperatura: 25 }] },
   { nome: 'Madrugada mais fresca', gatilho: { tipo: 'horario', hora: '03:00' }, condicoes: {}, acoes: [{ tipo: 'aparelho', ligado: true, temperatura: 24, ventilador: 'baixa' }] },
+  { nome: 'Esqueceram ligado: desligar após 10 h', gatilho: { tipo: 'ligado_ha', minutos: 600 }, condicoes: {}, acoes: [{ tipo: 'aparelho', ligado: false }] },
+  { nome: 'Fim de semana: desligar em 1 h', gatilho: { tipo: 'ligou', origem: 'qualquer' }, condicoes: { dias: [0, 6] }, acoes: [{ tipo: 'desligar_apos', minutos: 60 }] },
+  { nome: 'Ligou pela Alexa: timer de 2 h', gatilho: { tipo: 'ligou', origem: 'sinric' }, condicoes: {}, acoes: [{ tipo: 'desligar_apos', minutos: 120 }] },
+  { nome: 'Fora do expediente: desligar em 30 min', gatilho: { tipo: 'ligou', origem: 'qualquer' }, condicoes: { das: '19:00', ate: '07:00' }, acoes: [{ tipo: 'desligar_apos', minutos: 30 }] },
+  { nome: 'Fim do expediente às 18h', gatilho: { tipo: 'horario', hora: '18:00' }, condicoes: { dias: [1, 2, 3, 4, 5] }, acoes: [{ tipo: 'aparelho', ligado: false }] },
+  { nome: 'Ligado há 2 h: modo economia', gatilho: { tipo: 'ligado_ha', minutos: 120 }, condicoes: {}, acoes: [{ tipo: 'aparelho', ligado: true, temperatura: 24, ventilador: 'baixa' }] },
 ]
+
+// como uma regra funciona (quando → se → então), sempre visível no topo
+function ComoFunciona() {
+  const passo = (n, t, d) => (
+    <div className="flex-1 rounded-xl border border-border p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">{n}</p>
+      <p className="mt-0.5 text-sm font-medium">{t}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{d}</p>
+    </div>
+  )
+  return (
+    <div className="cartao mb-6 flex flex-col gap-2 p-4 md:flex-row md:items-stretch">
+      {passo('Quando', 'O gatilho', 'Um ar ligou ou desligou (pelo painel, Alexa, agenda…), está ligado há X minutos, ou chegou um horário.')}
+      <span className="hidden self-center text-muted-foreground md:block">→</span>
+      {passo('Se', 'As condições (opcional)', 'Só em certos dias da semana e numa janela de horário (pode virar a meia-noite).')}
+      <span className="hidden self-center text-muted-foreground md:block">→</span>
+      {passo('Então', 'As ações', 'Muda um ar, executa uma cena ou marca um timer para desligar depois. Ações de automação não disparam outras.')}
+    </div>
+  )
+}
+
+function HistoricoAutos() {
+  const { dados } = useDados(() => api.get('/api/atividade?origem=automacao&limite=15'))
+  const itens = Array.isArray(dados) ? dados : dados?.itens || []
+  return (
+    <section className="cartao mt-6 p-5">
+      <h2 className="titulo-secao">Últimos disparos</h2>
+      {!itens.length ? <p className="mt-2 text-sm text-muted-foreground">Nenhum disparo registrado ainda. Cada vez que uma regra age aparece aqui (e na Atividade).</p> : (
+        <ul className="mt-3 divide-y divide-border">
+          {itens.map((e) => (
+            <li key={e.id} className="flex items-center gap-3 py-2 text-sm">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${e.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              <span className="min-w-0 flex-1 truncate"><b className="font-medium">{String(e.origem).replace('automacao:', '')}</b> · {e.acao}{e.aparelho_nome ? ` · ${e.aparelho_nome}` : ''}</span>
+              <span className="text-xs text-muted-foreground">{haQuanto(e.quando)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
 
 function resumo(a, aparelhos, cenas) {
   const g = a.gatilho
@@ -183,6 +230,7 @@ export default function Automacoes() {
         </div>
       )}
 
+      <ComoFunciona />
       {autos.length === 0 ? (
         <>
           <Vazio icone={Workflow} titulo="Nenhuma automação" texto="Comece por um modelo pronto e ajuste do seu jeito." />
@@ -252,6 +300,7 @@ export default function Automacoes() {
       <Modal aberto={!!modal} titulo={modal?.id ? 'Editar automação' : 'Nova automação'} onFechar={() => setModal(null)} largura="max-w-2xl">
         {modal && <Form inicial={modal.id ? modal : modal.modelo ? { ...modal.modelo, ativo: true } : null} aparelhos={aparelhos} cenas={cenas} aoSalvar={salvar} onFechar={() => setModal(null)} />}
       </Modal>
+      <HistoricoAutos />
     </div>
   )
 }
