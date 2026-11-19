@@ -273,7 +273,8 @@ def buscar(q: str, tipos: str = "playlist,track,album,artist") -> dict:
         itens = [i for i in (r.get(k) or {}).get("items", []) if i]
         out[k] = [{"nome": i["name"], "uri": i["uri"], "tipo": i["type"],
                    "sub": ", ".join(a["name"] for a in i.get("artists") or []) or (i.get("owner") or {}).get("display_name") or "",
-                   "capa": ((i.get("images") or (i.get("album") or {}).get("images") or [{}])[0] or {}).get("url")} for i in itens]
+                   "capa": ((i.get("images") or (i.get("album") or {}).get("images") or [{}])[0] or {}).get("url"),
+                   "duracao_ms": i.get("duration_ms"), "explicita": bool(i.get("explicit"))} for i in itens]
     return out
 
 

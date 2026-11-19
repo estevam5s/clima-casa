@@ -482,7 +482,7 @@ function Buscar({ inicial, abrir, tocar, atual, tocando }) {
     const t = setTimeout(() => api.get(`/api/musica/buscar?q=${encodeURIComponent(q.trim())}`).then(setRes).catch((e) => toast(e.message, 'erro')).finally(() => setCarregando(false)), 300)
     return () => clearTimeout(t)
   }, [q]) // eslint-disable-line react-hooks/exhaustive-deps
-  const faixas = (res?.tracks || []).map((t) => ({ nome: t.nome, uri: t.uri, artistas: t.sub, capa: t.capa, duracao_ms: null }))
+  const faixas = (res?.tracks || []).map((t) => ({ nome: t.nome, uri: t.uri, artistas: t.sub, capa: t.capa, duracao_ms: t.duracao_ms, explicita: t.explicita }))
   const melhor = res && (res.artists?.[0] || res.playlists?.[0] || res.albums?.[0])
   return (
     <div className="pt-2">
@@ -632,7 +632,7 @@ function Alexa({ echos, aparelhos, podeControlar, nova, modelosVoz, irRotinas })
           <div className="text-sm text-sp-texto3">
             <p className="text-white">Nenhum Echo aparece no Spotify agora{aparelhos.length ? ` (o Spotify vê ${aparelhos.length} outro${aparelhos.length > 1 ? 's' : ''} aparelho${aparelhos.length > 1 ? 's' : ''})` : ''}.</p>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>No app Alexa: Mais, Configurações, Música e podcasts, Vincular novo serviço, Spotify. Entre com a mesma conta Spotify daqui ({'conta conectada no topo'}).</li>
+              <li>No app Alexa: Mais, Configurações, Música e podcasts, Vincular novo serviço, Spotify. Entre com a mesma conta Spotify que aparece no topo desta tela.</li>
               <li>Em Música e podcasts, Serviços padrão, escolha Spotify (assim "Alexa, toca jazz" já usa o Spotify).</li>
               <li>Peça uma vez "Alexa, toca Spotify" no Echo: depois disso ele aparece aqui e nas rotinas.</li>
             </ol>
