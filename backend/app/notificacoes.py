@@ -62,6 +62,11 @@ def notificar(chave: str, tipo: str, gravidade: str, titulo: str, detalhe: str =
         correio.avisar_admins(titulo, str(detalhe), gravidade, link)
     except Exception:  # noqa: BLE001
         pass
+    try:   # avisos no Telegram para quem pediu (/avisos sim): só os importantes, um por assunto a cada 6 h
+        from . import telegram_cmds
+        telegram_cmds.avisar(chave, gravidade, titulo, str(detalhe), link)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _condicoes() -> list[dict]:

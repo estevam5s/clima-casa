@@ -2,6 +2,32 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.20.0",
+      "data": "2026-11-19",
+      "titulo": "Bot do Telegram com 264 comandos, carros mais estáveis e cidade mais viva",
+      "resumo": "O bot ganhou um menu por categorias com o estado no topo, os carros pararam de rodar nas curvas e a cidade ganhou trânsito, estacionamentos e mais detalhes.",
+      "novo": [
+        "Telegram: 264 comandos em 16 categorias, menu com ares ligados, agente, tempo lá fora e notificações no topo, busca, favoritos, recentes e ar atual",
+        "Telegram: atalhos /16 a /30, comandos por sala e zona, relatórios, clima, luzes, persianas, música, segurança e sistema",
+        "Telegram: /avisos sim manda os avisos importantes para o seu Telegram",
+        "34 modelos novos na biblioteca de avatares: pessoas, objetos e 7 veículos",
+        "Roadster elétrico com propulsores: T decola, Espaço sobe, X desce",
+        "Pegar um carro do trânsito ou de um estacionamento com E",
+        "Nitro com Shift e câmbio automático P R N D no painel do carro",
+        "Cidade: estacionamentos, posto de combustível, pontos de ônibus, chafarizes, bancos, outdoors e faixas nas ruas"
+      ],
+      "melhorias": [
+        "Controle de estabilidade: o carro não roda mais numa curva forte",
+        "Direção mais leve e com menos ângulo em velocidade",
+        "Trânsito com duas pistas por sentido, SUVs, vans, picapes, motos e ônibus, que freiam para quem está na frente",
+        "Tela do Telegram lista todos os comandos com busca e categoria"
+      ],
+      "seguranca": [
+        "Cada comando do Telegram confere as permissões de quem vinculou; ações em lote e sensíveis pedem confirmação"
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.19.0",
       "data": "2026-11-19",
       "titulo": "Editor de aparência dos avatares e carros dirigíveis no mapa",

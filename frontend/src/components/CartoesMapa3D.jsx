@@ -237,7 +237,7 @@ export function RascunhoEscrita({ mapa, rascunho, setRascunho, acoes, ocupado, e
 }
 
 // barra do controle: quem está sendo controlado, câmera, dicas e setas na tela para toque
-export function BarraControle({ controle, nome, mudarModo, sair, sentar, cafe, tecla, elevador, carro, camCarro, andar = 9 }) {
+export function BarraControle({ controle, nome, mudarModo, sair, sentar, cafe, tecla, elevador, carro, camCarro, propulsores, andar = 9 }) {
   if (!controle) return null
   if (controle.dirigindo) {   // dentro do carro: os pedais e o volante ficam no PainelCarro
     return (
@@ -245,6 +245,7 @@ export function BarraControle({ controle, nome, mudarModo, sair, sentar, cafe, t
         <div className="absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-lg border border-border bg-card/95 p-1 text-xs shadow-lg backdrop-blur">
           <span className="flex max-w-[16rem] items-center gap-1.5 truncate px-2 font-medium" title={controle.dirigindo}><Footprints className="h-3.5 w-3.5 shrink-0 text-primary" />Dirigindo: {controle.dirigindo}</span>
           <button onClick={camCarro} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Câmera <kbd className="ml-0.5 text-[10px]">C</kbd></button>
+          {controle.voar && <button onClick={propulsores} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Propulsores <kbd className="ml-0.5 text-[10px]">T</kbd></button>}
           <button onClick={carro} className="h-7 rounded-md bg-primary px-2 font-medium text-primary-foreground hover:opacity-90">Sair do carro <kbd className="ml-0.5 text-[10px] opacity-80">E</kbd></button>
           <button onClick={sair} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Parar <kbd className="ml-0.5 text-[10px]">Esc</kbd></button>
         </div>
@@ -269,7 +270,7 @@ export function BarraControle({ controle, nome, mudarModo, sair, sentar, cafe, t
           </button>
         )}
         {controle.carro && !controle.sentado && !controle.viajando && (
-          <button onClick={carro} className="h-7 rounded-md bg-primary px-2 font-medium text-primary-foreground hover:opacity-90" title={controle.carro}>Entrar no carro <kbd className="ml-0.5 text-[10px] opacity-80">E</kbd></button>
+          <button onClick={carro} className="h-7 rounded-md bg-primary px-2 font-medium text-primary-foreground hover:opacity-90" title={controle.carro}>{/trânsito|estacionado/.test(controle.carro) ? `Pegar ${controle.carro.split(' ')[0].toLowerCase()}` : 'Entrar no carro'} <kbd className="ml-0.5 text-[10px] opacity-80">E</kbd></button>
         )}
         {!controle.viajando && <button onClick={sentar} className="h-7 rounded-md px-2 font-medium text-primary hover:bg-muted">{controle.sentado ? 'Levantar' : 'Sentar'} <kbd className="ml-0.5 text-[10px]">F</kbd></button>}
         {!controle.viajando && !controle.sentado && cafe && <button onClick={cafe} className="flex h-7 items-center gap-1 rounded-md px-2 font-medium text-primary hover:bg-muted"><Coffee className="h-3.5 w-3.5" />Café <kbd className="ml-0.5 text-[10px]">C</kbd></button>}

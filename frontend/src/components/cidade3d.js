@@ -9,6 +9,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // Desempenho: tudo do mesmo estilo vira UMA malha (mergeGeometries) com a textura de janelas repetida pelas
 // coordenadas UV em metros; árvores e postes são InstancedMesh. Resultado: ~20 chamadas de desenho para a cidade toda.
 // À noite, parte das janelas acende (emissiveMap) e as luminárias dos postes brilham (sem PointLight: caro).
+// Rua viva: estacionamentos com carros parados (dá para pegar um e dirigir), posto de combustível, pontos de ônibus,
+// praças com chafariz, bancos e lixeiras, outdoors genéricos nas coberturas, hidrantes e faixas pintadas nas ruas.
 //
 // montarCidade({ centro, livres, ruas, camera, noite, r }) → { grupo }
 //   livres: retângulos [x0, z0, x1, z1] onde não entra lote (o prédio, as ruas principais)
@@ -100,6 +102,9 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   const porEstilo = Object.fromEntries(Object.keys(ESTILOS).map((k) => [k, { perto: [], longe: [] }]))
   const tetos = [], parapeitos = [], sacadas = [], maquinas = [], caixas = [], calcadas = [], gramados = [], toldos = []
   const arvores = [], postes = []
+  const pisoEst = [], vagasLinhas = [], parados = []   // estacionamentos: asfalto, linhas e carros parados
+  const posto = [], bombas = [], pontos = [], bancos = [], lixeiras = [], chafarizes = [], aguas = [], outdoors = [], hidrantes = []
+  let temPosto = false
   const casasP = [[], [], []], telhas = [], muros = []   // bairro de casas: paredes (3 cores), telhados, muros baixos
   const andaveis = [], pracas = []   // para vida3d: perímetro das calçadas das quadras e centro das praças
   const obstaculos = []   // lotes com prédio ou casas: o avatar anda pelas ruas, calçadas e praças, nunca por dentro deles
@@ -140,10 +145,51 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
       }
       continue
     }
-    if (sorte < 0.1 || (naFrente && sorte < 0.45)) {   // praça: gramado com árvores
+    // hidrante numa quina e ponto de ônibus em parte das quadras
+    if (r() < 0.5) hidrantes.push([lx + LOTE / 2 + 1.5, lz + LOTE / 2 + 0.6])
+    if (dist < 150 && r() < 0.18) {
+      const pz = lz + LOTE / 2 + 1.6
+      pontos.push(caixaGeo(3.4, 0.08, 1.4, lx, 2.5, pz), caixaGeo(3.4, 2.4, 0.06, lx, 1.25, pz + 0.68), caixaGeo(0.08, 2.5, 0.08, lx - 1.6, 1.25, pz - 0.6), caixaGeo(0.08, 2.5, 0.08, lx + 1.6, 1.25, pz - 0.6))
+      bancos.push(caixaGeo(2.6, 0.08, 0.45, lx, 0.48, pz + 0.35))
+    }
+    if (!temPosto && !naFrente && dist > 60 && dist < 130 && sorte > 0.5 && sorte < 0.6) {   // posto de combustível (um na cidade)
+      temPosto = true
+      pisoEst.push(planoGeo(LOTE - 1, LOTE - 1, lx, 0.02, lz))
+      posto.push(caixaGeo(16, 0.6, 10, lx - 2, 5.3, lz))   // cobertura
+      for (const [ax, az] of [[-8, -3.5], [4, -3.5], [-8, 3.5], [4, 3.5]]) posto.push(caixaGeo(0.4, 5, 0.4, lx + ax, 2.5, lz + az))
+      for (const az of [-2, 2]) { bombas.push(caixaGeo(5, 0.25, 1.2, lx - 2, 0.12, lz + az)); for (const ax of [-4, 0]) bombas.push(caixaGeo(0.7, 1.6, 0.5, lx + ax, 1.05, lz + az)) }
+      porEstilo.concreto.perto.push(fachadas(lx + 8.5, lz, 6, 10, 0, 3.6, ESTILOS.concreto, 0, 0))
+      tetos.push(planoGeo(6, 10, lx + 8.5, 3.6, lz))
+      obstaculos.push([lx + 5.4, lz - 5.1, lx + 11.6, lz + 5.1], [lx - 4.6, lz - 2.8, lx + 0.6, lz - 1.2], [lx - 4.6, lz + 1.2, lx + 0.6, lz + 2.8])
+      continue
+    }
+    if (sorte >= 0.1 && sorte < 0.2 && !(naFrente && dist < 60)) {   // estacionamento aberto: 2 fileiras de vagas com carros
+      pisoEst.push(planoGeo(LOTE - 1, LOTE - 1, lx, 0.02, lz))
+      const giroE = r() < 0.5 ? 0 : Math.PI / 2
+      for (const fil of [-1, 1]) for (let k = 0; k < 8; k++) {
+        const u = -LOTE / 2 + 1.9 + k * 2.75, v = fil * 6
+        const [px, pz] = giroE ? [lx + v, lz + u] : [lx + u, lz + v]
+        vagasLinhas.push(giroE ? caixaGeo(5, 0.01, 0.1, px, 0.03, pz - 1.37) : caixaGeo(0.1, 0.01, 5, px - 1.37, 0.03, pz))
+        if (r() < 0.72) {   // carro na vaga, de frente para o corredor
+          const psi = (giroE ? (fil > 0 ? -Math.PI / 2 : Math.PI / 2) : (fil > 0 ? Math.PI : 0))
+          parados.push({ x: px, z: pz, psi, cor: [0xf8fafc, 0xd4d4d8, 0x9ca3af, 0x1f2937, 0xb91c1c, 0x1e40af, 0x0f766e, 0x111827][Math.floor(r() * 8)] })
+        }
+      }
+      continue
+    }
+    if (sorte < 0.1 || (naFrente && sorte < 0.45)) {   // praça: gramado com árvores, chafariz, bancos e lixeiras
       gramados.push(planoGeo(LOTE - 1, LOTE - 1, lx, 0.02, lz))
       pracas.push([lx, lz])
       for (let k = 0; k < 6; k++) arvores.push([lx + (r() - 0.5) * (LOTE - 5), lz + (r() - 0.5) * (LOTE - 5)])
+      const cil = new THREE.CylinderGeometry(2.6, 2.8, 0.55, 28); cil.translate(lx, 0.28, lz); chafarizes.push(cil)
+      const pil = new THREE.CylinderGeometry(0.25, 0.4, 1.6, 12); pil.translate(lx, 0.8, lz); chafarizes.push(pil)
+      const ag = new THREE.CircleGeometry(2.45, 28); ag.rotateX(-Math.PI / 2); ag.translate(lx, 0.5, lz); aguas.push(ag)
+      obstaculos.push([lx - 2.9, lz - 2.9, lx + 2.9, lz + 2.9])
+      for (const [bx, bz, gi] of [[0, 5.5, 0], [0, -5.5, 0], [5.5, 0, 1], [-5.5, 0, 1]]) {
+        bancos.push(gi ? caixaGeo(0.5, 0.08, 2, lx + bx, 0.45, lz + bz) : caixaGeo(2, 0.08, 0.5, lx + bx, 0.45, lz + bz))
+        bancos.push(gi ? caixaGeo(0.08, 0.45, 2, lx + bx + Math.sign(bx) * 0.25, 0.7, lz + bz) : caixaGeo(2, 0.45, 0.08, lx + bx, 0.7, lz + bz + Math.sign(bz) * 0.25))
+      }
+      const lix = new THREE.CylinderGeometry(0.25, 0.22, 0.8, 10); lix.translate(lx + 3.6, 0.4, lz + 5.6); lixeiras.push(lix)
       continue
     }
     // 1 prédio grande ou 2 menores no lote
@@ -192,6 +238,7 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
         maquinas.push(caixaGeo(w * 0.3, 2.6, d * 0.3, bx + (r() - 0.5) * w * 0.3, topo + 1.3, bz + (r() - 0.5) * d * 0.3))
         caixas.push(caixaGeo(2.2, 1.6, 2.2, bx - w * 0.25, topo + 0.8, bz + d * 0.22))
       }
+      if (!naFrente && andares >= 4 && andares <= 12 && r() < 0.14) outdoors.push({ x: bx, z: bz, y: topo, w: Math.min(w, 12), gi: r() < 0.5 })
       for (let k = 0; k < 3 + Math.floor(r() * 4); k++) maquinas.push(caixaGeo(1, 0.8, 0.8, bx + (r() - 0.5) * w * 0.7, topo + 0.4, bz + (r() - 0.5) * d * 0.7))
     }
   }
@@ -232,6 +279,36 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   malha(toldos, M({ color: 0x7c2d12, roughness: 0.9 }), false)
   malha(calcadas, M({ color: noite ? 0x3a3f46 : 0xc7c2b8, roughness: 0.9 }), false)
   malha(gramados, M({ color: noite ? 0x1e3a24 : 0x5f9e4a, roughness: 1 }), false)
+  malha(pisoEst, M({ color: noite ? 0x22252a : 0x4b5056, roughness: 0.95 }), false)
+  malha(vagasLinhas, M({ color: 0xf1f5f9, roughness: 0.8 }), false)
+  malha(posto, M({ color: 0xf8fafc, roughness: 0.5, metalness: 0.2, emissive: 0xffffff, emissiveIntensity: noite ? 0.15 : 0 }))
+  malha(bombas, M({ color: 0x0f766e, roughness: 0.5 }))
+  malha(pontos, M({ color: 0x94a3b8, roughness: 0.4, metalness: 0.5, transparent: true, opacity: 0.85 }))
+  malha(bancos, M({ color: 0x8b5e3c, roughness: 0.85 }), false)
+  malha(lixeiras, M({ color: 0x166534, roughness: 0.7 }), false)
+  malha(chafarizes, M({ color: 0xd6d3d1, roughness: 0.8 }))
+  malha(aguas, M({ color: 0x38bdf8, roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.8 }), false)
+  // outdoors genéricos (sem marca): poste + painel com texto desenhado
+  const ANUNCIOS = [['Café coado na hora', '#7c2d12', '#fef3c7'], ['Aluga-se salas', '#0f172a', '#f8fafc'], ['Feira de sábado', '#166534', '#ecfccb'],
+    ['Academia 24 h', '#111827', '#facc15'], ['Pão quentinho', '#b45309', '#fff7ed'], ['Vá de ônibus', '#1e3a8a', '#e0f2fe'], ['Doe sangue', '#991b1b', '#fee2e2'], ['Praia a 15 min', '#0e7490', '#ecfeff']]
+  outdoors.forEach((o, i) => {
+    const [txt, fundo, cor] = ANUNCIOS[i % ANUNCIOS.length]
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 192
+    const g = cv.getContext('2d'); g.fillStyle = fundo; g.fillRect(0, 0, 512, 192); g.fillStyle = cor; g.font = 'bold 54px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 256, 96)
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace
+    const painel = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.w * 0.375, 0.2), [M({ color: 0x334155 }), M({ color: 0x334155 }), M({ color: 0x334155 }), M({ color: 0x334155 }),
+      M({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: noite ? 0.6 : 0.05 }), M({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: noite ? 0.6 : 0.05 })])
+    painel.position.set(o.x, o.y + 3 + o.w * 0.19, o.z); painel.rotation.y = o.gi ? Math.PI / 2 : 0; grupo.add(painel)
+    const haste = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 3, 8), M({ color: 0x64748b })); haste.position.set(o.x, o.y + 1.5, o.z); grupo.add(haste)
+  })
+  // faixas tracejadas no meio das ruas da grade (fora das avenidas e do quarteirão do prédio)
+  const tracos = []
+  for (let i = -N; i < N; i++) for (let k = -N * PASSO; k <= N * PASSO; k += 6) {
+    const linha = cx + (i + 0.5) * PASSO, ao = cz + k, linha2 = cz + (i + 0.5) * PASSO, ao2 = cx + k
+    if (!livres.some((l) => linha > l[0] - 2 && linha < l[2] + 2 && ao > l[1] - 2 && ao < l[3] + 2)) tracos.push(caixaGeo(0.12, 0.01, 2.2, linha, 0.016, ao))
+    if (!livres.some((l) => ao2 > l[0] - 2 && ao2 < l[2] + 2 && linha2 > l[1] - 2 && linha2 < l[3] + 2)) tracos.push(caixaGeo(2.2, 0.01, 0.12, ao2, 0.016, linha2))
+  }
+  malha(tracos, M({ color: 0xf5f5f4, roughness: 0.8 }), false)
 
   // árvores (tronco + copa) e postes por instância
   const mat4 = new THREE.Matrix4(), q = new THREE.Quaternion(), esc = new THREE.Vector3()
@@ -245,5 +322,35 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   instancias(new THREE.IcosahedronGeometry(1.7, 1), M({ color: noite ? 0x1f3d2b : 0x3f7d4e, roughness: 0.9, flatShading: true }), arvores, (i) => [3.4, escala[i]])
   instancias(new THREE.CylinderGeometry(0.07, 0.1, 7, 6), M({ color: 0x6b7280, roughness: 0.6, metalness: 0.4 }), postes, () => [3.5, 1], false)
   instancias(new THREE.BoxGeometry(0.5, 0.14, 0.5), M({ color: 0xfff3c4, emissive: 0xffe2a0, emissiveIntensity: noite ? 2.2 : 0.1 }), postes, () => [7.05, 1], false)
-  return { grupo, calcadas: andaveis, pracas, obstaculos, limite: [cx - N * PASSO - LOTE / 2 - 4, cz - N * PASSO - LOTE / 2 - 4, cx + N * PASSO + LOTE / 2 + 4, cz + N * PASSO + LOTE / 2 + 4] }
+  if (hidrantes.length) instancias(new THREE.CylinderGeometry(0.14, 0.17, 0.7, 8), M({ color: 0xdc2626, roughness: 0.5 }), hidrantes, () => [0.35, 1], false)
+
+  // carros parados nos estacionamentos: 3 malhas instanciadas (lata com cor por instância, vidro, rodas). Cada um é um
+  // obstáculo; "tirar" esconde a instância e libera a vaga (a pessoa pegou o carro para dirigir)
+  let estacionados = null
+  if (parados.length) {
+    const nP = parados.length
+    const lata = new THREE.InstancedMesh(new THREE.BoxGeometry(4.2, 0.62, 1.78).translate(0, 0.72, 0), M({ roughness: 0.3, metalness: 0.5 }), nP)
+    const vid = new THREE.InstancedMesh(new THREE.BoxGeometry(2.3, 0.52, 1.6).translate(-0.2, 1.28, 0), M({ color: 0x0f172a, roughness: 0.05, metalness: 0.8 }), nP)
+    const rg = mergeGeometries([[1.35, 0.82], [1.35, -0.82], [-1.35, 0.82], [-1.35, -0.82]].map(([x, z]) => { const c = new THREE.CylinderGeometry(0.33, 0.33, 0.24, 12); c.rotateX(Math.PI / 2); c.translate(x, 0.33, z); return c }))
+    const rod = new THREE.InstancedMesh(rg, M({ color: 0x111111, roughness: 0.8 }), nP)
+    const cor = new THREE.Color(), up = new THREE.Vector3(0, 1, 0), um = new THREE.Vector3(1, 1, 1)
+    parados.forEach((p, i) => {
+      q.setFromAxisAngle(up, p.psi - Math.PI / 2); mat4.compose(new THREE.Vector3(p.x, 0, p.z), q, um)
+      lata.setMatrixAt(i, mat4); vid.setMatrixAt(i, mat4); rod.setMatrixAt(i, mat4); lata.setColorAt(i, cor.setHex(p.cor))
+      const ca = Math.abs(Math.cos(p.psi)), hx = ca > 0.5 ? 0.95 : 2.15, hz = ca > 0.5 ? 2.15 : 0.95
+      p.ret = [p.x - hx, p.z - hz, p.x + hx, p.z + hz]; obstaculos.push(p.ret)
+    })
+    for (const m of [lata, vid, rod]) { m.castShadow = true; m.receiveShadow = true; grupo.add(m) }
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0)
+    estacionados = {
+      lista: () => parados.map((p, i) => ({ ...p, i })).filter((p) => !p.fora),
+      tirar(i) {
+        const p = parados[i]; if (!p || p.fora) return null
+        p.fora = true; for (const m of [lata, vid, rod]) { m.setMatrixAt(i, zero); m.instanceMatrix.needsUpdate = true }
+        const k = obstaculos.indexOf(p.ret); if (k >= 0) obstaculos.splice(k, 1)
+        return p
+      },
+    }
+  }
+  return { grupo, calcadas: andaveis, pracas, obstaculos, estacionados, limite: [cx - N * PASSO - LOTE / 2 - 4, cz - N * PASSO - LOTE / 2 - 4, cx + N * PASSO + LOTE / 2 + 4, cz + N * PASSO + LOTE / 2 + 4] }
 }

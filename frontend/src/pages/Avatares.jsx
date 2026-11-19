@@ -84,14 +84,19 @@ function QuemUsa({ avatar, mapa, aoSalvar, pode }) {
 const ESPECIES = { pessoa: 'Pessoa', cao: 'Cão', gato: 'Gato', animal: 'Animal', veiculo: 'Veículo', outro: 'Outro' }
 
 // Veículo nas ruas do mapa 3D: liga/desliga e a física (massa, potência, aderência, freios, câmbio, tração…)
-const FISICA = [['massa', 'Massa', 300, 6000, 10, 'kg', 1400], ['potencia', 'Potência', 20, 1500, 5, 'cv', 320], ['aderencia', 'Aderência dos pneus', 0.4, 1.6, 0.01, '', 1.05],
-  ['freio', 'Força de frenagem', 0.3, 1.5, 0.01, '', 1], ['velmax', 'Velocidade máxima', 40, 380, 5, 'km/h', 290], ['marchas', 'Marchas', 3, 8, 1, '', 6],
-  ['direcao', 'Esterço máximo', 15, 45, 1, '°', 34], ['suspensao', 'Suspensão (macia ↔ firme)', 0.3, 2, 0.05, '', 1], ['cg', 'Altura do centro de massa', 0.25, 1.2, 0.01, 'm', 0.45]]
+const FISICA = [['massa', 'Massa', 150, 20000, 10, 'kg', 1400], ['potencia', 'Potência', 20, 1500, 5, 'cv', 520], ['aderencia', 'Aderência dos pneus', 0.4, 1.6, 0.01, '', 1.1],
+  ['freio', 'Força de frenagem', 0.3, 1.5, 0.01, '', 1.1], ['velmax', 'Velocidade máxima', 40, 420, 5, 'km/h', 330], ['marchas', 'Marchas do automático', 3, 10, 1, '', 8],
+  ['direcao', 'Esterço máximo', 15, 45, 1, '°', 32], ['suspensao', 'Suspensão (macia ↔ firme)', 0.3, 2, 0.05, '', 1], ['cg', 'Altura do centro de massa', 0.25, 1.5, 0.01, 'm', 0.42],
+  ['comprimento', 'Comprimento real (0 = automático)', 0, 15, 0.1, 'm', 0]]
+// liga/desliga: [chave, rótulo, explicação, padrão]
+const OPCOES = [['esc', 'Controle de estabilidade (ESC)', 'segura a traseira: o carro não roda numa curva forte', 1], ['nitro', 'Nitro (Shift)', '+60% de potência por uns 4 s, recarrega sozinho', 1],
+  ['eletrico', 'Motor elétrico', 'uma marcha, força máxima desde parado, zunido no lugar do ronco', 0], ['voar', 'Propulsores (voa com T)', 'decola, paira, sobe com Espaço e desce com X', 0],
+  ['duasRodas', 'Moto (duas rodas)', 'inclina para dentro da curva; usa as rodas do próprio modelo', 0]]
 function VeiculoNoMapa({ avatar, mapa, aoSalvar, pode }) {
   const toast = useToast()
   const lista = mapa?.veiculos || []
   const atual = lista.find((v) => v.avatar_id === avatar.id)
-  const [f, setF] = useState(() => ({ tracao: 'traseira', ...Object.fromEntries(FISICA.map(([k, , , , , , p]) => [k, p])), ...(atual?.fisica || {}) }))
+  const [f, setF] = useState(() => ({ tracao: 'traseira', ...Object.fromEntries(FISICA.map(([k, , , , , , p]) => [k, p])), ...Object.fromEntries(OPCOES.map(([k, , , p]) => [k, p])), ...(atual?.fisica || {}) }))
   const [salvando, setSalvando] = useState(false)
   const gravar = async (nova) => {
     setSalvando(true)
@@ -102,7 +107,7 @@ function VeiculoNoMapa({ avatar, mapa, aoSalvar, pode }) {
   return (
     <section className="cartao p-5">
       <h2 className="flex items-center gap-2 text-sm font-semibold"><Car className="h-4 w-4 text-muted-foreground" />Nas ruas do mapa 3D</h2>
-      <p className="mt-1 text-xs text-muted-foreground">No mapa, controle uma pessoa, desça pelo elevador, saia do prédio e aperte <b>E</b> perto do carro para dirigir. W/S acelera e freia (ré parado), A/D vira, Espaço é o freio de mão, C troca a câmera, H buzina, E sai.</p>
+      <p className="mt-1 text-xs text-muted-foreground">No mapa, controle uma pessoa, desça pelo elevador, saia do prédio e aperte <b>E</b> perto do carro para dirigir. Câmbio automático: W acelera, S freia (parado, engata a ré), A/D vira, Espaço é o freio de mão, Shift o nitro, T liga os propulsores (se tiver), C troca a câmera, H buzina, E sai. Perto de um carro do trânsito ou de um estacionamento, E também pega ele.</p>
       {pode ? (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-2"><Botao tamanho="sm" variante={atual ? 'primario' : 'secundario'} carregando={salvando} onClick={alternar}>{atual ? 'Está nas ruas: tirar' : 'Colocar nas ruas'}</Botao>
@@ -111,6 +116,10 @@ function VeiculoNoMapa({ avatar, mapa, aoSalvar, pode }) {
             {FISICA.map(([k, r, mn, mx, p, u]) => (
               <label key={k} className="block text-xs"><span className="flex justify-between"><span>{r}</span><span className="tabular text-muted-foreground">{f[k]}{u ? ` ${u}` : ''}</span></span>
                 <input type="range" min={mn} max={mx} step={p} value={f[k]} onChange={(e) => setF({ ...f, [k]: +e.target.value })} className="mt-1 w-full accent-[hsl(var(--primary))]" aria-label={r} /></label>
+            ))}
+            {OPCOES.map(([k, r, ex]) => (
+              <label key={k} className="flex items-start gap-2 text-xs"><input type="checkbox" className="mt-0.5" checked={!!f[k]} onChange={(e) => setF({ ...f, [k]: e.target.checked ? 1 : 0 })} />
+                <span><span className="font-medium">{r}</span><span className="block text-muted-foreground">{ex}</span></span></label>
             ))}
             <label className="block text-xs">Tração<select className="campo mt-1 h-8" value={f.tracao} onChange={(e) => setF({ ...f, tracao: e.target.value })}><option value="traseira">Traseira</option><option value="dianteira">Dianteira</option><option value="4x4">Integral (4x4)</option></select></label>
           </div>

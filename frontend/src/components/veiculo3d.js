@@ -15,11 +15,18 @@ import * as THREE from 'three'
 // - abaixo de ~3 m/s mistura com o modelo cinemático (manobra devagar sem tremer);
 // - colisão da caixa do carro com os lotes da cidade, o pódio do prédio e o limite: empurra para fora, devolve parte
 //   da velocidade (restituição) e dá um giro pelo ponto de contato;
-// - carroceria inclina no eixo (mergulho ao frear, agachar ao acelerar, rolagem na curva) por mola + amortecedor.
+// - carroceria inclina no eixo (mergulho ao frear, agachar ao acelerar, rolagem na curva) por mola + amortecedor;
+// - câmbio AUTOMÁTICO (P/R/N/D): troca cedo com pouco pé e tarde com o pé no fundo, reduz para ultrapassar (kickdown) e não
+//   corta a força na troca (conversor de torque);
+// - controle de estabilidade (ESC): compara o giro do carro com o que o volante pede e corrige a derrapagem antes de rodar,
+//   como os carros de rua; a direção fica mais leve e com menos ângulo em velocidade;
+// - elétrico: uma marcha, força máxima desde parado até o limite de potência; nitro (Shift) por alguns segundos;
+// - moto: inclina para dentro da curva; propulsores (carro elétrico com `voar`): decola, paira, sobe e desce.
 
 const G = 9.81
 
-export const FISICA_PADRAO = { massa: 1400, potencia: 320, aderencia: 1.05, freio: 1, velmax: 290, marchas: 6, direcao: 34, suspensao: 1, cg: 0.45, tracao: 'traseira', inverter: 0 }
+export const FISICA_PADRAO = { massa: 1400, potencia: 520, aderencia: 1.1, freio: 1.1, velmax: 330, marchas: 8, direcao: 32, suspensao: 1, cg: 0.42, tracao: 'traseira', inverter: 0,
+  comprimento: 0, esc: 1, nitro: 1, eletrico: 0, voar: 0, duasRodas: 0 }
 
 function separarRodas(modelo) {
   // geometria única no espaço da raiz (o modelo já vem centrado, pés em y = 0)
@@ -92,8 +99,14 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
   modelo.position.set(-c0.x, -bb0.min.y, -c0.z)
   if (s0.x > s0.z * 1.2) giro.rotation.y = Math.PI / 2   // modelo deitado no eixo x
   if (F.inverter) giro.rotation.y += Math.PI
-  const base = new THREE.Group(); base.add(giro); base.updateMatrixWorld(true)
-  const sep = separarRodas(base)
+  const base = new THREE.Group(); base.add(giro)
+  // modelos gerados por IA vêm com ~1 m: escala para o comprimento real (cadastrado ou 4,5 m quando parece miniatura)
+  base.updateMatrixWorld(true)
+  const s1 = new THREE.Box3().setFromObject(base).getSize(new THREE.Vector3())
+  const alvoL = F.comprimento > 0 ? F.comprimento : s1.z < 2 ? 4.5 : 0
+  if (alvoL) base.scale.setScalar(alvoL / Math.max(0.01, s1.z))
+  base.updateMatrixWorld(true)
+  const sep = F.duasRodas ? null : separarRodas(base)
   const raiz = new THREE.Group()          // posição e rumo no mundo
   const corpo = new THREE.Group()         // inclinação (mola/amortecedor)
   raiz.add(corpo)
@@ -114,11 +127,26 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
     base.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
     base.position.y = 0.04; corpo.add(base)
     rodas = []
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    if (F.duasRodas) {   // moto: as rodas já estão no modelo; pivôs vazios marcam os eixos para a física
+      for (const sz of [-1, 1]) { const piv = new THREE.Group(); piv.position.set(0, r, sz * L * 0.36); const giraR = new THREE.Group(); piv.add(giraR); raiz.add(piv); rodas.push({ piv, gira: giraR, frente: sz > 0, esq: false, x: 0.35, z: sz * L * 0.36, y0: r }) }
+    } else for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       const piv = new THREE.Group(); const x = sx * (W / 2 - 0.12), z = sz * L * 0.33
       piv.position.set(x, r, z); const giraR = new THREE.Group(); piv.add(giraR); giraR.add(rodaDesenhada(r, 0.22)); raiz.add(piv)
       rodas.push({ piv, gira: giraR, frente: sz > 0, esq: sx > 0, x, z, y0: r })
     }
+  }
+  // propulsores (só aparecem voando): chama azul embaixo de cada canto + luz
+  const jatos = []
+  if (F.voar) {
+    const matJ = new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })
+    const matN = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.4 })
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const g = new THREE.Group(); g.position.set(sx * W * 0.32, 0.18, sz * L * 0.3)
+      const bocal = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.16, 16), matN); g.add(bocal)
+      const chama = new THREE.Mesh(new THREE.ConeGeometry(0.17, 1.2, 14, 1, true), matJ); chama.rotation.x = Math.PI; chama.position.y = -0.68; g.add(chama)
+      g.visible = false; corpo.add(g); jatos.push({ g, chama })
+    }
+    const luz = new THREE.PointLight(0x7dd3fc, 0, 9, 2); luz.position.y = -0.4; corpo.add(luz); jatos.luz = luz
   }
   const zf = Math.max(...rodas.filter((x) => x.frente).map((x) => x.z)), zr = Math.min(...rodas.filter((x) => !x.frente).map((x) => x.z))
   const entre = Math.max(1.6, zf - zr), a = zf, b = -zr          // distância do centro de massa (origem) aos eixos
@@ -133,6 +161,7 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
   const n = Math.round(F.marchas)
   const g1 = 3.4, gN = 0.78
   const relacoes = Array.from({ length: n }, (_, i) => g1 * Math.pow(gN / g1, i / Math.max(1, n - 1)))
+  const ELET = !!F.eletrico, RPM_ELET = 18000
   const diferencial = (LIMITE * 2 * Math.PI / 60 * r) / (gN * VMAX * 1.02)
   const CdA = (2 * potW * 0.82) / (1.2 * VMAX ** 3)   // arrasto que fecha a conta da velocidade máxima com a potência
   const mu = F.aderencia, h = F.cg
@@ -141,36 +170,50 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
   const S = {
     x: 0, z: 0, psi: 0, vx: 0, vy: 0, w: 0, delta: 0, marcha: 1, re: false, rpm: IDLE, troca: 0, ax: 0, ay: 0,
     pitch: 0, vPitch: 0, roll: 0, vRoll: 0, giroRoda: 0, girandoRe: 0, patinaT: 0, deslize: 0, travou: false, batida: 0,
-    abs: false, tcs: false, freioMao: false, paradoRe: 0,
+    abs: false, tcs: false, freioMao: false, paradoRe: 0, esc: false, nitro: 1, nitroOn: false,
+    voando: false, y: 0, vUp: 0, dobra: 0, pouso: 0,
   }
-  const ent = { acel: 0, freio: 0, dir: 0, mao: false }
+  const ent = { acel: 0, freio: 0, dir: 0, mao: false, nitro: false, subir: false, descer: false }
   const pac = (alfa, Fz) => mu * Fz * Math.sin(1.35 * Math.atan(9.5 * alfa - 0.6 * (9.5 * alfa - Math.atan(9.5 * alfa))))
 
   function passo(dt, colide) {
     const v = Math.hypot(S.vx, S.vy)
     // direção: mais lenta e menos ângulo em velocidade alta (como um carro de verdade)
-    const maxD = THREE.MathUtils.degToRad(F.direcao) / (1 + Math.max(0, S.vx) / 22)
-    S.delta += THREE.MathUtils.clamp(ent.dir * maxD - S.delta, -2.4 * dt, 2.4 * dt)
+    const maxD = THREE.MathUtils.degToRad(F.direcao) / (1 + Math.max(0, S.vx) / 10)
+    const taxa = 2.6 / (1 + Math.max(0, S.vx) / 25)
+    S.delta += THREE.MathUtils.clamp(ent.dir * maxD - S.delta, -taxa * dt, taxa * dt)
     // pedal: W acelera; S freia e, parado, engata a ré (aí W freia)
     let acel = ent.acel, freio = ent.freio
     if (!S.re && freio > 0 && acel === 0 && Math.abs(S.vx) < 0.4) { S.paradoRe += dt; if (S.paradoRe > 0.35) { S.re = true; S.paradoRe = 0 } } else if (!S.re) S.paradoRe = 0
     if (S.re) {
       if (acel > 0 && S.vx > -0.4 && freio === 0) { S.re = false; S.marcha = 1 } else { const t = freio; freio = acel; acel = t }
     }
-    // motor e câmbio
-    const g = S.re ? 3.2 : relacoes[S.marcha - 1]
-    const rpmRoda = Math.abs(S.vx) / r * g * diferencial * 60 / (2 * Math.PI)
-    let rpm = Math.max(IDLE, rpmRoda)
-    if (acel > 0 && rpmRoda < 2600) rpm = Math.max(rpm, IDLE + (2600 - IDLE) * acel)   // embreagem patinando na saída
-    if (S.troca > 0) S.troca -= dt
-    if (!S.re && S.troca <= 0) {
-      if (rpmRoda > LIMITE * 0.93 && S.marcha < n) { S.marcha++; S.troca = 0.22 }
-      else if (rpmRoda < LIMITE * 0.42 && S.marcha > 1) { S.marcha--; S.troca = 0.18 }
+    // nitro: +60% de potência enquanto houver carga (recarrega devagar)
+    S.nitroOn = !!(F.nitro && ent.nitro && acel > 0 && S.nitro > 0.02 && !S.re)
+    S.nitro = THREE.MathUtils.clamp(S.nitro + (S.nitroOn ? -dt / 4 : dt / 18), 0, 1)
+    const boost = S.nitroOn ? 1.6 : 1
+    let Fmotor
+    if (ELET) {   // elétrico: força máxima desde parado (limitada pela aderência) até a curva de potência
+      const vAbs = Math.max(1, Math.abs(S.vx))
+      Fmotor = acel * Math.min(mu * m * G * 0.95, (potW * boost * 0.92) / vAbs) * (Math.abs(S.vx) > VMAX * (S.nitroOn ? 1.15 : 1) ? 0 : 1) * (S.re ? -0.4 : 1)
+      S.rpm += (Math.min(RPM_ELET, (Math.abs(S.vx) / VMAX) * RPM_ELET) - S.rpm) * Math.min(1, dt * 10)
+    } else {
+      // câmbio automático: troca para cima mais cedo com pouco pé, mais tarde com o pé no fundo; kickdown ao afundar
+      const g = S.re ? 3.2 : relacoes[S.marcha - 1]
+      const rpmRoda = Math.abs(S.vx) / r * g * diferencial * 60 / (2 * Math.PI)
+      let rpm = Math.max(IDLE, rpmRoda)
+      if (acel > 0 && rpmRoda < 2400) rpm = Math.max(rpm, IDLE + (2400 - IDLE) * acel)   // conversor de torque na saída
+      if (S.troca > 0) S.troca -= dt
+      if (!S.re && S.troca <= 0) {
+        const sobe = LIMITE * (0.5 + 0.43 * acel), desce = LIMITE * (acel > 0.9 ? 0.5 : 0.28)
+        if (rpmRoda > sobe && S.marcha < n) { S.marcha++; S.troca = 0.16 }
+        else if (rpmRoda < desce && S.marcha > 1) { S.marcha--; S.troca = 0.12 }
+      }
+      S.rpm += (Math.min(LIMITE + 150, rpm) - S.rpm) * Math.min(1, dt * 12)
+      const cortou = rpmRoda > LIMITE
+      const Tm = cortou ? 0 : Tpico * curva(S.rpm) * acel * boost * (S.troca > 0 ? 0.45 : 1)   // a troca não corta a força
+      Fmotor = (Tm * g * diferencial * 0.88) / r * (S.re ? -1 : 1)
     }
-    S.rpm += (Math.min(LIMITE + 150, rpm) - S.rpm) * Math.min(1, dt * 12)
-    const cortou = rpmRoda > LIMITE
-    let Tm = S.troca > 0 || cortou ? 0 : Tpico * curva(S.rpm) * acel
-    let Fmotor = (Tm * g * diferencial * 0.88) / r * (S.re ? -1 : 1)
     // cargas por eixo com transferência de peso longitudinal
     const Fzf = Math.max(0.15 * m * G, (m * G * b) / entre - (m * S.ax * h) / entre)
     const Fzr = Math.max(0.15 * m * G, (m * G * a) / entre + (m * S.ax * h) / entre)
@@ -199,7 +242,7 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
     const af = Math.atan2(S.vy + a * S.w, vxs) - S.delta * Math.sign(S.vx || 1)
     const ar = Math.atan2(S.vy - b * S.w, vxs)
     // acerto "sai de frente" como nos carros de rua: traseira com um pouco mais de aderência que a dianteira
-    const muF = 0.96, muR = 1.06 * (ent.mao ? 0.5 : 1)
+    const muF = 0.97, muR = 1.12 * (ent.mao ? 0.5 : 1)
     const capF = Math.sqrt(Math.max(0, (mu * muF * Fzf) ** 2 - Fxf ** 2)), capR = Math.sqrt(Math.max(0, (mu * muR * Fzr) ** 2 - Fxr ** 2))
     const Fyf = -THREE.MathUtils.clamp(pac(af, Fzf) * muF, -capF, capF)
     const Fyr = -THREE.MathUtils.clamp(pac(ar, Fzr) * muR, -capR, capR)
@@ -207,10 +250,25 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
     let ax = (Fxr + Fxf * cd - Fyf * sd - Farrasto) / m + S.vy * S.w
     let ay = (Fyr + Fyf * cd + Fxf * sd) / m - S.vx * S.w
     let aw = (a * (Fyf * cd + Fxf * sd) - b * Fyr) / Iz
+    // ESC: o giro que o volante pede (limitado pela aderência) contra o giro real; derrapando, corrige o giro, tira
+    // a força do motor e segura o deslize lateral (o carro de rua faz isso freando uma roda de cada vez)
+    S.esc = false
+    if (F.esc && !ent.mao && v > 4) {
+      const wMax = (mu * G * 0.9) / Math.max(v, 1)
+      const wDes = THREE.MathUtils.clamp((S.vx * Math.tan(S.delta)) / entre, -wMax, wMax)
+      const erro = S.w - wDes, beta = Math.atan2(S.vy, Math.abs(S.vx))
+      if (Math.abs(erro) > 0.04 || Math.abs(beta) > 0.06) {
+        S.esc = true
+        aw -= erro * 9
+        ay -= S.vy * 4 * Math.min(1, Math.abs(beta) / 0.06)
+        if (acel > 0 && Fmotor !== 0) ax -= (Fmotor * 0.5) / m
+      }
+    }
     // devagar: modelo cinemático (sem as derivas, que divergem perto de zero)
     const k = THREE.MathUtils.clamp((v - 1.5) / 3, 0, 1)
     S.vx += ax * dt
-    if (Math.abs(S.vx) > VMAX * 1.05) S.vx = Math.sign(S.vx) * VMAX * 1.05
+    const vLim = VMAX * (S.nitroOn ? 1.2 : 1.05)
+    if (Math.abs(S.vx) > vLim) S.vx = Math.sign(S.vx) * vLim
     const wKin = (S.vx * Math.tan(S.delta)) / entre
     S.vy = k * (S.vy + ay * dt) + (1 - k) * 0
     S.w = k * (S.w + aw * dt) + (1 - k) * wKin
@@ -240,15 +298,56 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
     // carroceria: mergulho/agachar e rolagem (mola + amortecedor)
     const alvoP = THREE.MathUtils.clamp(-S.ax * 0.0065 * h / 0.45, -0.07, 0.07), alvoR = THREE.MathUtils.clamp(S.ay * 0.0075 * h / 0.45, -0.09, 0.09)
     S.vPitch += (kSusp * (alvoP - S.pitch) - cSusp * S.vPitch) * dt; S.pitch += S.vPitch * dt
-    S.vRoll += (kSusp * (alvoR - S.roll) - cSusp * S.vRoll) * dt; S.roll += S.vRoll * dt
+    if (F.duasRodas) S.roll += (THREE.MathUtils.clamp(-Math.atan((S.vx * S.w) / G), -0.75, 0.75) - S.roll) * Math.min(1, dt * 6)   // moto inclina para dentro
+    else { S.vRoll += (kSusp * (alvoR - S.roll) - cSusp * S.vRoll) * dt; S.roll += S.vRoll * dt }
     S.giroRoda += (S.vx / r) * dt
+  }
+
+  // voo com propulsores: empuxo para a frente, paira sozinho (segura a altitude sem tecla), sobe/desce, vira inclinando
+  const VMAX_VOO = 105, ALTO = 38   // m/s (~380 km/h); acima de ALTO metros não bate em prédio
+  function passoVoo(dt, colide) {
+    const sp = Math.sin(S.psi), cp = Math.cos(S.psi)
+    const ligado = S.voando
+    const empuxo = ligado ? ent.acel * 1.15 * G * (S.nitroOn ? 1.5 : 1) : 0
+    S.nitroOn = !!(ligado && ent.nitro && ent.acel > 0 && S.nitro > 0.02); S.nitro = THREE.MathUtils.clamp(S.nitro + (S.nitroOn ? -dt / 4 : dt / 18), 0, 1)
+    const arrasto = (G * 1.15 * (S.vx * Math.abs(S.vx))) / (VMAX_VOO * VMAX_VOO)
+    S.vx += (empuxo - arrasto - (ligado ? ent.freio * 0.9 * G * Math.sign(S.vx) : 0)) * dt
+    if (Math.abs(S.vx) < 0.3 && ent.acel === 0) S.vx *= 0.9
+    S.vy *= Math.exp(-3 * dt)   // os propulsores laterais seguram o deslize
+    const wAlvo = ligado ? ent.dir * 1.3 / (1 + Math.abs(S.vx) / 70) : 0
+    S.w += (wAlvo - S.w) * Math.min(1, dt * 3)
+    // vertical: com os propulsores ligados a gravidade é compensada e a altitude fica parada sem tecla
+    const alvoUp = ent.subir ? 9 : ent.descer ? -7 : 0
+    if (ligado) S.vUp += (alvoUp - S.vUp) * Math.min(1, dt * 2.2); else S.vUp -= G * dt
+    S.y += S.vUp * dt
+    if (S.y <= 0) { if (S.vUp < -7) S.batida = Math.max(S.batida, Math.min(1, -S.vUp / 20)); S.y = 0; S.vUp = Math.max(0, S.vUp); if (!ligado) { S.vx *= Math.exp(-1.5 * dt); S.pouso = 1 } }
+    if (S.y > 400) { S.y = 400; S.vUp = Math.min(0, S.vUp) }
+    S.psi += S.w * dt
+    let nx = S.x + (S.vx * sp + S.vy * cp) * dt, nz = S.z + (S.vx * cp - S.vy * sp) * dt
+    const toque = colide && S.y < ALTO ? colide(nx, nz, S.psi, L, W) : null
+    if (toque) { nx += toque.px; nz += toque.pz; S.batida = Math.max(S.batida, Math.min(1, Math.abs(S.vx) / 25)); S.vx *= -0.2 }
+    S.x = nx; S.z = nz
+    S.pitch += (THREE.MathUtils.clamp(-ent.acel * 0.12 + ent.freio * 0.1 - S.vUp * 0.012, -0.25, 0.25) - S.pitch) * Math.min(1, dt * 3)
+    S.roll += (THREE.MathUtils.clamp(-S.w * Math.abs(S.vx) * 0.02, -0.6, 0.6) - S.roll) * Math.min(1, dt * 3)
+    S.rpm = Math.abs(S.vx) / VMAX_VOO * RPM_ELET
+    S.giroRoda += 0; S.esc = S.abs = S.tcs = false; S.deslize = 0; S.travou = false; S.girandoRe = 0
   }
 
   function atualizar(dt, colide, yBase) {
     let resto = Math.min(dt, 0.1)
-    while (resto > 1e-4) { const h2 = Math.min(1 / 120, resto); passo(h2, colide); resto -= h2 }
-    raiz.position.set(S.x, yBase, S.z); raiz.rotation.y = S.psi
+    const noAr = S.voando || S.y > 0.01
+    while (resto > 1e-4) { const h2 = Math.min(1 / 120, resto); if (noAr) passoVoo(h2, colide); else passo(h2, colide); resto -= h2 }
+    if (!S.voando && S.y <= 0.01 && S.pouso) { S.pouso = 0; S.vy = 0; S.w = 0 }
+    // rodas recolhem (giram 90°) ao decolar e voltam ao pousar
+    S.dobra += ((S.voando ? 1 : 0) - S.dobra) * Math.min(1, dt * 2.5)
+    const flutua = S.voando ? Math.sin(performance.now() / 380) * 0.05 * Math.min(1, S.y) : 0
+    raiz.position.set(S.x, yBase + S.y + flutua, S.z); raiz.rotation.y = S.psi
     corpo.rotation.set(S.pitch, 0, S.roll)
+    if (jatos.length) {
+      const on = S.voando || S.dobra > 0.05
+      for (const j of jatos) { j.g.visible = on; j.chama.scale.set(1, 0.6 + 0.5 * Math.max(ent.subir ? 1 : 0, ent.acel) + Math.random() * 0.25 + (S.nitroOn ? 0.6 : 0), 1) }
+      jatos.luz.intensity = on ? 2.5 + (S.nitroOn ? 2 : 0) : 0
+    }
     // Ackermann: a roda de dentro da curva vira mais
     const tanD = Math.tan(S.delta)
     for (const w of rodas) {
@@ -257,6 +356,8 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
         w.piv.rotation.y = Math.atan(entre / (R - (w.esq ? 1 : -1) * bitola / 2)) * (dentro ? 1 : 1)
       } else if (w.frente) w.piv.rotation.y = 0
       w.gira.rotation.x = S.giroRoda * (w.frente ? 1 : 1) + (!w.frente && S.girandoRe ? performance.now() / 40 : 0)
+      w.piv.rotation.z = (w.esq ? 1 : -1) * S.dobra * Math.PI / 2   // voando: roda deitada, como num carro voador
+      w.piv.position.y = w.y0 + S.dobra * 0.05
     }
     S.batida *= Math.pow(0.02, dt)
   }
@@ -265,8 +366,16 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
     raiz, S, ent, F, dims: { L, W, H, r, entre, bitola },
     rodasTraseiras: () => rodas.filter((w) => !w.frente).map((w) => w.piv.getWorldPosition(new THREE.Vector3())),
     atualizar,
-    colocar(x, z, psi) { S.x = x; S.z = z; S.psi = psi; S.vx = S.vy = S.w = 0; S.delta = 0; S.marcha = 1; S.re = false; S.pitch = S.roll = 0 },
-    hud() { return { kmh: Math.round(Math.abs(S.vx) * 3.6), rpm: Math.round(S.rpm), limite: LIMITE, marcha: S.re ? 'R' : Math.abs(S.vx) < 0.2 && ent.acel === 0 ? 'N' : String(S.marcha), abs: S.abs, tcs: S.tcs, mao: S.freioMao, deslize: S.deslize } },
+    colocar(x, z, psi) { S.x = x; S.z = z; S.psi = psi; S.vx = S.vy = S.w = 0; S.delta = 0; S.marcha = 1; S.re = false; S.pitch = S.roll = 0; S.y = 0; S.vUp = 0; S.voando = false },
+    // propulsores: liga/desliga o voo (só no veículo com `voar`); desligar no ar = cai
+    propulsores() { if (!F.voar) return null; S.voando = !S.voando; if (S.voando) { S.vUp = Math.max(S.vUp, 4); S.re = false } return S.voando },
+    hud() {
+      const parado = Math.abs(S.vx) < 0.2 && ent.acel === 0 && S.y < 0.01
+      const pos = S.re ? 'R' : parado && (ent.mao || S.freioMao) ? 'P' : parado ? 'N' : 'D'
+      return { kmh: Math.round(Math.hypot(S.vx, S.voando ? S.vUp : 0) * 3.6), rpm: Math.round(S.rpm), limite: ELET || S.voando ? RPM_ELET : LIMITE,
+        marcha: pos === 'D' && !ELET && !S.voando ? `D${S.marcha}` : pos, abs: S.abs, tcs: S.tcs, esc: S.esc, mao: S.freioMao, deslize: S.deslize,
+        nitro: F.nitro ? S.nitro : null, nitroOn: S.nitroOn, voar: !!F.voar, voando: S.voando, alt: Math.round(S.y), eletrico: ELET }
+    },
   }
 }
 
@@ -316,7 +425,18 @@ export function criarSom() {
   let buzina = null
   return {
     atualizar(h, acel) {
-      const t = ac.currentTime, f = Math.max(30, (h.rpm / 60) * 4)   // V8: 4 explosões por volta
+      const t = ac.currentTime
+      if (h.eletrico || h.voando) {   // elétrico: zunido agudo que sobe com a velocidade; voando, mais o sopro dos jatos
+        if (o1.type !== 'sine') { o1.type = 'sine'; o2.type = 'triangle' }
+        o1.frequency.setTargetAtTime(180 + h.rpm / 22, t, 0.05); o2.frequency.setTargetAtTime(90 + h.rpm / 60, t, 0.05)
+        filtro.frequency.setTargetAtTime(900 + acel * 1800, t, 0.05)
+        gm.gain.setTargetAtTime(0.025 + acel * 0.05, t, 0.05)
+        gp.gain.setTargetAtTime(h.voando ? 0.08 + acel * 0.1 + (h.nitroOn ? 0.08 : 0) : 0, t, 0.08)
+        banda.frequency.setTargetAtTime(h.voando ? 450 : 1500, t, 0.1)
+        return
+      }
+      if (o1.type !== 'sawtooth') { o1.type = 'sawtooth'; o2.type = 'square'; banda.frequency.value = 1500 }
+      const f = Math.max(30, (h.rpm / 60) * 4)   // V8: 4 explosões por volta
       o1.frequency.setTargetAtTime(f, t, 0.03); o2.frequency.setTargetAtTime(f * 0.5, t, 0.03)
       filtro.frequency.setTargetAtTime(350 + acel * 2200 + h.rpm * 0.08, t, 0.05)
       gm.gain.setTargetAtTime(0.05 + acel * 0.09, t, 0.05)

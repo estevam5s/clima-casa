@@ -10,7 +10,7 @@ import { ITEM } from '../catalogoMapa'
 import { horaBR, noExpediente } from '../mapaUtil'
 import { salasPrivativas } from '../mapaUtil'
 import { useMarca } from '../marca'
-import { caminho, criarGrade, celulaLivre, livreProxima, montarPredio, visaoLivre } from './predio3d'
+import { TIPOS_TRANSITO, caminho, carro as carroTransito, criarGrade, celulaLivre, livreProxima, montarPredio, visaoLivre } from './predio3d'
 import { ELEV, montarElevador, montarTerreo } from './elevador3d'
 import MiniMapa from './MiniMapa'
 import PainelCarro from './PainelCarro'
@@ -497,12 +497,13 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const c = estado.current.ctrl; if (!c) return
       const k = nome(e)
       const ED = estado.current
-      if (ED.dirigindo) {   // dentro do carro: W/S acelera e freia, A/D vira, Espaço freio de mão, C câmera, H buzina, R desvira, E sai
+      if (ED.dirigindo) {   // dentro do carro: W/S acelera e freia, A/D vira, Espaço freio de mão (voando: sobe), X desce, Shift nitro, T propulsores, C câmera, H buzina, R desvira, E sai
         if (k === 'e' || k === 'escape') { e.preventDefault(); ED.alternarCarro?.(); if (k === 'escape') ED.pararControle?.(); return }
         if (k === 'c') { e.preventDefault(); ED.camCarro?.(); return }
         if (k === 'r') { e.preventDefault(); ED.desvirar?.(); return }
         if (k === 'h') { e.preventDefault(); ED.buzina?.(true); return }
-        if (['w', 'a', 's', 'd', ' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { e.preventDefault(); c.teclas.add(k) }
+        if (k === 't') { e.preventDefault(); if (!e.repeat) ED.propulsores?.(); return }
+        if (['w', 'a', 's', 'd', ' ', 'x', 'shift', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { e.preventDefault(); c.teclas.add(k) }
         return
       }
       if (k === 'e' && ED.alternarCarro?.()) { e.preventDefault(); return }
@@ -1497,8 +1498,19 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const grupoCarros = new THREE.Group(); grupoCarros.name = 'carros'; mundo.add(grupoCarros); E.grupoCarros = grupoCarros
       E.veiculos = []
       const cidC = predio.cidade
+      if (cidC) { const marcas = criarMarcas(); grupoCarros.add(marcas.malha); E.marcas = marcas }
+      // colisão do carro dirigido: lotes e prédio da cidade + trânsito andando + os outros veículos parados
+      const colideFixo = cidC ? colisorCidade(cidC) : null
+      const tr = predio?.transito
+      E.colideCarro = colideFixo && ((x, z, psi, L, W) => {
+        const fixo = colideFixo(x, z, psi, L, W)
+        if (fixo) return fixo
+        const extra = []
+        for (const o of tr?.lista() || []) { if (Math.hypot(o.x - x, o.z - z) < 14) { const ca = Math.abs(Math.cos(o.psi)) > 0.5, hl = o.comp / 2, hw = (TIPOS_TRANSITO[o.tipo]?.W || 1.8) / 2; extra.push(ca ? [o.x - hw, o.z - hl, o.x + hw, o.z + hl] : [o.x - hl, o.z - hw, o.x + hl, o.z + hw]) } }
+        for (const v of E.veiculos || []) { if (v === E.dirigindo?.ref) continue; const S = v.veh.S; if (S.y > 1 || Math.hypot(S.x - x, S.z - z) > 14) continue; const ca = Math.abs(Math.cos(S.psi)) > 0.5, hl = v.veh.dims.L / 2, hw = v.veh.dims.W / 2; extra.push(ca ? [S.x - hw, S.z - hl, S.x + hw, S.z + hl] : [S.x - hl, S.z - hw, S.x + hl, S.z + hw]) }
+        return extra.length ? colisorCidade({ obstaculos: extra })(x, z, psi, L, W) : null
+      })
       if (cidC && (mapa.veiculos || []).length) {
-        const marcas = criarMarcas(); grupoCarros.add(marcas.malha); E.marcas = marcas
         const colide = colisorCidade(cidC)
         const vagas = []   // em volta da calçada do prédio, paralelas ao meio-fio, sem bater em lote
         for (const d of [3.2, 6.5, 10]) {
@@ -1507,7 +1519,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
             const comp = Math.hypot(x1 - x0, z1 - z0)
             for (let s = 4; s < comp - 4; s += 6.5) { const x = x0 + ((x1 - x0) * s) / comp, z = z0 + ((z1 - z0) * s) / comp; if (!colide(x, z, psi, 4.8, 2.2)) vagas.push([x, z, psi]) }
           }
-          if (vagas.length >= 6) break
+          if (vagas.length >= mapa.veiculos.length * 2 + 4) break
         }
         const mundoAtual = mundo
         mapa.veiculos.forEach((vc, i) => {
@@ -1515,9 +1527,15 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
             if (estado.current?.mundo !== mundoAtual) return   // a cena foi refeita enquanto baixava
             const veh = criarVeiculo(clonarComOssos(gltf.scene), vc.fisica || {})
             let x = vc.x, z = vc.z, psi = vc.rot || 0
-            if (x == null || z == null || colide(x, z, psi, veh.dims.L, veh.dims.W)) { const v = vagas[i % Math.max(1, vagas.length)]; if (!v) return; [x, z, psi] = v }
+            const livreDeOutros = (px, pz, L) => (E.veiculos || []).every((o) => Math.hypot(o.veh.S.x - px, o.veh.S.z - pz) > (o.veh.dims.L + L) / 2 + 0.6)
+            if (x == null || z == null || colide(x, z, psi, veh.dims.L, veh.dims.W) || !livreDeOutros(x, z, veh.dims.L)) {
+              // vaga livre que caiba o comprimento dele (o ônibus ocupa várias) e sem outro veículo em cima
+              const v = [...vagas.slice(i), ...vagas.slice(0, i)].find(([vx, vz, vp]) => !colide(vx, vz, vp, veh.dims.L, veh.dims.W) && livreDeOutros(vx, vz, veh.dims.L))
+              if (!v) return
+              ;[x, z, psi] = v
+            }
             veh.colocar(x, z, psi); veh.atualizar(0, null, yT); grupoCarros.add(veh.raiz)
-            E.veiculos.push({ cfg: vc, veh, colide, yT, nome: vc.nome || gltf.meta?.nome || 'Carro' })
+            E.veiculos.push({ cfg: vc, veh, colide: E.colideCarro || colide, yT, nome: vc.nome || gltf.meta?.nome || 'Carro' })
           }).catch(() => { /* veículo apagado da biblioteca: fica fora das ruas */ })
         })
       }
@@ -1891,31 +1909,37 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       veh.ent.acel = k.has('w') || k.has('arrowup') ? 1 : 0
       veh.ent.freio = k.has('s') || k.has('arrowdown') ? 1 : 0
       veh.ent.dir = (k.has('a') || k.has('arrowleft') ? 1 : 0) - (k.has('d') || k.has('arrowright') ? 1 : 0)
-      veh.ent.mao = k.has(' ')
+      const noAr = veh.S.voando || veh.S.y > 0.01
+      veh.ent.mao = k.has(' ') && !noAr
+      veh.ent.subir = k.has(' ') && noAr
+      veh.ent.descer = k.has('x')
+      veh.ent.nitro = k.has('shift')
       veh.atualizar(dt, D.colide, D.yT)
       const S = veh.S, h = veh.hud()
       c.av.position.set(S.x, D.yT, S.z); c.yaw = S.psi   // o minimapa e a legenda seguem o carro
-      if (E.marcas && h.kmh > 6 && (h.deslize > 0.2 || S.travou || S.girandoRe || h.abs)) for (const p of veh.rodasTraseiras()) E.marcas.marcar(p, S.psi, D.yT)
+      if (predio?.transito) predio.transito.moveis[0] = S.y < 2 ? { x: S.x, z: S.z, r: veh.dims.W / 2 } : null
+      if (E.marcas && S.y < 0.05 && h.kmh > 6 && (h.deslize > 0.2 || S.travou || S.girandoRe || h.abs)) for (const p of veh.rodasTraseiras()) E.marcas.marcar(p, S.psi, D.yT)
       D.som?.atualizar(h, veh.ent.acel)
       if (S.batida > 0.12 && !D.bateu) { D.som?.batida(S.batida); D.bateu = true } else if (S.batida < 0.04) D.bateu = false
-      E.hudCarro = { ...h, nome: D.nome, cam: D.cam }
-      const fx = Math.sin(S.psi), fz = Math.cos(S.psi), { L, H } = veh.dims
+      E.hudCarro = { ...h, nome: D.nome, cam: D.cam, roubado: !!D.cfg?.roubado }
+      const fx = Math.sin(S.psi), fz = Math.cos(S.psi), { L, H } = veh.dims, yC = D.yT + S.y
       if (D.cam === 'capo') {
-        vCam.set(S.x + fx * L * 0.12, D.yT + H * 0.82, S.z + fz * L * 0.12); camera.position.copy(vCam)
-        camera.lookAt(S.x + fx * 30, D.yT + H * 0.7, S.z + fz * 30)
+        vCam.set(S.x + fx * L * 0.12, yC + H * 0.82, S.z + fz * L * 0.12); camera.position.copy(vCam)
+        camera.lookAt(S.x + fx * 30, yC + H * 0.7 - S.pitch * 20, S.z + fz * 30)
       } else if (D.cam === 'cima') {
-        vCam.set(S.x - fx * 4, D.yT + 26, S.z - fz * 4); camera.position.lerp(vCam, Math.min(1, dt * 4)); camera.lookAt(S.x, D.yT, S.z)
+        vCam.set(S.x - fx * 4, yC + 26, S.z - fz * 4); camera.position.lerp(vCam, Math.min(1, dt * 4)); camera.lookAt(S.x, yC, S.z)
       } else {   // perseguição: atrás e acima, afasta com a velocidade e olha um pouco à frente
-        const v = Math.abs(S.vx), dist = L * 1.35 + v * 0.06, alt = H * 1.6 + v * 0.015
+        const v = Math.abs(S.vx), dist = Math.max(6, L * 1.35) + v * 0.06, alt = H * 1.6 + v * 0.015 + (S.voando ? 1.5 : 0)
         // a câmera segue a direção do movimento (não a da carroceria): na derrapagem dá para ver o carro de lado
         const mov = v > 2 ? Math.atan2(S.vx * fx + S.vy * Math.cos(S.psi), S.vx * fz - S.vy * Math.sin(S.psi)) : S.psi
         D.camPsi = D.camPsi == null ? S.psi : D.camPsi + Math.atan2(Math.sin(mov - D.camPsi), Math.cos(mov - D.camPsi)) * Math.min(1, dt * 3.2)
-        vCam.set(S.x - Math.sin(D.camPsi) * dist, D.yT + alt, S.z - Math.cos(D.camPsi) * dist)
+        vCam.set(S.x - Math.sin(D.camPsi) * dist, yC + alt, S.z - Math.cos(D.camPsi) * dist)
         camera.position.lerp(vCam, Math.min(1, dt * 6))
-        vOlho.set(S.x + fx * 3, D.yT + H * 0.6, S.z + fz * 3); camera.lookAt(vOlho)
+        vOlho.set(S.x + fx * 3, yC + H * 0.6, S.z + fz * 3); camera.lookAt(vOlho)
       }
     }
     const salvarVaga = (D) => {
+      if (D.cfg?.roubado) return   // carro pego na rua: fica onde parou só nesta visita
       const S = D.veh.S, rot = Math.atan2(Math.sin(S.psi), Math.cos(S.psi))
       D.cfg.x = S.x; D.cfg.z = S.z; D.cfg.rot = rot
       api.post(`/api/mapa/veiculos/${D.cfg.id}/posicao`, { x: +S.x.toFixed(2), z: +S.z.toFixed(2), rot: +rot.toFixed(3) }).catch(() => { /* sem permissão: fica só nesta visita */ })
@@ -1924,7 +1948,9 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const c = E.ctrl, D = E.dirigindo
       if (!c || !D) return false
       const S = D.veh.S
-      if (!forcar && Math.abs(S.vx) > 2.5) { E.setControle?.({ modo: c.modo, info: c.info, sentado: false, dirigindo: D.nome, aviso: 'Pare o carro para sair (S freia).' }); return true }
+      if (!forcar && (Math.abs(S.vx) > 2.5 || S.y > 0.5)) { E.setControle?.({ modo: c.modo, info: c.info, sentado: false, dirigindo: D.nome, aviso: S.y > 0.5 ? 'Pouse antes de sair (X desce).' : 'Pare o carro para sair (S freia).' }); return true }
+      if (S.voando) D.veh.propulsores()
+      if (predio?.transito) predio.transito.moveis[0] = null
       // sai pela porta do motorista (esquerda); se estiver bloqueada, pela outra ou por trás
       const { L, W } = D.veh.dims, lx = Math.cos(S.psi), lz = -Math.sin(S.psi), fx = Math.sin(S.psi), fz = Math.cos(S.psi)
       const opc = [[lx * (W / 2 + 0.7), lz * (W / 2 + 0.7)], [-lx * (W / 2 + 0.7), -lz * (W / 2 + 0.7)], [-fx * (L / 2 + 0.8), -fz * (L / 2 + 0.8)], [fx * (L / 2 + 0.8), fz * (L / 2 + 0.8)]]
@@ -1941,15 +1967,61 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const c = E.ctrl
       if (!c || c.assento || E.viagem) return false
       if (E.dirigindo) return sairDoCarro(false)
-      if (E.nivel !== 'terreo' || !E.veiculos?.length) return false
+      if (E.nivel !== 'terreo') return false
       const P = c.av.position
-      const v = E.veiculos.map((x) => ({ x, d: Math.hypot(x.veh.S.x - P.x, x.veh.S.z - P.z) })).sort((a, b) => a.d - b.d)[0]
-      if (!v || v.d > Math.max(3.2, v.x.veh.dims.L * 0.75)) return false
+      let v = (E.veiculos || []).map((x) => ({ x, d: Math.hypot(x.veh.S.x - P.x, x.veh.S.z - P.z) })).sort((a, b) => a.d - b.d)[0]
+      if (!v || v.d > Math.max(3.2, v.x.veh.dims.L * 0.75)) {
+        const novo = pegarDaRua(P)   // nenhum da biblioteca perto: pega um do trânsito ou do estacionamento
+        if (!novo) return false
+        v = { x: novo }
+      }
       v.x.veh.ent.mao = false
-      E.dirigindo = { ...v.x, cam: 'perseguicao', som: criarSom(), camPsi: null }
+      E.dirigindo = { ...v.x, ref: v.x, cam: 'perseguicao', som: criarSom(), camPsi: null }
       c.av.visible = false; c.teclas.clear(); if (c.label) c.label.visible = false
-      E.setControle?.({ modo: c.modo, info: c.info, sentado: false, dirigindo: v.x.nome })
+      E.setControle?.({ modo: c.modo, info: c.info, sentado: false, dirigindo: v.x.nome, voar: !!v.x.veh.F.voar, aviso: v.x.cfg?.roubado ? `Você pegou ${v.x.nome.toLowerCase()} da rua. Ele fica onde você deixar (só nesta visita).` : undefined })
       return true
+    }
+    // veículo do trânsito ou de um estacionamento perto da pessoa (até 3,5 m): sai da rua e vira dirigível com a física
+    // do tipo dele; o motorista some (ilustração: ninguém se machuca) e o carro continua na velocidade em que estava
+    const NOMES_TIPO = { sedan: 'Sedã', suv: 'SUV', van: 'Van', picape: 'Picape', onibus: 'Ônibus', moto: 'Moto' }
+    const perto = (P) => {
+      const tr = predio?.transito
+      if (!tr) return null
+      let m = null
+      for (const o of tr.lista()) { const d = Math.hypot(o.x - P.x, o.z - P.z) - o.comp / 2; if (d < 3.5 && (!m || d < m.d)) m = { d, o, de: 'transito' } }
+      for (const p of tr.estacionados?.lista() || []) { const d = Math.hypot(p.x - P.x, p.z - P.z) - 2.1; if (d < 3.5 && (!m || d < m.d)) m = { d, o: p, de: 'parado' } }
+      return m
+    }
+    E.pertoDaRua = (P) => { const m = perto(P); return m ? (m.de === 'parado' ? 'Sedã estacionado' : `${NOMES_TIPO[m.o.tipo] || 'Carro'} do trânsito`) : null }
+    const pegarDaRua = (P) => {
+      const m = perto(P)
+      if (!m || !E.colideCarro) return null
+      const tr = predio.transito, yT = -predio.yA
+      let cor, tipo, x, z, psi, vel = 0
+      if (m.de === 'transito') {
+        tr.tirar(m.o.c); tipo = m.o.tipo; x = m.o.x; z = m.o.z; psi = m.o.psi; vel = Math.max(0, m.o.c.vel)
+        cor = m.o.c.g.children[0]?.material?.color?.getHex?.() ?? 0xd4d4d8
+      } else {
+        const p = tr.estacionados.tirar(m.o.i); if (!p) return null
+        tipo = 'sedan'; x = p.x; z = p.z; psi = p.psi; cor = p.cor
+      }
+      const modelo = carroTransito(cor, tipo).g
+      const rodasDoModelo = []; modelo.traverse((o) => { if (o.isMesh && o.geometry?.type === 'CylinderGeometry' && o.rotation.x !== 0) rodasDoModelo.push(o) })
+      if (tipo !== 'moto') rodasDoModelo.forEach((o) => o.removeFromParent())   // as rodas passam a ser as da física
+      const T = TIPOS_TRANSITO[tipo] || TIPOS_TRANSITO.sedan
+      const veh = criarVeiculo(modelo, { ...T.fisica, inverter: 1, comprimento: T.L, esc: 1, nitro: 1 })
+      veh.colocar(x, z, psi); veh.S.vx = vel; veh.atualizar(0, null, yT); E.grupoCarros.add(veh.raiz)
+      const nome = NOMES_TIPO[tipo] || 'Carro'
+      const item = { cfg: { id: null, roubado: true }, veh, colide: E.colideCarro, yT, nome }
+      E.veiculos.push(item)
+      return item
+    }
+    E.propulsores = () => {
+      const D = E.dirigindo, c = E.ctrl
+      if (!D || !c) return
+      const r = D.veh.propulsores()
+      E.setControle?.({ modo: c.modo, info: c.info, sentado: false, dirigindo: D.nome, voar: !!D.veh.F.voar,
+        aviso: r == null ? 'Este veículo não tem propulsores.' : r ? 'Propulsores ligados: Espaço sobe, X desce, W acelera, A/D vira. T de novo desliga (no ar, ele cai).' : 'Propulsores desligados.' })
     }
     E.camCarro = () => { const D = E.dirigindo; if (D) D.cam = { perseguicao: 'capo', capo: 'cima', cima: 'perseguicao' }[D.cam] }
     E.buzina = (on) => E.dirigindo?.som?.buzinar(on)
@@ -2018,9 +2090,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         andou = Math.hypot(nx - P.x, nz - P.z); P.x = nx; P.z = nz
       }
       // perto de um carro (térreo): a barra mostra "Entrar no carro (E)"
-      if (E.nivel === 'terreo' && E.veiculos?.length) {
-        const pc = E.veiculos.find((v) => Math.hypot(v.veh.S.x - P.x, v.veh.S.z - P.z) < Math.max(3.2, v.veh.dims.L * 0.75))
-        const nomeC = pc?.nome || null
+      if (predio?.transito) predio.transito.moveis[0] = E.nivel === 'terreo' ? { x: P.x, z: P.z, r: 0.4 } : null
+      if (E.nivel === 'terreo') {
+        const pc = (E.veiculos || []).find((v) => Math.hypot(v.veh.S.x - P.x, v.veh.S.z - P.z) < Math.max(3.2, v.veh.dims.L * 0.75))
+        const nomeC = pc?.nome || E.pertoDaRua?.(P) || null
         if (nomeC !== (c.pertoCarro || null)) { c.pertoCarro = nomeC; E.setControle?.({ modo: c.modo, info: c.info, sentado: false, elevador: c.pertoElev ? E.nivel : null, carro: nomeC }) }
       }
       // perto da porta de um elevador: a barra mostra o botão para descer/subir
@@ -2292,8 +2365,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         controlar={(info, modo) => { setCartao(null); setEscrevendo(false); estado.current.iniciarControle?.(info, modo) }} />}
       {acoes && <RascunhoEscrita mapa={mapa} rascunho={rascunhoEsc} setRascunho={setRascunhoEsc} acoes={acoes} ocupado={ocupado} executar={executar} />}
       {controle && <MiniMapa estado={estado} />}
-      {controle?.dirigindo && <PainelCarro estado={estado} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />}
-      <BarraControle controle={controle} carro={() => estado.current.alternarCarro?.()} camCarro={() => estado.current.camCarro?.()} nome={controle?.info?.tipo === 'pessoa' ? ((mapa.pessoas || []).find((p) => p.id === controle.info.id)?.nome || 'Pessoa') : 'Pessoa sem cadastro'}
+      {controle?.dirigindo && <PainelCarro estado={estado} propulsores={() => estado.current.propulsores?.()} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />}
+      <BarraControle controle={controle} carro={() => estado.current.alternarCarro?.()} camCarro={() => estado.current.camCarro?.()} propulsores={() => estado.current.propulsores?.()} nome={controle?.info?.tipo === 'pessoa' ? ((mapa.pessoas || []).find((p) => p.id === controle.info.id)?.nome || 'Pessoa') : 'Pessoa sem cadastro'}
         mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} sentar={() => estado.current.sentar?.()} cafe={() => estado.current.cafe?.()}
         elevador={() => estado.current.irElevador?.()} andar={Number.isFinite(+mapa.andar) ? +mapa.andar : 9} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />
       {extra}

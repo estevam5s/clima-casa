@@ -265,7 +265,7 @@ const CAPITULOS = [
     resumo: 'Ares, cenas, luzes, notificações e resumo pelo Telegram, com as suas permissões.',
     passos: [
       { t: 'Vincular', d: 'Integrações → Telegram → Gerar código → Abrir no Telegram (o código vale 10 minutos e uma vez só).', link: ['/telegram', 'Abrir Telegram'] },
-      { t: 'Usar', d: 'No @zynio_bot: /menu, /status, /ares (ligar, desligar, ±2°), /desligartodos, /cenas, /luzes, /notificacoes, /relatorio. Por texto: /desligar NOME, /temperatura NOME 23.' },
+      { t: 'Usar', d: 'No @zynio_bot: /menu mostra o estado e os atalhos; Todos os comandos navega pelas 16 categorias (264 comandos). /usar NOME escolhe o ar atual e aí /23, /frio, /mais, /desligar agem nele. /buscar palavra acha um comando; /avisos sim recebe avisos importantes. Ou escreva normalmente: a IA entende.' },
       { t: 'Segurança', d: 'O bot só responde a quem vinculou o Telegram e age com as permissões da pessoa. Ações em lote pedem confirmação. Perdeu o celular? Desvincule na mesma tela.' },
     ],
   },
@@ -315,7 +315,7 @@ const CAPITULOS = [
       { t: 'Trazer do Blender', d: 'Arquivo → Exportar → glTF 2.0 (.glb, texturas embutidas) e Avatares → Importar.' },
       { t: 'Editar a aparência', d: 'Avatares → Editar aparência: matiz, saturação, brilho, contraste e tingir; Recolorir região (clique na calça, camisa ou carroceria); Pincel; material (fosco, metal, brilho próprio); forma (escala, largura, altura). Salvar guarda uma versão nova e o original fica para Voltar ao original.', link: ['/avatares', 'Abrir Avatares'] },
       { t: 'Carros nas ruas', d: 'Num avatar do tipo Veículo: Nas ruas do mapa 3D → Colocar nas ruas e ajuste a física (massa, potência, aderência, freios, câmbio, tração).' },
-      { t: 'Dirigir', d: 'No mapa, controle uma pessoa, desça ao térreo, saia do prédio e aperte E perto do carro. W acelera, S freia (parado engata a ré), A/D vira, Espaço é o freio de mão, C troca a câmera, H buzina, R desvira e E sai. Onde você deixar, ele fica estacionado.' },
+      { t: 'Dirigir', d: 'No mapa, controle uma pessoa, desça ao térreo, saia do prédio e aperte E perto do carro. W acelera, S freia (parado engata a ré), A/D vira, Espaço é o freio de mão, Shift o nitro, C troca a câmera, H buzina, R desvira e E sai. O câmbio é automático e o controle de estabilidade segura a derrapagem. No Roadster elétrico, T liga os propulsores: Espaço sobe, X desce. Perto de um carro do trânsito ou de um estacionamento, E pega ele.' },
     ],
   },
   {

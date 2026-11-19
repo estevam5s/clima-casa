@@ -183,25 +183,54 @@ function palmeira(r, matTronco, matFolha) {
   return { g, copa }
 }
 
-function carro(cor) {
+// carro do trânsito desenhado por código (frente em +x). Tipos: sedan, suv, van, picape, onibus (ônibus urbano) e moto.
+// Os tamanhos são os de verdade (sedan 4,2 m, SUV 4,6 m, van 5 m, ônibus 12 m, moto 2,1 m): servem também para dirigir.
+export const TIPOS_TRANSITO = {
+  sedan: { L: 4.2, W: 1.78, h: 0.62, cab: [2.3, 0.55], r: 0.33, fisica: { massa: 1300, potencia: 170, velmax: 210, marchas: 6, aderencia: 1, tracao: 'dianteira' } },
+  suv: { L: 4.6, W: 1.9, h: 0.85, cab: [2.6, 0.62], r: 0.4, fisica: { massa: 1900, potencia: 240, velmax: 205, marchas: 8, aderencia: 1, tracao: '4x4', cg: 0.62 } },
+  van: { L: 5, W: 1.95, h: 1.25, cab: [3.6, 0.6], r: 0.36, fisica: { massa: 2400, potencia: 150, velmax: 160, marchas: 6, aderencia: 0.95, tracao: 'traseira', cg: 0.8 } },
+  picape: { L: 5.2, W: 1.9, h: 0.9, cab: [1.9, 0.6], r: 0.42, fisica: { massa: 2100, potencia: 200, velmax: 185, marchas: 6, aderencia: 1, tracao: '4x4', cg: 0.7 } },
+  onibus: { L: 12, W: 2.5, h: 2.6, cab: [0, 0], r: 0.5, fisica: { massa: 6000, potencia: 300, velmax: 100, marchas: 6, aderencia: 0.9, tracao: 'traseira', cg: 1.2, direcao: 40 } },
+  moto: { L: 2.1, W: 0.7, h: 0.5, cab: [0, 0], r: 0.31, fisica: { massa: 260, potencia: 120, velmax: 240, marchas: 6, aderencia: 1.05, tracao: 'traseira', duasRodas: 1, cg: 0.6 } },
+}
+export function carro(cor, tipo = 'sedan') {
+  const T = TIPOS_TRANSITO[tipo] || TIPOS_TRANSITO.sedan
   const g = new THREE.Group()
   const lata = new THREE.MeshStandardMaterial({ color: cor, roughness: 0.25, metalness: 0.55 })
   const vidro = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.05, metalness: 0.8 })
   const pneu = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 })
-  const corpo = new THREE.Mesh(new RoundedBoxGeometry(4.2, 0.62, 1.78, 3, 0.18), lata); corpo.position.y = 0.55; corpo.castShadow = true; g.add(corpo)
-  const cab = new THREE.Mesh(new RoundedBoxGeometry(2.3, 0.55, 1.6, 3, 0.2), vidro); cab.position.set(-0.2, 1.08, 0); cab.castShadow = true; g.add(cab)
-  const teto = new THREE.Mesh(new RoundedBoxGeometry(1.7, 0.08, 1.5, 2, 0.04), lata); teto.position.set(-0.25, 1.37, 0); g.add(teto)
   const rodas = []
-  for (const [x, z] of [[1.35, 0.82], [1.35, -0.82], [-1.35, 0.82], [-1.35, -0.82]]) {
-    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.24, 16), pneu); w.rotation.x = Math.PI / 2; w.position.set(x, 0.33, z); g.add(w); rodas.push(w)
+  const roda = (x, z, r, larg = 0.24) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(r, r, larg, 16), pneu); w.rotation.x = Math.PI / 2; w.position.set(x, r, z); g.add(w); rodas.push(w); return w }
+  if (tipo === 'moto') {
+    const qd = new THREE.Mesh(new RoundedBoxGeometry(1.3, 0.45, 0.32, 2, 0.12), lata); qd.position.set(0, 0.72, 0); qd.castShadow = true; g.add(qd)
+    const banco = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.1, 0.3), pneu); banco.position.set(-0.3, 0.98, 0); g.add(banco)
+    const guidao = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6), vidro); guidao.rotation.x = Math.PI / 2; guidao.position.set(0.6, 1.1, 0); g.add(guidao)
+    const piloto = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.55, 4, 8), new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.8 })); piloto.position.set(-0.15, 1.35, 0); piloto.rotation.z = -0.35; g.add(piloto)
+    const capacete = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), lata); capacete.position.set(0.08, 1.82, 0); g.add(capacete)
+    roda(0.75, 0, T.r, 0.14); roda(-0.75, 0, T.r, 0.16)
+    g.userData.piloto = [piloto, capacete]
+    return { g, rodas, tipo }
   }
+  const corpo = new THREE.Mesh(new RoundedBoxGeometry(T.L, T.h, T.W, 3, 0.18), lata); corpo.position.y = T.r + T.h / 2 + 0.06; corpo.castShadow = true; g.add(corpo)
+  if (tipo === 'onibus') {   // janelas laterais em faixa e letreiro
+    const jan = new THREE.Mesh(new THREE.BoxGeometry(T.L * 0.86, 0.95, T.W + 0.02), vidro); jan.position.set(0.2, T.r + T.h * 0.72, 0); g.add(jan)
+    const para = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.1, T.W * 0.86), vidro); para.position.set(T.L / 2 + 0.01, T.r + T.h * 0.66, 0); g.add(para)
+  } else if (T.cab[0]) {
+    const top = corpo.position.y + T.h / 2
+    const cab = new THREE.Mesh(new RoundedBoxGeometry(T.cab[0], T.cab[1], T.W - 0.18, 3, 0.2), vidro); cab.position.set(tipo === 'picape' ? 0.7 : tipo === 'van' ? 0.3 : -0.2, top + T.cab[1] / 2 - 0.04, 0); cab.castShadow = true; g.add(cab)
+    const teto = new THREE.Mesh(new RoundedBoxGeometry(T.cab[0] * 0.74, 0.08, T.W - 0.28, 2, 0.04), lata); teto.position.set(cab.position.x - 0.05, top + T.cab[1] - 0.02, 0); g.add(teto)
+  }
+  const ex = T.L / 2 - (tipo === 'onibus' ? 2.2 : 0.85), ez = T.W / 2 - 0.07
+  for (const [x, z] of [[ex, ez], [ex, -ez], [-ex, ez], [-ex, -ez]]) roda(x, z, T.r)
+  if (tipo === 'onibus') { roda(-ex + 1.3, ez, T.r); roda(-ex + 1.3, -ez, T.r) }
   const farol = new THREE.MeshStandardMaterial({ color: 0xfff7d6, emissive: 0xfff2c0, emissiveIntensity: 0.6 })
   const lanterna = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xdc2626, emissiveIntensity: 0.5 })
-  for (const z of [0.6, -0.6]) {
-    const f = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.34), farol); f.position.set(2.1, 0.68, z); g.add(f)
-    const l = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.34), lanterna); l.position.set(-2.1, 0.68, z); g.add(l)
+  for (const z of [T.W * 0.34, -T.W * 0.34]) {
+    const yf = T.r + T.h * 0.6
+    const f = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.34), farol); f.position.set(T.L / 2, yf, z); g.add(f)
+    const l = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.34), lanterna); l.position.set(-T.L / 2, yf, z); g.add(l)
   }
-  return { g, rodas }
+  return { g, rodas, tipo }
 }
 
 // O prédio tem `andares` andares (padrão 11: térreo e 1º no pódio, 2º ao 11º na torre) e o escritório fica no `andar`
@@ -392,10 +421,10 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     }
     plano(horiz ? comp : 0.12, horiz ? 0.12 : comp, matAmarela, horiz ? cxp : meio - L.n * (RUA / 2 - 0.3), horiz ? meio - L.n * (RUA / 2 - 0.3) : czp, 0.012)
     const pa = L.k + L.n * (CAL + 3), pb = L.k + L.n * (CAL + 3 + 2 * RUA + MED)
-    ruas.push({ horiz, lado, faixas: [meio - L.n * 2.4, meio + L.n * 2.4], centro: (pa + pb) / 2, meia: (2 * RUA + MED) / 2, faixaPedestre: pe0(horiz) })
+    ruas.push({ horiz, lado, faixas: [meio - L.n * 2.4, meio + L.n * 2.4, meio2 - L.n * 2.4, meio2 + L.n * 2.4], centro: (pa + pb) / 2, meia: (2 * RUA + MED) / 2, faixaPedestre: pe0(horiz) })
     // faixa de pedestre perto da esquina
     const pe = horiz ? bx0 - CAL - 6 : bz1 + CAL + 6
-    for (let i = 0; i < 9; i++) plano(horiz ? 0.5 : RUA - 0.6, horiz ? RUA - 0.6 : 0.5, matFaixa, horiz ? pe : meio - RUA / 2 + 0.6 + i * 1.05, horiz ? meio - RUA / 2 + 0.6 + i * 1.05 : pe, 0.013)
+    for (const mm of [meio, meio2]) for (let i = 0; i < 9; i++) plano(horiz ? 0.5 : RUA - 0.6, horiz ? RUA - 0.6 : 0.5, matFaixa, horiz ? pe : mm - RUA / 2 + 0.6 + i * 1.05, horiz ? mm - RUA / 2 + 0.6 + i * 1.05 : pe, 0.013)
   }
   // palmeiras no canteiro e na calçada
   const arvores = []
@@ -423,19 +452,23 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       if (noite) { const pl = new THREE.PointLight(0xffd59a, 2.2, 14, 1.8); pl.position.copy(lu.position).setY(6.8); entorno.add(pl); postes.push(pl) }
     }
   }
-  // carros andando nas duas mãos
+  // trânsito: duas pistas por sentido (uma de cada lado do canteiro), carros, SUVs, vans, picapes, motos e ônibus.
+  // Cada um guarda distância, para no semáforo e freia para quem estiver na frente (pessoa a pé ou o carro dirigido).
   const carros = []
-  const cores = [0xf8fafc, 0xd4d4d8, 0x9ca3af, 0x1f2937, 0xb91c1c, 0x1e40af, 0xe5e7eb]
-  ruas.forEach((rua, ir) => rua.faixas.forEach((lin, mao) => {
-    for (let i = 0; i < 2; i++) {
-      const c = carro(cores[Math.floor(r() * cores.length)])
-      const sentido = mao ? 1 : -1
+  const cores = [0xf8fafc, 0xd4d4d8, 0x9ca3af, 0x1f2937, 0xb91c1c, 0x1e40af, 0xe5e7eb, 0x0f766e, 0x78350f, 0x111827]
+  const sorteiaTipo = () => { const x = r(); return x < 0.46 ? 'sedan' : x < 0.66 ? 'suv' : x < 0.76 ? 'picape' : x < 0.85 ? 'van' : x < 0.94 ? 'moto' : 'onibus' }
+  ruas.forEach((rua, ir) => rua.faixas.forEach((lin, idx) => {
+    const sentido = idx < 2 ? -1 : 1
+    for (let i = 0; i < 3; i++) {
+      const tipo = sorteiaTipo()
+      const c = carro(tipo === 'onibus' ? 0xe5e7eb : cores[Math.floor(r() * cores.length)], tipo)
       c.g.rotation.y = rua.horiz ? (sentido > 0 ? 0 : Math.PI) : (sentido > 0 ? -Math.PI / 2 : Math.PI / 2)
       entorno.add(c.g)
-      const vmax = 7 + r() * 5
-      carros.push({ ...c, rua, lin, sentido, u: -150 + r() * 300 + i * 60 + ir * 13, vel: vmax, vmax })
+      const vmax = tipo === 'onibus' ? 6 + r() * 2 : tipo === 'moto' ? 9 + r() * 6 : 7 + r() * 5
+      carros.push({ ...c, rua, lin, sentido, u: -170 + ((i * 123 + idx * 47 + ir * 31) % 340) + r() * 8, vel: vmax, vmax, comp: TIPOS_TRANSITO[tipo].L })
     }
   }))
+  const moveis = []   // pessoa controlada / carro dirigido: o trânsito freia antes deles
   // cidade em volta (cidade3d.js): lotes fora do quarteirão do prédio, das duas avenidas e do terminal de ônibus
   let vida = null, tempo = null
   const Lh = ruas.find((x) => x.horiz), Lv = ruas.find((x) => !x.horiz)
@@ -512,6 +545,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     sinal.pedestre = k >= 13 && k < 16
     if (cruz) for (const via of ['H', 'V']) { const cor = corDe(via, k); for (const nome of ['vermelho', 'amarelo', 'verde']) lampadas[via][nome].emissiveIntensity = nome === cor ? 2.2 : 0 }
     carros.forEach((c) => {
+      if (c.roubado) return
       // semáforo: freia antes da faixa de retenção se não estiver verde; fila: guarda distância do carro da frente
       let alvo = c.vmax
       if (cruz) {
@@ -522,9 +556,15 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
         if (cor !== 'verde' && d > -0.5 && d < 30 && !(cor === 'amarelo' && d < 6)) alvo = Math.max(0, (d - 2.5) * 0.7)
       }
       for (const o of carros) {
-        if (o === c || o.rua !== c.rua || o.lin !== c.lin) continue
-        const gap = (o.u - c.u) * c.sentido
-        if (gap > 0 && gap < 9) alvo = Math.min(alvo, Math.max(0, (gap - 5.5) * 1.5))
+        if (o === c || o.roubado || o.rua !== c.rua || o.lin !== c.lin) continue
+        const gap = (o.u - c.u) * c.sentido, folga = (o.comp + c.comp) / 2 + 1.4
+        if (gap > 0 && gap < folga + 6) alvo = Math.min(alvo, Math.max(0, (gap - folga) * 1.5))
+      }
+      for (const m of moveis) {   // alguém na faixa à frente: freia (e para) antes
+        if (!m) continue
+        const baseM = c.rua.horiz ? cxp : czp
+        const lat = c.rua.horiz ? m.z - c.lin : m.x - c.lin, lon = ((c.rua.horiz ? m.x : m.z) - (baseM + c.u)) * c.sentido
+        if (Math.abs(lat) < 1.6 + (m.r || 0) && lon > 0 && lon < 22) alvo = Math.min(alvo, Math.max(0, (lon - c.comp / 2 - 2.5 - (m.r || 0)) * 0.9))
       }
       c.vel += Math.max(-dt * 9, Math.min(dt * 3.5, alvo - c.vel))
       c.u += c.sentido * c.vel * dt
@@ -555,5 +595,13 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   return { grupo, alvos, aplicar, tick, definirTempo, get k() { return k }, yA, altura: base + TH + 4, largura: Math.max(BW, BD),
     podio: { bx0, bx1, bz0, bz1, HP, entrada: ladoEntrada, centroEntrada }, casca, andarG, torre,
     // ruas da cidade para o avatar: fora da calçada do prédio, anda livre desviando dos lotes construídos e do terminal
-    cidade: { obstaculos: cidadeInfo.obstaculos, limite: cidadeInfo.limite, podio: [bx0, bz0, bx1, bz1] } }   // o terminal é aberto: dá para andar nas plataformas
+    cidade: { obstaculos: cidadeInfo.obstaculos, limite: cidadeInfo.limite, podio: [bx0, bz0, bx1, bz1] },
+    // trânsito para o Mapa3D: posição de cada veículo no mundo, tirar um da rua (a pessoa pegou para dirigir) e quem o trânsito evita
+    transito: {
+      lista: () => carros.filter((c) => !c.roubado && c.g.visible).map((c) => ({ c, x: c.g.position.x, z: c.g.position.z, psi: c.g.rotation.y + Math.PI / 2, vel: c.vel * c.sentido, tipo: c.tipo, comp: c.comp })),
+      tirar(c) { c.roubado = true; c.g.visible = false },
+      devolver(c) { c.roubado = false; c.g.visible = true; c.vel = 0 },
+      moveis,
+      estacionados: cidadeInfo.estacionados || null,
+    } }   // o terminal é aberto: dá para andar nas plataformas
 }

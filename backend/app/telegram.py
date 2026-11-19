@@ -34,13 +34,8 @@ REDES_TELEGRAM = [ipaddress.ip_network(n) for n in ("149.154.160.0/20", "91.108.
 LIMITE_MIN = 20
 FALHAS_BLOQUEIO = 5
 
-COMANDOS = [
-    ("menu", "Menu principal"), ("status", "Agente, ares ligados e transmissores"), ("ares", "Painel de cada ar: modo, temperatura, ventilação, timer"),
-    ("ligados", "Só os ares ligados agora"), ("desligartodos", "Desligar todos os ares ligados"), ("transmissores", "Transmissores e o que cada um atende"),
-    ("agentes", "Computadores do escritório e quem está no comando"), ("ia", "Conversar com a IA (ou só mande uma mensagem)"),
-    ("cenas", "Executar uma cena"), ("luzes", "Acender e apagar as luzes"), ("notificacoes", "Últimas notificações"),
-    ("relatorio", "Resumo dos últimos 7 dias"), ("ajuda", "Como usar e segurança"), ("sair", "Desvincular este Telegram"),
-]
+# os comandos ficam em telegram_cmds.py (catálogo com categorias, permissões e confirmação); o menu "/" do Telegram
+# mostra os 100 mais usados (limite do Telegram) e /comandos navega por todos
 
 
 # ---------------- configuração ----------------
@@ -94,7 +89,8 @@ def configurar(token: str) -> dict:
     c["username"] = eu.get("username"); c["nome"] = eu.get("first_name"); _salvar(c)
     chamar("setWebhook", url=f"{APP}/api/telegram/webhook", secret_token=c["segredo"], allowed_updates=["message", "callback_query"],
            drop_pending_updates=True, max_connections=10)
-    chamar("setMyCommands", commands=[{"command": k, "description": d} for k, d in COMANDOS])
+    from . import telegram_cmds
+    chamar("setMyCommands", commands=telegram_cmds.para_telegram())
     chamar("setChatMenuButton", menu_button={"type": "commands"})
     chamar("setMyDescription", description="Bot do Clima Escritório. Só funciona para quem vinculou o Telegram pelo painel (app.zynio.com.br → Telegram).")
     chamar("setMyShortDescription", short_description="Ares-condicionados do escritório pelo Telegram, com as permissões de cada pessoa.")
@@ -114,7 +110,17 @@ def estado_publico(usuario_id: str | None = None, todos: bool = False) -> dict:
             if todos or v.get("usuario_id") == usuario_id]
     return {"configurado": bool(c.get("token")), "username": c.get("username"), "nome": c.get("nome"),
             "webhook_ok": bool(info.get("url", "").endswith("/api/telegram/webhook")), "pendentes": info.get("pending_update_count"),
-            "ultimo_erro": info.get("last_error_message"), "vinculos": vinc, "comandos": COMANDOS}
+            "ultimo_erro": info.get("last_error_message"), "vinculos": vinc, "comandos": _catalogo(), "categorias": _categorias()}
+
+
+def _catalogo():
+    from . import telegram_cmds
+    return telegram_cmds.publico()
+
+
+def _categorias():
+    from . import telegram_cmds
+    return [{"id": k, "nome": r, "descricao": d} for k, r, d in telegram_cmds.CATS]
 
 
 def gerar_codigo(usuario_id: str) -> dict:
@@ -226,7 +232,8 @@ def processar(upd: dict):
                                                      "telegram": quem.get("username") or quem.get("first_name")}
                 _salvar(c); e["bloqueios"].pop(cid, None); _salvar_estado(e)
                 db.registrar("telegram", "Telegram vinculado", detalhe=f"{u.get('nome') or u['email']} (@{quem.get('username') or '-'})")
-                _enviar(cid, f"Pronto, <b>{_e(u.get('nome') or 'você')}</b>: este Telegram está ligado à sua conta, com as suas permissões.", _menu())
+                _enviar(cid, f"Pronto, <b>{_e(u.get('nome') or 'você')}</b>: este Telegram está ligado à sua conta, com as suas permissões. "
+                        "Toque em Menu completo ou escreva o que precisa.", _menu())
                 return
         falhas = int(b.get("falhas", 0)) + 1
         e["bloqueios"][cid] = {"falhas": falhas, "em": agora, **({"ate": agora + 86400} if falhas >= FALHAS_BLOQUEIO else {})}
@@ -256,12 +263,9 @@ def processar(upd: dict):
 
 
 def _menu():
-    return [[{"text": "Status", "callback_data": "m:status"}, {"text": "Ares", "callback_data": "m:ares"}, {"text": "Ligados", "callback_data": "m:ligados"}],
-            [{"text": "Transmissores", "callback_data": "m:tx"}, {"text": "Agentes", "callback_data": "m:agentes"}],
-            [{"text": "Cenas", "callback_data": "m:cenas"}, {"text": "Luzes", "callback_data": "m:luzes"}],
-            [{"text": "Notificações", "callback_data": "m:notif"}, {"text": "Relatório 7 dias", "callback_data": "m:rel"}],
-            [{"text": "Conversar com a IA", "callback_data": "m:ia"}],
-            [{"text": "Desligar todos os ares", "callback_data": "m:desligartodos"}]]
+    """Atalhos curtos que acompanham as respostas; o menu completo (com o estado no topo) é o /menu."""
+    return [[{"text": "Ares", "callback_data": "m:ares"}, {"text": "Ligados", "callback_data": "m:ligados"}, {"text": "Status", "callback_data": "m:status"}],
+            [{"text": "Menu completo", "callback_data": "m:menu"}, {"text": "Todos os comandos", "callback_data": "x:comandos"}]]
 
 
 def _ares_visiveis():
@@ -282,49 +286,13 @@ def _comando(cid, texto, u):
     resto = texto[len(texto.split()[0]):].strip() if texto.split() else ""
     if texto and not texto.startswith("/"):
         return _ia(cid, texto, u)
-    if cmd in ("/start", "/menu", ""):
-        return _enviar(cid, f"Olá, {_e((u.get('nome') or '').split(' ')[0] or 'tudo bem')}. O que você quer fazer? Também pode escrever o que precisa, "
-                       "por exemplo: <i>coloca o ar do diretor em 23 graus</i>.", _menu())
-    if cmd == "/ia":
-        return _ia(cid, resto, u) if resto else _enviar(cid, "Escreva o que precisa, do seu jeito. Exemplos:\n- quais ares estão ligados?\n"
-                                                              "- liga o ar do Deison em 22 graus, ventilação alta\n- desliga o ar dos devs daqui a 30 minutos\n"
-                                                              "- por que o ar não obedece?\n\nA IA usa as suas permissões. Desligar todos e cenas pedem confirmação. "
-                                                              "/esquecer apaga a conversa.")
-    if cmd == "/esquecer":
-        _historico(cid, limpar=True)
-        return _enviar(cid, "Conversa com a IA apagada.")
-    if cmd == "/ligados":
-        return _lista_ares(cid, so_ligados=True)
-    if cmd == "/transmissores":
-        return _transmissores(cid)
-    if cmd == "/agentes":
-        return _agentes(cid)
-    if cmd == "/ajuda":
-        return _enviar(cid, "<b>Comandos</b>\n" + "\n".join(f"/{k} · {_e(d)}" for k, d in COMANDOS) +
-                       "\n\n<b>Também por texto:</b> /ligar NOME, /desligar NOME, /temperatura NOME 23, ou escreva normalmente "
-                       "que a IA entende (ex.: <i>desliga o ar dos devs daqui a 1 hora</i>).\n\n"
-                       "<b>Segurança:</b> o bot só responde a quem vinculou o Telegram pelo painel e age com as permissões dessa pessoa. "
-                       "Ações em lote pedem confirmação. Perdeu o celular? No painel → Telegram → Desvincular.")
-    if cmd == "/status":
+    from . import telegram_cmds
+    nome = cmd.lstrip("/")
+    if nome == "status":
         return _status(cid)
-    if cmd == "/ares":
-        return _lista_ares(cid)
-    if cmd in ("/ligar", "/desligar", "/temperatura"):
-        return _por_texto(cid, cmd, resto)
-    if cmd == "/desligartodos":
-        return _pedir_confirmacao(cid, "desligartodos", None, "Desligar <b>todos</b> os ares ligados que você controla?")
-    if cmd == "/cenas":
-        return _cenas(cid)
-    if cmd == "/luzes":
-        return _luzes(cid)
-    if cmd == "/notificacoes":
-        return _notificacoes(cid)
-    if cmd == "/relatorio":
-        return _relatorio(cid)
-    if cmd == "/sair":
-        desvincular(cid, "telegram")
-        return _enviar(cid, "Telegram desvinculado. Para usar de novo, gere outro código no painel.")
-    return _enviar(cid, "Não conheço esse comando. Use /menu ou /ajuda.", _menu())
+    if nome in telegram_cmds.C:
+        return telegram_cmds.executar(telegram_cmds.Ctx(cid, u), nome, resto)
+    return _enviar(cid, "Não conheço esse comando. Use /menu, /buscar palavra ou escreva do seu jeito.", _menu())
 
 
 def _status(cid, editar=None):
@@ -405,7 +373,8 @@ def _painel_ar(cid, aid, editar=None, aviso=""):
           [{"text": marca(vent, k, r), "callback_data": f"v:{aid}:{k}"} for k, r in (("auto", "Vent. auto"), ("baixa", "Baixa"), ("media", "Média"), ("alta", "Alta"))],
           [{"text": f"Desligar em {r}", "callback_data": f"p:{aid}:{m}"} for m, r in ((30, "30 min"), (60, "1 h"), (120, "2 h"))]
           + ([{"text": "Sem timer", "callback_data": f"pc:{aid}"}] if timer else []),
-          [{"text": "Atualizar", "callback_data": f"a:{aid}"}, {"text": "Voltar", "callback_data": "m:ares"}]]
+          [{"text": "Diagnóstico", "callback_data": f"xs:diagnostico:{aid}"}, {"text": "Histórico", "callback_data": f"xs:historico:{aid}"}, {"text": "Favoritar", "callback_data": f"fv:{aid}"}],
+          [{"text": "Atualizar", "callback_data": f"a:{aid}"}, {"text": "Voltar", "callback_data": "m:ares"}, {"text": "Menu", "callback_data": "m:menu"}]]
     bt = [r for r in bt if r]
     _enviar(cid, "\n".join(linhas), bt, editar)
 
@@ -609,10 +578,27 @@ def _clique(cid, cb, u):
     except Exception:  # noqa: BLE001
         pass
     tipo, _, arg = dado.partition(":")
+    from . import telegram_cmds
+    ctx = telegram_cmds.Ctx(cid, u, mid)
+    if tipo == "k":   # página de uma categoria
+        cat, _, pag = arg.partition(":")
+        t, bt = telegram_cmds.pagina_categoria(ctx, cat, int(pag or 0))
+        return _enviar(cid, t, bt, mid)
+    if tipo == "x":   # executa um comando do catálogo (x:nome ou x:nome:argumentos)
+        nome, _, args = arg.partition(":")
+        return telegram_cmds.executar(ctx, nome, args)
+    if tipo == "xs":   # comando com o item escolhido na lista (xs:nome:id[:resto])
+        nome, _, r2 = arg.partition(":")
+        ent, _, args = r2.partition(":")
+        return telegram_cmds.executar(ctx, nome, args, ent_id=ent)
+    if tipo == "xt":
+        return telegram_cmds.executar(ctx, "transmissor", (db.um("SELECT nome FROM hubs WHERE id = ?", (arg,)) or {}).get("nome", ""))
+    if tipo == "fv":   # favoritar pelo painel do ar
+        return telegram_cmds.executar(ctx, "fav", "", ent_id=arg)
     if tipo == "m":
-        fn = {"menu": lambda: _enviar(cid, "O que você quer fazer?", _menu(), mid), "status": lambda: _status(cid, mid), "ares": lambda: _lista_ares(cid, mid),
+        fn = {"menu": lambda: _enviar(cid, *telegram_cmds.menu_principal(ctx), mid), "status": lambda: _status(cid, mid), "ares": lambda: _lista_ares(cid, mid),
               "ligados": lambda: _lista_ares(cid, mid, so_ligados=True), "tx": lambda: _transmissores(cid, mid), "agentes": lambda: _agentes(cid, mid),
-              "ia": lambda: _comando(cid, "/ia", u),
+              "ia": lambda: telegram_cmds.executar(ctx, "ia", ""),
               "cenas": lambda: _cenas(cid, mid), "luzes": lambda: _luzes(cid, mid), "notif": lambda: _notificacoes(cid, mid), "rel": lambda: _relatorio(cid, mid),
               "desligartodos": lambda: _pedir_confirmacao(cid, "desligartodos", None, "Desligar <b>todos</b> os ares ligados que você controla?")}.get(arg)
         return fn() if fn else None
@@ -660,6 +646,9 @@ def _clique(cid, cb, u):
         _salvar_estado(e)
         if not p or p["chat"] != cid:
             return _enviar(cid, "Esta confirmação venceu. Peça de novo.", _menu())
+        if p["acao"] == "cmd":
+            v = p["valor"] or {}
+            return telegram_cmds.executar(telegram_cmds.Ctx(cid, u, None, confirmado=True), v.get("nome", ""), v.get("args", ""), ent_id=v.get("id"))
         if p["acao"] == "desligartodos":
             _pode("aparelhos.controlar")
             from . import clima

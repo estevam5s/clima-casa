@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Copy, ExternalLink, KeyRound, Link2, ShieldCheck, Trash2 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
@@ -78,13 +78,7 @@ export default function Telegram() {
           </section>
         </div>
         <div className="space-y-6">
-          <section className="cartao p-5">
-            <h2 className="titulo-secao">Comandos e menu</h2>
-            <ul className="mt-3 grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
-              {dados.comandos.map(([k, d]) => <li key={k}><code className="text-primary">/{k}</code> <span className="text-muted-foreground">{d}</span></li>)}
-            </ul>
-            <p className="mt-3 text-xs text-muted-foreground">Por texto: /ligar NOME, /desligar NOME, /temperatura NOME 23. No menu, botões para cada ar (ligar, desligar, ±2°), cenas e luzes.</p>
-          </section>
+          <CatalogoComandos comandos={dados.comandos || []} categorias={dados.categorias || []} />
           <section className="cartao p-5">
             <h2 className="titulo-secao flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />Segurança do bot</h2>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
@@ -109,5 +103,40 @@ export default function Telegram() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Catálogo de comandos do bot: categorias, busca e quais pedem confirmação ou permissão.
+function CatalogoComandos({ comandos, categorias }) {
+  const [q, setQ] = useState('')
+  const [cat, setCat] = useState('')
+  const lista = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return comandos.filter((c) => (!cat || c.cat === cat) && (!t || c.nome.includes(t) || c.desc.toLowerCase().includes(t)))
+  }, [comandos, q, cat])
+  const conta = (id) => comandos.filter((c) => c.cat === id).length
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao">{comandos.length} comandos em {categorias.length} categorias</h2>
+      <p className="mt-1 text-xs text-muted-foreground">No Telegram, /menu mostra o estado no topo (ares ligados, agente, tempo lá fora, notificações) e os atalhos; <b>Todos os comandos</b> navega por categoria com páginas. O menu “/” do Telegram lista os 100 mais usados. Também dá para escrever normalmente: a IA entende.</p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input type="search" autoComplete="off" className="campo h-9 flex-1" placeholder="Procurar comando (ex.: temperatura, gasto, persiana)" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Procurar comando" />
+        <select className="campo h-9 sm:w-56" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Categoria">
+          <option value="">Todas as categorias</option>
+          {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome} ({conta(c.id)})</option>)}
+        </select>
+      </div>
+      <ul className="mt-3 max-h-[28rem] space-y-1.5 overflow-y-auto pr-1 text-sm">
+        {lista.map((c) => (
+          <li key={c.nome} className="flex flex-wrap items-baseline gap-x-2">
+            <code className="text-primary">{c.uso}</code>
+            <span className="min-w-0 flex-1 text-muted-foreground">{c.desc}</span>
+            {c.confirmar && <span className="rounded bg-amber-500/15 px-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">pede confirmação</span>}
+            {c.restrito && <span className="rounded bg-muted px-1.5 text-[10px] text-muted-foreground">conforme permissão</span>}
+          </li>
+        ))}
+        {!lista.length && <li className="text-muted-foreground">Nenhum comando com esse texto.</li>}
+      </ul>
+    </section>
   )
 }

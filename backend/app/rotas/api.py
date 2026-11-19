@@ -4088,7 +4088,7 @@ class VeiculoIn(BaseModel):
 
 
 class VeiculosIn(BaseModel):
-    veiculos: list[VeiculoIn] = Field([], max_length=12)
+    veiculos: list[VeiculoIn] = Field([], max_length=20)
 
 
 @api.put("/mapa/veiculos")
@@ -4108,8 +4108,9 @@ def mapa_veiculos(d: VeiculosIn):
     return {"veiculos": lista}
 
 
-FISICA_LIMITES = {"massa": (300, 6000), "potencia": (20, 1500), "aderencia": (0.4, 1.6), "freio": (0.3, 1.5), "marchas": (3, 8),
-                  "velmax": (40, 380), "direcao": (15, 45), "suspensao": (0.3, 2.0), "cg": (0.25, 1.2)}
+FISICA_LIMITES = {"massa": (150, 20000), "potencia": (20, 1500), "aderencia": (0.4, 1.6), "freio": (0.3, 1.5), "marchas": (3, 10),
+                  "velmax": (40, 420), "direcao": (15, 45), "suspensao": (0.3, 2.0), "cg": (0.25, 1.5), "comprimento": (0, 15),
+                  "esc": (0, 1), "nitro": (0, 1), "eletrico": (0, 1), "voar": (0, 1), "duasRodas": (0, 1), "inverter": (0, 1)}
 
 
 class VeiculoPosIn(BaseModel):
