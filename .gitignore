@@ -41,3 +41,7 @@ agente-windows.cmd
 # senhas em texto puro: nunca versionar (auditoria 17/11)
 docs/contas.md
 uso.md
+
+# modelos 3D brutos (grandes; ficam só na máquina do dono)
+/new-blenders/
+/blender/

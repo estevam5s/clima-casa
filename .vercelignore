@@ -23,3 +23,9 @@ SECURITY-REPORT.*
 /iniciar.sh
 /instalar-servico.sh
 /infra-vermelho.json
+
+# modelos 3D brutos do dono (centenas de MB): a biblioteca usa as versões reduzidas no Storage
+/new-blenders
+/blender
+*.glb
+*.fbx
