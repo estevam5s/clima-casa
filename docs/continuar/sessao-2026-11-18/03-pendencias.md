@@ -60,3 +60,11 @@ A fazer (decisões já tomadas pelo dono):
 11. Guia: impressão no modelo da PMF e mais completo.
 12. Precificação: domínio + 9 dispositivos a US$ 3 cada, com itens adicionáveis.
 
+
+## 19/11, noite (1.20.0, publicada)
+- Telegram: 264 comandos (`backend/app/telegram_cmds.py`), menu por categoria, 100 no menu "/" (registrado). Testado com Telegram simulado (264 comandos; só os de leitura do Spotify falham pelo 403 conhecido). **Falta testar no celular.**
+- 34 modelos de `new-blenders` importados (ids 19–52, reduzidos com gltf-transform; 3 FBX convertidos pelo three.js). 8 veículos em `config.mapa_veiculos`.
+- Carro: ESC, automático P/R/N/D, nitro, elétrico, moto, voo (Roadster, tecla T). Pegar carro do trânsito/estacionamento com E. Cidade: estacionamentos, posto, pontos de ônibus, chafarizes, outdoors, faixas, trânsito com 2 pistas por sentido.
+- Testado no navegador (headless): entrar, voar, pousar, pegar sedã do trânsito e do estacionamento. Não testado: som e direção com placa de vídeo de verdade, moto e ônibus dirigidos.
+- `/new-blenders` e `/blender` fora do git e da Vercel (1,5 GB estourava o limite de 500 MB da função).
+- Pendente do dono: Spotify → User Management.
