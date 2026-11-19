@@ -14,3 +14,7 @@
 
 ## Antigas
 - Rotas por usuário (categorias), página de preços, apps pelo Supabase Storage, editor 3D da cafeteira e persianas, Música pelo navegador.
+
+## Depois da 1.24.1
+- Testar a tela do Assistente de IA num Android real (abrir o app 2 vezes para receber o update).
+- Instaladores do desktop não são assinados (Mac: botão direito → Abrir).
