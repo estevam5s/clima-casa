@@ -52,7 +52,8 @@ read -r -p "Digite APAGAR para confirmar: " OK
 [ "$OK" = APAGAR ] || falha "Cancelado."
 
 titulo "3/5 Wi-Fi do escritório (2,4 GHz, a mesma rede dos transmissores)"
-read -r -p "Nome da rede (SSID) — Enter para usar só cabo de rede: " SSID
+SSID="${CLIMA_WIFI_SSID:-}"   # ex.: CLIMA_WIFI_SSID=Egov ./scripts/preparar-cartao-raspberry.sh
+if [ -n "$SSID" ]; then echo "Rede: $SSID"; else read -r -p "Nome da rede (SSID) — Enter para usar só cabo de rede: " SSID; fi
 SENHA=""
 if [ -n "$SSID" ]; then read -r -s -p "Senha do Wi-Fi (não aparece): " SENHA; echo; fi
 
@@ -92,9 +93,43 @@ packages:
 - python3-venv
 - curl
 - unzip
+- iw
+- unattended-upgrades
+write_files:
+# 24/7: o watchdog de hardware reinicia o Pi se o sistema travar (15 s sem resposta)
+- path: /etc/systemd/system.conf.d/clima-watchdog.conf
+  content: |
+    [Manager]
+    RuntimeWatchdogSec=15
+    RebootWatchdogSec=2min
+# cartão dura mais: diário do sistema com tamanho limitado
+- path: /etc/systemd/journald.conf.d/clima.conf
+  content: |
+    [Journal]
+    SystemMaxUse=80M
+    MaxRetentionSec=14day
+# o Wi-Fi do Pi entra em economia de energia e cai de madrugada: desliga isso a cada boot
+- path: /etc/systemd/system/clima-wifi-sempre.service
+  content: |
+    [Unit]
+    Description=Wi-Fi sem economia de energia (agente 24/7)
+    After=network-online.target
+    Wants=network-online.target
+    [Service]
+    Type=oneshot
+    ExecStart=/bin/sh -c '/usr/sbin/iw dev wlan0 set power_save off || true'
+    [Install]
+    WantedBy=multi-user.target
+# atualizações de segurança automáticas (sem reiniciar sozinho)
+- path: /etc/apt/apt.conf.d/20auto-upgrades
+  content: |
+    APT::Periodic::Update-Package-Lists "1";
+    APT::Periodic::Unattended-Upgrade "1";
 runcmd:
 - [ systemctl, enable, --now, ssh ]
 - [ systemctl, enable, --now, avahi-daemon ]
+- [ systemctl, daemon-reload ]
+- [ systemctl, enable, --now, clima-wifi-sempre.service ]
 - [ bash, -c, "bash /boot/firmware/clima/primeiro-boot.sh >> /var/log/clima-primeiro-boot.log 2>&1" ]
 EOF
 {
@@ -117,6 +152,8 @@ EOF
   fi
 } > "$BOOT/network-config"
 unset SENHA
+# watchdog de hardware do Broadcom (usado pelo systemd acima)
+grep -q '^dtparam=watchdog=on' "$BOOT/config.txt" || printf '\n# Clima Escritório: watchdog de hardware (reinicia se travar)\ndtparam=watchdog=on\n' >> "$BOOT/config.txt"
 mkdir -p "$BOOT/clima"
 ( cd "$RAIZ" && git archive --format=tar HEAD backend requirements.txt instalar-linux.sh > "$BOOT/clima/codigo.tar" \
   && { [ -d backend/static ] && tar -rf "$BOOT/clima/codigo.tar" backend/static || true; } && gzip -9f "$BOOT/clima/codigo.tar" )
