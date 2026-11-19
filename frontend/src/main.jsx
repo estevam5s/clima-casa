@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
+import { vigiarErros } from './errosTela'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import './index.css'
 import { api } from './api'
@@ -15,6 +16,7 @@ import Atividade from './pages/Atividade'
 import Notificacoes from './pages/Notificacoes'
 import Luzes from './pages/Luzes'
 import Telegram from './pages/Telegram'
+import Bugs from './pages/Bugs'
 import Alexa from './pages/Alexa'
 import Configuracoes from './pages/Configuracoes'
 import Autorizar from './pages/Autorizar'
@@ -91,6 +93,7 @@ import Cursor from './components/Cursor'
     .catch(() => guardar({ ok: false, msg: 'Sem conexão para concluir o login do Spotify. Tente de novo.' }))
 })()
 
+vigiarErros()
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <TemaProvider>
@@ -113,6 +116,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="notificacoes" element={<Notificacoes />} />
             <Route path="luzes" element={<Luzes />} />
             <Route path="telegram" element={<Telegram />} />
+            <Route path="bugs" element={<Bugs />} />
             <Route path="alexa" element={<Alexa />} />
             <Route path="supabase" element={<Supabase />} />
             <Route path="projetos" element={<Projetos />} />

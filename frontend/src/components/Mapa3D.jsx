@@ -12,6 +12,7 @@ import { salasPrivativas } from '../mapaUtil'
 import { useMarca } from '../marca'
 import { caminho, criarGrade, celulaLivre, livreProxima, montarPredio, visaoLivre } from './predio3d'
 import { ELEV, montarElevador, montarTerreo } from './elevador3d'
+import MiniMapa from './MiniMapa'
 import { cafeteiraVermelha, montarBanheiro, montarCozinha, xicara } from './copa3d'
 import { caixaReal, carregarAvatar } from './avatares/AvatarViewer'
 import { clone as clonarComOssos } from 'three/examples/jsm/utils/SkeletonUtils.js'
@@ -833,6 +834,9 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const MARGEM = comPredio ? 4.2 : 0   // corredor largo dos lados (antes 2,5 m: o avatar enroscava)
     const fx0 = W(x0) - 0.35 - MARGEM, fx1 = W(x1) + 0.35 + MARGEM, fz0 = Z(y0) - 0.35 - MARGEM, fz1 = Z(y1) + 0.35 + MARGEM
     E.limitesAndar = comPredio ? [fx0 + 0.32, fz0 + 0.32, fx1 - 0.32, fz1 - 0.32] : null
+    // minimapa (estilo jogo): salas com a cor do projeto e o contorno do prédio, em metros do mundo
+    E.mini = { salas: salas.map((s) => ({ x0: W(s.x), z0: Z(s.y), x1: W(s.x + s.w), z1: Z(s.y + s.h), cor: s.p.cor || '#0f766a', nome: s.p.nome })),
+      predio: [fx0, fz0, fx1, fz1], andar: Number.isFinite(+mapa.andar) ? +mapa.andar : 9 }
     E.elevAndar = null; E.elevInfo = null; E.elevTerreo = null; E.trocarNivel = null   // a cena é refeita: nada da anterior
     E.cidadeRuas = null
     const predio = comPredio ? montarPredio({ bx0: fx0, bx1: fx1, bz0: fz0, bz1: fz1, entrada, nome: marca?.nome || '', noite: ceu.noite, r, andar, andares }) : null
@@ -2164,6 +2168,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       {acoes && <CartaoMapa mapa={mapa} projetos={projetos} cartao={cartao} fechar={() => setCartao(null)} acoes={{ ...acoes, editarEscrita: (es) => { setCartao(null); setRascunhoEsc({ ...es }) } }} perm={perm} ocupado={ocupado} executar={executar}
         controlar={(info, modo) => { setCartao(null); setEscrevendo(false); estado.current.iniciarControle?.(info, modo) }} />}
       {acoes && <RascunhoEscrita mapa={mapa} rascunho={rascunhoEsc} setRascunho={setRascunhoEsc} acoes={acoes} ocupado={ocupado} executar={executar} />}
+      {controle && <MiniMapa estado={estado} />}
       <BarraControle controle={controle} nome={controle?.info?.tipo === 'pessoa' ? ((mapa.pessoas || []).find((p) => p.id === controle.info.id)?.nome || 'Pessoa') : 'Pessoa sem cadastro'}
         mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} sentar={() => estado.current.sentar?.()} cafe={() => estado.current.cafe?.()}
         elevador={() => estado.current.irElevador?.()} andar={Number.isFinite(+mapa.andar) ? +mapa.andar : 9} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />

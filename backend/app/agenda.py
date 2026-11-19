@@ -60,6 +60,11 @@ async def laco():
                     await asyncio.to_thread(conformidade.selar)
                 except Exception as e:  # noqa: BLE001
                     log.warning("selo de integridade: %s", e)
+                try:   # procura bugs no próprio sistema (falhas repetidas, rotas sem regra, agente parado…) de hora em hora
+                    from . import bugs
+                    await asyncio.to_thread(bugs.varrer)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("varredura de bugs: %s", e)
         except Exception as e:  # noqa: BLE001
             log.exception("erro no laço da agenda: %s", e)
         ciclo += 1

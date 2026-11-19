@@ -2711,7 +2711,9 @@ def listar_notificacoes(filtro: str = "todas"):
     msgs = db.um("SELECT count(*) AS n FROM site_mensagens WHERE NOT lida AND NOT arquivada") if acesso.pode("mensagens.ver") else {"n": 0}
     r["status"] = {"agente_online": transmissor.agente_online(), "ligados": ligados["ligados"], "aparelhos": ligados["total"],
                    "hubs_online": hubs["online"], "hubs": hubs["total"], "mensagens_nao_lidas": msgs["n"],
-                   "notificacoes": r["total"]}
+                   "notificacoes": r["total"],
+                   "bugs": db.um("SELECT count(*) AS n FROM bugs WHERE estado IN ('aberto','analisando')" + ("" if acesso.pode("configuracoes.gerenciar") else " AND autor_id = ?"),
+                                 () if acesso.pode("configuracoes.gerenciar") else ((acesso.atual.get() or {}).get("id"),))["n"]}
     return r
 
 

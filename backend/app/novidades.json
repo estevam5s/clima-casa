@@ -2,6 +2,23 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.16.0",
+      "data": "2026-11-18",
+      "titulo": "Bugs, minimapa no mapa 3D e personagens que abrem certo no Blender",
+      "resumo": "Área de Bugs que também encontra problemas sozinha e gera o prompt para a IA corrigir, minimapa estilo jogo ao controlar uma pessoa e exportação de personagens com esqueleto.",
+      "novo": [
+        "Bugs (menu Sistema, com contador): relate o que não funciona; o sistema também registra sozinho erros das telas, erros do servidor e falhas repetidas, sugere a correção e gera o prompt para a IA",
+        "Mapa 3D: minimapa no canto ao controlar uma pessoa, que gira com ela, mostra as salas, as quadras, as pessoas por perto, o norte e onde fica o escritório (com a distância)"
+      ],
+      "melhorias": [
+        "Avatares → Estúdio: o .glb sai como um personagem de verdade (um esqueleto com uma malha e as animações no esqueleto), e abre certo no Blender"
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "Personagem exportado chegava no Blender como dezenas de peças soltas, com partes ocultas encolhidas e animações espalhadas"
+      ]
+    },
+    {
       "versao": "1.15.0",
       "data": "2026-11-18",
       "titulo": "Transferir o posto de dono e agente de IA no terminal",

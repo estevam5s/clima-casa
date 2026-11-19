@@ -535,3 +535,27 @@ alter table public.avatares add column if not exists escala_real integer not nul
 -- 1.11.0: luzes (lâmpadas, painéis, fitas e interruptores Smart Life) entram nos aparelhos do escritório
 alter table public.dispositivos drop constraint if exists dispositivos_tipo_check;
 alter table public.dispositivos add constraint dispositivos_tipo_check check (tipo in ('cafeteira', 'persiana', 'fechadura', 'luz'));
+
+-- 1.16.0: área de Bugs (relatados pelas pessoas e encontrados pelo próprio sistema)
+create table if not exists public.bugs (
+  id bigint generated always as identity primary key,
+  chave text unique,                 -- dedupe dos automáticos (mesmo erro soma ocorrência)
+  titulo text not null,
+  descricao text default '',
+  passos text default '',
+  pagina text default '',
+  gravidade text not null default 'media' check (gravidade in ('baixa','media','alta','critica')),
+  estado text not null default 'aberto' check (estado in ('aberto','analisando','corrigido','descartado')),
+  origem text not null default 'usuario' check (origem in ('usuario','sistema')),
+  categoria text default '',
+  autor_id text,
+  autor_nome text default '',
+  contexto jsonb not null default '{}'::jsonb,
+  sugestao text default '',
+  prompt text default '',
+  ocorrencias integer not null default 1,
+  criado_em bigint not null,
+  atualizado_em bigint not null
+);
+alter table public.bugs enable row level security;
+create index if not exists bugs_estado_atualizado on public.bugs (estado, atualizado_em desc);

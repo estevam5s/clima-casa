@@ -103,10 +103,61 @@ export function construir(r) {
   return { cena: raiz, clips, nos }
 }
 
+// Para o Blender (e outros programas 3D): um personagem de verdade = UMA armature (um osso por parte, com a mesma
+// hierarquia e pose) + UMA malha presa aos ossos (cada peça segue o seu osso, peso 1) + as animações como actions do
+// esqueleto. Antes saíam dezenas de objetos soltos, peças ocultas encolhidas a 0,0001 e animações espalhadas por objeto.
+export function montarRigado(r, mergeGeometries) {
+  const { cena, clips, nos } = construir(r)
+  const filhos = {}
+  for (const p of r.partes) if (p.pai) (filhos[p.pai] ||= []).push(p.id)
+  const ocultos = new Set()   // ocultas e tudo que está dentro delas (no app elas somem juntas)
+  const marcar = (id) => { ocultos.add(id); for (const f of filhos[id] || []) marcar(f) }
+  for (const p of r.partes) if (p.oculta) marcar(p.id)
+  for (const p of r.partes) if (p.oculta) nos[p.id].scale.fromArray(p.escNo || [1, 1, 1])   // pose de descanso real
+  cena.updateMatrixWorld(true)
+
+  const ossos = {}, lista = []
+  for (const p of r.partes) {
+    const b = new THREE.Bone(); b.name = p.id
+    b.position.copy(nos[p.id].position); b.quaternion.copy(nos[p.id].quaternion); b.scale.copy(nos[p.id].scale)
+    ossos[p.id] = b; lista.push(b)
+  }
+  const nome = (r.nome || 'modelo').replace(/[^\w-]/g, '_')
+  const raiz = new THREE.Group(); raiz.name = nome
+  const armature = new THREE.Group(); armature.name = `${nome}_esqueleto`; raiz.add(armature)
+  for (const p of r.partes) (p.pai ? ossos[p.pai] : armature).add(ossos[p.id])
+
+  const geos = [], mats = [], indiceMat = new Map()
+  r.partes.forEach((p, i) => {
+    if (ocultos.has(p.id)) return
+    const malha = nos[p.id].children.find((o) => o.isMesh)
+    if (!malha) return
+    const g = malha.geometry.clone().applyMatrix4(malha.matrixWorld)
+    const n = g.attributes.position.count
+    const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4)
+    for (let k = 0; k < n; k++) { si[k * 4] = i; sw[k * 4] = 1 }
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4))
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4))
+    if (!indiceMat.has(malha.material)) { indiceMat.set(malha.material, mats.length); mats.push(malha.material) }
+    g.userData.mat = indiceMat.get(malha.material)
+    geos.push(g)
+  })
+  if (!geos.length) throw new Error('Nada visível para exportar.')
+  const junta = mergeGeometries(geos, true)
+  if (!junta) throw new Error('Não foi possível juntar as peças.')
+  junta.groups.forEach((gr, k) => { gr.materialIndex = geos[k].userData.mat })
+  const corpo = new THREE.SkinnedMesh(junta, mats); corpo.name = `${nome}_corpo`
+  raiz.add(corpo)
+  raiz.updateMatrixWorld(true)
+  corpo.bind(new THREE.Skeleton(lista))
+  return { raiz, clips, corpo }
+}
+
 export async function exportarGLB(r) {
   const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js')
-  const { cena, clips } = construir(r)
-  const buf = await new GLTFExporter().parseAsync(cena, { binary: true, animations: clips, onlyVisible: false })
+  const { mergeGeometries } = await import('three/examples/jsm/utils/BufferGeometryUtils.js')
+  const { raiz, clips } = montarRigado(r, mergeGeometries)
+  const buf = await new GLTFExporter().parseAsync(raiz, { binary: true, animations: clips, onlyVisible: false })
   return new Blob([buf], { type: 'model/gltf-binary' })
 }
 

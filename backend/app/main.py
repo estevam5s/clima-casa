@@ -19,6 +19,7 @@ from .rotas import infra as rotas_infra
 from .rotas import correio as rotas_correio
 from .rotas import dispositivos as rotas_dispositivos
 from .rotas import telegram as rotas_telegram
+from .rotas import bugs as rotas_bugs
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -126,6 +127,17 @@ NOMES_CAMPOS = {"hora": "horário", "nome": "nome", "dias": "dias", "temp_min": 
                 "temp_max": "temperatura máxima", "user_code": "código do usuário", "id": "ID", "senha": "senha"}
 
 
+@app.exception_handler(Exception)
+async def erro_interno(request: Request, exc: Exception):
+    """Erro 500 inesperado: vira bug automático (área de Bugs) e a pessoa recebe uma mensagem em português."""
+    import asyncio
+    from . import bugs
+    await asyncio.to_thread(bugs.registrar_excecao, request.url.path, request.method, exc)
+    import logging
+    logging.getLogger("clima").exception("erro interno em %s %s", request.method, request.url.path)
+    return JSONResponse({"detail": "Erro interno. Ele foi registrado na área de Bugs para correção."}, status_code=500)
+
+
 @app.exception_handler(RequestValidationError)
 async def validacao(request: Request, exc: RequestValidationError):
     campos = sorted({NOMES_CAMPOS.get(str(e["loc"][-1]), str(e["loc"][-1])) for e in exc.errors()})
@@ -146,6 +158,7 @@ app.include_router(rotas_dispositivos.publico_iot)
 app.include_router(rotas_dispositivos.rotas_disp)
 app.include_router(rotas_telegram.publico_telegram)
 app.include_router(rotas_telegram.rotas_telegram)
+app.include_router(rotas_bugs.rotas_bugs)
 
 
 @app.get("/saude")
