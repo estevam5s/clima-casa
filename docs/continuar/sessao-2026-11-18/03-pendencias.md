@@ -7,10 +7,14 @@
 4. Testar interferência (Transmissores → Testar interferência) com uma pessoa em cada sala.
 5. Spotify: adicionar a conta em User Management (precisa do e-mail da conta Spotify do escritório).
 
-## Fase 3 (sem decisão)
-- Auditoria de segurança completa (pip-audit, npm audit, bandit, rotas sem regra, revisar `window.confirm` restantes: ~25 pontos, ver `grep -rn "window.confirm" frontend/src`).
-- READMEs (raiz, `apps/android`, `apps/desktop`) no mesmo formato; site `site/` com as funcionalidades novas (Iluminação, Notificações, cidade no 3D…).
-- Guia (`pages/Guia.jsx`) e `docs/MANUAL.md` com Iluminação, Notificações, relatório por e-mail, café, ruas, um transmissor por sala.
+## Fase 3: feita em 18/11 (1.13.1)
+- Auditoria: pip-audit (raiz e backend) e site sem achados; frontend com aviso moderado do react-router (open redirect por
+  barra invertida e SSR): mitigado por `rotaSegura()` (recusa `\\`, `//` e protocolos); a correção exige react-router 7
+  (quebra a navegação): fica para uma migração planejada. Bandit: só os falsos positivos conhecidos (B608/B104). Nenhum
+  segredo no código, no histórico do git nem no bundle. `rotas_sem_regra()` vazio.
+- Todos os `window.confirm` trocados por `confirmar()` (componente `ConfirmacaoGlobal` no Layout).
+- Guia, MANUAL.md (seção 14A) e PDF; README da raiz; READMEs novos de `apps/android` e `apps/desktop`; site com
+  Iluminação/escritório, Mapa 3D, transmissores por sala e a novidade de 18/11.
 
 ## Fase 4 (precisa da resposta do dono, perguntado em 18/11 e ainda sem resposta)
 1. Agente de IA local "igual ao Claude Code": proposta = o próprio Claude Code + servidor MCP do sistema (ver/ligar/desligar ares) usando a API com token de serviço.
