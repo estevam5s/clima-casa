@@ -83,6 +83,8 @@ caminhos de serviço e o projeto da Vercel).
 | Avatar: café (tecla C), andar pelas ruas | `Mapa3D.jsx` (`E.cafe`, `moverControle` com `E.cidadeRuas`), `cidade3d.js` (`obstaculos`, `limite`), `predio3d.js` (`cidade`) |
 | Transmissor por sala, protocolo Tuya, remover/voltar | `transmissor.py` (`_acertar_versao`, `sem_agente`), `rotas/api.py` (`_guardar_removido`, `_restaurar_removido`, `importar_hub(projeto_id)`, `/projetos/visao` → `tx_estado`), `pages/Transmissores.jsx` (`SalasResumo`), `components/FormAparelho.jsx` (`hubDaSala`) |
 | Agente que não trava (rede caiu/dormiu) | `db.py` (keepalives), `coordenador.py` (`iniciar_cao_de_guarda`, `_girou`), `sinric.py` (`_laco` não morre) |
+| Agente de IA no terminal (NVIDIA) | `agente-ia/clima_ia.py` (ferramentas, mascarar segredos, confirmação), `agente-ia/instalar.sh` (comando `clima-ia`), `NVIDIA_API_KEY` no `.env` |
+| Bot do Telegram | `backend/app/telegram.py` (segurança, comandos), `rotas/telegram.py` (webhook público + painel), `pages/Telegram.jsx`, `config.telegram` cifrado |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
