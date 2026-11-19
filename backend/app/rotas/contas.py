@@ -350,6 +350,43 @@ def remover_2fa_usuario(uid: str, request: Request):
     return {"ok": True}
 
 
+class TransferirDonoIn(BaseModel):
+    senha: str = Field(min_length=1, max_length=200)
+    turnstile: str | None = Field(None, max_length=4096)
+    confirmacao: str = Field(min_length=3, max_length=200)   # o e-mail do novo dono, digitado
+
+
+@contas.post("/usuarios/{uid}/transferir-dono")
+def transferir_dono(uid: str, d: TransferirDonoIn, request: Request):
+    """Só o dono: passa o posto de dono para outra conta ativa. O dono atual vira administrador; o novo dono tem acesso
+    total e pode transferir de novo. Pede a senha do dono (com verificação anti-robô) e o e-mail do novo dono digitado."""
+    from .. import correio, notificacoes
+    from .dispositivos import _conferir_senha
+    ator = request.state.u
+    if ator["papel"] != "dono":
+        raise HTTPException(403, "Só o dono pode transferir o posto de dono.")
+    alvo = _carregar_alvo(uid)
+    if str(alvo["id"]) == ator["id"]:
+        raise HTTPException(400, "Escolha outra pessoa: você já é o dono.")
+    if not alvo["ativo"]:
+        raise HTTPException(400, "A conta escolhida está desativada.")
+    if d.confirmacao.strip().lower() != (alvo["email"] or "").strip().lower():
+        raise HTTPException(400, "Digite exatamente o e-mail do novo dono para confirmar.")
+    _conferir_senha(request, ator["email"], d.senha, d.turnstile)
+    todas = json.dumps(acesso.TODAS)
+    db.executar("UPDATE usuarios SET papel = 'dono', permissoes = CAST(? AS jsonb), projetos = CAST(? AS jsonb), aparelhos = CAST(? AS jsonb) WHERE id = ?",
+                (todas, json.dumps("*"), json.dumps("*"), uid))
+    db.executar("UPDATE usuarios SET papel = 'admin', permissoes = CAST(? AS jsonb), projetos = CAST(? AS jsonb), aparelhos = CAST(? AS jsonb) WHERE id = ?",
+                (todas, json.dumps("*"), json.dumps("*"), ator["id"]))
+    db.registrar("painel", "Posto de dono transferido", detalhe=f"{ator['email']} → {alvo['email']}")
+    notificacoes.notificar(f"dono:{uid}", "seguranca", "alta", "Posto de dono transferido",
+                           f"{ator.get('nome') or ator['email']} passou o posto de dono para {alvo.get('nome') or alvo['email']}.", link="/configuracoes?aba=usuarios")
+    for para, papel in ((alvo["email"], "dono"), (ator["email"], "admin")):
+        correio.enviar_quieto(para, "dono_transferido", {"nome": alvo.get("nome") if papel == "dono" else ator.get("nome"), "papel_novo": papel,
+                                                         "de": ator.get("nome") or ator["email"], "para": alvo.get("nome") or alvo["email"]})
+    return {"ok": True, "novo_dono": alvo["email"]}
+
+
 @contas.delete("/usuarios/{uid}")
 def apagar_usuario(uid: str, request: Request):
     ator = request.state.u

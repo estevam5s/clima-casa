@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, Copy, Crown, Fingerprint, FolderPlus, KeyRound, LogOut, Pencil, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react'
 import { api, haQuanto } from '../../api'
+import Turnstile from '../Turnstile'
 import { Aviso, Botao, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../ui'
 
 const COR_PAPEL = {
@@ -246,12 +247,49 @@ function AcoesUsuario({ u, aoAtualizar, aoEditar, aoSenha }) {
   )
 }
 
+// Só o dono: passa o posto para outra conta ativa (o dono atual vira administrador). Pede o e-mail do novo dono digitado,
+// a senha do dono e a verificação anti-robô; os dois recebem e-mail e fica na Atividade.
+function TransferirDono({ u, aoFechar, aoFeito }) {
+  const toast = useToast()
+  const [confirmacao, setConfirmacao] = useState('')
+  const [senhaDono, setSenhaDono] = useState('')
+  const [robo, setRobo] = useState(null)
+  const refRobo = useRef(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [erro, setErro] = useState('')
+  const enviar = async (e) => {
+    e.preventDefault(); setErro(''); setOcupado(true)
+    try {
+      await api.post(`/api/usuarios/${u.id}/transferir-dono`, { confirmacao: confirmacao.trim(), senha: senhaDono, turnstile: robo })
+      toast(`${u.nome || u.email} agora é o dono. Você passou a administrador.`); aoFeito()
+    } catch (err) { setErro(err.message); refRobo.current?.reiniciar?.() } finally { setOcupado(false) }
+  }
+  return (
+    <Modal aberto titulo="Transferir o posto de dono" onFechar={aoFechar}>
+      <form onSubmit={enviar} className="space-y-3">
+        <Aviso tipo="alerta">{u.nome || u.email} passa a ser o dono, com acesso total e o poder de transferir de novo. Você vira administrador e perde as funções exclusivas do dono.</Aviso>
+        <label className="block"><span className="rotulo">Para confirmar, digite o e-mail de {u.nome || 'quem vai receber'}</span>
+          <input className="campo mt-1" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} placeholder={u.email} autoComplete="off" required /></label>
+        <label className="block"><span className="rotulo">A sua senha</span>
+          <input type="password" className="campo mt-1" value={senhaDono} onChange={(e) => setSenhaDono(e.target.value)} autoComplete="current-password" required /></label>
+        <Turnstile ref={refRobo} aoMudar={setRobo} acao="conta" />
+        {erro && <Aviso>{erro}</Aviso>}
+        <div className="flex justify-end gap-2">
+          <Botao type="button" variante="secundario" onClick={aoFechar}>Cancelar</Botao>
+          <Botao type="submit" variante="perigo" icone={Crown} carregando={ocupado} disabled={confirmacao.trim().toLowerCase() !== (u.email || '').toLowerCase() || !senhaDono}>Transferir</Botao>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 export default function Usuarios() {
   const toast = useToast()
   const { dados, erro, recarregar } = useDados(() => api.get('/api/usuarios'))
   const [form, setForm] = useState(null)        // 'novo' | usuário
   const [senha, setSenha] = useState(null)
   const [busca, setBusca] = useState('')
+  const [transferir, setTransferir] = useState(null)
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const lista = dados.itens.filter((u) => !busca || `${u.nome} ${u.email} ${u.cargo}`.toLowerCase().includes(busca.toLowerCase()))
@@ -305,7 +343,15 @@ export default function Usuarios() {
                       </div>
                     </td>
                     <td className="text-sm text-muted-foreground">{u.ultimo_acesso ? haQuanto(u.ultimo_acesso) : 'nunca entrou'}</td>
-                    <td className="text-right">{u.pode_editar && <AcoesUsuario u={u} aoAtualizar={recarregar} aoEditar={() => setForm(u)} aoSenha={() => novaSenha(u)} />}</td>
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {dados.eu.papel === 'dono' && u.id !== dados.eu.id && u.ativo !== false && u.papel !== 'dono' && (
+                          <button onClick={() => setTransferir(u)} title="Transferir o posto de dono" aria-label={`Transferir o posto de dono para ${u.nome || u.email}`}
+                            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-amber-600"><Crown className="h-4 w-4" /></button>
+                        )}
+                        {u.pode_editar && <AcoesUsuario u={u} aoAtualizar={recarregar} aoEditar={() => setForm(u)} aoSenha={() => novaSenha(u)} />}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -316,6 +362,7 @@ export default function Usuarios() {
       <p className="text-xs text-muted-foreground">As permissões valem no servidor, não só na tela: quem não tem acesso recebe "sem permissão" mesmo chamando a API direto. Ninguém consegue dar uma permissão que não tem.</p>
       {form && <FormUsuario dados={dados} usuario={form === 'novo' ? null : form} aoFechar={() => setForm(null)} aoSalvar={(s) => { setForm(null); recarregar(); if (s) setSenha(s) }} />}
       {senha && <SenhaGerada {...senha} aoFechar={() => setSenha(null)} />}
+      {transferir && <TransferirDono u={transferir} aoFechar={() => setTransferir(null)} aoFeito={() => { setTransferir(null); window.location.reload() }} />}
     </div>
   )
 }

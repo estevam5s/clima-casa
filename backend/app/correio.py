@@ -28,7 +28,7 @@ RESEND = "https://api.resend.com"
 DOMINIO = "zynio.com.br"
 APP = "https://app.zynio.com.br"
 SITE = "https://zynio.com.br"
-AUTOMATICOS = {"recuperar_senha": True, "senha_alterada": True, "boas_vindas": True, "acesso_novo": True, "senha_redefinida": True, "alerta": False}
+AUTOMATICOS = {"dono_transferido": True, "recuperar_senha": True, "senha_alterada": True, "boas_vindas": True, "acesso_novo": True, "senha_redefinida": True, "alerta": False}
 
 
 # ---------------- configuração ----------------
@@ -134,6 +134,7 @@ MODELOS = {
     "acesso_novo": "Acesso por um IP novo",
     "alerta": "Alerta do sistema",
     "relatorio": "Relatório gerado (com o arquivo anexo)",
+    "dono_transferido": "Posto de dono transferido",
     "teste": "Teste da conexão",
 }
 
@@ -200,6 +201,18 @@ def montar(tipo: str, d: dict) -> tuple[str, str, str]:
         texto = f"{d.get('titulo')}\n{d.get('detalhe', '')}\n{_quando()}\n{APP}{d.get('link') or ''}"
         motivo = "Você recebe alertas do sistema porque é administrador. Ajuste em E-mails → Automáticos."
         previa = str(d.get("detalhe") or "")[:90]
+    elif tipo == "dono_transferido":
+        novo = d.get("papel_novo") == "dono"
+        assunto = f"{'Você agora é o dono' if novo else 'Você passou o posto de dono'} do {m['nome']}"
+        blocos = [_p(ola), _p(f"<b>{_e(d.get('de'))}</b> passou o posto de dono do {_e(m['nome'])} para <b>{_e(d.get('para'))}</b>."),
+                  _p("Como dono você tem acesso total e pode transferir o posto de novo em Configurações → Usuários." if novo else
+                     "Você continua como administrador, com acesso a tudo, menos às funções exclusivas do dono."),
+                  _caixa([("Quando", _quando())]),
+                  _alerta_cor("Não reconhece esta mudança? Avise o novo dono e troque a sua senha agora."),
+                  _botao("Abrir o painel", f"{APP}/configuracoes?aba=usuarios", cor)]
+        texto = f"{ola}\n\n{d.get('de')} passou o posto de dono para {d.get('para')} em {_quando()}.\n{APP}/configuracoes?aba=usuarios"
+        motivo = "Aviso de segurança enviado sempre que o posto de dono muda."
+        previa = f"{d.get('de')} → {d.get('para')}"
     elif tipo == "relatorio":
         assunto = f"Relatório {d.get('periodo', '')} · {m['nome']}".strip()
         linhas = [(str(a), str(b)) for a, b in (d.get("linhas") or [])][:12]

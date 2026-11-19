@@ -2,6 +2,22 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.15.0",
+      "data": "2026-11-18",
+      "titulo": "Transferir o posto de dono e agente de IA no terminal",
+      "resumo": "O dono pode passar o posto para outra pessoa, e há um agente de IA no terminal que conhece o sistema e controla os ares com confirmação.",
+      "novo": [
+        "Configurações → Usuários: o dono transfere o posto de dono (coroa na linha da pessoa); o novo dono pode transferir de novo",
+        "clima-ia: agente de IA no terminal (modelos da NVIDIA) que responde sobre o sistema e o código e controla ares e cenas, sempre pedindo confirmação"
+      ],
+      "melhorias": [],
+      "seguranca": [
+        "Transferir o dono exige a senha do dono, verificação anti-robô e o e-mail do novo dono digitado; os dois recebem e-mail",
+        "O agente de IA nunca envia segredos para fora (mascara antes) e não lê o .env nem as credenciais"
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.14.0",
       "data": "2026-11-18",
       "titulo": "Bot do Telegram",
