@@ -6,7 +6,7 @@ import {
   MessageSquareText, MessagesSquare, MoreVertical, Newspaper, Pin, PinOff, Plus, Reply, Search, Send, Smile, Star, StickyNote, Tag, Trash2, X, Zap,
 } from 'lucide-react'
 import { api, haQuanto } from '../api'
-import { Aviso, Botao, Modal, useToast } from '../components/ui'
+import { Aviso, Botao, Modal, useToast, confirmar } from '../components/ui'
 
 // Caixa de mensagens do site no formato de conversa: lista à esquerda (uma conversa por e-mail),
 // conversa em balões à direita, respostas e notas internas, respostas prontas e painel do contato.
@@ -387,7 +387,7 @@ export default function Mensagens() {
   const agir = async (email, mudanca, acao) => {
     try {
       if (acao === 'apagar') {
-        if (!window.confirm('Apagar toda a conversa (mensagens, respostas e notas)? Não dá para desfazer.')) return
+        if (!await confirmar('Apagar toda a conversa (mensagens, respostas e notas)? Não dá para desfazer.')) return
         await api.del(`/api/site/conversa?email=${encodeURIComponent(email)}`); gravar(chaveRascunho(email), null); toast('Conversa apagada.'); if (email === aberta) fechar()
       } else {
         await api.put(`/api/site/conversa?email=${encodeURIComponent(email)}`, mudanca)
@@ -417,7 +417,7 @@ export default function Mensagens() {
     } catch (e) { toast(e.message, 'erro') } finally { setEnviando(false) }
   }
   const apagarResposta = async (m) => {
-    if (!window.confirm('Apagar este registro da conversa? (Um e-mail já enviado não é desfeito.)')) return
+    if (!await confirmar('Apagar este registro da conversa? (Um e-mail já enviado não é desfeito.)')) return
     try { await api.del(`/api/site/conversa/resposta/${m.rid}`); carregarConversa(aberta); carregarLista() } catch (e) { toast(e.message, 'erro') }
   }
   const exportar = async () => { try { toast(`Arquivo salvo: ${await api.baixar('/api/site/mensagens/exportar')}`) } catch (e) { toast(e.message, 'erro') } }

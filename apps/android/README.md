@@ -1,56 +1,93 @@
-# Welcome to your Expo app 👋
+# Clima Escritório · app Android
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App nativo (Expo / React Native) do **Clima Escritório**: controla os ares-condicionados do escritório pelo celular, com
+login por senha, Google ou biometria. Ele conversa só com a API pública do sistema (`https://app.zynio.com.br/api`); os
+comandos chegam aos ares pelo agente do escritório, igual ao painel web.
 
-## Get started
+| | |
+|---|---|
+| Versão | `app.json` → `expo.version` (1.3.0) · pacote `com.estevam5s.climacasa` |
+| Stack | Expo SDK 58, React Native 0.88, Expo Router, TypeScript |
+| Distribuição | APK no release do GitHub (`ClimaCasa-android.apk`) e atualizações de JS por EAS Update (canal `preview`) |
+| Regras do projeto | leia `AGENTS.md` e `CLAUDE.md` desta pasta antes de mexer (a API do Expo muda a cada SDK) |
 
-1. Install dependencies
+## Sumário
+1. [O que o app faz](#o-que-o-app-faz)
+2. [Telas](#telas)
+3. [Requisitos](#requisitos)
+4. [Rodar em desenvolvimento](#rodar-em-desenvolvimento)
+5. [Build e release](#build-e-release)
+6. [Atualização do app](#atualização-do-app)
+7. [Segurança](#segurança)
+8. [Estrutura](#estrutura)
+9. [Problemas comuns](#problemas-comuns)
 
-   ```bash
-   npm install
-   ```
+## O que o app faz
+- Liga, desliga e ajusta temperatura, modo e ventilação de cada ar (mesma lógica do painel: escolhe o botão gravado mais perto).
+- Executa cenas e mostra o estado dos ares do projeto escolhido.
+- Entra com **e-mail e senha** (pelo navegador, com CAPTCHA e PKCE), **Google** ou **biometria** (digital/rosto) depois do primeiro login.
+- Bloqueia o app com biometria ao voltar do segundo plano (opcional).
+- Avisa quando há versão nova (lê `/api/apps/versao`).
 
-2. Start the app
+O que **não** está no app (use o painel web/PWA): mapa 3D, relatórios, iluminação, notificações em página, infraestrutura e segurança.
 
-   ```bash
-   npx expo start
-   ```
+## Telas
+| Rota (Expo Router) | Tela |
+|---|---|
+| `src/app/login.tsx` | Login: senha (pelo navegador), Google e biometria |
+| `src/app/(abas)/inicio` | Resumo: ares ligados, atalhos |
+| `src/app/(abas)/aparelhos` | Lista e controle de cada ar |
+| `src/app/(abas)/cenas` | Cenas do projeto |
+| `src/app/(abas)/mais` | Conta, projeto, biometria, versão e sair |
 
-In the output, you'll find options to open the app in a
+## Requisitos
+- Node 20+, `npx eas-cli@latest` com a conta Expo do projeto (`estevam5s`, projeto `clima-casa`).
+- Só variáveis públicas no app (`EXPO_PUBLIC_*`); nenhuma chave secreta entra no APK.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+## Rodar em desenvolvimento
 ```bash
-npm run reset-project
+cd apps/android
+npm install
+npx expo start            # Expo Go ou build de desenvolvimento
+npx tsc --noEmit          # checar tipos
+npx expo lint             # lint
+npx expo-doctor           # dependências compatíveis com o SDK
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+## Build e release
+```bash
+# APK (perfil preview, assinado pela EAS)
+npx eas-cli@latest build -p android --profile preview
+# só JavaScript (sem mudar código nativo): atualização pelo ar
+npx eas-cli@latest update --channel preview --environment preview
+```
+Release do GitHub (`gh release create vX.Y.Z --repo estevam5s/clima-casa`) com o arquivo `ClimaCasa-android.apk`; notas em
+`docs/releases/vX.Y.Z.md` (`node scripts/gerar-notas-release.mjs vX.Y.Z`). **Só depois** atualize
+`backend/app/versao_apps.json`, que faz os apps avisarem da versão nova.
 
-### Other setup steps
+## Atualização do app
+- **EAS Update**: mudanças só de JS chegam sozinhas na próxima abertura (canal `preview`).
+- **APK novo**: necessário quando muda código nativo, permissão ou o SDK; o app avisa pelo `versao_apps.json`.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Segurança
+- Login por senha acontece no navegador (`/entrar-app`, com Turnstile) e volta por `climacasa://auth` com um código de uso
+  único (2 min) trocado com PKCE SHA-256 (`src/lib/entrarNavegador.ts`).
+- A sessão do Supabase fica no armazenamento local do app (`src/lib/supabase.ts`, fluxo PKCE, renovação automática); a biometria só destrava o app com a sessão já salva. Melhoria possível: guardar a sessão no `expo-secure-store`.
+- O app só fala com `app.zynio.com.br` por HTTPS; as permissões de cada pessoa valem no servidor.
 
-## Learn more
+## Estrutura
+```
+src/app/         telas (Expo Router)
+src/lib/         api, supabase, biometria, login pelo navegador, Google, tema, aviso de atualização
+src/ui/          componentes (cartão do ar, bloqueio, base)
+app.json         nome, versão, pacote, esquema climacasa://, plugins
+eas.json         perfis de build e canais de atualização
+```
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Problemas comuns
+| Sintoma | O que fazer |
+|---|---|
+| Login por senha não volta ao app | confira o esquema `climacasa://auth` no `app.json` e se o navegador padrão abre links do app |
+| "Sem agente" ao mandar comando | nenhum computador do escritório com o agente ligado (Infra → Agentes no painel) |
+| Biometria não aparece | entre uma vez com senha ou Google; depois ative em Mais |
+| Build falha depois de atualizar o Expo | `npx expo install --fix` e `npx expo-doctor` |

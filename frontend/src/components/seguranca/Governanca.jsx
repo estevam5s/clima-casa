@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertTriangle, BadgeCheck, CheckCircle2, CircleDashed, ClipboardCheck, Download, FileSpreadsheet, Fingerprint, Globe2, Link2, Lock, MinusCircle, Pencil, Play, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, UserX, XCircle } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../../api'
-import { Aviso, Botao, Esqueleto, Interruptor, Modal, Secao, useDados, useToast } from '../ui'
+import { Aviso, Botao, Esqueleto, Interruptor, Modal, Secao, useDados, useToast, confirmar } from '../ui'
 
 // ---------------------------------------------------------------- comum
 const ST = {
@@ -315,7 +315,7 @@ export function Riscos() {
                   {r.plano && <p className="mt-1 text-xs text-muted-foreground">{r.plano}</p>}
                 </div>
                 <button onClick={() => setForm({ ...r, controlesTexto: (r.controles || []).join(', ') })} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Editar risco"><Pencil className="h-4 w-4" /></button>
-                <button onClick={async () => { if (window.confirm(`Apagar o risco “${r.titulo}”?`)) setDados(await api.del(`/api/seguranca/riscos/${r.id}`)) }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600" aria-label="Apagar risco"><Trash2 className="h-4 w-4" /></button>
+                <button onClick={async () => { if (await confirmar(`Apagar o risco “${r.titulo}”?`)) setDados(await api.del(`/api/seguranca/riscos/${r.id}`)) }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600" aria-label="Apagar risco"><Trash2 className="h-4 w-4" /></button>
               </li>
             )
           })}
@@ -376,7 +376,7 @@ export function Incidentes() {
                   {i.linha?.length > 0 && <ol className="mt-2 space-y-0.5 border-l border-border pl-3 text-[11px] text-muted-foreground">{i.linha.slice(-4).map((l, k) => <li key={k}>{dataHora(l.em)} · {l.texto}</li>)}</ol>}
                 </div>
                 <button onClick={() => setForm({ ...VAZIO_INC, ...i })} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Editar incidente"><Pencil className="h-4 w-4" /></button>
-                <button onClick={async () => { if (window.confirm(`Apagar o incidente “${i.titulo}”? O histórico some junto.`)) atualizar(await api.del(`/api/seguranca/incidentes/${i.id}`)) }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600" aria-label="Apagar incidente"><Trash2 className="h-4 w-4" /></button>
+                <button onClick={async () => { if (await confirmar(`Apagar o incidente “${i.titulo}”? O histórico some junto.`)) atualizar(await api.del(`/api/seguranca/incidentes/${i.id}`)) }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600" aria-label="Apagar incidente"><Trash2 className="h-4 w-4" /></button>
               </div>
             </li>
           ))}

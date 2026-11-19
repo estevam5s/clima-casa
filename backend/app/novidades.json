@@ -2,6 +2,24 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.13.1",
+      "data": "2026-11-18",
+      "titulo": "Confirmações no próprio sistema e passo a passo atualizado",
+      "resumo": "Toda pergunta de \"tem certeza?\" agora aparece no visual do sistema, e o Passo a passo e o manual explicam as novidades.",
+      "novo": [
+        "Passo a passo: capítulos Um transmissor por sala, Iluminação e Notificações e relatórios por e-mail; Mapa com café, ruas e luzes à noite",
+        "Manual em PDF atualizado"
+      ],
+      "melhorias": [
+        "Confirmações (apagar, desconectar, reiniciar agente, DNSSEC e outras) aparecem no visual do sistema, com Esc para cancelar, em vez da caixa do navegador",
+        "Gravar botões: explica que o que vale é o visor do controle e que se começa pelo Desligar"
+      ],
+      "seguranca": [
+        "Auditoria: dependências do Python e do site sem vulnerabilidades, nenhum segredo no código, no histórico ou no app publicado, e todas as rotas com regra de permissão"
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.13.0",
       "data": "2026-11-18",
       "titulo": "Projetos, Cenas, Automações e Agenda mais completos",

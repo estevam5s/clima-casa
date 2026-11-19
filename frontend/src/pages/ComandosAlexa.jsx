@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, Copy, MessageSquareQuote, Search } from 'lucide-react'
 import { api } from '../api'
-import { Aviso, Cabecalho, Carregando, Selo, useDados, useToast } from '../components/ui'
+import { Aviso, Cabecalho, Carregando, Selo, useDados, useToast, confirmar } from '../components/ui'
 import CatalogoVoz from '../components/CatalogoVoz'
 import { modelosAr } from '../vozAlexa'
 import { useProjeto } from '../contexto'
@@ -30,7 +30,7 @@ export default function ComandosAlexa() {
     const nome = String(f.alvo || '').replace(/^o /, '')
     const ap = (dados?.aparelhos || []).find((a) => a.nome === nome) || (dados?.aparelhos || [])[0]
     if (!ap) return
-    if (!window.confirm(`Mandar agora para “${ap.nome}”: ${f.faz.toLowerCase()} (${JSON.stringify(f.acao).replace(/[{}"]/g, '').replace(/,/g, ', ')})? O ar recebe o comando de verdade.`)) return
+    if (!await confirmar(`Mandar agora para “${ap.nome}”: ${f.faz.toLowerCase()} (${JSON.stringify(f.acao).replace(/[{}"]/g, '').replace(/,/g, ', ')})? O ar recebe o comando de verdade.`)) return
     try { await api.post(`/api/aparelhos/${ap.id}/estado`, f.acao); toast(`Enviado para ${ap.nome}.`) } catch (e) { toast(e.message, 'erro') }
   }
   if (erro) return <Aviso>{erro}</Aviso>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { CheckCircle2, Cookie, Download, ExternalLink, History, Languages, Plus, Radar, RefreshCw, Save, Search, ShieldAlert, Trash2 } from 'lucide-react'
 import { api, dataHora } from '../../api'
-import { Aviso, Botao, Carregando, FaixaMetricas, Interruptor, Secao, useDados, useToast } from '../ui'
+import { Aviso, Botao, Carregando, FaixaMetricas, Interruptor, Secao, useDados, useToast, confirmar } from '../ui'
 
 // Gestão do aviso de cookies do site (LGPD): textos, categorias, lista de cookies, nova versão (pede consentimento
 // de novo a todos) e o relatório das escolhas registradas (prova do consentimento, sem IP em claro).
@@ -38,7 +38,7 @@ export default function CookiesSite() {
   const muCat = (i, campo, v) => setCfg({ ...cfg, categorias: cfg.categorias.map((c, j) => (j === i ? { ...c, [campo]: v } : c)) })
   const muCookie = (i, campo, v) => setCfg({ ...cfg, cookies: cfg.cookies.map((c, j) => (j === i ? { ...c, [campo]: v } : c)) })
   const apagarRegistro = async (id) => {
-    if (!window.confirm('Apagar os registros de consentimento deste visitante (pedido do titular)?')) return
+    if (!await confirmar('Apagar os registros de consentimento deste visitante (pedido do titular)?')) return
     try { await api.del(`/api/site/cookies/consentimento/${id}`); toast('Registros apagados.'); recarregarRel() } catch (e) { toast(e.message, 'erro') }
   }
   const escanear = async () => { setVarrendo(true); try { setVarredura(await api.post('/api/site/cookies/escanear')) } catch (e) { toast(e.message, 'erro') } finally { setVarrendo(false) } }

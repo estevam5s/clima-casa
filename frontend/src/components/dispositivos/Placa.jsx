@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Copy, Cpu, Download, KeyRound, RefreshCw, Wifi, Zap } from 'lucide-react'
 import { api, haQuanto } from '../../api'
-import { Aviso, Botao, Selo, useToast } from '../ui'
+import { Aviso, Botao, Selo, useToast, confirmar } from '../ui'
 import { ISRG_ROOT_X1 } from './isrgRootX1'
 
 // Placa própria (Arduino / ESP) no lugar de um aparelho Smart Life. A placa BUSCA os comandos no servidor a cada 3 s
@@ -232,7 +232,7 @@ export default function Placa({ d, aoMudar }) {
   const p = PLACAS.find((x) => x.id === placa) || PLACAS[0]
   const codigo = useMemo(() => gerarCodigo(d.tipo, placa, token, d.nome), [d.tipo, placa, token, d.nome])
   const gerar = async () => {
-    if (d.placa_configurada && !window.confirm('Gerar um token novo desliga a placa que já está usando o token atual (até você enviar o código novo para ela). Continuar?')) return
+    if (d.placa_configurada && !await confirmar('Gerar um token novo desliga a placa que já está usando o token atual (até você enviar o código novo para ela). Continuar?')) return
     setOcupado(true)
     try { const r = await api.post(`/api/dispositivos/${d.id}/placa`, { placa }); setToken(r.token); aoMudar?.(r.dispositivo); toast('Token gerado: copie o código agora (ele não aparece de novo).') }
     catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }

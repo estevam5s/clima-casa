@@ -3,7 +3,7 @@ import LogoSpotify from '../components/LogoSpotify'
 import { CalendarClock, Disc3, ExternalLink, KeyRound, ListMusic, LogOut, Music2, Pause, Pencil, Play, Plus, Repeat, Repeat1, Search, Shuffle, SkipBack, SkipForward, Smartphone, Speaker, Trash2, Tv, Volume2, Zap } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Esqueleto, Interruptor, Modal, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Esqueleto, Interruptor, Modal, useToast, confirmar } from '../components/ui'
 import { DIAS_SEMANA } from '../mapaUtil'
 import CatalogoVoz from '../components/CatalogoVoz'
 import { modelosMusica } from '../vozAlexa'
@@ -311,7 +311,7 @@ export default function Musica() {
   const modelosVoz = useMemo(() => modelosMusica({ playlists: minhasPl.map((p) => p.nome), echos: aparelhosSp.filter((d) => d.tipo === 'Speaker' || /echo|alexa/i.test(d.nome)).map((d) => d.nome) }), [minhasPl, aparelhosSp])
 
   const conectar = async () => { try { window.location.href = (await api.get('/api/musica/conectar')).url } catch (e) { toast(e.message, 'erro') } }
-  const desconectar = async () => { if (!window.confirm('Desconectar a conta do Spotify? As rotinas param até conectar de novo.')) return; try { setEstado(await api.post('/api/musica/desconectar')) } catch (e) { toast(e.message, 'erro') } }
+  const desconectar = async () => { if (!await confirmar('Desconectar a conta do Spotify? As rotinas param até conectar de novo.')) return; try { setEstado(await api.post('/api/musica/desconectar')) } catch (e) { toast(e.message, 'erro') } }
   const salvarRotinas = async (lista) => { try { setRotinas(await api.put('/api/musica/rotinas', lista)); return true } catch (e) { toast(e.message, 'erro'); return false } }
   const testar = async (r) => { try { await api.post('/api/musica/rotinas/testar', { id: r.id }); toast(`Rotina “${r.nome}” executada.`) } catch (e) { toast(e.message, 'erro') } }
 
@@ -354,7 +354,7 @@ export default function Musica() {
                       <Interruptor ligado={r.ativo} rotulo={`Ativar ${r.nome}`} disabled={!podeControlar} onChange={(v) => salvarRotinas(rotinas.map((x) => (x.id === r.id ? { ...x, ativo: v } : x)))} />
                       <Botao tamanho="sm" variante="secundario" icone={Play} disabled={!podeControlar} onClick={() => testar(r)}>Testar</Botao>
                       <button disabled={!podeControlar} onClick={() => setEditando(r)} className="rounded-md p-2 text-muted-foreground hover:bg-muted" aria-label={`Editar ${r.nome}`}><Pencil className="h-4 w-4" /></button>
-                      <button disabled={!podeControlar} onClick={() => window.confirm(`Apagar a rotina “${r.nome}”?`) && salvarRotinas(rotinas.filter((x) => x.id !== r.id))} className="rounded-md p-2 text-muted-foreground hover:bg-muted" aria-label={`Apagar ${r.nome}`}><Trash2 className="h-4 w-4" /></button>
+                      <button disabled={!podeControlar} onClick={async () => await confirmar(`Apagar a rotina “${r.nome}”?`) && salvarRotinas(rotinas.filter((x) => x.id !== r.id))} className="rounded-md p-2 text-muted-foreground hover:bg-muted" aria-label={`Apagar ${r.nome}`}><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </li>
                 ))}

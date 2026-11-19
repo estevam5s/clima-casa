@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AirVent, ArrowRight, BookOpen, Check, CircleHelp, Cloud, Globe, Hand, Home, KeyRound, Map as MapaIcone, Mic, Monitor, Music2, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
+import { AirVent, ArrowRight, Bell, BookOpen, Check, CircleHelp, Cloud, DoorClosed, Globe, Hand, Home, KeyRound, Lightbulb, Map as MapaIcone, Mic, Monitor, Music2, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
 import { Cabecalho } from '../components/ui'
 
 // Passo a passo do sistema inteiro: do transmissor no Wi-Fi (Smart Life) até a Alexa (Sinric Pro), outra Alexa,
@@ -76,9 +76,10 @@ const CAPITULOS = [
     id: 'botoes', icone: Hand, titulo: 'Gravar os botões do controle (essencial)',
     resumo: 'Sem isso o ar não liga nem desliga por aqui, pela Alexa ou pelo celular.',
     passos: [
-      { t: 'Abra o aparelho → Botões gravados', d: 'O Mac precisa estar ligado e na mesma rede do transmissor.', link: ['/aparelhos', 'Abrir Aparelhos'] },
-      { t: 'Comece pelo Desligar', d: 'Clique em Gravar na linha “Desligar”. Quando aparecer “Aguardando o sinal” (30 s), aponte o controle para o transmissor a 10–20 cm e aperte desligar uma vez.' },
-      { t: 'Grave as temperaturas que você usa', d: 'Na grade Frio, clique numa temperatura (ex.: 23°). Antes, deixe o controle original em frio, 23°, ventilação automática. Clique em Começar a gravar, aponte e aperte qualquer botão (ex.: a seta e volte para 23°).' },
+      { t: 'Abra o aparelho → Botões gravados', d: 'Um computador com o agente precisa estar ligado na rede do escritório (Infra → Agentes: “enxerga” os transmissores).', link: ['/aparelhos', 'Abrir Aparelhos'] },
+      { t: 'O que vale é o visor do controle', d: 'O controle de ar guarda o estado e, a cada botão, manda tudo junto (ligado ou desligado, modo, temperatura, ventilação). O ar pode estar ligado ou desligado: o que importa é o que o visor do controle mostra.' },
+      { t: 'Comece pelo Desligar', d: 'Deixe o visor do controle aceso (ligado). Clique em Gravar → Desligar → Começar a gravar e, em até 30 s, aperte uma vez o liga/desliga a 10–20 cm do transmissor. Ar Gree: só isso basta; depois use Controle Gree → Gerar.' },
+      { t: 'Grave as temperaturas que você usa', d: 'Para gravar Frio 23°: deixe o controle ligado em frio 24°, escolha Frio 23° na tela, clique em Começar a gravar e aperte a seta de baixar uma vez. O controle manda o ajuste completo já em 23°.' },
       { t: 'Repita para 3 a 5 temperaturas', d: 'Ex.: 20°, 22°, 23°, 24°, 25°. Se pedir uma não gravada, o sistema usa a mais próxima do mesmo modo e avisa.' },
       { t: 'Outros botões (swing, turbo, luz)', d: 'Gravar botão → Outro botão. Aparecem em “Outros botões” na aba Controle.' },
       { t: 'Teste', d: 'Clique em Desligar e Ligar na tela do aparelho e veja o ar responder.' },
@@ -128,6 +129,19 @@ const CAPITULOS = [
       { t: 'Teste com alguém olhando os ares', d: 'Mande Ligar para um ar e veja se só ele (ou o grupo esperado) apitou. Depois Desligar. Se um ar não reage, mude a posição do transmissor ou aproxime-o.' },
     ],
     dicas: ['Recomendado: até 6 ares por transmissor num salão aberto. Acima disso, a tela avisa para conferir se todos estão à vista.', 'Para comandar um ar sozinho num salão com ares iguais, só um transmissor dedicado, colado no ar e virado para ele; mesmo assim o sinal pode refletir no teto. O teste de interferência mostra se funcionou.', 'Modelos diferentes no mesmo ambiente funcionam separados no mesmo transmissor, porque cada um só entende o sinal do próprio controle.', 'Cenas e automações funcionam igual: cada ar segue o próprio estado.'],
+  },
+  {
+    id: 'sala-transmissor', icone: DoorClosed, titulo: 'Um transmissor por sala (sem um ar mexer no outro)',
+    resumo: 'Infravermelho não tem endereço: sala fechada que deve obedecer sozinha precisa do seu transmissor.',
+    passos: [
+      { t: 'Por que', d: 'O transmissor manda o sinal para todo lado. Ares iguais (mesmo modelo) que o sinal alcança obedecem juntos, e parede ou porta fechada bloqueia o sinal. Tirar um ar da zona na tela não separa os ares de verdade.' },
+      { t: 'Veja como está', d: 'Transmissores → Salas e transmissores mostra cada sala com transmissor próprio, dividindo com outra ou sem nenhum. Em Projetos, cada cartão tem o mesmo selo.', link: ['/transmissores', 'Abrir Transmissores'] },
+      { t: 'Pareie o transmissor novo', d: 'No Smart Life (Wi-Fi 2,4 GHz do escritório). Modelos só Bluetooth ou Zigbee não funcionam.' },
+      { t: 'Importe escolhendo a sala', d: 'Transmissores → Importar um → escolha a sala onde ele vai ficar → Importar. O sistema descobre sozinho o protocolo certo do aparelho.' },
+      { t: 'Ponha o ar da sala nele', d: 'No cartão do transmissor → Ares deste transmissor (ou no cadastro do ar, que sugere o transmissor da sala).' },
+      { t: 'Confirme', d: 'Transmissores → Testar interferência, com alguém em cada sala: o sistema manda o sinal de um ar por vez e grava quem apitou.' },
+      { t: 'Removeu por engano?', d: 'Importe o mesmo transmissor de novo em até 30 dias: ele volta com o nome, a sala e os ares de antes.' },
+    ],
   },
   {
     id: 'sinric', icone: KeyRound, titulo: 'Sinric Pro: a ponte para a Alexa',
@@ -185,7 +199,10 @@ const CAPITULOS = [
       { t: 'Cores sem entrar na edição', d: 'No 3D, clique num móvel, porta ou dispositivo e escolha a cor (ou qualquer cor no seletor). Para o ar: clique nele → Aparência no 3D; vale para o mapa e para o painel.' },
       { t: 'Equipe', d: 'Cadastre cada pessoa com nome, cargo, posto e expediente. O avatar aparece com nome e cargo durante o expediente (horário de Brasília).' },
       { t: 'Persianas e escrita', d: 'Clique numa janela para abrir/fechar a persiana. Administradores usam “Escrever no vidro” com caneta azul, preta ou vermelha.' },
-      { t: 'Andar pelo escritório', d: 'Clique numa pessoa → 1ª ou 3ª pessoa. W A S D andam, arrastar olha, Shift corre, V troca a câmera, Esc sai.' },
+      { t: 'Andar pelo escritório', d: 'Clique numa pessoa → 1ª ou 3ª pessoa. W A S D andam, arrastar olha, Shift corre, V troca a câmera, F senta, Esc sai.' },
+      { t: 'Tomar um café', d: 'Controlando a pessoa, vá até a cafeteira da copa e aperte C (ou o botão Café): ela faz o café e sai com a xícara. C de novo dá um gole; parada, ela bebe sozinha.' },
+      { t: 'Sair do prédio e andar pela cidade', d: 'Perto da porta do elevador aperte R para descer ao térreo, passe pela porta automática e ande pelas ruas, calçadas, praças e pelo terminal. Os prédios e casas das quadras não deixam passar.' },
+      { t: 'De noite', d: 'O botão Noite (ou a hora real) acende salas, corredor e copa. Com as luzes cadastradas em Iluminação, a sala com a lâmpada apagada fica escura no 3D.' },
     ],
   },
   {
@@ -211,6 +228,25 @@ const CAPITULOS = [
       { t: 'DNSSEC (recomendado)', d: 'Infra → Cloudflare → Segurança → Ligar DNSSEC. Depois copie os quatro campos do DS e cole no Registro.br (domínio → DNSSEC). Só vale depois desse passo.' },
     ],
     dicas: ['Exportar zona (em DNS) baixa o arquivo com todos os registros: bom guardar uma cópia antes de mudanças grandes.', 'O tráfego do site não passa pela Cloudflare (tudo em “DNS only”); por isso não há cache, WAF ou gráficos de visitas lá: esses números ficam na aba Vercel.'],
+  },
+  {
+    id: 'luzes', icone: Lightbulb, titulo: 'Iluminação',
+    resumo: 'Luzes de cada sala: acender, apagar, brilho, ao anoitecer e quando a porta é destrancada.',
+    passos: [
+      { t: 'Cadastre as luzes', d: 'Iluminação → Cadastrar uma luz por sala (ou Cadastrar luz). Sem aparelho conectado, nada é enviado.', link: ['/luzes', 'Abrir Iluminação'] },
+      { t: 'Conecte o aparelho', d: 'Lâmpada, painel, fita de LED ou interruptor de parede da Smart Life (mesma conta), ou uma placa própria (Arduino/ESP com relé). No cartão da luz → Conectar.' },
+      { t: 'Automações', d: 'Automações e histórico → Acender ao anoitecer (pelo pôr do sol real de cada dia, até a hora escolhida) e Acender quando a porta for destrancada à noite. Cada uma age uma vez por dia: se alguém apagar na mão, não acende de novo.' },
+      { t: 'Horários fixos', d: 'Na mesma janela: acender, apagar ou mudar o brilho em horários e dias da semana.' },
+    ],
+  },
+  {
+    id: 'notificacoes', icone: Bell, titulo: 'Notificações e relatórios por e-mail',
+    resumo: 'Central com histórico, filtros e ações em lote; relatório enviado por e-mail ao gerar.',
+    passos: [
+      { t: 'Central de notificações', d: 'Menu Notificações (com o contador): busca, filtros por tipo e período, arquivar e restaurar, marcar várias de uma vez e exportar CSV. O sino no topo continua para o dia a dia.', link: ['/notificacoes', 'Abrir Notificações'] },
+      { t: 'Relatório por e-mail', d: 'Relatórios → Exportar: com “Ao baixar, enviar também para o meu e-mail” marcado, o arquivo vai anexo para o seu e-mail. “Só enviar por e-mail” manda o PDF sem baixar. Só vai para e-mails de usuários do sistema.', link: ['/relatorios', 'Abrir Relatórios'] },
+      { t: 'Atalhos', d: 'Botão Atalhos no topo: áreas mais usadas a um clique e Backup agora (dono e administradores).' },
+    ],
   },
   {
     id: 'problemas', icone: CircleHelp, titulo: 'Quando algo não funciona',

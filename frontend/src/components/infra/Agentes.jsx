@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Copy, Cpu, HardDrive, KeyRound, Laptop, MemoryStick, Monitor, Radio, RotateCw, Star, Thermometer, Trash2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../../api'
-import { Aviso, Botao, Esqueleto, Selo, useToast } from '../ui'
+import { Aviso, Botao, Esqueleto, Selo, useToast, confirmar } from '../ui'
 
 // Computadores com o agente: quem fica no comando (preferido + regra "quem não enxerga os transmissores não manda")
 // e a instalação de um PC Windows com código de uso único (o .env vai cifrado; só o código decifra, no PC).
@@ -129,8 +129,8 @@ export default function Agentes({ dono, admin }) {
   // o dono vê a seção de instalação: atualiza a cada 5 s para avisar logo que o PC conectou
   useEffect(() => { carregar(); const t = setInterval(carregar, pode ? 5000 : 10000); return () => clearInterval(t) }, [carregar, pode])
   const preferir = async (id) => { try { setD(await api.post('/api/agentes/preferido', { id })); toast(id ? 'Salvo. Ele assume em até 1 minuto se estiver ligado e enxergar os transmissores.' : 'Sem preferência: fica no comando quem já está, desde que enxergue os transmissores.') } catch (e) { toast(e.message, 'erro') } }
-  const reiniciar = async (m) => { if (!window.confirm(`Reiniciar o agente em ${m.nome}? Ele fica uns 30 a 60 segundos sem mandar comandos.`)) return; try { const r = await api.post('/api/agentes/reiniciar', { id: m.id }); toast(r.mensagem) } catch (e) { toast(e.message, 'erro') } }
-  const esquecer = async (id) => { if (!window.confirm('Tirar este computador da lista?')) return; try { setD(await api.post('/api/agentes/esquecer', { id })) } catch (e) { toast(e.message, 'erro') } }
+  const reiniciar = async (m) => { if (!await confirmar(`Reiniciar o agente em ${m.nome}? Ele fica uns 30 a 60 segundos sem mandar comandos.`)) return; try { const r = await api.post('/api/agentes/reiniciar', { id: m.id }); toast(r.mensagem) } catch (e) { toast(e.message, 'erro') } }
+  const esquecer = async (id) => { if (!await confirmar('Tirar este computador da lista?')) return; try { setD(await api.post('/api/agentes/esquecer', { id })) } catch (e) { toast(e.message, 'erro') } }
   if (!d) return <Esqueleto className="h-64" />
   const preferido = d.maquinas.find((m) => m.id === d.preferido)
   return (

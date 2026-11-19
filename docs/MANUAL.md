@@ -591,6 +591,46 @@ antigos e mede o espaço usado (limite de 500 MB no plano gratuito).
 Na tela **Supabase** você vê cada rotina, a última execução, pode **pausar** ou **rodar agora**, ver o uso do
 banco, os alertas, o gráfico e **baixar os backups**. Em **Configurações → Backup** há também o backup na hora.
 
+# 14A. Um transmissor por sala, iluminação, notificações (versões 1.10 a 1.13)
+
+## 14A.1 Um transmissor por sala
+O infravermelho não tem endereço: ares do mesmo modelo que o sinal alcança obedecem juntos, e parede ou porta fechada
+bloqueia o sinal. Para uma sala fechada obedecer sozinha, ela precisa de um transmissor dentro dela.
+
+1. **Transmissores → Salas e transmissores** mostra cada sala com transmissor próprio, dividindo com outra ou sem nenhum
+   (o mesmo selo aparece nos cartões de **Projetos**).
+2. Pareie o transmissor novo no **Smart Life** (Wi-Fi 2,4 GHz). Modelos só Bluetooth ou Zigbee não funcionam.
+3. **Transmissores → Importar um** → escolha a **sala** → Importar. O sistema descobre o protocolo certo sozinho.
+4. Ponha o ar no transmissor (cartão → **Ares deste transmissor**, ou no cadastro do ar, que sugere o da sala).
+5. Confirme com **Testar interferência**, uma pessoa em cada sala.
+
+Removeu um transmissor por engano? Importe o mesmo de novo em até 30 dias: ele volta com nome, sala e ares.
+
+## 14A.2 Gravar os botões: o que vale é o visor do controle
+O controle de ar guarda o estado e manda tudo junto a cada botão. Comece pelo **Desligar** com o visor do controle aceso:
+Gravar → Desligar → Começar a gravar → aperte o liga/desliga uma vez a 10–20 cm do transmissor. Ar Gree: só isso, depois
+**Controle Gree → Gerar**. Outras marcas: para gravar Frio 23°, deixe o controle em frio 24°, escolha Frio 23° na tela,
+comece a gravar e aperte a seta de baixar uma vez.
+
+## 14A.3 Iluminação
+**Iluminação → Cadastrar uma luz por sala** e conecte cada uma a uma lâmpada, painel, fita ou interruptor Smart Life (ou a
+uma placa própria com relé). Automações: **acender ao anoitecer** (pôr do sol real de cada dia, até a hora escolhida) e
+**acender quando a porta for destrancada à noite**; horários fixos com brilho. No mapa 3D, a sala com a lâmpada apagada
+fica escura à noite.
+
+## 14A.4 Notificações, relatórios por e-mail e atalhos
+- **Notificações** (menu, com contador): histórico, busca, filtros, arquivar/restaurar, ações em lote e CSV.
+- **Relatórios → Exportar**: o arquivo também vai anexo para o seu e-mail (só e-mails de usuários do sistema).
+- **Atalhos** (topo): áreas mais usadas e **Backup agora** (dono e administradores).
+
+## 14A.5 Mapa 3D: café e cidade
+Controlando uma pessoa: **C** na copa faz um café (C de novo dá um gole); **R** perto do elevador desce ao térreo e, pela
+porta automática, ela anda pelas ruas, calçadas, praças e pelo terminal.
+
+## 14A.6 Escudo anti-DDoS
+Ligar o escudo à mão **impede todo mundo de entrar no sistema** enquanto ele estiver ligado (o login é barrado pela
+Vercel). Use só durante um ataque de verdade; ele desliga sozinho em 30 min ou em Segurança → Escudo.
+
 # 15. Solução de problemas
 
 | Problema | O que fazer |
@@ -640,3 +680,8 @@ rede) e o sistema se ajusta sozinho. Os botões gravados continuam.
 | Ver tudo o que aconteceu | Atividade (com exportação CSV) |
 | Baixar os apps | Baixar apps |
 | Backups e rotinas | Supabase |
+| Sala obedecer sozinha | Um transmissor por sala (14A.1) |
+| Luzes e acender ao anoitecer | Iluminação (14A.3) |
+| Histórico de avisos | Notificações (14A.4) |
+| Relatório no e-mail | Relatórios → Exportar (14A.4) |
+| Backup na hora | Atalhos → Backup agora |

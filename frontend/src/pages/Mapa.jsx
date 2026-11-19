@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { AirVent, PawPrint, AppWindow, Archive, Armchair, ArrowRight, Store, Box, ChevronRight, Columns2, DoorOpen, Droplets, Expand, Grid3x3, Laptop, LayoutGrid, Leaf, Minus, Monitor, Pencil, Plus, Power, RotateCw, Save, Snowflake, Sparkles, Square, Sun, Table2, Trash2, Type, Undo2, Wind, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { api, haQuanto, MODOS, VENTILACAO } from '../api'
 import { useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, useDados, useToast, confirmar } from '../components/ui'
 import { completar, postosDoMapa } from '../mapaUtil'
 import { CORES_ITEM, ITEM, larguraTV, MODELOS_AR, CORES_AR } from '../catalogoMapa'
 import { EditorPessoa, LojaMapa, novaPessoa, PainelEquipe } from '../components/EquipeMapa'
@@ -289,7 +289,7 @@ export default function Mapa() {
     try { await salvarEquipe([...pessoasAtuais.filter((x) => x.id !== p.id), p]); setEditandoPessoa(null); toast(`${p.nome} salvo na equipe.`) } catch (e) { toast(e.message, 'erro') } finally { setSalvandoPessoa(false) }
   }
   const apagarPessoa = async (p) => {
-    if (!window.confirm(`Tirar ${p.nome} da equipe? O avatar volta a ser uma pessoa sem nome.`)) return
+    if (!await confirmar(`Tirar ${p.nome} da equipe? O avatar volta a ser uma pessoa sem nome.`)) return
     setSalvandoPessoa(true)
     try { await salvarEquipe(pessoasAtuais.filter((x) => x.id !== p.id)); setEditandoPessoa(null) } catch (e) { toast(e.message, 'erro') } finally { setSalvandoPessoa(false) }
   }
@@ -298,8 +298,8 @@ export default function Mapa() {
   const mexer = (fn) => setRascunho((r) => { setHistorico((h) => [...h.slice(-49), r]); const n = copia(r); fn(n); return n })
   const desfazer = () => setHistorico((h) => { if (!h.length) return h; setRascunho(h[h.length - 1]); return h.slice(0, -1) })
   const comecarEdicao = () => { setVista('2d'); const r = copia(base); r.elementos = r.elementos.filter((e) => !(r.consumidos || []).includes(e.id)); r.consumidos = []; setRascunho(r); setHistorico([]); setEditando(true); setSel(null) }
-  const sairEdicao = () => {
-    if (historico.length && !window.confirm('Descartar as mudanças da planta?')) return
+  const sairEdicao = async () => {
+    if (historico.length && !await confirmar('Descartar as mudanças da planta?')) return
     setEditando(false); setRascunho(null); setSel(null)
   }
   const salvar = async () => {
@@ -391,8 +391,8 @@ export default function Mapa() {
     })
   }
   const apagarEl = () => { if (sel?.tipo === 'elemento') { mexer((n) => { n.elementos = n.elementos.filter((e) => e.id !== sel.id) }); setSel(null) } }
-  const reorganizar = () => {
-    if (!window.confirm('Reorganizar todas as salas automaticamente? Os elementos ficam onde estão.')) return
+  const reorganizar = async () => {
+    if (!await confirmar('Reorganizar todas as salas automaticamente? Os elementos ficam onde estão.')) return
     mexer((n) => { const r = completar({ ...n, salas: {}, ares: {} }, projetos, ares); n.salas = r.salas; n.ares = r.ares; n.altura = r.altura })
   }
   useEffect(() => {

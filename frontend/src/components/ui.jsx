@@ -269,3 +269,29 @@ export function Dial({ valor, min, max, ligado, modo, tamanho = 220 }) {
     </svg>
   )
 }
+
+// Confirmação no visual do sistema (no lugar de window.confirm, que trava a página e foge do tema).
+// Uso: if (!(await confirmar('Apagar X?', { ok: 'Apagar' }))) return. O <ConfirmacaoGlobal /> fica montado no Layout.
+let pedirConfirmacao = null
+export function confirmar(texto, { titulo = 'Confirmar', ok = 'Confirmar', perigo = true } = {}) {
+  if (!pedirConfirmacao) return Promise.resolve(window.confirm(texto))   // fora do Layout (raro): cai no do navegador
+  return new Promise((res) => pedirConfirmacao({ texto, titulo, ok, perigo, res }))
+}
+export function ConfirmacaoGlobal() {
+  const [p, setP] = useState(null)
+  useEffect(() => { pedirConfirmacao = setP; return () => { pedirConfirmacao = null } }, [])
+  const fim = (v) => { p?.res(v); setP(null) }
+  return (
+    <Modal aberto={!!p} titulo={p?.titulo || 'Confirmar'} onFechar={() => fim(false)}>
+      {p && (
+        <>
+          <p className="whitespace-pre-line text-sm text-muted-foreground">{p.texto}</p>
+          <div className="mt-5 flex justify-end gap-2">
+            <Botao variante="secundario" onClick={() => fim(false)}>Cancelar</Botao>
+            <Botao variante={p.perigo ? 'perigo' : 'primario'} onClick={() => fim(true)} autoFocus>{p.ok}</Botao>
+          </div>
+        </>
+      )}
+    </Modal>
+  )
+}

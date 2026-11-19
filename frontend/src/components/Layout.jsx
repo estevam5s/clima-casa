@@ -5,6 +5,7 @@ import { Activity, AirVent, BarChart3, Bell, Blinds, BookOpen, CalendarClock, Ch
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
+import { ConfirmacaoGlobal } from './ui'
 import AcessoRapido from './AcessoRapido'
 import Notificacoes, { useCentral } from './Notificacoes'
 import Atalhos from './Atalhos'
@@ -551,6 +552,7 @@ export default function Layout() {
         </main>
       </motion.div>
       <Paleta aberta={paleta} fechar={() => setPaleta(false)} />
+      <ConfirmacaoGlobal />
       {marca.marca_dagua && <MarcaDagua texto={marca.marca_dagua} />}
       <AnimatePresence>
         {abertura && (

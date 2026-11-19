@@ -52,7 +52,7 @@ export const FUNCIONALIDADES = [
   { slug: 'relatorios', icone: 'BarChart3', titulo: 'Relatórios com consumo e custo',
     resumo: 'Horas ligado, kWh e custo estimados por aparelho, mapa de uso por dia e hora, falhas e exportação em 8 formatos.',
     texto: 'O relatório soma o tempo entre cada "ligar" e o "desligar" seguinte, multiplica pela potência cadastrada de cada ar e pela tarifa de energia que você informa. Compara com o período anterior, mostra o horário de pico, as temperaturas mais pedidas e cada falha com o motivo. Exporta com as cores da sua marca.',
-    lista: ['PDF, Word, Excel, CSV, HTML, XML, JSON e Markdown', 'Período livre ou por aparelho', 'Tarifa editável na própria tela', 'Mapa de uso dia da semana × hora'],
+    lista: ['PDF, Word, Excel, CSV, HTML, XML, JSON e Markdown', 'Enviado por e-mail com o arquivo anexo, ao gerar', 'Período livre ou por aparelho', 'Tarifa editável na própria tela', 'Mapa de uso dia da semana × hora'],
     tela: 'relatorios' },
   { slug: 'seguranca', icone: 'ShieldCheck', titulo: 'Segurança com mapa 3D',
     resumo: 'Firewall de aplicação, bloqueio progressivo de IPs, criptografia AES-256 dos segredos e um globo 3D com a origem dos acessos.',
@@ -62,7 +62,7 @@ export const FUNCIONALIDADES = [
   { slug: 'notificacoes', icone: 'BellRing', titulo: 'Central de notificações',
     resumo: 'Avisos guardados no banco, com abas, ações direto na notificação e preferências que valem em qualquer aparelho.',
     texto: 'Transmissor offline, ar sem botões gravados, falhas seguidas, IP bloqueado ou entrada por um IP novo viram notificação. Os avisos de condição somem sozinhos quando o problema é resolvido. Dá para resolver um alerta, desbloquear um IP ou reconectar um transmissor sem sair do sino.',
-    lista: ['Abas Todas, Não lidas, Importantes e Segurança', 'Limpar uma, as lidas, as resolvidas ou todas', 'Som e contador só com as importantes', 'Contador também no ícone da aba do navegador'],
+    lista: ['Abas Todas, Não lidas, Importantes e Segurança', 'Página própria com histórico, busca, filtros e ações em lote', 'Arquivar, restaurar e exportar em CSV', 'Som e contador só com as importantes', 'Contador também no ícone da aba do navegador'],
     tela: 'notificacoes' },
   { slug: 'white-label', icone: 'Palette', titulo: 'Marca própria',
     resumo: '34 opções para entregar o sistema com a identidade de quem usa: nome, logo, cores, fontes, textos do login e do menu.',
@@ -77,8 +77,17 @@ export const FUNCIONALIDADES = [
   { slug: 'transmissores', icone: 'Radio', titulo: 'Transmissores que se ajustam',
     resumo: 'Mudou o Wi-Fi ou pareou de novo? O agente encontra o IP novo e busca a chave nova na conta Smart Life sozinho.',
     texto: 'O status do SRW-004 diz o que aconteceu: 900 é normal, 914 é chave errada (foi pareado de novo) e 905 é falta de resposta na rede. O agente varre a rede pelo ID do transmissor, grava o IP novo e busca a Local Key nova na conta Smart Life. Se o pareamento gerou outro ID, migra o cadastro e os aparelhos.',
-    lista: ['Descoberta na rede local', 'Importar um ou todos da conta Smart Life', 'Botão "Reconectar agora"', 'Problema explicado na tela quando não dá para resolver sozinho'],
+    lista: ['Descoberta na rede local', 'Importar escolhendo a sala, um ou todos da conta Smart Life', 'Protocolo Tuya certo descoberto sozinho', 'Resumo de cada sala: transmissor próprio, dividido ou sem', 'Transmissor removido por engano volta como estava', 'Botão "Reconectar agora"'],
     tela: 'transmissores' },
+  { slug: 'escritorio', icone: 'Lightbulb', titulo: 'Iluminação e o escritório inteiro',
+    resumo: 'Luzes, cafeteira, persianas e fechadura no mesmo painel, com automações: acender ao anoitecer pelo pôr do sol real e ao destrancar a porta à noite.',
+    texto: 'Além dos ares, o sistema comanda as luzes de cada sala (lâmpadas, painéis, fitas e interruptores Smart Life, ou uma placa própria com relé), a cafeteira numa tomada inteligente, os motores das persianas e a fechadura Wi-Fi. O pôr do sol é calculado para o escritório a cada dia, então "acender ao anoitecer" acompanha a época do ano. Cada automação age uma vez por dia: se alguém apagar na mão, o sistema não acende de novo.',
+    lista: ['Acender, apagar e brilho de cada luz', 'Acender ao anoitecer e ao destrancar a porta à noite', 'Cafeteira com desligamento automático por segurança', 'Persianas que fecham com sol forte', 'Fechadura com auto trancar e aviso fora do expediente'] },
+  { slug: 'mapa-3d', icone: 'Building2', titulo: 'Mapa 3D do escritório',
+    resumo: 'O prédio de 11 andares na cidade, com o escritório no 9º: salas, ares, equipe no expediente, luzes à noite e pessoas que andam, sentam, tomam café e saem para a rua.',
+    texto: 'Cada sala é um projeto e cada ar aparece no lugar certo, com a cor do modo. A equipe aparece só no expediente. Dá para controlar uma pessoa em 1ª ou 3ª pessoa: andar, sentar e trabalhar, fazer café na copa, descer pelo elevador e andar pelas ruas, calçadas, praças e pelo terminal. Previsão do tempo com chuva, semáforos, pedestres e, à noite, as salas acesas conforme as luzes de verdade.',
+    lista: ['Prédio, cidade e terminal de ônibus em 3D', 'Equipe com nome, cargo e expediente', 'Controle da pessoa: andar, sentar, café e elevador', 'Luzes à noite ligadas às lâmpadas reais', 'Previsão do tempo e chuva'],
+    tela: 'painel' },
 ]
 export const DESTAQUES = ['infravermelho', 'alexa-e-google', 'agenda-e-automacoes']
 
@@ -111,7 +120,7 @@ export const TELAS_HOME = ['painel', 'seguranca', 'relatorios', 'apps']
 export const PASSOS = [
   { n: '01', icone: 'Smartphone', titulo: 'Você comanda', texto: 'Pelo painel, pelo app, pela agenda ou pela voz com a Alexa e o Google.' },
   { n: '02', icone: 'Cloud', titulo: 'A nuvem recebe', texto: 'A API na Vercel valida o acesso e grava o comando no Supabase.' },
-  { n: '03', icone: 'Cpu', titulo: 'O agente executa', texto: 'O agente no Mac do escritório lê a fila em cerca de 1 segundo.' },
+  { n: '03', icone: 'Cpu', titulo: 'O agente executa', texto: 'O agente num computador do escritório (Mac, PC Windows ou Raspberry Pi) lê a fila em cerca de 1 segundo.' },
   { n: '04', icone: 'AirVent', titulo: 'O ar obedece', texto: 'O transmissor SRW-004 envia o sinal infravermelho para o aparelho.' },
 ]
 
@@ -153,6 +162,10 @@ export const COMANDOS = [
 
 // ---------- novidades (histórico real do git) ----------
 export const NOVIDADES = [
+  { slug: 'iluminacao-sala-transmissor-cidade', data: '2026-11-18', categoria: 'Versão', img: 'transmissores.jpg',
+    titulo: 'Iluminação, um transmissor por sala e a cidade no mapa 3D',
+    resumo: 'Luzes com acender ao anoitecer, cada sala com o seu transmissor, central de notificações em página, relatório por e-mail e o mapa 3D maior.',
+    itens: ['Iluminação: acender ao anoitecer pelo pôr do sol real e ao destrancar a porta à noite', 'Resumo de salas e transmissores; protocolo do transmissor descoberto sozinho', 'Notificações com histórico, filtros e ações em lote', 'Relatório enviado por e-mail com o arquivo anexo', 'Mapa 3D: luzes à noite, café na copa e passeio pelas ruas', 'Agente que se recupera sozinho quando o computador troca de rede'] },
   { slug: 'notificacoes-seguranca-3d', data: '2026-11-14', categoria: 'Versão', img: 'notificacoes.jpg',
     titulo: 'Central de notificações, Segurança com globo 3D e temperatura real no display',
     resumo: 'Notificações guardadas no banco, tela de Segurança com mapa 3D de acessos e o ar em 3D mostrando a temperatura de fora.',

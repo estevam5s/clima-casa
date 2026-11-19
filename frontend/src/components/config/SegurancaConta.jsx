@@ -4,7 +4,7 @@ import { Check, Copy, Fingerprint, KeyRound, Laptop, Pencil, RefreshCw, ShieldCh
 import { api, haQuanto } from '../../api'
 import { supabase } from '../../supabase'
 import { biometriaDisponivel, cadastrarBiometria, temBiometriaNoAparelho } from '../../webauthn'
-import { Aviso, Botao, Secao, useToast } from '../ui'
+import { Aviso, Botao, Secao, useToast, confirmar } from '../ui'
 
 const traduzir = (m = '') => (/invalid|expired/i.test(m) ? 'Código errado ou vencido. Confira a hora do celular e use o código novo.'
   : /aal2|AAL2/.test(m) ? 'Confirme um código do autenticador atual antes desta ação.' : m)
@@ -162,7 +162,7 @@ function Biometria() {
   }
   const renomear = async (id, nome) => { try { await api.put(`/api/conta/passkeys/${id}`, { nome }); setEditando(null); carregar() } catch (e) { toast(e.message, 'erro') } }
   const remover = async (p) => {
-    if (!window.confirm(`Remover "${p.nome}"? Esse aparelho deixa de entrar com biometria.`)) return
+    if (!await confirmar(`Remover "${p.nome}"? Esse aparelho deixa de entrar com biometria.`)) return
     try { await api.del(`/api/conta/passkeys/${p.id}`); toast('Biometria removida.'); carregar() } catch (e) { toast(e.message, 'erro') }
   }
   return (
@@ -250,7 +250,7 @@ function ContaGoogle() {
     } catch (e) { setErro(e.message); setOcupado(false) }
   }
   const desconectar = async () => {
-    if (!window.confirm('Desconectar a conta Google? Você volta a entrar só com e-mail e senha (ou biometria).')) return
+    if (!await confirmar('Desconectar a conta Google? Você volta a entrar só com e-mail e senha (ou biometria).')) return
     setOcupado(true); setErro('')
     try {
       const sb = await supabase()
@@ -303,7 +303,7 @@ function Sessoes() {
   const outras = (lista || []).filter((x) => !x.atual).length
   return (
     <Secao titulo="Sessões ativas" contexto="Onde a sua conta está aberta agora"
-      acao={outras > 0 && <Botao variante="secundario" tamanho="sm" icone={X} onClick={() => window.confirm('Encerrar todas as outras sessões? Os outros aparelhos vão pedir login de novo.') && encerrar({ todas_menos_esta: true }, 'Sessões encerradas')}>Encerrar as outras</Botao>}>
+      acao={outras > 0 && <Botao variante="secundario" tamanho="sm" icone={X} onClick={async () => await confirmar('Encerrar todas as outras sessões? Os outros aparelhos vão pedir login de novo.') && encerrar({ todas_menos_esta: true }, 'Sessões encerradas')}>Encerrar as outras</Botao>}>
       {!lista ? <p className="text-sm text-muted-foreground">Carregando…</p> : lista.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma sessão registrada ainda.</p> : (
         <ul className="divide-y divide-border">
           {lista.map((x) => (

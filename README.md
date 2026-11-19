@@ -133,6 +133,29 @@ A tela **Comandos da Alexa** gera as frases que funcionam para cada aparelho e r
 | Cenas | Várias ações em sequência com um toque ou por voz |
 | Temporizadores | "Desligar em 90 min", um por aparelho |
 | Atividade | Linha do tempo de todo comando e evento, ao vivo, com filtros e exportação CSV |
+| Notificações | Sino no topo e página própria no menu (com contador): histórico, busca, filtros por tipo e período, arquivar e restaurar, ações em lote, CSV |
+| Atalhos | Menu no topo com as áreas mais usadas e **Backup agora** (JSON sem senhas nem chaves; dono e admin) |
+
+### Escritório: iluminação, cafeteira, persianas e fechadura
+
+| Recurso | O que faz |
+|---|---|
+| Iluminação | Lâmpadas, painéis, fitas e interruptores Smart Life (ou placa própria com relé): acender, apagar, brilho, **acender ao anoitecer pelo pôr do sol real** (calculado para o escritório) e **ao destrancar a porta à noite**; horários fixos |
+| Cafeteira, persianas, fechadura | Tomada inteligente, motor de persiana e fechadura Wi-Fi Smart Life (ou placa própria), com agendas e automações (desligar a cafeteira por segurança, fechar com sol forte, auto trancar) |
+
+### Um transmissor por sala
+
+O infravermelho não tem endereço: ares iguais que o sinal alcança mudam juntos e parede bloqueia o sinal. A tela
+**Transmissores → Salas e transmissores** e o selo em **Projetos** mostram cada sala com transmissor próprio, dividido ou sem;
+o cadastro de ar sugere o transmissor da sala; o agente descobre sozinho o protocolo Tuya certo (3.3/3.4/3.5); um
+transmissor removido por engano volta como estava ao ser importado de novo (30 dias).
+
+### Mapa 3D
+
+Prédio de 11 andares na cidade, escritório no 9º, equipe com expediente, monitores, previsão do tempo e chuva, semáforos,
+pedestres e terminal de ônibus. Controlando uma pessoa: andar (W A S D), sentar e trabalhar (F), **fazer café na copa (C)**,
+descer ao térreo pelo elevador (R) e **andar pelas ruas, calçadas, praças e terminal**. À noite as salas, o corredor e a copa
+acendem; com as luzes cadastradas, a sala com a lâmpada real apagada fica escura.
 
 ---
 
@@ -145,6 +168,7 @@ A tela **Relatórios** (`/relatorios`) consolida o período escolhido (7, 30, 90
 - **Horários de uso** com o horário de pico, **temperaturas escolhidas** e **mapa de uso** (dia da semana × hora).
 - **De onde vêm os comandos** e **tabela por aparelho** ordenável, com total.
 - **Falhas do período** com o motivo de cada uma.
+- **Por e-mail**: ao exportar, o arquivo vai anexo para o e-mail de quem gerou (ou só por e-mail, em PDF). Só para e-mails de usuários do sistema, com limite por hora.
 - **Tarifa de energia** (R$/kWh) editável na própria tela; a **potência** de cada ar fica no cadastro do aparelho.
 
 Exportação gerada no servidor (`GET /api/relatorios/exportar?formato=…`), sempre com a cor da marca:
@@ -200,6 +224,9 @@ A marca é pública (`GET /api/marca`) porque a tela de login também a usa. Ima
 | Linux | `ClimaCasa-linux-x64.AppImage`, `ClimaCasa-linux-arm64.AppImage` | |
 
 Os arquivos ficam nos [Releases](https://github.com/estevam5s/clima-casa/releases). O repositório é privado: o download exige estar logado no GitHub com acesso.
+
+Documentação de cada app (o que faz, como rodar, build, release, segurança e problemas comuns):
+[`apps/android/README.md`](apps/android/README.md) · [`apps/desktop/README.md`](apps/desktop/README.md).
 
 ---
 

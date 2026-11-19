@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Activity, AlertOctagon, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../api'
-import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Secao, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Secao, useDados, useToast, confirmar } from '../components/ui'
 import PainelSeguranca from '../components/config/PainelSeguranca'
 import { useSearchParams } from 'react-router-dom'
 import { Acessos, Conformidade, Incidentes, Integridade, Riscos, TestesAoVivo } from '../components/seguranca/Governanca'
@@ -119,7 +119,7 @@ function AcoesIp({ ip, bloqueado, aoMudar }) {
     <span className="flex justify-end gap-1">
       <button onClick={() => enviar({ tipo: 'bloqueado', minutos: 1440 }, `IP ${ip} bloqueado por 24 h.`)} title="Bloquear por 24 h" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600"><Ban className="h-3.5 w-3.5" /></button>
       <button onClick={() => enviar({ tipo: 'bloqueado', minutos: null }, `IP ${ip} bloqueado de vez.`)} title="Bloquear de vez" className="rounded-md px-1.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-red-600">sempre</button>
-      {/^\d+\.\d+\.\d+\.\d+$/.test(ip) && <button onClick={() => { const faixa = ip.replace(/\.\d+$/, '.0/24'); if (window.confirm(`Bloquear a faixa inteira ${faixa} (256 endereços) por 24 h?`)) api.post('/api/seguranca/ips', { alvo: faixa, motivo: 'faixa pela tela de Segurança', tipo: 'bloqueado', minutos: 1440 }).then(() => { toast(`Faixa ${faixa} bloqueada por 24 h.`); aoMudar() }).catch((e) => toast(e.message, 'erro')) }} title="Bloquear a faixa /24 por 24 h" className="rounded-md px-1.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-red-600">/24</button>}
+      {/^\d+\.\d+\.\d+\.\d+$/.test(ip) && <button onClick={async () => { const faixa = ip.replace(/\.\d+$/, '.0/24'); if (await confirmar(`Bloquear a faixa inteira ${faixa} (256 endereços) por 24 h?`)) api.post('/api/seguranca/ips', { alvo: faixa, motivo: 'faixa pela tela de Segurança', tipo: 'bloqueado', minutos: 1440 }).then(() => { toast(`Faixa ${faixa} bloqueada por 24 h.`); aoMudar() }).catch((e) => toast(e.message, 'erro')) }} title="Bloquear a faixa /24 por 24 h" className="rounded-md px-1.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-red-600">/24</button>}
       <button onClick={() => enviar({ tipo: 'permitido', minutos: null }, `IP ${ip} nunca será bloqueado.`)} title="Nunca bloquear" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-emerald-600"><UserCheck className="h-3.5 w-3.5" /></button>
     </span>
   )

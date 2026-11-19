@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Check, Copy, Download, ExternalLink, KeyRound, Lock, Mail, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
 import { api } from '../../api'
-import { Aviso, Botao, Esqueleto, Interruptor, Modal, Selo, Vazio, useToast } from '../ui'
+import { Aviso, Botao, Esqueleto, Interruptor, Modal, Selo, Vazio, useToast, confirmar } from '../ui'
 import { Dica, num } from './comum'
 
 // Cloudflare do zynio.com.br, operada pelo agente (CLOUDFLARE_API_TOKEN só no .env dele). Tudo é "DNS only": o site e o
@@ -276,7 +276,7 @@ export function CfEmail({ dono }) {
               <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1"><p className="truncate font-medium">{r.endereco}</p><p className="truncate text-xs text-muted-foreground">{r.acao === 'forward' ? `→ ${r.destinos.join(', ')}` : r.acao === 'drop' ? 'descarta' : r.acao}</p></div>
               <Interruptor ligado={r.ativa} disabled={!dono || !!ocupado} rotulo={`Ligar ${r.endereco}`} onChange={(v) => regra({ acao: v ? 'ligar' : 'desligar', id: r.id }, v ? 'Endereço ligado.' : 'Endereço desligado.')} />
-              {dono && <button type="button" disabled={!!ocupado} onClick={() => window.confirm(`Apagar ${r.endereco}? E-mails para ele passam a cair no pega-tudo (ou voltam com erro se ele estiver desligado).`) && regra({ acao: 'apagar', id: r.id }, 'Endereço apagado.')} className="rounded-md p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950" title="Apagar" aria-label={`Apagar ${r.endereco}`}><Trash2 className="h-4 w-4" /></button>}
+              {dono && <button type="button" disabled={!!ocupado} onClick={async () => await confirmar(`Apagar ${r.endereco}? E-mails para ele passam a cair no pega-tudo (ou voltam com erro se ele estiver desligado).`) && regra({ acao: 'apagar', id: r.id }, 'Endereço apagado.')} className="rounded-md p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950" title="Apagar" aria-label={`Apagar ${r.endereco}`}><Trash2 className="h-4 w-4" /></button>}
             </li>
           ))}</ul>
         )}
@@ -306,7 +306,7 @@ export function CfEmail({ dono }) {
           <h2 className="titulo-secao">Destinos</h2>
           <p className="mt-1 text-sm text-muted-foreground">Caixas que recebem os encaminhamentos. Cada uma precisa confirmar pelo link que a Cloudflare manda.</p>
           <ul className="mt-3 divide-y divide-border text-sm">{d.destinos.map((x) => <li key={x.email} className="flex items-center justify-between gap-2 py-2"><span className="truncate">{x.email}</span>{x.verificado ? <Selo cor="verde">Confirmado</Selo> : <Selo cor="ambar">Aguardando confirmação</Selo>}</li>)}</ul>
-          {dono && <form className="mt-3 flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (window.confirm(`A Cloudflare vai mandar um e-mail de confirmação para ${novoDestino}. Continuar?`)) { fazer('dest', () => api.post('/api/infra/cf/email/destino', { email: novoDestino }), 'Destino cadastrado. Falta clicar no link de confirmação.'); setNovoDestino('') } }}>
+          {dono && <form className="mt-3 flex flex-wrap gap-2" onSubmit={async (e) => { e.preventDefault(); if (await confirmar(`A Cloudflare vai mandar um e-mail de confirmação para ${novoDestino}. Continuar?`)) { fazer('dest', () => api.post('/api/infra/cf/email/destino', { email: novoDestino }), 'Destino cadastrado. Falta clicar no link de confirmação.'); setNovoDestino('') } }}>
             <input type="email" className="campo min-w-[12rem] flex-1" placeholder="outro@exemplo.com" value={novoDestino} onChange={(e) => setNovoDestino(e.target.value)} required />
             <Botao type="submit" variante="secundario" icone={Plus} disabled={ocupado === 'dest'}>Cadastrar destino</Botao>
           </form>}
@@ -382,7 +382,7 @@ export function CfSeguranca({ dono }) {
   const audit = useCf('/api/infra/cf/auditoria?limite=60')
   const [ocupado, setOcupado] = useState(false), [confirmar, setConfirmar] = useState(''), [desligar, setDesligar] = useState(false)
   const mudar = async (ligar) => {
-    if (ligar && !window.confirm('Ligar o DNSSEC? Depois é preciso colar o registro DS no Registro.br; até lá nada muda para os visitantes.')) return
+    if (ligar && !await confirmar('Ligar o DNSSEC? Depois é preciso colar o registro DS no Registro.br; até lá nada muda para os visitantes.')) return
     setOcupado(true)
     try { dnssec.setD(await api.post('/api/infra/cf/dnssec', { ligar, confirmar: confirmar || null })); toast(ligar ? 'DNSSEC ligado na Cloudflare. Agora cole o DS no Registro.br.' : 'DNSSEC desligado.'); setDesligar(false) } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
   }

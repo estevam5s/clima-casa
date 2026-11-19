@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ArrowUpRight, ExternalLink, FileText, Globe, HardDrive, KeyRound, RefreshCw, Rocket, RotateCcw, Trash2, X } from 'lucide-react'
 import { api, haQuanto } from '../../api'
-import { Aviso, Botao, Esqueleto, FaixaMetricas, Modal, Selo, useToast } from '../ui'
+import { Aviso, Botao, Esqueleto, FaixaMetricas, Modal, Selo, useToast, confirmar } from '../ui'
 import { Dica, Medidor, PROJETOS, bytes, dataHora, num } from './comum'
 
 // Vercel do app e do site: lida e operada pelo agente do escritório (o token não fica na nuvem).
@@ -103,7 +103,7 @@ export function Publicacoes({ dono }) {
   useEffect(() => { carregar() }, [carregar])
   const acao = async (d, a) => {
     const textos = { promover: `Colocar no ar a publicação de ${dataHora(d.criado)}? O site passa a servir essa versão na hora.`, republicar: 'Construir de novo esta publicação e pôr no ar?', cancelar: 'Cancelar esta publicação em andamento?', apagar: `Apagar a publicação de ${dataHora(d.criado)}? Não dá para desfazer.` }
-    if (!window.confirm(textos[a])) return
+    if (!await confirmar(textos[a])) return
     setOcupado(d.id + a)
     try { await api.post('/api/infra/publicacoes/acao', { projeto, id: d.id, acao: a }); toast('Feito.'); carregar() } catch (e) { toast(e.message, 'erro') } finally { setOcupado('') }
   }
@@ -159,7 +159,7 @@ export function Config({ resumo, dono, recarregar }) {
     try {
       const sim = await api.post('/api/infra/limpar', { projeto, manter, simular: true })
       if (!sim.apagaria) { toast('Nada para apagar: só restam as mais novas.'); return }
-      if (!window.confirm(`Apagar ${sim.apagaria} publicação(ões) antiga(s) de ${projeto}? Ficam as ${manter} mais novas e a que está no ar. Não dá para desfazer.`)) return
+      if (!await confirmar(`Apagar ${sim.apagaria} publicação(ões) antiga(s) de ${projeto}? Ficam as ${manter} mais novas e a que está no ar. Não dá para desfazer.`)) return
       const r = await api.post('/api/infra/limpar', { projeto, manter })
       toast(`${r.apagadas} apagada(s).${r.faltam ? ` Faltam ${r.faltam}: clique de novo.` : ''}`); recarregar()
     } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }

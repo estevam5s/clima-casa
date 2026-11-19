@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Activity, BellRing, Download, Globe2, ListTree, Network, Router, Server, Trash2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../../api'
-import { Aviso, Botao, Interruptor, Selo, useToast } from '../ui'
+import { Aviso, Botao, Interruptor, Selo, useToast, confirmar } from '../ui'
 
 // Partes avançadas da tela Rede: nota de bufferbloat, teste de estabilidade (navegador), diagnóstico completo (agente),
 // agenda com alertas, médias e exportação. Tudo medido; o que não deu para medir aparece como "—".
@@ -214,7 +214,7 @@ export function Resumo({ hist, aoLimpar, dono }) {
       : [cols.join(';'), ...hist.map((h) => cols.map((c) => (c === 'quando' ? new Date(h.quando * 1000).toISOString() : String(h[c] ?? '').replace(/^[=+\-@]/, "'$&").replace(/;/g, ','))).join(';'))].join('\n')
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: tipo === 'json' ? 'application/json' : 'text/csv' })); a.download = `testes-rede.${tipo}`; a.click(); URL.revokeObjectURL(a.href)
   }
-  const limpar = async () => { if (!window.confirm('Apagar todo o histórico de testes de rede? Não dá para desfazer.')) return; try { await api.del('/api/infra/rede/historico'); aoLimpar(); toast('Histórico apagado.') } catch (e) { toast(e.message, 'erro') } }
+  const limpar = async () => { if (!await confirmar('Apagar todo o histórico de testes de rede? Não dá para desfazer.')) return; try { await api.del('/api/infra/rede/historico'); aoLimpar(); toast('Histórico apagado.') } catch (e) { toast(e.message, 'erro') } }
   return (
     <section className="cartao p-5">
       <div className="flex flex-wrap items-center gap-2">
