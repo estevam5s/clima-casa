@@ -1007,7 +1007,8 @@ def importar_hub(device_id: str, projeto_id: int | None = None):
     else:
         db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, control_type, funcoes_nuvem, projeto_id, criado_em) "
                     "VALUES (?,?,?,?,?,?,?,?,?)",
-                    (device_id, info["nome"], ip, cripto.cifrar(info["local_key"], "hub:local_key"), versao, info["control_type"],
+                    (device_id, info["nome"], ip, cripto.cifrar(info["local_key"], "hub:local_key"), versao,
+                     info["control_type"] or transmissor.tipo_padrao(device_id),
                      json.dumps(info["funcoes"]), projeto_id or (db.um("SELECT min(id) AS id FROM projetos") or {}).get("id"), db.agora()))
         volta = _restaurar_removido(device_id)
         if volta:

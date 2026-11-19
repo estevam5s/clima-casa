@@ -64,6 +64,7 @@ function Detalhe({ b, gestor, aoFechar, aoMudar }) {
         <p className="whitespace-pre-line">{b.descricao}</p>
         {b.passos && <div><p className="rotulo">Passos</p><p className="whitespace-pre-line text-muted-foreground">{b.passos}</p></div>}
         {b.contexto?.erros?.length > 0 && <div><p className="rotulo">Erros registrados</p><ul className="max-h-32 overflow-y-auto rounded bg-muted p-2 font-mono text-xs">{b.contexto.erros.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
+        {b.contexto?.correcao && <div className="rounded-lg border border-emerald-600/40 bg-emerald-50 p-3 dark:bg-emerald-950/40"><p className="rotulo text-emerald-800 dark:text-emerald-300">Como foi corrigido</p><p>{b.contexto.correcao}</p></div>}
         <div className="rounded-lg border border-border p-3"><p className="rotulo">Sugestão de correção</p><p>{b.sugestao}</p></div>
         <div className="rounded-lg border border-border p-3">
           <div className="flex items-center justify-between gap-2"><p className="rotulo flex items-center gap-1.5"><Bot className="h-4 w-4" />Prompt para a IA corrigir</p>

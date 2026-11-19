@@ -8,6 +8,7 @@ O sistema roda em dois papéis:
 import json
 import os
 import socket
+import struct
 import threading
 import time
 
@@ -60,14 +61,21 @@ def porta_aberta(ip: str, porta=6668, timeout=1.5) -> bool:
         return False
 
 
+def tipo_padrao(hub_id: str | None = None) -> int:
+    """Formato de comando para um transmissor que ainda não tem o seu (ex.: importado de novo pela conta Smart Life, que
+    nem sempre informa). Usa o formato dos outros transmissores (mesmo modelo SRW-004) e, sem nenhum, o 1 (dp 201 do
+    protocolo 3.3). Antes o envio era recusado com "Formato de comando ainda não definido" até gravar um botão."""
+    r = db.um("SELECT control_type, count(*) n FROM hubs WHERE control_type IS NOT NULL AND id <> ? GROUP BY control_type "
+              "ORDER BY count(*) DESC LIMIT 1", (hub_id or "",))
+    return int(r["control_type"]) if r else 1
+
+
 # ---------------- execução local (só no agente) ----------------
 def _ir(h: dict, tipo=None):
     from tinytuya.Contrib import IRRemoteControlDevice
     if not (h["ip"] and h["local_key"]):
         raise RuntimeError("Transmissor sem IP ou Local Key.")
-    tipo = tipo or h["control_type"]
-    if not tipo:
-        raise RuntimeError("Formato de comando do transmissor ainda não definido. Grave o primeiro botão.")
+    tipo = tipo or h["control_type"] or tipo_padrao(h["id"])
     return IRRemoteControlDevice(h["id"], h["ip"], h["local_key"], version=float(h["versao"]), control_type=tipo,
                                  persist=True, connection_timeout=4, connection_retry_limit=1)
 
@@ -101,10 +109,23 @@ def _aprender_local(h: dict, timeout=30) -> tuple[str, int]:
             raise RuntimeError("O transmissor está na rede, mas recusou a conexão (chave ou protocolo). Em Transmissores, "
                                "clique em “Reconectar agora” e grave de novo.")
     for tipo in ([h["control_type"]] if h["control_type"] else [2, 1]):
-        with _trava(h["id"]):
-            ir = _ir(h, tipo)
-            codigo = ir.receive_button(timeout=timeout)
-            ir.close()
+        codigo = None
+        for tentativa in range(2):
+            try:
+                with _trava(h["id"]):
+                    ir = _ir(h, tipo)
+                    try:
+                        codigo = ir.receive_button(timeout=timeout)
+                    finally:
+                        ir.close()
+                break
+            except struct.error:
+                # resposta do transmissor cortada no meio (outra conexão aberta ao mesmo tempo, ex.: varredura do
+                # autorreparo): o tinytuya quebrava com "unpack requires a buffer of 8 bytes". Espera e escuta de novo.
+                if tentativa:
+                    raise RuntimeError("O transmissor respondeu pela metade (outra conexão com ele ao mesmo tempo). "
+                                       "Espere 10 segundos e grave de novo.")
+                time.sleep(2)
         if isinstance(codigo, str) and len(codigo) > 8:
             # Um comando de ar tem de ~100 a 300 pulsos; poucos pulsos = ruído (lâmpada, sol) ou só a ponta do sinal.
             # Antes isso era salvo como "Gravado" e o botão não funcionava.
@@ -293,11 +314,11 @@ def enviar(hub_id: str, codigo: str, contexto: dict | None = None) -> str:
                 _avisar_sinric(contexto)
                 return "local"
             if not agente_online():
-                raise RuntimeError("Agente do Mac offline.")
+                raise RuntimeError(sem_agente())
             f = aguardar(enfileirar("enviar", hub_id, {"codigo": codigo, "contexto": contexto}), 8)
             if f["estado"] == "ok":
                 return "agente"
-            raise RuntimeError(f["erro"])
+            raise RuntimeError(sem_agente() if (f.get("erro") or "").startswith("Tempo esgotado") else f["erro"])
         except Exception as e:  # noqa: BLE001
             erro_local = str(e)
             if modo == "local":
@@ -305,6 +326,8 @@ def enviar(hub_id: str, codigo: str, contexto: dict | None = None) -> str:
     if not tuya_nuvem.conectada():
         raise RuntimeError(erro_local or "Conta Smart Life não conectada para envio pela nuvem.")
     funcoes = json.loads(h["funcoes_nuvem"] or "[]")
+    if erro_local and not ({"ir_send", "send_ir", "mode"} & set(funcoes)):
+        raise RuntimeError(erro_local)   # este transmissor não envia código gravado pela nuvem: o motivo real é o local
     try:
         tuya_nuvem.enviar_ir(hub_id, codigo, funcoes)
     except Exception as e:  # noqa: BLE001

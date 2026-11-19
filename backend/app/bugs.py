@@ -84,10 +84,15 @@ def _chave(*partes) -> str:
     return hashlib.sha256("|".join(str(p) for p in partes).encode()).hexdigest()[:40]
 
 
-def registrar_auto(chave: str, titulo: str, descricao: str, pagina: str = "", gravidade: str = "media", categoria: str = "", contexto: dict | None = None) -> int:
-    """Cria ou soma ocorrência de um bug encontrado pelo sistema. Corrigido que volta a acontecer reabre."""
+def registrar_auto(chave: str, titulo: str, descricao: str, pagina: str = "", gravidade: str = "media", categoria: str = "",
+                   contexto: dict | None = None, ultimo: int | None = None) -> int:
+    """Cria ou soma ocorrência de um bug encontrado pelo sistema. Corrigido que volta a acontecer reabre.
+    `ultimo` = quando o erro mais recente aconteceu: se não houve nada depois da última atualização do bug (erros antigos
+    ainda dentro da janela de 24 h), não soma ocorrência nem reabre o que já foi corrigido."""
     agora = db.agora()
-    ja = db.um("SELECT id, estado, contexto FROM bugs WHERE chave = ?", (chave,))
+    ja = db.um("SELECT id, estado, contexto, atualizado_em FROM bugs WHERE chave = ?", (chave,))
+    if ja and ultimo is not None and ultimo <= (ja["atualizado_em"] or 0):
+        return ja["id"]
     if ja:
         ctx = ja["contexto"] if isinstance(ja["contexto"], dict) else json.loads(ja["contexto"] or "{}")
         novos = (contexto or {}).get("erros") or []
@@ -122,14 +127,20 @@ def varrer() -> dict:
     """Procura problemas no próprio sistema e transforma em bugs (sem duplicar)."""
     achados = 0
     desde = db.agora() - 86400
-    for r in db.consultar("SELECT acao, count(*) n, max(detalhe) detalhe FROM atividade WHERE ok = 0 AND quando > ? GROUP BY acao HAVING count(*) >= 3 ORDER BY count(*) DESC LIMIT 15", (desde,)):
+    # falha porque nenhum agente estava no escritório já vira o bug "agente parado" (abaixo): não repete por ação
+    for r in db.consultar("SELECT acao, count(*) n, max(detalhe) detalhe, max(quando) ultimo FROM atividade WHERE ok = 0 AND quando > ? "
+                          "AND coalesce(detalhe, '') NOT SIMILAR TO '%(não respondeu a tempo|agente do Mac offline|Nenhum computador do escritório|não enxerga os transmissores)%' "
+                          "GROUP BY acao HAVING count(*) >= 3 ORDER BY count(*) DESC LIMIT 15", (desde,)):
         acao = re.sub(r"\d+°", "N°", r["acao"])[:120]
         registrar_auto(_chave("atividade", acao), f"Falha repetida: {acao}", f"{r['n']} falhas nas últimas 24 h. Último motivo: {r['detalhe'] or '-'}",
-                       gravidade="alta" if r["n"] >= 10 else "media", categoria="atividade", contexto={"erros": [str(r["detalhe"])[:200]]})
+                       gravidade="alta" if r["n"] >= 10 else "media", categoria="atividade", contexto={"erros": [str(r["detalhe"])[:200]]}, ultimo=r["ultimo"])
         achados += 1
-    for r in db.consultar("SELECT tipo, erro, count(*) n FROM fila_comandos WHERE estado = 'erro' AND criado_em > ? GROUP BY tipo, erro HAVING count(*) >= 3", (desde,)):
+    # gravação sem sinal é o resultado normal de quem não apertou o controle a tempo: não é bug do sistema
+    for r in db.consultar("SELECT tipo, erro, count(*) n, max(criado_em) ultimo FROM fila_comandos WHERE estado = 'erro' AND criado_em > ? "
+                          "AND NOT (tipo = 'aprender' AND (erro LIKE 'Nenhum sinal%' OR erro LIKE 'Sinal incompleto%')) "
+                          "GROUP BY tipo, erro HAVING count(*) >= 3", (desde,)):
         registrar_auto(_chave("fila", r["tipo"], (r["erro"] or "")[:60]), f"Fila: {r['tipo']} falhando", f"{r['n']} pedidos '{r['tipo']}' com erro em 24 h: {r['erro']}",
-                       gravidade="media", categoria="agente", contexto={"erros": [str(r["erro"])[:200]]})
+                       gravidade="media", categoria="agente", contexto={"erros": [str(r["erro"])[:200]]}, ultimo=r["ultimo"])
         achados += 1
     try:
         from .rotas import api as rapi
@@ -139,14 +150,33 @@ def varrer() -> dict:
             achados += 1
     except Exception:  # noqa: BLE001
         pass
-    for h in db.consultar("SELECT nome, problema, visto_em FROM hubs WHERE problema IS NOT NULL AND (visto_em IS NULL OR visto_em < ?)", (db.agora() - 6 * 3600,)):
-        registrar_auto(_chave("hub", h["nome"], h["problema"][:40]), f"Transmissor {h['nome']} com problema há horas", h["problema"], pagina="/transmissores",
-                       gravidade="media", categoria="transmissor")
-        achados += 1
+    # Sem agente no escritório, todo transmissor parece "fora da rede": é um problema só (o agente), não um por transmissor
     visto = db.cfg("agente_visto_em", 0) or 0
+    try:
+        from . import coordenador
+        principal = next((m for m in coordenador.maquinas() if m.get("principal")), None)
+    except Exception:  # noqa: BLE001
+        principal = None
+    cego = bool(principal) and not principal.get("ve_transmissores")
     if visto and db.agora() - int(visto) > 3 * 3600:
         registrar_auto(_chave("agente_off", time.strftime("%Y%m%d")), "Nenhum agente ligado há mais de 3 horas",
                        "Sem agente, nenhum comando chega aos ares. Ligue o computador do escritório (ou o Raspberry Pi).", pagina="/infra", gravidade="alta", categoria="agente")
         achados += 1
+    elif cego:
+        cegos = int(db.cfg("agente_cego_desde", 0) or 0) or db.agora()
+        db.set_cfg("agente_cego_desde", cegos)
+        if db.agora() - cegos > 3 * 3600:
+            registrar_auto(_chave("agente_cego", time.strftime("%Y%m%d")), "O agente no comando não está no escritório",
+                           f"O computador no comando ({principal.get('nome')}) não enxerga nenhum transmissor há mais de 3 horas: os comandos "
+                           "não chegam aos ares. Ligue um computador do escritório (ou o Raspberry Pi) e deixe-o como preferido em Infra → Agentes.",
+                           pagina="/infra", gravidade="alta", categoria="agente")
+            achados += 1
+    if not cego:
+        db.set_cfg("agente_cego_desde", 0)
+    if not (cego or (visto and db.agora() - int(visto) > 3 * 3600)):
+        for h in db.consultar("SELECT nome, problema, visto_em FROM hubs WHERE problema IS NOT NULL AND (visto_em IS NULL OR visto_em < ?)", (db.agora() - 6 * 3600,)):
+            registrar_auto(_chave("hub", h["nome"], h["problema"][:40]), f"Transmissor {h['nome']} com problema há horas", h["problema"], pagina="/transmissores",
+                           gravidade="media", categoria="transmissor")
+            achados += 1
     db.set_cfg("bugs_ultima_varredura", db.agora())
     return {"achados": achados, "em": db.agora()}
