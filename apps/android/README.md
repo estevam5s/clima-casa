@@ -39,6 +39,13 @@ O que **não** está no app (use o painel web/PWA): mapa 3D, relatórios, ilumin
 | `src/app/(abas)/aparelhos` | Lista e controle de cada ar |
 | `src/app/(abas)/cenas` | Cenas do projeto |
 | `src/app/(abas)/mais` | Conta, projeto, biometria, versão e sair |
+| `src/app/(abas)/mais/ia.tsx` | **Assistente de IA** (NVIDIA): conversa salva no servidor, com as permissões de quem usa; desligar todos e cenas pedem Confirmar |
+| `src/app/(abas)/mais/*` | Automações, agenda, atividade, alertas, projetos, transmissores, Alexa e Google, Supabase |
+
+### Atualizações sem APK novo (EAS Update)
+Mudança só de JavaScript vai pelo EAS Update e chega na próxima abertura do app: `npx eas-cli@latest update --channel preview --environment preview --message "…"`.
+A `runtimeVersion` segue a versão do app (`appVersion`): **não suba a versão** para uma mudança só de JS, senão o update não chega aos APKs instalados.
+Última publicada: 19/11/2026, "Assistente de IA no celular" (runtime 1.3.0).
 
 ## Requisitos
 - Node 20+, `npx eas-cli@latest` com a conta Expo do projeto (`estevam5s`, projeto `clima-casa`).

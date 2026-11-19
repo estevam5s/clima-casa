@@ -86,8 +86,20 @@ export const FUNCIONALIDADES = [
   { slug: 'mapa-3d', icone: 'Building2', titulo: 'Mapa 3D do escritório',
     resumo: 'O prédio de 11 andares na cidade, com o escritório no 9º: salas, ares, equipe no expediente, luzes à noite e pessoas que andam, sentam, tomam café e saem para a rua.',
     texto: 'Cada sala é um projeto e cada ar aparece no lugar certo, com a cor do modo. A equipe aparece só no expediente. Dá para controlar uma pessoa em 1ª ou 3ª pessoa: andar, sentar e trabalhar, fazer café na copa, descer pelo elevador e andar pelas ruas, calçadas, praças e pelo terminal. Previsão do tempo com chuva, semáforos, pedestres e, à noite, as salas acesas conforme as luzes de verdade.',
-    lista: ['Prédio, cidade e terminal de ônibus em 3D', 'Equipe com nome, cargo e expediente', 'Controle da pessoa: andar, sentar, café e elevador', 'Luzes à noite ligadas às lâmpadas reais', 'Previsão do tempo e chuva'],
+    lista: ['Prédio, cidade e terminal de ônibus em 3D', 'Equipe com nome, cargo e expediente', 'Controle da pessoa: andar, sentar, café e elevador', 'Carros dirigíveis com física, câmbio automático, nitro e voo', 'Multijogador: quem está no mapa aparece para os outros', 'Luzes à noite ligadas às lâmpadas reais', 'Previsão do tempo e chuva'],
     tela: 'painel' },
+  { slug: 'assistente-de-ia', icone: 'Bot', titulo: 'Assistente de IA',
+    resumo: 'Converse em português no painel, no Telegram, no celular ou no terminal: ele vê o estado real e age com as permissões de quem pergunta.',
+    texto: 'O assistente usa modelos da NVIDIA com ferramentas que leem o sistema de verdade: ares, salas, zonas, transmissores, agentes, atividade, relatórios, tempo lá fora e os aparelhos do escritório. Mudar um ar acontece na hora; desligar todos e executar cenas só depois de você confirmar. No painel as conversas ficam salvas; no terminal (clima-ia) ele também conhece o código do projeto e nunca envia segredos.',
+    lista: ['Chat com conversas salvas, comandos com /, anexos e ditado', 'No Telegram: escreva normalmente', 'No celular: tela própria no app Android', 'No terminal: clima-ia com modos de permissão'] },
+  { slug: 'telegram', icone: 'Send', titulo: 'Bot do Telegram',
+    resumo: '498 comandos com as suas permissões: o painel de cada ar no jeito do controle remoto, timers, relatórios, luzes, persianas e avisos.',
+    texto: 'Cada pessoa vincula o próprio Telegram com um código de uso único gerado no painel. O menu mostra o estado no topo e navega por 22 categorias. Ações em lote pedem confirmação, e os avisos importantes podem chegar no Telegram.',
+    lista: ['Ar atual e atalhos /23, /frio23, /mais', 'Timers prontos e relatórios por período', 'Confirmação em toda ação em lote', 'Avisos importantes no Telegram'] },
+  { slug: 'backup-e-treinamento', icone: 'ShieldCheck', titulo: 'Backup, restauração e treinamento',
+    resumo: 'Backup do sistema inteiro com restauração simulada antes de gravar, e provas de segurança e ISO com mais de mil perguntas.',
+    texto: 'O backup junta todas as tabelas num arquivo com manifesto e verificação de integridade; os segredos continuam cifrados. A restauração mostra o que é novo, o que muda e o que sairia antes de gravar. O treinamento sorteia provas de um banco com 1.017 perguntas (segurança no dia a dia, LGPD, ISO/IEC 27001:2022 e normas ISO), com nota na hora e por e-mail.',
+    lista: ['Backup completo e restauração com simulação', 'Backups automáticos diários', 'Provas com gabarito comentado', 'Aprovação conta na conformidade ISO 27001'] },
 ]
 export const DESTAQUES = ['infravermelho', 'alexa-e-google', 'agenda-e-automacoes']
 
@@ -137,16 +149,19 @@ export const INTEGRACOES = [
 
 // ---------- números (lista "prêmios") ----------
 export const NUMEROS = [
-  { onde: 'API', o_que: '89 rotas protegidas por login', quando: 'v1.0' },
-  { onde: 'Supabase', o_que: '19 tabelas com RLS em todas', quando: 'v1.0' },
+  { onde: 'API', o_que: '371 rotas, todas com regra de permissão', quando: 'v1.24' },
+  { onde: 'Supabase', o_que: '40 tabelas com RLS em todas', quando: 'v1.24' },
+  { onde: 'Telegram', o_que: '498 comandos com as permissões de cada pessoa', quando: 'v1.23' },
+  { onde: 'Treinamento', o_que: '1.017 perguntas de segurança e ISO', quando: 'v1.24' },
   { onde: 'pg_cron', o_que: '10 rotinas automáticas no banco', quando: 'v1.0' },
   { onde: 'Relatórios', o_que: '8 formatos de exportação', quando: 'v1.0' },
   { onde: 'White label', o_que: '34 opções de marca própria', quando: 'v1.0' },
   { onde: 'Apps', o_que: '5 plataformas nativas + PWA', quando: 'v1.0' },
 ]
 export const CONTADORES = [
-  { n: 89, sufixo: '', rotulo: 'rotas de API' },
-  { n: 19, sufixo: '', rotulo: 'tabelas no banco' },
+  { n: 371, sufixo: '', rotulo: 'rotas de API' },
+  { n: 40, sufixo: '', rotulo: 'tabelas no banco' },
+  { n: 498, sufixo: '', rotulo: 'comandos no Telegram' },
   { n: 8, sufixo: '', rotulo: 'formatos de relatório' },
   { n: 30, sufixo: '', rotulo: 'comandos de voz por ar' },
 ]
@@ -162,6 +177,10 @@ export const COMANDOS = [
 
 // ---------- novidades (histórico real do git) ----------
 export const NOVIDADES = [
+  { slug: 'ia-telegram-backup-treinamento', data: '2026-11-19', categoria: 'Versão', img: 'painel.jpg',
+    titulo: 'Assistente de IA, Telegram com 498 comandos, backup completo e treinamento ISO',
+    resumo: 'IA no painel, no Telegram, no celular e no terminal; mapa 3D multijogador com carros; backup e restauração; provas com mais de mil perguntas.',
+    itens: ['Assistente de IA com conversas salvas e ações com confirmação', 'Bot do Telegram com 498 comandos em 22 categorias', 'Mapa 3D: carros com física, nitro e voo, multijogador', 'Backup do sistema inteiro e restauração simulada', 'Treinamento com 1.017 perguntas, nota na hora e por e-mail', 'Agenda, cenas e automações com modelos prontos'] },
   { slug: 'iluminacao-sala-transmissor-cidade', data: '2026-11-18', categoria: 'Versão', img: 'transmissores.jpg',
     titulo: 'Iluminação, um transmissor por sala e a cidade no mapa 3D',
     resumo: 'Luzes com acender ao anoitecer, cada sala com o seu transmissor, central de notificações em página, relatório por e-mail e o mapa 3D maior.',

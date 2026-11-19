@@ -15,6 +15,9 @@ const ARQ_ESTADO = path.join(app.getPath('userData'), 'janela.json')
 const ARQ_PREF = path.join(app.getPath('userData'), 'preferencias.json')
 const ROTAS = [['Painel', '/'], ['Aparelhos', '/aparelhos'], ['Mapa do escritório', '/mapa'], ['Cenas', '/cenas'], ['Automações', '/automacoes'],
   ['Agenda', '/agendamentos'], ['Relatórios', '/relatorios'], ['Atividade', '/atividade'], ['Segurança', '/seguranca']]
+// telas novas (1.4.0): no menu Ir e na bandeja, sem atalho de número (Cmd+1 a 9 já são as de cima)
+const MAIS_TELAS = [['Assistente de IA', '/ia'], ['Notificações', '/notificacoes'], ['Treinamento e segurança', '/treinamento'], ['Backup e restauração', '/backup'],
+  ['Telegram', '/telegram'], ['Música', '/musica'], ['Bugs', '/bugs'], ['Transmissores', '/transmissores']]
 let janela = null, bandeja = null, saindo = false, travado = false, escondidaEm = null, novaVersao = null
 
 if (!app.requestSingleInstanceLock()) app.quit()
@@ -139,6 +142,8 @@ function montarBandeja() {
     ...(novaVersao ? [{ label: `Baixar a versão ${novaVersao}`, click: () => baixarVersao() }] : []),
     { type: 'separator' },
     ...ROTAS.slice(0, 5).map(([r, rota]) => ({ label: r, click: () => mostrar(rota) })),
+    { label: 'Assistente de IA', click: () => mostrar('/ia') },
+    { label: 'Mais telas', submenu: MAIS_TELAS.map(([r, rota]) => ({ label: r, click: () => mostrar(rota) })) },
     { type: 'separator' },
     { label: 'Iniciar com o sistema', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
       click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked, openAsHidden: true }) },
@@ -162,6 +167,8 @@ function montarMenuApp() {
       { role: 'copy', label: 'Copiar' }, { role: 'paste', label: 'Colar' }, { role: 'selectAll', label: 'Selecionar tudo' }] },
     { label: 'Ir', submenu: [
       ...ROTAS.map(([r, rota], i) => ({ label: r, accelerator: `CmdOrCtrl+${i + 1}`, click: () => mostrar(rota) })),
+      { type: 'separator' },
+      ...MAIS_TELAS.map(([r, rota]) => ({ label: r, ...(rota === '/ia' ? { accelerator: 'CmdOrCtrl+Shift+I' } : {}), click: () => mostrar(rota) })),
       { type: 'separator' },
       { label: 'Mensagens', click: () => mostrar('/mensagens') },
       { label: 'Configurações', accelerator: 'CmdOrCtrl+,', click: () => mostrar('/configuracoes') },

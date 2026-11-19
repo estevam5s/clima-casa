@@ -10,6 +10,7 @@ import { useTema } from '@/lib/tema';
 import { Cartao, Linha, Tela, Texto } from '@/ui/base';
 
 const ITENS: [string, string, string][] = [
+  ['Assistente de IA', 'Converse e peça: ligar, desligar, timer, diagnóstico', '/mais/ia'],
   ['Automações', 'Regras que agem sozinhas, inclusive pela Alexa', '/mais/automacoes'],
   ['Agenda', 'Horários automáticos', '/mais/agenda'],
   ['Atividade', 'Histórico de todos os comandos', '/mais/atividade'],

@@ -6,7 +6,7 @@ mesmas telas do navegador); sem internet, mostra uma página de "sem conexão" c
 
 | | |
 |---|---|
-| Versão | `package.json` → `version` (1.3.0) |
+| Versão | `package.json` → `version` (1.4.0) |
 | Stack | Electron 45 (`src/main.js`, `src/preload.js`) |
 | Nome do produto | "Clima Casa" de propósito (mudar cria outro app no sistema) |
 | Distribuição | release do GitHub: `ClimaCasa-mac-apple-silicon.dmg`, `-mac-intel.dmg`, `-windows.exe`, `-linux-x64.AppImage`, `-linux-arm64.AppImage` |
@@ -23,7 +23,9 @@ mesmas telas do navegador); sem internet, mostra uma página de "sem conexão" c
 
 ## O que o app faz
 - Janela própria com todo o painel (ares, mapa 3D, iluminação, notificações, relatórios, infra…).
-- **Bandeja** (ícone perto do relógio): abrir, ir direto às 5 telas mais usadas, recarregar e baixar a versão nova quando houver.
+- **Bandeja** (ícone perto do relógio): abrir, ir direto às 5 telas mais usadas, ao **Assistente de IA** e a **Mais telas** (Notificações, Treinamento, Backup, Telegram, Música, Bugs, Transmissores), recarregar e baixar a versão nova quando houver.
+- **Menu Ir**: `Cmd/Ctrl + 1` a `9` para as telas principais e `Cmd/Ctrl + Shift + I` para o Assistente de IA.
+- Como ele carrega o painel de `app.zynio.com.br`, **toda tela nova do sistema aparece no app sem atualizar**; a versão nova do app só é preciso para atalhos e recursos do próprio Electron.
 - **Atalho global** `Cmd/Ctrl + Shift + Espaço` para mostrar ou esconder a janela.
 - **Touch ID** no Mac para destravar o app (opcional).
 - **Iniciar com o sistema** (opção na bandeja).
