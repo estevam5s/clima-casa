@@ -16,10 +16,29 @@
 - Guia, MANUAL.md (seção 14A) e PDF; README da raiz; READMEs novos de `apps/android` e `apps/desktop`; site com
   Iluminação/escritório, Mapa 3D, transmissores por sala e a novidade de 18/11.
 
-## Fase 4 (precisa da resposta do dono, perguntado em 18/11 e ainda sem resposta)
-1. Agente de IA local "igual ao Claude Code": proposta = o próprio Claude Code + servidor MCP do sistema (ver/ligar/desligar ares) usando a API com token de serviço.
-2. Transferir o posto de dono (proposta: dono atual vira admin; senha + confirmação do novo dono + e-mail aos dois).
-3. Apps para quem não tem acesso ao GitHub: instaladores no Storage do Supabase com link assinado (a regra do projeto proíbe token do GitHub na Vercel).
-4. Bot do Telegram: dono cria no @BotFather e passa o token (guardar cifrado); quem pode usar.
-5. Treinamento: banco com 1.000+ perguntas próprias (ISO 27001/27002/27701/22301/9001/37001 + LGPD), nota na tela e por e-mail. "Todas as ISO" não é viável nem honesto.
-6. Releases novos dos apps Android/desktop (publicar release é público: confirmar).
+## Fase 4: respostas do dono (18/11, noite) e andamento
+Feito:
+- **Bot do Telegram** (1.14.0): @zynio_bot no ar (webhook em app.zynio.com.br, token cifrado em config.telegram). Falta o
+  teste de ponta a ponta com um Telegram de verdade: painel → Telegram → Gerar código → abrir o link.
+- **Testes de segurança**: token de uso único por lote (não depende mais de VERIFICACAO_SEGREDO igual no agente e na Vercel).
+
+Bloqueado (precisa de ação do dono):
+- **Raspberry Pi 3B**: o Mac não detectou o leitor de cartão (nada em `diskutil list` nem no USB). Reconectar o leitor e rodar
+  `./scripts/preparar-cartao-raspberry.sh` (pede o disco, "APAGAR", SSID `Egov` e a senha do Wi-Fi digitada no Terminal, e o
+  sudo). Depois: Infra → Agentes → Preferir o Raspberry.
+- **Spotify pelo navegador**: a extensão do Claude não conecta (o dono usa Brave; precisa do Chrome com a extensão logada).
+
+A fazer (decisões já tomadas pelo dono):
+1. Agente de IA no terminal igual ao Claude Code usando a API da NVIDIA (`docs/credentials/nvidia.md`, gitignored).
+2. Transferir o posto de dono (só o dono; o novo dono recebe a mesma função).
+3. Apps por link temporário do Storage do Supabase (sem GitHub) + releases novos de Android e desktop (confirmado).
+4. Treinamento com 1.000+ perguntas próprias (ISO e LGPD), nota na tela e por e-mail.
+5. Área de Bugs (usuários relatam; o sistema procura bugs nele mesmo, sugere correções e gera prompt para a IA).
+6. Segurança: relatório no modelo da Prefeitura e envio por e-mail.
+7. Contadores nas rotas do menu lateral (além de Notificações e Mensagens).
+8. Usuários: escolher as categorias de rotas que cada um acessa.
+9. Supabase: mais funcionalidades da plataforma na tela.
+10. Cafeteira e persianas: editor 3D da aparência ("blender").
+11. Guia: impressão no modelo da PMF e mais completo.
+12. Precificação: domínio + 9 dispositivos a US$ 3 cada, com itens adicionáveis.
+
