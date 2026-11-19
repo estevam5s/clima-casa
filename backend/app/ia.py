@@ -308,7 +308,59 @@ FERRAMENTAS = [
     _fn("desligar_todos", "Pede para desligar TODOS os ares ligados. Não executa: gera um pedido que a pessoa confirma no botão."),
     _fn("executar_cena", "Pede para executar uma cena. Não executa: a pessoa confirma no botão.", {"id": {"type": "integer"}}, ["id"]),
 ]
-EXECUTORES = {"estado_geral": t_estado_geral, "listar_ares": t_listar_ares, "transmissores": t_transmissores, "atividade": t_atividade,
+def t_relatorio(dias: int = 7) -> dict:
+    from . import acesso, relatorio
+    if not acesso.pode("relatorios.ver"):
+        return {"erro": "sem permissão para relatórios"}
+    fim = db.agora(); d = relatorio.montar(fim - max(1, min(int(dias), 90)) * 86400, fim)
+    return {"resumo": d["resumo"], "conclusoes": [c["texto"] for c in d.get("conclusoes", [])][:6],
+            "por_ar": [{k: a[k] for k in ("nome", "comandos", "horas_ligado", "custo")} for a in d["por_aparelho"][:12]]}
+
+
+def t_listar_salas() -> list[dict]:
+    lst = _ares()
+    salas = {}
+    for a in lst:
+        s = salas.setdefault(a.get("projeto") or "Sem sala", {"sala": a.get("projeto") or "Sem sala", "ares": 0, "ligados": 0})
+        s["ares"] += 1; s["ligados"] += 1 if a.get("ligado") else 0
+    return list(salas.values())
+
+
+def t_agentes() -> list[dict]:
+    from . import coordenador
+    return [{k: m.get(k) for k in ("nome", "online", "principal", "ve_transmissores", "total_transmissores")} for m in coordenador.maquinas()]
+
+
+def t_zonas() -> list[dict]:
+    from . import zonas
+    ids = {a["id"]: a["nome"] for a in _ares()}
+    return [{"nome": z["nome"], "ares": [ids[i] for i in z.get("aparelhos", []) if i in ids]} for z in zonas.listar() if set(z.get("aparelhos", [])) & set(ids)]
+
+
+def t_dispositivos() -> list[dict]:
+    from . import dispositivos
+    from .rotas import dispositivos as rd
+    f, p = rd._escopo()
+    return [{"nome": d["nome"], "tipo": d["tipo"], "conectado": d["conectado"], "estado": d.get("resumo")} for d in dispositivos.listar(None, f, p)][:40]
+
+
+def t_notificacoes() -> list[dict]:
+    from . import notificacoes
+    from .rotas import api as rapi
+    r = notificacoes.listar("todas", 30); vis = rapi._visibilidade_notificacoes()
+    return [{"titulo": n["titulo"], "detalhe": (n.get("detalhe") or "")[:160], "gravidade": n["gravidade"], "lida": n["lida"]} for n in r["itens"] if vis is None or vis(n)][:8]
+
+
+FERRAMENTAS += [
+    _fn("relatorio", "Resumo de uso, consumo (kWh), custo e conclusões dos últimos N dias.", {"dias": {"type": "integer"}}),
+    _fn("listar_salas", "Salas (projetos) com quantos ares e quantos ligados."),
+    _fn("agentes", "Computadores do escritório com o agente: online, quem está no comando e quantos transmissores enxerga."),
+    _fn("zonas", "Zonas: ares iguais no mesmo transmissor que mudam juntos."),
+    _fn("dispositivos", "Luzes, persianas, cafeteira e fechadura com o estado de cada um."),
+    _fn("notificacoes", "Últimas notificações do sistema."),
+]
+
+EXECUTORES = {"relatorio": t_relatorio, "listar_salas": t_listar_salas, "agentes": t_agentes, "zonas": t_zonas, "dispositivos": t_dispositivos, "notificacoes": t_notificacoes,"estado_geral": t_estado_geral, "listar_ares": t_listar_ares, "transmissores": t_transmissores, "atividade": t_atividade,
               "listar_cenas": t_listar_cenas, "clima_externo": t_clima_externo, "comandar_ar": t_comandar_ar, "temporizador": t_temporizador,
               "desligar_todos": t_desligar_todos, "executar_cena": t_executar_cena}
 
@@ -351,7 +403,7 @@ def _chamar_modelo(msgs: list[dict], modelo: str) -> dict:
     raise RuntimeError(f"A IA da NVIDIA não respondeu agora ({ultimo}). Tente de novo.")
 
 
-def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia") -> dict:
+def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None) -> dict:
     """Uma rodada de conversa. `historico` = [{role: user|assistant, content}] (o último é a pergunta).
     Devolve {texto, acoes: [...feitas], confirmacoes: [{confirmacao, descricao}]}."""
     u = _u()
@@ -359,7 +411,7 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia") 
     c = cfg()
     if c.get("ativo") is False:
         raise RuntimeError("O assistente de IA está desligado (IA → Configuração).")
-    modelo = c.get("modelo") or PADRAO
+    modelo = modelo if modelo in MODELOS else (c.get("modelo") or PADRAO)
     msgs = [{"role": "system", "content": _sistema(canal)}]
     for h in historico[-16:]:
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):

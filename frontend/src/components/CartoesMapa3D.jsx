@@ -237,47 +237,55 @@ export function RascunhoEscrita({ mapa, rascunho, setRascunho, acoes, ocupado, e
 }
 
 // barra do controle: quem está sendo controlado, câmera, dicas e setas na tela para toque
+const Tecla = ({ k, r }) => <span className="inline-flex items-center gap-1 whitespace-nowrap"><kbd className="rounded border border-white/25 bg-white/10 px-1 font-sans text-[10px] font-semibold">{k}</kbd><span>{r}</span></span>
+const Atalhos = ({ itens }) => (
+  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-md bg-black/55 px-2.5 py-1.5 text-[11px] text-white">{itens.filter(Boolean).map(([k, r]) => <Tecla key={k + r} k={k} r={r} />)}</div>
+)
+
+// Barra do avatar controlado: fica embaixo, no centro (não cobre os botões de cima nem o minimapa). Linha 1: quem e a
+// câmera; linha 2: as ações do momento; linha 3: todas as teclas. Dirigindo: as teclas do carro (nitro, voo, câmera…).
 export function BarraControle({ controle, nome, mudarModo, sair, sentar, cafe, tecla, elevador, carro, camCarro, propulsores, andar = 9 }) {
   if (!controle) return null
-  if (controle.dirigindo) {   // dentro do carro: os pedais e o volante ficam no PainelCarro
-    return (
-      <>
-        <div className="absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-lg border border-border bg-card/95 p-1 text-xs shadow-lg backdrop-blur">
-          <span className="flex max-w-[16rem] items-center gap-1.5 truncate px-2 font-medium" title={controle.dirigindo}><Footprints className="h-3.5 w-3.5 shrink-0 text-primary" />Dirigindo: {controle.dirigindo}</span>
-          <button onClick={camCarro} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Câmera <kbd className="ml-0.5 text-[10px]">C</kbd></button>
-          {controle.voar && <button onClick={propulsores} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Propulsores <kbd className="ml-0.5 text-[10px]">T</kbd></button>}
-          <button onClick={carro} className="h-7 rounded-md bg-primary px-2 font-medium text-primary-foreground hover:opacity-90">Sair do carro <kbd className="ml-0.5 text-[10px] opacity-80">E</kbd></button>
-          <button onClick={sair} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Parar <kbd className="ml-0.5 text-[10px]">Esc</kbd></button>
-        </div>
-        {controle.aviso && <p className="pointer-events-none absolute left-1/2 top-24 z-10 -translate-x-1/2 rounded-md bg-amber-500/90 px-2 py-1 text-[11px] text-white">{controle.aviso}</p>}
-      </>
-    )
-  }
   const toque = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  const btn = 'h-7 rounded-md px-2 text-muted-foreground hover:bg-muted'
+  const prim = 'h-7 rounded-md bg-primary px-2 font-medium text-primary-foreground hover:opacity-90'
+  const caixa = (filhos, teclas) => (
+    <div className={`absolute left-1/2 z-10 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 flex-col items-center gap-1.5 ${toque ? 'top-14' : 'bottom-3 sm:max-w-[calc(100%-24rem)]'}`}>
+      {controle.aviso && <p className="pointer-events-none rounded-md bg-amber-500/95 px-2 py-1 text-center text-[11px] text-white">{controle.aviso}</p>}
+      <div className="flex flex-wrap items-center justify-center gap-1 rounded-lg border border-border bg-card/95 p-1 text-xs shadow-lg backdrop-blur">{filhos}</div>
+      {!toque && teclas && <Atalhos itens={teclas} />}
+    </div>
+  )
+  if (controle.dirigindo) {
+    return caixa(<>
+      <span className="flex max-w-[14rem] items-center gap-1.5 truncate px-2 font-medium" title={controle.dirigindo}><Footprints className="h-3.5 w-3.5 shrink-0 text-primary" />{controle.dirigindo}</span>
+      <button onClick={camCarro} className={btn}>Câmera</button>
+      {controle.voar && <button onClick={propulsores} className={btn}>Voar / pousar</button>}
+      <button onClick={carro} className={prim}>Sair do carro</button>
+      <button onClick={sair} className={btn}>Parar</button>
+    </>, [['W', 'acelera'], ['S', 'freia / ré'], ['A D', 'vira'], ['Shift', 'nitro'], ['Espaço', controle.voar ? 'freio de mão / sobe' : 'freio de mão'],
+      controle.voar && ['T', 'voar'], controle.voar && ['X', 'desce'], ['C', 'câmera'], ['H', 'buzina'], ['R', 'desvira'], ['E', 'sai'], ['Esc', 'para']])
+  }
   const seta = (k, I, rot) => (
     <button key={k} aria-label={rot} className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-card/90 backdrop-blur active:bg-muted"
       onPointerDown={(e) => { e.preventDefault(); tecla(k, true) }} onPointerUp={() => tecla(k, false)} onPointerLeave={() => tecla(k, false)} onPointerCancel={() => tecla(k, false)}><I className="h-4 w-4" /></button>
   )
+  const teclas = controle.viajando ? [['…', 'elevador em movimento']] : controle.sentado ? [['F', 'levanta'], ['V', 'câmera'], ['Esc', 'sai']]
+    : [['W A S D', 'anda'], ['Q E', 'gira'], ['Shift', 'corre'], ['F', 'senta'], ['C', 'café'], ['R', 'elevador'], ['E', 'carro'], ['V', '1ª/3ª pessoa'], ['Esc', 'sai']]
   return (
     <>
-      <div className="absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-lg border border-border bg-card/95 p-1 text-xs shadow-lg backdrop-blur">
+      {caixa(<>
         <span className="flex items-center gap-1.5 px-2 font-medium"><Footprints className="h-3.5 w-3.5 text-primary" />{nome}</span>
         <button onClick={() => mudarModo('1')} className={`h-7 rounded-md px-2 ${controle.modo === '1' ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted'}`}>1ª pessoa</button>
         <button onClick={() => mudarModo('3')} className={`h-7 rounded-md px-2 ${controle.modo === '3' ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted'}`}>3ª pessoa</button>
-        {controle.elevador && !controle.sentado && (
-          <button onClick={elevador} className="h-7 rounded-md bg-primary px-2 font-medium text-primary-foreground hover:opacity-90">
-            {controle.elevador === 'terreo' ? `Subir ao ${andar}º andar` : 'Descer ao térreo'} <kbd className="ml-0.5 text-[10px] opacity-80">R</kbd>
-          </button>
-        )}
+        {controle.elevador && !controle.sentado && <button onClick={elevador} className={prim}>{controle.elevador === 'terreo' ? `Subir ao ${andar}º andar` : 'Descer ao térreo'}</button>}
         {controle.carro && !controle.sentado && !controle.viajando && (
-          <button onClick={carro} className="h-7 rounded-md bg-primary px-2 font-medium text-primary-foreground hover:opacity-90" title={controle.carro}>{/trânsito|estacionado/.test(controle.carro) ? `Pegar ${controle.carro.split(' ')[0].toLowerCase()}` : 'Entrar no carro'} <kbd className="ml-0.5 text-[10px] opacity-80">E</kbd></button>
+          <button onClick={carro} className={prim} title={controle.carro}>{/trânsito|estacionado/.test(controle.carro) ? 'Pegar este carro' : 'Entrar no carro'}</button>
         )}
-        {!controle.viajando && <button onClick={sentar} className="h-7 rounded-md px-2 font-medium text-primary hover:bg-muted">{controle.sentado ? 'Levantar' : 'Sentar'} <kbd className="ml-0.5 text-[10px]">F</kbd></button>}
-        {!controle.viajando && !controle.sentado && cafe && <button onClick={cafe} className="flex h-7 items-center gap-1 rounded-md px-2 font-medium text-primary hover:bg-muted"><Coffee className="h-3.5 w-3.5" />Café <kbd className="ml-0.5 text-[10px]">C</kbd></button>}
-        <button onClick={sair} className="h-7 rounded-md px-2 text-muted-foreground hover:bg-muted">Sair <kbd className="ml-0.5 text-[10px]">Esc</kbd></button>
-      </div>
-      {controle.aviso && <p className="pointer-events-none absolute left-1/2 top-24 z-10 -translate-x-1/2 rounded-md bg-amber-500/90 px-2 py-1 text-[11px] text-white">{controle.aviso}</p>}
-      {!toque && <p className="pointer-events-none absolute left-1/2 top-14 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/45 px-2 py-1 text-[11px] text-white">{controle.viajando ? 'Elevador em movimento…' : controle.sentado ? 'Trabalhando: F levanta · V troca a câmera' : controle.elevador ? 'Elevador aqui: R chama e leva ao outro andar · W A S D andam' : 'W A S D andam · Shift corre · F senta · C café (na copa) · R elevador · V câmera'}</p>}
+        {!controle.viajando && <button onClick={sentar} className="h-7 rounded-md px-2 font-medium text-primary hover:bg-muted">{controle.sentado ? 'Levantar' : 'Sentar'}</button>}
+        {!controle.viajando && !controle.sentado && cafe && <button onClick={cafe} className="flex h-7 items-center gap-1 rounded-md px-2 font-medium text-primary hover:bg-muted"><Coffee className="h-3.5 w-3.5" />Café</button>}
+        <button onClick={sair} className={btn}>Sair</button>
+      </>, teclas)}
       {toque && (
         <div className="absolute bottom-14 left-3 z-10 grid grid-cols-3 gap-1">
           <span />{seta('w', ArrowUp, 'Andar para frente')}<span />

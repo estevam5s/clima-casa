@@ -23,7 +23,7 @@ function Maquina3D({ ligada }) {
     cena.add(new THREE.HemisphereLight(0xffffff, 0x94a3b8, 1.6)); const sol = new THREE.DirectionalLight(0xffffff, 1.8); sol.position.set(1, 2, 1.5); cena.add(sol)
     const m = cafeteiraVermelha({ ligada }); cena.add(m.g)
     let vivo = true   // o modelo da biblioteca (Avatares) escolhido para a cafeteira; sem ele fica o desenho vermelho
-    api.get('/api/mapa').then((mp) => mp?.modelos?.cafeteira && carregarAvatar(mp.modelos.cafeteira)).then((gl) => { if (vivo && gl) m.trocar(clonarComOssos(gl.scene)) }).catch(() => { /* fica o desenho */ })
+    api.get('/api/mapa').then((mp) => { const id = (mp?.mapa || mp)?.modelos?.cafeteira; return id && carregarAvatar(id) }).then((gl) => { if (vivo && gl) m.trocar(clonarComOssos(gl.scene)) }).catch(() => { /* fica o desenho */ })
     const medir = () => { const w = el.clientWidth, h = el.clientHeight; r.setSize(w, h); cam.aspect = w / Math.max(1, h); cam.updateProjectionMatrix() }
     medir(); const ro = new ResizeObserver(medir); ro.observe(el)
     let raf = 0; const t0 = performance.now()

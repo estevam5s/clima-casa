@@ -20,7 +20,7 @@ import * as THREE from 'three'
 //   corta a força na troca (conversor de torque);
 // - controle de estabilidade (ESC): compara o giro do carro com o que o volante pede e corrige a derrapagem antes de rodar,
 //   como os carros de rua; a direção fica mais leve e com menos ângulo em velocidade;
-// - elétrico: uma marcha, força máxima desde parado até o limite de potência; nitro (Shift) por alguns segundos;
+// - elétrico: uma marcha, força máxima desde parado até o limite de potência; nitro (Shift): 2,2x a potência por ~4 s;
 // - moto: inclina para dentro da curva; propulsores (carro elétrico com `voar`): decola, paira, sobe e desce.
 
 const G = 9.81
@@ -191,11 +191,11 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
     // nitro: +60% de potência enquanto houver carga (recarrega devagar)
     S.nitroOn = !!(F.nitro && ent.nitro && acel > 0 && S.nitro > 0.02 && !S.re)
     S.nitro = THREE.MathUtils.clamp(S.nitro + (S.nitroOn ? -dt / 4 : dt / 18), 0, 1)
-    const boost = S.nitroOn ? 1.6 : 1
+    const boost = S.nitroOn ? 2.2 : 1
     let Fmotor
     if (ELET) {   // elétrico: força máxima desde parado (limitada pela aderência) até a curva de potência
       const vAbs = Math.max(1, Math.abs(S.vx))
-      Fmotor = acel * Math.min(mu * m * G * 0.95, (potW * boost * 0.92) / vAbs) * (Math.abs(S.vx) > VMAX * (S.nitroOn ? 1.15 : 1) ? 0 : 1) * (S.re ? -0.4 : 1)
+      Fmotor = acel * Math.min(mu * m * G * 0.95, (potW * boost * 0.92) / vAbs) * (Math.abs(S.vx) > VMAX * (S.nitroOn ? 1.35 : 1) ? 0 : 1) * (S.re ? -0.4 : 1)
       S.rpm += (Math.min(RPM_ELET, (Math.abs(S.vx) / VMAX) * RPM_ELET) - S.rpm) * Math.min(1, dt * 10)
     } else {
       // câmbio automático: troca para cima mais cedo com pouco pé, mais tarde com o pé no fundo; kickdown ao afundar
@@ -267,7 +267,7 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
     // devagar: modelo cinemático (sem as derivas, que divergem perto de zero)
     const k = THREE.MathUtils.clamp((v - 1.5) / 3, 0, 1)
     S.vx += ax * dt
-    const vLim = VMAX * (S.nitroOn ? 1.2 : 1.05)
+    const vLim = VMAX * (S.nitroOn ? 1.35 : 1.05)
     if (Math.abs(S.vx) > vLim) S.vx = Math.sign(S.vx) * vLim
     const wKin = (S.vx * Math.tan(S.delta)) / entre
     S.vy = k * (S.vy + ay * dt) + (1 - k) * 0

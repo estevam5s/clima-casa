@@ -29,7 +29,7 @@ export default function PainelCarro({ estado, tecla, propulsores }) {
   )
   return (
     <>
-      <div className={`pointer-events-none absolute left-3 z-10 w-44 rounded-xl bg-black/65 p-3 text-white sm:w-52 ${toque ? 'top-24' : 'bottom-3'}`}> {/* marca: painel do carro flutua sobre o 3D */}
+      <div className={`pointer-events-none absolute left-3 z-10 w-44 rounded-xl bg-black/65 p-3 text-white sm:w-52 ${toque ? 'top-24' : 'top-14'}`}> {/* marca: painel do carro flutua sobre o 3D */}
         <div className="flex items-end justify-between">
           <p><span className="text-4xl font-bold tabular-nums">{h.kmh}</span> <span className="text-xs text-white/70">km/h</span></p>
           <p className="text-right"><span className="block text-[10px] text-white/60">{h.voando ? 'altitude' : h.eletrico ? 'elétrico' : 'automático'}</span><span className="text-2xl font-bold tabular-nums">{h.voando ? `${h.alt} m` : h.marcha}</span></p>
@@ -43,9 +43,7 @@ export default function PainelCarro({ estado, tecla, propulsores }) {
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-sky-400" style={{ width: `${Math.round(h.nitro * 100)}%` }} /></div>
           </div>
         )}
-        {!toque && <p className="mt-2 text-[10px] leading-snug text-white/60">{h.voando
-          ? 'W empurra · S freia · A D vira · Espaço sobe · X desce · Shift nitro · T desliga os propulsores · E sai (pousado)'
-          : `W acelera · S freia/ré · A D vira · Espaço freio de mão · Shift nitro${h.voar ? ' · T voa' : ''} · C câmera · H buzina · R desvira · E sai`}</p>}
+
       </div>
       {toque && (
         <div className="absolute bottom-14 left-0 right-0 z-10 flex items-end justify-between px-3">

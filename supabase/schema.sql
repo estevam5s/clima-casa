@@ -574,3 +574,16 @@ DROP POLICY IF EXISTS "mapa: usuarios ativos recebem" ON realtime.messages;
 DROP POLICY IF EXISTS "mapa: usuarios ativos enviam" ON realtime.messages;
 CREATE POLICY "mapa: usuarios ativos recebem" ON realtime.messages FOR SELECT TO authenticated USING (realtime.topic() = 'mapa-escritorio' AND public.mapa_usuario_ativo());
 CREATE POLICY "mapa: usuarios ativos enviam" ON realtime.messages FOR INSERT TO authenticated WITH CHECK (realtime.topic() = 'mapa-escritorio' AND public.mapa_usuario_ativo());
+
+-- Conversas com o assistente de IA (/ia): cada pessoa vê só as dela
+create table if not exists ia_conversas (
+  id bigint generated always as identity primary key,
+  usuario_id text not null,
+  titulo text not null default 'Nova conversa',
+  mensagens jsonb not null default '[]'::jsonb,
+  fixada boolean not null default false,
+  criado_em bigint not null,
+  atualizado_em bigint not null
+);
+create index if not exists ia_conversas_usuario on ia_conversas (usuario_id, atualizado_em desc);
+alter table ia_conversas enable row level security;

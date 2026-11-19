@@ -81,6 +81,8 @@ REGRAS = [
     ("*", r"^/api/bugs", None),
     ("POST", r"^/api/ia/(conversar|confirmar)$", None),   # as ferramentas da IA checam as permissões de quem pergunta
     ("PUT", r"^/api/ia/config$", None),                    # a rota exige o papel de dono
+    ("PUT", r"^/api/ia/conversas/\d+$", None),            # só as conversas da própria pessoa
+    ("DELETE", r"^/api/ia/conversas/\d+$", None),
     ("POST", r"^/api/guia/pdf$", None),
     ("POST", r"^/api/avatares/\{avid\}/(versao|versao/confirmar|restaurar)$", None),   # a rota exige dono/admin
     ("PUT", r"^/api/mapa/veiculos$", None),                                             # a rota exige dono/admin

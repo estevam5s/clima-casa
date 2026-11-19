@@ -2,6 +2,32 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.23.0",
+      "data": "2026-11-19",
+      "titulo": "Assistente de IA com histórico, bot com 498 comandos e carros mais leves",
+      "resumo": "A tela da IA virou um chat com conversas salvas, o bot do Telegram ganhou 234 comandos novos e o mapa ficou mais leve e mais fácil de controlar.",
+      "novo": [
+        "Assistente de IA no formato de chat: conversas salvas (fixar, renomear, apagar, procurar), comandos com /, anexar arquivo de texto, ditado por voz, escolha do modelo, copiar, tentar de novo, editar a pergunta e baixar a conversa",
+        "IA com mais ferramentas: relatório de qualquer período, salas, zonas, agentes, luzes e aparelhos, notificações",
+        "Telegram: 234 comandos novos (498 no total) em 6 categorias novas: modo e temperatura (/frio23, /quente26…), modo e ventilação (/frio_alta…), todos de uma vez (/todos23, /sala23, /zona23…), timers prontos (/ligarpor60, /ligarem30, /desligarem90…), relatórios por período (/gasto15d, /mespassado…) e presets (/persianas50, /luzes75, /vol40…)",
+        "Moto: a pessoa vai sentada em cima, com as mãos no guidão, e inclina junto nas curvas",
+        "Nitro mais forte (2,2x a potência) e todos os carros voam com T (menos moto e ônibus)",
+        "Personagens da aba No escritório (Avatares) andam pelo andar e podem ser controlados"
+      ],
+      "melhorias": [
+        "Barra de controle do avatar embaixo, no centro, com todas as teclas; dirigindo, mostra todas as teclas do carro",
+        "Carros da biblioteca em versão média: entrar no carro não trava mais a tela",
+        "Sala de Reunião: mesa menor e espaço para passar dos lados e entrar"
+      ],
+      "seguranca": [
+        "Cada pessoa vê só as próprias conversas com a IA"
+      ],
+      "correcoes": [
+        "Monitores, teclados, mouses e PCs da biblioteca não apareciam nas mesas",
+        "A página Cafeteira mostrava a cafeteira antiga"
+      ]
+    },
+    {
       "versao": "1.22.0",
       "data": "2026-11-19",
       "titulo": "Música com a cara do Spotify, tocando no próprio painel e reagindo à Alexa",
