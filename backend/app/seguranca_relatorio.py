@@ -308,3 +308,29 @@ def _recomendacoes(r, c):
     rec.append(["Rotina", "Marcar o IP do escritório como permitido (Nunca bloquear meu IP)."])
     rec.append(["Rotina", "Trocar a senha do administrador a cada 90 dias e manter a CLIMA_CHAVE_MESTRA num gerenciador de senhas."])
     return rec
+
+
+def exportar_pmf(formato: str, dias: int, emitido_por: str = "") -> tuple[bytes, str, str]:
+    """PDF ou Word no modelo oficial da Prefeitura (brasão, cabeçalho, seções numeradas, página X de Y, assinaturas),
+    com o mesmo conteúdo do relatório comum."""
+    from . import documentos
+    from .relatorio import _cabecalho_oficial
+    d = documento(dias)
+    agora = db.agora()
+    org = _cabecalho_oficial()
+    meta = [["Órgão", " · ".join(org[1:]) or (org[0] if org else "")], ["Documento", "Relatório de segurança da informação"],
+            ["Período", d["subtitulo"].split(" · ")[0].removeprefix("Período ")], ["Emissão", f"{_d(agora):%d/%m/%Y às %H:%M}"],
+            ["Emitido por", emitido_por or "Sistema Clima Escritório"], ["Classificação", "Uso interno"]]
+    secoes = [("Resumo executivo", [("tabela", ["Indicador", "Valor"], [[a, str(b)] for a, b in d["resumo"]])])]
+    g = d.get("grafico") or {}
+    dias_ataque = [[r, v] for r, v in zip(g.get("rotulos") or [], g.get("valores") or []) if v]
+    secoes.append((g.get("titulo") or "Ataques barrados por dia", [("tabela", ["Dia", "Ataques barrados"], dias_ataque)] if dias_ataque else ["Nenhum ataque real barrado no período."]))
+    for s in d["secoes"]:
+        blocos = ([s["nota"]] if s.get("nota") else []) + ([("tabela", s["cabecalho"], [[str(c) for c in l] for l in s["linhas"][:300]])] if s["linhas"] else ["Sem registros no período."])
+        secoes.append((s["titulo"], blocos))
+    secoes.append(("Observações", [d["rodape"]]))
+    titulo = "Relatório de Segurança da Informação"
+    if formato == "docx":
+        return documentos._docx(titulo, meta, secoes, agora, rodape="uso interno"), \
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
+    return documentos._pdf(titulo, meta, secoes, agora, rodape="uso interno"), "application/pdf", "pdf"

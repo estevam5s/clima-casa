@@ -2,6 +2,24 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.17.0",
+      "data": "2026-11-18",
+      "titulo": "Relatórios oficiais por e-mail e Guia em PDF",
+      "resumo": "Relatório de segurança no modelo da Prefeitura, enviado por e-mail, e o Passo a passo em PDF oficial com capítulos novos.",
+      "novo": [
+        "Segurança → Relatório: modelo Prefeitura (brasão, cabeçalho oficial, seções numeradas e assinaturas) ou Moderno",
+        "Relatório de segurança por e-mail: ao baixar, vai também para o seu e-mail; ou use Só enviar por e-mail",
+        "Passo a passo: botão PDF (modelo da Prefeitura) com todos os capítulos"
+      ],
+      "melhorias": [
+        "Passo a passo com capítulos novos: Raspberry Pi 24 horas, bot do Telegram, Bugs, agente de IA no terminal, relatórios oficiais, transferir o posto de dono e avatares no Blender"
+      ],
+      "seguranca": [
+        "O relatório de segurança só pode ser enviado para e-mails de usuários do sistema, com limite por hora"
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.16.0",
       "data": "2026-11-18",
       "titulo": "Bugs, minimapa no mapa 3D e personagens que abrem certo no Blender",

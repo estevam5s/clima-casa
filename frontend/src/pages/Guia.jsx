@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AirVent, ArrowRight, Bell, BookOpen, Check, CircleHelp, Cloud, DoorClosed, Globe, Hand, Home, KeyRound, Lightbulb, Map as MapaIcone, Mic, Monitor, Music2, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
-import { Cabecalho } from '../components/ui'
+import { AirVent, ArrowRight, Bell, Bot, Bug, Cpu, Crown, PersonStanding, Send, ShieldCheck, BookOpen, Check, CircleHelp, Cloud, DoorClosed, Globe, Hand, Home, KeyRound, Lightbulb, Map as MapaIcone, Mic, Monitor, Music2, FileDown, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
+import { api } from '../api'
+import { Cabecalho, useToast } from '../components/ui'
 
 // Passo a passo do sistema inteiro: do transmissor no Wi-Fi (Smart Life) até a Alexa (Sinric Pro), outra Alexa,
 // Google, mapa e música. Cada passo pode ser marcado como feito (fica salvo neste navegador).
@@ -249,6 +250,72 @@ const CAPITULOS = [
     ],
   },
   {
+    id: 'raspberry', icone: Cpu, titulo: 'Raspberry Pi: agente ligado 24 horas',
+    resumo: 'Um Raspberry Pi no escritório deixa os comandos funcionando dia e noite, mesmo com os computadores desligados.',
+    passos: [
+      { t: 'Preparar o cartão (no Mac do dono)', d: 'Com o cartão microSD no leitor, rode ./scripts/preparar-cartao-raspberry.sh: grava o Raspberry Pi OS Lite 64-bit, configura o Wi-Fi 2,4 GHz do escritório e deixa o agente para instalar sozinho.' },
+      { t: 'Ligar no escritório', d: 'Cartão no Raspberry, fonte na tomada, perto do roteador. Em 10 a 20 minutos ele configura a rede, atualiza e instala o agente.' },
+      { t: 'Torná-lo o principal', d: 'Infra → Agentes: o "clima-agente" aparece; clique em Preferir este. Ele precisa enxergar os transmissores.', link: ['/infra?aba=agentes', 'Abrir Agentes'] },
+      { t: 'Já vem preparado para 24/7', d: 'Reinicia sozinho se travar (watchdog), Wi-Fi sem economia de energia, atualizações de segurança automáticas e registros com tamanho limitado.' },
+      { t: 'Desligar um ar de longe', d: 'Com o Raspberry no comando, qualquer pessoa autorizada desliga os ares de qualquer lugar: painel, apps, Alexa, Telegram ou clima-ia.' },
+    ],
+  },
+  {
+    id: 'telegram', icone: Send, titulo: 'Bot do Telegram',
+    resumo: 'Ares, cenas, luzes, notificações e resumo pelo Telegram, com as suas permissões.',
+    passos: [
+      { t: 'Vincular', d: 'Integrações → Telegram → Gerar código → Abrir no Telegram (o código vale 10 minutos e uma vez só).', link: ['/telegram', 'Abrir Telegram'] },
+      { t: 'Usar', d: 'No @zynio_bot: /menu, /status, /ares (ligar, desligar, ±2°), /desligartodos, /cenas, /luzes, /notificacoes, /relatorio. Por texto: /desligar NOME, /temperatura NOME 23.' },
+      { t: 'Segurança', d: 'O bot só responde a quem vinculou o Telegram e age com as permissões da pessoa. Ações em lote pedem confirmação. Perdeu o celular? Desvincule na mesma tela.' },
+    ],
+  },
+  {
+    id: 'bugs', icone: Bug, titulo: 'Bugs: relatar e corrigir com IA',
+    resumo: 'Relate o que não funciona; o sistema também encontra problemas sozinho e gera o prompt para a IA corrigir.',
+    passos: [
+      { t: 'Relatar', d: 'Bugs → Relatar bug: título, o que aconteceu e os passos. A tela, o navegador e os últimos erros vão junto, sem dados pessoais.', link: ['/bugs', 'Abrir Bugs'] },
+      { t: 'O que o sistema encontra sozinho', d: 'Erros nas telas, erros internos do servidor, falhas repetidas na Atividade e na fila, rotas sem permissão, transmissor com problema e agente parado (procura de hora em hora).' },
+      { t: 'Corrigir', d: 'Abra o bug, copie o "Prompt para a IA corrigir" e cole no clima-ia (terminal) ou no Claude Code, na pasta do projeto. Depois marque como Corrigido.' },
+    ],
+  },
+  {
+    id: 'ia', icone: Bot, titulo: 'Agente de IA no terminal (clima-ia)',
+    resumo: 'Converse com o sistema no terminal: estado dos ares, perguntas sobre o código e comandos com confirmação.',
+    passos: [
+      { t: 'Instalar', d: 'Na pasta do projeto: ./agente-ia/instalar.sh (precisa do .env com NVIDIA_API_KEY). Depois, em qualquer terminal: clima-ia.' },
+      { t: 'Perguntar', d: 'Ex.: "quais ares estão ligados?", "por que o transmissor dos Devs falhou?", "onde fica a lógica do pôr do sol?". Ele consulta o estado real e o código.' },
+      { t: 'Agir com confirmação', d: 'Ligar, desligar, executar cena, editar arquivo ou rodar comando: ele mostra o que vai fazer e só faz depois do seu "s".' },
+      { t: 'Segurança', d: 'Segredos são mascarados antes de qualquer envio; ele não lê o .env nem as credenciais e o banco é só leitura.' },
+    ],
+  },
+  {
+    id: 'seg-relatorio', icone: ShieldCheck, titulo: 'Relatórios oficiais e por e-mail',
+    resumo: 'Relatórios de uso e de segurança no modelo da Prefeitura, baixados ou enviados por e-mail.',
+    passos: [
+      { t: 'Relatório de uso', d: 'Relatórios → Exportar → modelo Prefeitura (brasão e cabeçalho oficial) ou Moderno.', link: ['/relatorios', 'Abrir Relatórios'] },
+      { t: 'Relatório de segurança', d: 'Segurança → Relatório → modelo Prefeitura: postura, IPs, países, rotas atacadas, bloqueios e recomendações, com assinaturas.', link: ['/seguranca', 'Abrir Segurança'] },
+      { t: 'Por e-mail', d: 'Deixe marcado "Ao baixar, enviar também para o meu e-mail" ou use "Só enviar por e-mail". Só vai para e-mails de usuários do sistema.' },
+      { t: 'Este guia em PDF', d: 'No topo do Passo a passo: PDF (modelo da Prefeitura).' },
+    ],
+  },
+  {
+    id: 'dono', icone: Crown, titulo: 'Transferir o posto de dono',
+    resumo: 'Só o dono passa o posto para outra pessoa; o novo dono pode transferir de novo.',
+    passos: [
+      { t: 'Onde', d: 'Configurações → Usuários → a coroa na linha da pessoa.', link: ['/configuracoes?aba=usuarios', 'Abrir Usuários'] },
+      { t: 'Confirmar', d: 'Digite o e-mail do novo dono, a sua senha e passe pela verificação anti-robô. Você vira administrador; os dois recebem e-mail.' },
+    ],
+  },
+  {
+    id: 'avatares', icone: PersonStanding, titulo: 'Avatares 3D e Blender',
+    resumo: 'Crie personagens no Estúdio, use no mapa e abra no Blender.',
+    passos: [
+      { t: 'Criar', d: 'Avatares → Estúdio: pessoa, cão ou gato, com cores, roupa e animações.', link: ['/avatares', 'Abrir Avatares'] },
+      { t: 'Abrir no Blender', d: 'Baixe o .glb e use Arquivo → Importar → glTF 2.0. Ele chega como um personagem com esqueleto (armature), uma malha e as animações no esqueleto (Dope Sheet → Action Editor).' },
+      { t: 'Trazer do Blender', d: 'Arquivo → Exportar → glTF 2.0 (.glb, texturas embutidas) e Avatares → Importar.' },
+    ],
+  },
+  {
     id: 'problemas', icone: CircleHelp, titulo: 'Quando algo não funciona',
     resumo: 'Os problemas mais comuns e o que fazer.',
     tabela: [
@@ -270,6 +337,7 @@ const CHAVE = 'clima-guia-feito'
 const lerFeitos = () => { try { return new Set(JSON.parse(localStorage.getItem(CHAVE) || '[]')) } catch { return new Set() } }
 
 export default function Guia() {
+  const toast = useToast()
   const [feitos, setFeitos] = useState(lerFeitos)
   const [busca, setBusca] = useState('')
   const [ativo, setAtivo] = useState(CAPITULOS[0].id)
@@ -288,13 +356,26 @@ export default function Guia() {
     return () => io.disconnect()
   }, [filtrados])
   const ir = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // PDF no modelo oficial da Prefeitura (brasão, cabeçalho, capítulos numerados, página X de Y), gerado no servidor
+  const [gerandoPdf, setGerandoPdf] = useState(false)
+  const baixarPdf = async () => {
+    setGerandoPdf(true)
+    try {
+      const capitulos = CAPITULOS.map((c) => ({ titulo: c.titulo, resumo: c.resumo || '',
+        passos: [...(c.passos || []).map((p) => ({ t: p.t, d: p.d || '' })), ...(c.tabela || []).map((l) => ({ t: String(l[0]), d: l.slice(1).join(' · ') }))].slice(0, 40) }))
+      await api.baixar('/api/guia/pdf', { capitulos })
+    } catch (e) { toast(e.message, 'erro') } finally { setGerandoPdf(false) }
+  }
   // /guia#capitulo (links de outras telas) abre direto no capítulo
   useEffect(() => { const h = decodeURIComponent(window.location.hash.slice(1)); if (h) setTimeout(() => ir(h), 150) }, [])
 
   return (
     <div>
       <Cabecalho titulo="Passo a passo" descricao="Do transmissor no Wi-Fi até a Alexa, outra Alexa, o Sinric Pro, o Smart Life, o mapa e a música. Marque cada passo conforme for fazendo."
-        acoes={<button onClick={() => window.print()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted print:hidden"><Printer className="h-4 w-4" />Imprimir</button>} />
+        acoes={<>
+          <button onClick={baixarPdf} disabled={gerandoPdf} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 print:hidden"><FileDown className="h-4 w-4" />{gerandoPdf ? 'Gerando…' : 'PDF (modelo da Prefeitura)'}</button>
+          <button onClick={() => window.print()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted print:hidden"><Printer className="h-4 w-4" />Imprimir</button>
+        </>} />
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center print:hidden">
         <label className="relative flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar no guia (ex.: outra Alexa, Wi-Fi, Spotify)" className="campo h-10 pl-9" aria-label="Buscar no guia" /></label>
         <div className="flex items-center gap-3 text-sm">

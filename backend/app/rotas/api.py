@@ -4376,16 +4376,64 @@ def resumo_seguranca(dias: int = 7):
     return seguranca_relatorio.resumo(max(1, min(dias, 90)))
 
 
-@api.get("/seguranca/relatorio")
-def relatorio_seguranca(formato: str = "pdf", dias: int = 30):
-    from fastapi.responses import Response
+def _arquivo_seguranca(formato: str, dias: int, modelo: str, request: Request):
     from .. import exportar, seguranca_relatorio
     if formato not in exportar.FORMATOS:
         raise HTTPException(400, f"Formato inválido. Use: {', '.join(exportar.FORMATOS)}.")
-    corpo, tipo, ext = exportar.FORMATOS[formato](seguranca_relatorio.documento(max(1, min(dias, 90))))
+    dias = max(1, min(dias, 90))
+    u = getattr(request.state, "u", None) or {}
+    if modelo == "pmf" and formato in ("pdf", "docx"):   # modelo oficial da Prefeitura
+        return seguranca_relatorio.exportar_pmf(formato, dias, " · ".join(x for x in (u.get("nome"), u.get("cargo")) if x) or u.get("email", ""))
+    return exportar.FORMATOS[formato](seguranca_relatorio.documento(dias))
+
+
+@api.get("/seguranca/relatorio")
+def relatorio_seguranca(request: Request, formato: str = "pdf", dias: int = 30, modelo: str = "pmf"):
+    from fastapi.responses import Response
+    corpo, tipo, ext = _arquivo_seguranca(formato, dias, modelo, request)
     db.registrar("painel", "Relatório de segurança exportado", detalhe=formato.upper())
     return Response(corpo, media_type=tipo,
                     headers={"Content-Disposition": 'attachment; filename="seguranca-clima-%s.%s"' % (time.strftime("%Y%m%d-%H%M"), ext)})
+
+
+class SegurancaEmailIn(BaseModel):
+    formato: str = Field("pdf", max_length=8)
+    dias: int = Field(30, ge=1, le=90)
+    modelo: str = Field("pmf", pattern="^(pmf|moderno)$")
+    para: list[str] = Field([], max_length=10)
+
+
+@api.post("/seguranca/relatorio/enviar")
+def relatorio_seguranca_email(d: SegurancaEmailIn, request: Request):
+    """Relatório de segurança por e-mail, com o arquivo anexo. Só para e-mails de usuários do sistema (dados sensíveis)."""
+    from .. import correio
+    if not correio.configurado():
+        raise HTTPException(409, "O envio de e-mails ainda não foi configurado (E-mails → Conexões).")
+    u = getattr(request.state, "u", None) or {}
+    meu = (u.get("email") or "").strip().lower()
+    cadastrados = {(r["email"] or "").strip().lower() for r in db.consultar("SELECT email FROM usuarios WHERE ativo")}
+    destinos = sorted({e.strip().lower() for e in (d.para or [meu]) if e.strip()})
+    if not destinos or any(e not in cadastrados for e in destinos):
+        raise HTTPException(400, "O relatório de segurança só pode ir para e-mails de usuários do sistema.")
+    if db.um("SELECT count(*) n FROM email_envios WHERE tipo = 'relatorio' AND criado_em > ?", (db.agora() - 3600,))["n"] + len(destinos) > 30:
+        raise HTTPException(429, "Muitos relatórios enviados na última hora. Tente de novo mais tarde.")
+    corpo, _t, ext = _arquivo_seguranca(d.formato, d.dias, d.modelo, request)
+    nome = f"seguranca-clima-{time.strftime('%Y%m%d-%H%M')}.{ext}"
+    from .. import seguranca_relatorio
+    resumo = seguranca_relatorio.documento(d.dias)["resumo"][:5]
+    enviados, falhas = [], []
+    for para in destinos:
+        try:
+            correio.enviar(para, "relatorio", {"nome": u.get("nome") if para == meu else "", "periodo": f"de segurança dos últimos {d.dias} dias",
+                                               "formato": d.formato.upper(), "arquivo": nome, "linhas": [[a, str(b)] for a, b in resumo],
+                                               "gerado_por": u.get("nome") or u.get("email", "")}, anexos=[{"filename": nome, "content": corpo}])
+            enviados.append(para)
+        except Exception as e:  # noqa: BLE001
+            falhas.append({"para": para, "erro": str(e)[:200]})
+    db.registrar("painel", "Relatório de segurança enviado por e-mail", ok=not falhas, detalhe=f"{d.formato.upper()} · {len(enviados)} destino(s)")
+    if not enviados:
+        raise HTTPException(502, falhas[0]["erro"] if falhas else "Não foi possível enviar.")
+    return {"enviados": enviados, "falhas": falhas, "arquivo": nome}
 
 
 @api.delete("/seguranca/eventos")
@@ -4614,3 +4662,37 @@ def restaurar_marca(indice: int):
 @api.post("/marca/padrao")
 def marca_padrao():
     return salvar_marca(dict(MARCA_PADRAO))
+
+
+# ---------------- Guia (passo a passo) em PDF no modelo da Prefeitura ----------------
+class GuiaPassoIn(BaseModel):
+    t: str = Field(max_length=200)
+    d: str = Field("", max_length=1200)
+
+
+class GuiaCapIn(BaseModel):
+    titulo: str = Field(max_length=160)
+    resumo: str = Field("", max_length=600)
+    passos: list[GuiaPassoIn] = Field([], max_length=40)
+
+
+class GuiaIn(BaseModel):
+    capitulos: list[GuiaCapIn] = Field(min_length=1, max_length=60)
+
+
+@api.post("/guia/pdf")
+def guia_pdf(d: GuiaIn, request: Request):
+    """O Passo a passo da tela, em PDF no modelo oficial da Prefeitura (brasão, cabeçalho, capítulos numerados)."""
+    from fastapi.responses import Response
+    from .. import documentos
+    from ..relatorio import _cabecalho_oficial
+    u = getattr(request.state, "u", None) or {}
+    org = _cabecalho_oficial()
+    meta = [["Órgão", " · ".join(org[1:]) or (org[0] if org else "")], ["Documento", "Guia de uso do sistema Clima Escritório"],
+            ["Capítulos", str(len(d.capitulos))], ["Emissão", time.strftime("%d/%m/%Y às %H:%M", time.gmtime(db.agora() - 3 * 3600))],
+            ["Emitido por", u.get("nome") or u.get("email") or "Sistema"]]
+    secoes = [(c.titulo, ([c.resumo] if c.resumo else []) + [("tabela", ["Passo", "Como fazer"], [[f"{i}. {p.t}", p.d] for i, p in enumerate(c.passos, 1)], [0.32, 0.68])])
+              for c in d.capitulos]
+    corpo = documentos._pdf("Guia de Uso do Clima Escritório", meta, secoes, db.agora(), rodape="guia de uso")
+    db.registrar("painel", "Guia exportado em PDF", detalhe=f"{len(d.capitulos)} capítulo(s)")
+    return Response(corpo, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="guia-clima-{time.strftime("%Y%m%d")}.pdf"'})

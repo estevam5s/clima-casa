@@ -187,7 +187,7 @@ def gerar(tipo: str, formato: str = "pdf", emitido_por: str = "") -> tuple[bytes
     return _pdf(titulo, meta, secoes, agora), "application/pdf", "pdf", titulo
 
 
-def _pdf(titulo, meta, secoes, agora) -> bytes:
+def _pdf(titulo, meta, secoes, agora, rodape: str = "minuta") -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -228,7 +228,7 @@ def _pdf(titulo, meta, secoes, agora) -> bytes:
             c.setFont("Times-Roman", 12.5 if i < 2 else 11); c.drawCentredString(L / 2 + 14 * mm, A - 22 * mm - i * 5.6 * mm, t)
         c.setLineWidth(0.6); c.line(20 * mm, A - 45 * mm, L - 20 * mm, A - 45 * mm)
         c.setStrokeColor(claro); c.line(20 * mm, 15 * mm, L - 20 * mm, 15 * mm)
-        c.setFont("Helvetica", 7.5); c.setFillColor(cinza); c.drawString(20 * mm, 10 * mm, f"{titulo} · minuta")
+        c.setFont("Helvetica", 7.5); c.setFillColor(cinza); c.drawString(20 * mm, 10 * mm, f"{titulo} · {rodape}")
         c.restoreState()
 
     doc = BaseDocTemplate(buf, pagesize=A4, title=titulo, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=50 * mm, bottomMargin=20 * mm)
@@ -253,7 +253,7 @@ def _pdf(titulo, meta, secoes, agora) -> bytes:
                     el.append(Paragraph(html.escape(f"{i}.{j} – {x}"), ParagraphStyle("li", parent=corpo, leftIndent=12, firstLineIndent=-12)))
                 el.append(Spacer(1, 4))
             elif b[0] == "tabela":
-                el += [tabela(b[1], b[2]), Spacer(1, 6)]
+                el += [tabela(b[1], b[2], [larg * f for f in b[3]] if len(b) > 3 else None), Spacer(1, 6)]
     dir_st = ParagraphStyle("d", parent=corpo, alignment=2)
     ass = ParagraphStyle("a", parent=corpo, alignment=1, fontSize=9)
     el += [Spacer(1, 14), Paragraph(f"Florianópolis, {_data_extenso(agora)}.", dir_st), Spacer(1, 34),
@@ -263,13 +263,13 @@ def _pdf(titulo, meta, secoes, agora) -> bytes:
     return buf.getvalue()
 
 
-def _docx(titulo, meta, secoes, agora) -> bytes:
+def _docx(titulo, meta, secoes, agora, rodape: str = "minuta") -> bytes:
     from .docx_simples import Documento, trecho
     cor = AZUL_PMF.lstrip("#")
     doc = Documento(cor_titulo=cor)
     doc.cabecalho = {"imagem": _brasao(), "linhas": _cabecalho_oficial(), "fonte": "Times New Roman", "largura_cm": 1.5}
     doc.numerar_paginas = True
-    doc.rodape = f"{titulo} · minuta"
+    doc.rodape = f"{titulo} · {rodape}"
     doc.paragrafo(trecho(titulo, negrito=True, tam=15), alinhar="center", depois=160)
     doc.tabela(["Identificação", ""], meta, cor=cor)
     for i, (nome, blocos) in enumerate(secoes, start=1):

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Activity, AlertOctagon, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
+import { Activity, AlertOctagon, Mail, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Secao, useDados, useToast, confirmar } from '../components/ui'
 import PainelSeguranca from '../components/config/PainelSeguranca'
@@ -85,9 +85,22 @@ function Exportar({ dias }) {
     const fora = (e) => { if (!ref.current?.contains(e.target)) setAberto(false) }
     document.addEventListener('mousedown', fora); return () => document.removeEventListener('mousedown', fora)
   }, [])
+  // modelo do PDF/Word (oficial da Prefeitura ou moderno) e envio por e-mail: escolhas guardadas neste navegador
+  const ler = (k, p) => { try { return localStorage.getItem(k) ?? p } catch { return p } }
+  const gravar = (k, v) => { try { localStorage.setItem(k, v) } catch { /* sem armazenamento */ } }
+  const [modelo, setModelo] = useState(() => ler('clima-seg-modelo', 'pmf'))
+  const [porEmail, setPorEmail] = useState(() => ler('clima-seg-email', '1') !== '0')
+  const enviar = async (f) => (await api.post('/api/seguranca/relatorio/enviar', { formato: f, dias: Math.min(90, +dias || 30), modelo })).enviados
   const baixar = async (f) => {
     setGerando(f)
-    try { toast(`Relatório salvo: ${await api.baixar(`/api/seguranca/relatorio?formato=${f}&dias=${dias}`)}`); setAberto(false) } catch (e) { toast(e.message, 'erro') } finally { setGerando(null) }
+    try {
+      toast(`Relatório salvo: ${await api.baixar(`/api/seguranca/relatorio?formato=${f}&dias=${dias}&modelo=${modelo}`)}`); setAberto(false)
+      if (porEmail) { try { toast(`Também enviado para ${(await enviar(f)).join(', ')}.`) } catch (e) { toast(`Baixado, mas o e-mail não foi: ${e.message}`, 'erro') } }
+    } catch (e) { toast(e.message, 'erro') } finally { setGerando(null) }
+  }
+  const soEnviar = async () => {
+    setGerando('email')
+    try { toast(`Relatório em PDF enviado para ${(await enviar('pdf')).join(', ')}.`); setAberto(false) } catch (e) { toast(e.message, 'erro') } finally { setGerando(null) }
   }
   return (
     <div ref={ref} className="relative">
@@ -97,11 +110,21 @@ function Exportar({ dias }) {
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
             className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-border bg-card p-1.5 shadow-xl"> {/* marca: menu flutua */}
             <p className="px-3 pb-1 pt-2 text-xs text-muted-foreground">Postura, IPs, países, rotas atacadas, bloqueios, eventos e recomendações dos últimos {dias} dia(s)</p>
+            <div className="mx-3 mb-1 mt-1 grid grid-cols-2 gap-1.5 border-b border-border pb-2" role="group" aria-label="Modelo do PDF e do Word">
+              {[['pmf', 'Prefeitura', 'Brasão e cabeçalho oficial'], ['moderno', 'Moderno', 'Cores da marca']].map(([k, r, dsc]) => (
+                <button key={k} onClick={() => { setModelo(k); gravar('clima-seg-modelo', k) }} aria-pressed={modelo === k} title={dsc}
+                  className={`rounded-md border px-2 py-1.5 text-left text-xs ${modelo === k ? 'border-primary bg-primary/10 font-medium' : 'border-border hover:bg-muted'}`}>{r}<span className="block text-[10px] font-normal text-muted-foreground">{dsc}</span></button>
+              ))}
+            </div>
             {FORMATOS.map(([f, r, I]) => (
               <button key={f} onClick={() => baixar(f)} disabled={!!gerando} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-60">
                 <I className="h-4 w-4 text-muted-foreground" />{gerando === f ? 'Gerando…' : r}
               </button>
             ))}
+            <div className="mt-1 space-y-1.5 border-t border-border px-3 pb-1.5 pt-2">
+              <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={porEmail} onChange={(e) => { setPorEmail(e.target.checked); gravar('clima-seg-email', e.target.checked ? '1' : '0') }} className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" />Ao baixar, enviar também para o meu e-mail</label>
+              <button onClick={soEnviar} disabled={!!gerando} className="flex items-center gap-2 text-xs font-medium text-primary hover:underline disabled:opacity-60"><Mail className="h-3.5 w-3.5" />{gerando === 'email' ? 'Enviando…' : 'Só enviar por e-mail (PDF)'}</button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -37,9 +37,10 @@ async function chamar(metodo, caminho, corpo) {
 }
 
 // Baixa um arquivo da API (com o Bearer) e dispara o download no navegador.
-async function baixar(caminho) {
+async function baixar(caminho, corpo = null) {
   const token = await tokenAtual().catch(() => null)
-  const r = await fetch(caminho, { credentials: 'same-origin', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  const cab = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(corpo ? { 'Content-Type': 'application/json' } : {}) }
+  const r = await fetch(caminho, { credentials: 'same-origin', headers: cab, ...(corpo ? { method: 'POST', body: JSON.stringify(corpo) } : {}) })
   if (!r.ok) {
     let msg = `Erro ${r.status}`
     try { msg = (await r.json()).detail || msg } catch { /* sem corpo */ }
