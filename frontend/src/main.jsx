@@ -14,6 +14,7 @@ import Agendamentos from './pages/Agendamentos'
 import Atividade from './pages/Atividade'
 import Notificacoes from './pages/Notificacoes'
 import Luzes from './pages/Luzes'
+import Telegram from './pages/Telegram'
 import Alexa from './pages/Alexa'
 import Configuracoes from './pages/Configuracoes'
 import Autorizar from './pages/Autorizar'
@@ -111,6 +112,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="atividade" element={<Atividade />} />
             <Route path="notificacoes" element={<Notificacoes />} />
             <Route path="luzes" element={<Luzes />} />
+            <Route path="telegram" element={<Telegram />} />
             <Route path="alexa" element={<Alexa />} />
             <Route path="supabase" element={<Supabase />} />
             <Route path="projetos" element={<Projetos />} />

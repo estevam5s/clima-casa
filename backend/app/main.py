@@ -18,6 +18,7 @@ from .rotas import musica as rotas_musica
 from .rotas import infra as rotas_infra
 from .rotas import correio as rotas_correio
 from .rotas import dispositivos as rotas_dispositivos
+from .rotas import telegram as rotas_telegram
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -143,6 +144,8 @@ app.include_router(rotas_correio.rotas_email)
 app.include_router(rotas_alexa.roteador)
 app.include_router(rotas_dispositivos.publico_iot)
 app.include_router(rotas_dispositivos.rotas_disp)
+app.include_router(rotas_telegram.publico_telegram)
+app.include_router(rotas_telegram.rotas_telegram)
 
 
 @app.get("/saude")

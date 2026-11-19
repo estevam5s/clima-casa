@@ -299,11 +299,40 @@ def assinatura_teste(ts: int | None = None) -> str:
     return f"{ts}." + hmac.new(seg, f"teste:{ts}".encode(), hashlib.sha256).hexdigest()
 
 
+# Token de uso único dos testes em lote: o agente gera, grava só o hash no banco (que a nuvem também lê) e manda o token
+# no cabeçalho. Antes a assinatura dependia de VERIFICACAO_SEGREDO igual no agente e na Vercel: um agente instalado antes
+# dessa chave existir (PC do escritório) assinava diferente e o lote era cancelado.
+TOKEN_TESTE = "testes_assinatura"
+_token_cache = {"em": 0.0, "v": None}
+
+
+def iniciar_token_teste(minutos: int = 30) -> str:
+    import hashlib
+    import secrets
+    token = "tk." + secrets.token_urlsafe(32)
+    db.set_cfg(TOKEN_TESTE, {"hash": hashlib.sha256(token.encode()).hexdigest(), "expira": int(time.time()) + minutos * 60})
+    _token_cache["em"] = 0
+    return token
+
+
+def encerrar_token_teste():
+    db.set_cfg(TOKEN_TESTE, {"hash": "", "expira": 0})
+    _token_cache["em"] = 0
+
+
 def pedido_de_teste(request) -> bool:
     """Pedido assinado pelo próprio sistema (testes ao vivo): o firewall não conta os 401/403 dele nem aplica limite."""
+    import hashlib
     import hmac
     h = request.headers.get("x-clima-teste") or ""
-    try:
+    if h.startswith("tk."):   # token de uso único do lote (hash no banco, vale 30 min)
+        if time.time() - _token_cache["em"] > 20:
+            _token_cache["v"] = db.cfg(TOKEN_TESTE) or {}
+            _token_cache["em"] = time.time()
+        t = _token_cache["v"] or {}
+        return bool(t.get("hash")) and int(t.get("expira") or 0) > time.time() and \
+            hmac.compare_digest(hashlib.sha256(h.encode()).hexdigest(), t["hash"])
+    try:   # formato antigo: "ts.hmac" com VERIFICACAO_SEGREDO (agentes ainda não atualizados)
         ts = int(h.split(".", 1)[0])
     except ValueError:
         return False

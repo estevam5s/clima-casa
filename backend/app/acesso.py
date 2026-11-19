@@ -77,6 +77,7 @@ REGRAS = [
     # cafeteira, persianas e fechadura: comandar = controlar ares; cadastrar/configurar = gerenciar transmissores;
     # a fechadura é conferida na rota (só dono/admin, e destrancar pede a senha)
     ("GET", r"^/api/avatares(/\{avid\}/(arquivo|receita))?$", None),
+    ("*", r"^/api/telegram/", None),   # cada rota confere (vínculo próprio; configurar só o dono)
     ("GET", r"^/api/dispositivos(/\{did\}/eventos|/placas)?$", None),
     ("*", r"^/api/avatares", "configuracoes.gerenciar"),   # importar/apagar (a rota ainda exige dono/admin); ler é liberado acima
     ("POST", r"^/api/dispositivos/\{did\}/(comando|atualizar|cafe)$", "aparelhos.controlar"),

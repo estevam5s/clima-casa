@@ -2,6 +2,24 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.14.0",
+      "data": "2026-11-18",
+      "titulo": "Bot do Telegram",
+      "resumo": "O @zynio_bot controla os ares, cenas e luzes pelo Telegram, com as mesmas permissões de cada pessoa no painel.",
+      "novo": [
+        "Telegram (menu Integrações): vincule o seu Telegram com um código de uso único e use o @zynio_bot",
+        "Comandos e menu: status, ares (ligar, desligar, temperatura), desligar todos, cenas, luzes, notificações e resumo de 7 dias"
+      ],
+      "melhorias": [],
+      "seguranca": [
+        "Bot só para conversas privadas de pessoas vinculadas, com as permissões delas; confirmação por botão nas ações em lote; limite por minuto e bloqueio de 24 h para quem tenta sem vínculo",
+        "Testes de segurança em lote usam um token de uso único por lote, sem depender da mesma chave no agente e na nuvem"
+      ],
+      "correcoes": [
+        "Segurança → Testes: o lote era cancelado com \"a nuvem não aceitou a assinatura\" quando o agente era um PC instalado antes da chave existir (ou com o escudo ligado, agora explicado)"
+      ]
+    },
+    {
       "versao": "1.13.1",
       "data": "2026-11-18",
       "titulo": "Confirmações no próprio sistema e passo a passo atualizado",

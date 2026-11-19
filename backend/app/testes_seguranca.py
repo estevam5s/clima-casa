@@ -219,14 +219,16 @@ def executar(_a=None) -> dict:
 
     async def principal():
         sem = asyncio.Semaphore(16)
-        assin = {"X-Clima-Teste": firewall.assinatura_teste(), "User-Agent": "clima-testes-seguranca/1.0"}
+        assin = {"X-Clima-Teste": firewall.iniciar_token_teste(), "User-Agent": "clima-testes-seguranca/1.0"}
         feitos = {"n": 0, "f": 0}
         ultimos: list = []
         async with httpx.AsyncClient(timeout=10, follow_redirects=False, verify=True) as cli:
             # trava: se a nuvem não reconhece a assinatura, centenas de 401 bloqueariam o IP do escritório no firewall
             r = await cli.get(f"https://{APP}/api/seguranca/testes/assinatura", headers=assin)
-            if not (r.status_code == 200 and r.json().get("aceita")):
-                raise RuntimeError("A nuvem não aceitou a assinatura dos testes (VERIFICACAO_SEGREDO diferente no agente e na Vercel?). Lote cancelado para não bloquear o IP do escritório.")
+            if not (r.status_code == 200 and r.headers.get("content-type", "").startswith("application/json") and r.json().get("aceita")):
+                if r.status_code in (403, 429) and "Security Checkpoint" in r.text:
+                    raise RuntimeError("O escudo anti-DDoS está ligado (a Vercel desafia todo acesso). Desligue em Segurança → Escudo e rode de novo.")
+                raise RuntimeError(f"A nuvem não aceitou o token dos testes (resposta {r.status_code}). Lote cancelado para não bloquear o IP do escritório.")
 
             async def rodar(x):
                 async with sem:
@@ -247,6 +249,8 @@ def executar(_a=None) -> dict:
     except RuntimeError as e:
         db.set_cfg(PROGRESSO, {"rodando": False, "total": total, "feitos": 0, "falhas": 0, "inicio": int(inicio), "ultimos": [], "erro": str(e)})
         return {"ok": False, "erro": str(e)}
+    finally:
+        firewall.encerrar_token_teste()   # o token vale só para este lote
     cats: dict = {}
     for r in resultados:
         c = cats.setdefault(r["cat"], {"total": 0, "ok": 0})
