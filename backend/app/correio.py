@@ -134,6 +134,7 @@ MODELOS = {
     "acesso_novo": "Acesso por um IP novo",
     "alerta": "Alerta do sistema",
     "relatorio": "Relatório gerado (com o arquivo anexo)",
+    "treinamento": "Resultado do treinamento de segurança",
     "dono_transferido": "Posto de dono transferido",
     "teste": "Teste da conexão",
 }
@@ -223,6 +224,17 @@ def montar(tipo: str, d: dict) -> tuple[str, str, str]:
         texto = f"{ola}\n\nRelatório {d.get('periodo', '')} em anexo ({d.get('arquivo', '')}).\n" + "\n".join(f"{a}: {b}" for a, b in linhas) + f"\n\n{APP}/relatorios"
         motivo = "Você recebeu este e-mail porque gerou (ou alguém gerou para você) um relatório no painel."
         previa = f"Relatório {d.get('periodo', '')} em anexo."
+    elif tipo == "treinamento":
+        ok = bool(d.get("aprovado"))
+        assunto = f"{'Aprovado' if ok else 'Resultado'}: {d.get('nota')}% no treinamento ({d.get('trilha')})"
+        blocos = [_p(ola), _p(f"Você concluiu a prova <b>{_e(d.get('trilha'))}</b> no {_e(m['nome'])}."),
+                  _caixa([("Nota", f"{d.get('nota')}% ({d.get('acertos')} de {d.get('total')})"), ("Resultado", "Aprovado (mínimo 70%)" if ok else "Abaixo de 70%: vale refazer"),
+                          *[(str(a), str(b)) for a, b in (d.get("por_trilha") or [])][:6], ("Concluído em", _quando())]),
+                  _p("O gabarito comentado fica na própria tela, logo depois da correção. A aprovação vale 12 meses e conta na conformidade (ISO/IEC 27001, controle 6.3)."),
+                  _botao("Abrir o treinamento", f"{APP}/treinamento", cor)]
+        texto = f"{ola}\n\nProva {d.get('trilha')}: {d.get('nota')}% ({d.get('acertos')}/{d.get('total')}) · {'aprovado' if ok else 'refazer'}.\n{APP}/treinamento"
+        motivo = "Você recebeu este e-mail porque concluiu uma prova do treinamento de segurança."
+        previa = f"Nota {d.get('nota')}% na prova {d.get('trilha')}."
     else:   # teste
         assunto = f"Teste de e-mail do {m['nome']}"
         blocos = [_p(ola), _p("Se você está lendo isto, o envio de e-mails pelo Resend está funcionando. 🎉"),

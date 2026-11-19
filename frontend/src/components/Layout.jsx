@@ -60,7 +60,7 @@ export const GRUPOS = [
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
     { para: '/guia', rotulo: 'Passo a passo', icone: BookOpen },
-    { para: '/treinamento', rotulo: 'Treinamento de segurança', icone: GraduationCap },
+    { para: '/treinamento', rotulo: 'Treinamento e segurança', icone: GraduationCap },
     { para: '/novidades', rotulo: 'Novidades', icone: Megaphone },
   ] },
 ]

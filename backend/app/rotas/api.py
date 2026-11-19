@@ -3949,6 +3949,42 @@ def responder_treinamento(d: RespostasIn, request: Request):
     return {"nota": nota, "aprovado": aprovado, "certas": certas, "gabarito": [c for _, _, c in CURSO]}
 
 
+# ---------------- treinamento com banco de mais de mil perguntas (treinamento.py) ----------------
+class ProvaIn(BaseModel):
+    trilha: str = Field(pattern=r"^(geral|anexo_a|estrutura|normas|completo)$")
+    quantidade: int = Field(20, ge=5, le=100)
+
+
+class CorrigirIn(BaseModel):
+    prova: str = Field(min_length=8, max_length=40)
+    respostas: dict[str, int] = Field(default_factory=dict, max_length=120)
+
+
+@api.get("/treinamento/v2")
+def treinamento_v2(request: Request):
+    from .. import treinamento
+    u = request.state.u
+    gestor = u.get("papel") in ("dono", "admin")
+    return {**treinamento.resumo(), "historico": treinamento.historico(u["id"]), "aprovacao": treinamento.APROVACAO,
+            "ranking": treinamento.ranking() if gestor else None}
+
+
+@api.post("/treinamento/iniciar")
+def treinamento_iniciar(d: ProvaIn, request: Request):
+    from .. import treinamento
+    return treinamento.iniciar(request.state.u["id"], d.trilha, d.quantidade)
+
+
+@api.post("/treinamento/corrigir")
+def treinamento_corrigir(d: CorrigirIn, request: Request):
+    from .. import treinamento
+    u = request.state.u
+    try:
+        return treinamento.corrigir(u["id"], d.prova, d.respostas, u)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 class RegistroIn(BaseModel):
     tipo: str = Field(pattern=r"^(politica|lideranca|contexto|partes|recursos|auditoria|analise)$")
     data: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")

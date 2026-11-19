@@ -85,6 +85,7 @@ REGRAS = [
     ("PUT", r"^/api/ia/conversas/\d+$", None),            # só as conversas da própria pessoa
     ("DELETE", r"^/api/ia/conversas/\d+$", None),
     ("POST", r"^/api/guia/pdf$", None),
+    ("POST", r"^/api/treinamento/(iniciar|corrigir)$", None),   # cada pessoa faz a própria prova
     ("POST", r"^/api/avatares/\{avid\}/(versao|versao/confirmar|restaurar)$", None),   # a rota exige dono/admin
     ("PUT", r"^/api/mapa/veiculos$", None),                                             # a rota exige dono/admin
     ("POST", r"^/api/mapa/veiculos/\{vid\}/posicao$", None),                             # estacionar depois de dirigir   # qualquer pessoa logada baixa o Passo a passo em PDF   # cada rota confere (relatar: qualquer logado; gerir: configuracoes.gerenciar)   # cada rota confere (vínculo próprio; configurar só o dono)
