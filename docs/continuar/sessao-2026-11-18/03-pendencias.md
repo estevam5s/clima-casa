@@ -33,10 +33,15 @@ Feito também:
   `NVIDIA_API_KEY` no `.env`. Ferramentas com confirmação; segredos mascarados antes de sair da máquina.
 - **Transferir o posto de dono** (1.15.0): Usuários → coroa; senha + Turnstile + e-mail digitado.
 
+- **Bugs** (1.16.0): tabela `bugs`, relatos, erros de tela/500 automáticos, varredura de hora em hora, prompt para IA.
+- **Minimapa** no mapa 3D (1.16.0) e **exportação com esqueleto** para o Blender (Estúdio de avatares).
+- **Raspberry**: cartão detectado (disk4, 64 GB, tinha Raspberry Pi OS desktop de 2024). Script melhorado (watchdog, Wi-Fi
+  sem economia, atualizações de segurança). Falta o dono rodar: `CLIMA_WIFI_SSID=Egov ./scripts/preparar-cartao-raspberry.sh`
+  (digita disk4, APAGAR, a senha do Wi-Fi e a do Mac). Depois: Infra → Agentes → Preferir "clima-agente".
+
 A fazer (decisões já tomadas pelo dono):
 3. Apps por link temporário do Storage do Supabase (sem GitHub) + releases novos de Android e desktop (confirmado).
 4. Treinamento com 1.000+ perguntas próprias (ISO e LGPD), nota na tela e por e-mail.
-5. Área de Bugs (usuários relatam; o sistema procura bugs nele mesmo, sugere correções e gera prompt para a IA).
 6. Segurança: relatório no modelo da Prefeitura e envio por e-mail.
 7. Contadores nas rotas do menu lateral (além de Notificações e Mensagens).
 8. Usuários: escolher as categorias de rotas que cada um acessa.
