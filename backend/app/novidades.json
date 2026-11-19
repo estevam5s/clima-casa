@@ -2,6 +2,23 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.24.1",
+      "data": "2026-11-19",
+      "titulo": "Apps 1.4.0 e o assistente no terminal",
+      "resumo": "O app do computador ganha o Assistente de IA no menu, o Android ganha a tela do Assistente e o clima-ia fica no jeito do Claude Code.",
+      "novo": [
+        "Android: Mais → Assistente de IA (chega sozinho, sem instalar o APK de novo)",
+        "Computador 1.4.0: Assistente de IA no menu Ir e na bandeja, e as telas novas em Mais telas",
+        "clima-ia no terminal: barra de status, modos de permissão, @arquivo, !comando, #memória e comandos diretos dos ares (/ares, /ligar, /temp)"
+      ],
+      "melhorias": [
+        "Site zynio.com.br com as páginas do Assistente de IA, do Telegram e de backup e treinamento",
+        "Documentação dos apps e do sistema atualizada"
+      ],
+      "seguranca": [],
+      "correcoes": []
+    },
+    {
       "versao": "1.24.0",
       "data": "2026-11-19",
       "titulo": "Backup completo, treinamento com mais de mil perguntas e páginas de rotina mais completas",

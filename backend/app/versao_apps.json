@@ -1,16 +1,16 @@
 {
   "notas": [
-    "Entrar com e-mail e senha pelo navegador, com a verificação anti-robô",
-    "Instaladores de computador para Mac, Windows e Linux (x64 e ARM64)",
-    "Acompanha a versão 1.7.0 do sistema (térreo, Ilha, relatórios da Prefeitura, Raspberry Pi)"
+    "Computador: Assistente de IA no menu Ir (Cmd/Ctrl + Shift + I) e na bandeja, com as telas novas em Mais telas",
+    "Android: tela do Assistente de IA, que chega sozinha pela atualização automática (o APK continua o 1.3.0)",
+    "Acompanha a versão 1.24.0 do sistema (IA, Telegram, backup, treinamento)"
   ],
-  "publicado_em": "2026-11-17",
+  "publicado_em": "2026-11-19",
   "android": {
     "versao": "1.3.0",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "desktop": {
-    "versao": "1.3.0",
+    "versao": "1.4.0",
     "pagina": "https://app.zynio.com.br/apps"
   }
 }
