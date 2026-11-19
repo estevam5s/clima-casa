@@ -133,12 +133,15 @@ MODELOS = {
     "senha_redefinida": "Senha redefinida pelo administrador",
     "acesso_novo": "Acesso por um IP novo",
     "alerta": "Alerta do sistema",
+    "relatorio": "Relatório gerado (com o arquivo anexo)",
     "teste": "Teste da conexão",
 }
 
 EXEMPLO = {"nome": "Deison", "email": "deison@exemplo.com.br", "link": f"{APP}/redefinir-senha#exemplo", "ip": "177.74.175.96", "local": "Florianópolis, BR",
            "dispositivo": "Chrome no macOS", "titulo": "Ar do escritório ligado há 12 horas", "detalhe": "Ligado desde as 08:02. Confira se alguém esqueceu ligado.",
-           "gravidade": "alta", "por": "Estevam (dono)", "papel": "Administrador", "convidado_por": "Estevam"}
+           "gravidade": "alta", "por": "Estevam (dono)", "papel": "Administrador", "convidado_por": "Estevam",
+           "periodo": "01/11/2026 a 30/11/2026", "formato": "PDF", "arquivo": "relatorio-clima-20261130.pdf",
+           "linhas": [["Comandos", "412 (+8% vs período anterior)"], ["Taxa de sucesso", "98,5%"], ["Custo estimado", "R$ 1.284,00"]]}
 
 
 def montar(tipo: str, d: dict) -> tuple[str, str, str]:
@@ -197,6 +200,16 @@ def montar(tipo: str, d: dict) -> tuple[str, str, str]:
         texto = f"{d.get('titulo')}\n{d.get('detalhe', '')}\n{_quando()}\n{APP}{d.get('link') or ''}"
         motivo = "Você recebe alertas do sistema porque é administrador. Ajuste em E-mails → Automáticos."
         previa = str(d.get("detalhe") or "")[:90]
+    elif tipo == "relatorio":
+        assunto = f"Relatório {d.get('periodo', '')} · {m['nome']}".strip()
+        linhas = [(str(a), str(b)) for a, b in (d.get("linhas") or [])][:12]
+        blocos = [_p(ola), _p(f"Segue o relatório de uso dos ares-condicionados gerado no painel, em <b>{_e(d.get('formato'))}</b>, anexo a este e-mail ({_e(d.get('arquivo'))})."),
+                  _caixa([("Período", d.get("periodo")), *linhas, ("Gerado por", d.get("gerado_por")), ("Gerado em", _quando())]),
+                  _p("Valores de consumo e custo são estimativas pela potência cadastrada de cada ar. A metodologia completa está no próprio relatório."),
+                  _botao("Abrir os relatórios", f"{APP}/relatorios", cor)]
+        texto = f"{ola}\n\nRelatório {d.get('periodo', '')} em anexo ({d.get('arquivo', '')}).\n" + "\n".join(f"{a}: {b}" for a, b in linhas) + f"\n\n{APP}/relatorios"
+        motivo = "Você recebeu este e-mail porque gerou (ou alguém gerou para você) um relatório no painel."
+        previa = f"Relatório {d.get('periodo', '')} em anexo."
     else:   # teste
         assunto = f"Teste de e-mail do {m['nome']}"
         blocos = [_p(ola), _p("Se você está lendo isto, o envio de e-mails pelo Resend está funcionando. 🎉"),
@@ -217,8 +230,10 @@ def configurado() -> bool:
     return bool(_chave())
 
 
-def enviar(para: str, tipo: str, dados: dict | None = None, assunto: str | None = None, html_: str | None = None, texto: str | None = None) -> dict:
-    """Manda e registra. Lança RuntimeError com o motivo se falhar."""
+def enviar(para: str, tipo: str, dados: dict | None = None, assunto: str | None = None, html_: str | None = None, texto: str | None = None,
+           anexos: list[dict] | None = None) -> dict:
+    """Manda e registra. Lança RuntimeError com o motivo se falhar.
+    anexos: [{"filename": "x.pdf", "content": bytes}] (o Resend recebe em base64; limite total de 40 MB)."""
     chave = _chave()
     if not chave:
         raise RuntimeError("Resend não configurado.")
@@ -227,6 +242,11 @@ def enviar(para: str, tipo: str, dados: dict | None = None, assunto: str | None 
     c = cfg()
     corpo = {"from": remetente(), "to": [para], "subject": assunto, "html": html_, "text": texto,
              "tags": [{"name": "tipo", "value": tipo}], **({"reply_to": c["responder_para"]} if c.get("responder_para") else {})}
+    if anexos:
+        import base64
+        if sum(len(a["content"]) for a in anexos) > 30 * 1024 * 1024:
+            raise RuntimeError("Anexo grande demais para e-mail (máximo 30 MB). Baixe o arquivo pelo painel.")
+        corpo["attachments"] = [{"filename": a["filename"], "content": base64.b64encode(a["content"]).decode()} for a in anexos]
     agora = db.agora()
     linha = db.um("INSERT INTO email_envios (tipo, para, assunto, estado, criado_em, atualizado_em) VALUES (?,?,?,'enviando',?,?) RETURNING id", (tipo, para, assunto[:200], agora, agora))
     try:

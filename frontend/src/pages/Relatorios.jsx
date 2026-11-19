@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Download, Eye, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe, Info, Printer, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Download, Eye, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe, Info, Mail, Printer, RefreshCw } from 'lucide-react'
 import { api, dataHora, rotuloOrigem } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Secao, useDados, useToast } from '../components/ui'
@@ -43,6 +43,16 @@ function MenuExportar({ consulta }) {
   // modelo do PDF/Word: oficial da Prefeitura (brasão, cabeçalho e seções numeradas) ou o moderno da marca
   const [modelo, setModelo] = useState(() => { try { return localStorage.getItem('clima-rel-modelo') || 'pmf' } catch { return 'pmf' } })
   const mudarModelo = (m) => { setModelo(m); try { localStorage.setItem('clima-rel-modelo', m) } catch { /* sem armazenamento */ } }
+  // ao gerar, manda também para o e-mail de quem gerou (com o arquivo anexo); a escolha fica salva neste navegador
+  const [porEmail, setPorEmail] = useState(() => { try { return localStorage.getItem('clima-rel-email') !== '0' } catch { return true } })
+  const mudarPorEmail = (v) => { setPorEmail(v); try { localStorage.setItem('clima-rel-email', v ? '1' : '0') } catch { /* sem armazenamento */ } }
+  const enviarEmail = async (f) => {
+    const q = Object.fromEntries(new URLSearchParams(consulta))
+    const corpo = { formato: f, modelo, dias: +(q.dias || 30), inicio: q.inicio || null, fim: q.fim || null,
+      projeto_id: q.projeto_id ? +q.projeto_id : null, aparelho_id: q.aparelho_id ? +q.aparelho_id : null }
+    const r = await api.post('/api/relatorios/enviar', corpo)
+    return r.enviados
+  }
   const ref = useRef(null)
   useEffect(() => {
     const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberto(false) }
@@ -55,7 +65,14 @@ function MenuExportar({ consulta }) {
       const nome = await api.baixar(`/api/relatorios/exportar?formato=${f}&modelo=${modelo}&${consulta}`)
       toast(`Relatório salvo: ${nome}`)
       setAberto(false)
+      if (porEmail) {
+        try { const para = await enviarEmail(f); toast(`Também enviado por e-mail para ${para.join(', ')}.`) } catch (e) { toast(`Baixado, mas o e-mail não foi: ${e.message}`, 'erro') }
+      }
     } catch (e) { toast(e.message, 'erro') } finally { setBaixando(null) }
+  }
+  const soEnviar = async () => {
+    setBaixando('email')
+    try { const para = await enviarEmail('pdf'); toast(`Relatório em PDF enviado para ${para.join(', ')}.`); setAberto(false) } catch (e) { toast(e.message, 'erro') } finally { setBaixando(null) }
   }
   return (
     <div ref={ref} className="relative">
@@ -80,6 +97,15 @@ function MenuExportar({ consulta }) {
                 <span className="min-w-0"><span className="block text-sm font-medium">{baixando === f ? 'Gerando…' : nome}</span><span className="block text-xs text-muted-foreground">{desc}</span></span>
               </button>
             ))}
+            <div className="mt-1 space-y-1.5 border-t border-border px-3 pb-1.5 pt-2">
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={porEmail} onChange={(e) => mudarPorEmail(e.target.checked)} className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" />
+                Ao baixar, enviar também para o meu e-mail (arquivo anexo)
+              </label>
+              <button onClick={soEnviar} disabled={!!baixando} className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xs font-medium text-primary hover:underline disabled:opacity-60">
+                <Mail className="h-3.5 w-3.5" />{baixando === 'email' ? 'Enviando…' : 'Só enviar por e-mail (PDF), sem baixar'}
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

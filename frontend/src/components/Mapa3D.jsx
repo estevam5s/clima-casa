@@ -454,6 +454,24 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   const [escrevendo, setEscrevendo] = useState(false)
   const [rascunhoEsc, setRascunhoEsc] = useState(null)
   const [ocupado, setOcupado] = useState(false)
+  // luzes reais (tela Iluminação): sala com a lâmpada apagada fica escura no 3D; sem lâmpada cadastrada, acende à noite
+  useEffect(() => {
+    let vivo = true
+    const ler = () => api.get('/api/dispositivos?tipo=luz').then((r) => {
+      if (!vivo) return
+      const est = {}
+      for (const d of r.dispositivos || []) {
+        if (!d.projeto_id || !d.conectado || typeof d.resumo?.ligada !== 'boolean') continue
+        est[d.projeto_id] = est[d.projeto_id] === true || d.resumo.ligada   // alguma acesa na sala = sala acesa
+      }
+      const E = estado.current
+      E.estadoLuzes = est
+      E.aplicarLuzes?.(est)
+    }).catch(() => {})
+    ler()
+    const t = setInterval(() => { if (!document.hidden) ler() }, 60000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [])
   useEffect(() => {
     const E = estado.current
     E.abrirCartao = (u) => {
@@ -478,6 +496,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (k === 'escape') { estado.current.pararControle?.(); return }
       if (k === 'v') { estado.current.mudarModo?.(c.modo === '1' ? '3' : '1'); return }
       if (k === 'f') { e.preventDefault(); estado.current.sentar?.(); return }
+      if (k === 'c') { e.preventDefault(); estado.current.cafe?.(); return }
       if (k === 'r') { e.preventDefault(); estado.current.irElevador?.(); return }
       if (['w', 'a', 's', 'd', 'q', 'e', 'shift', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { e.preventDefault(); c.teclas.add(k) }
     }
@@ -529,7 +548,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     controles.enableDamping = true; controles.dampingFactor = 0.07
     controles.maxPolarAngle = Math.PI / 2.15; controles.minDistance = 3; controles.maxDistance = 45
     controles.enableZoom = true; controles.zoomToCursor = true
-    estado.current = { cena, camera, controles, renderer }
+    // as funções ligadas ao React (barra de controle, cartões, elevador) foram registradas por outro efeito antes deste:
+    // recriar o objeto sem elas deixava a barra de controle (e as teclas F/R/C) sem resposta até a tela re-renderizar
+    const antes = estado.current || {}
+    estado.current = { cena, camera, controles, renderer, setControle: antes.setControle, setNivel: antes.setNivel, setViagem: antes.setViagem,
+      abrirCartao: antes.abrirCartao, escrevendo: antes.escrevendo, estadoLuzes: antes.estadoLuzes }
     try { if (localStorage.getItem('clima-debug-3d') === '1') window.__mapa3d = estado }   // só para testes (Playwright): liga à mão no navegador
     catch { /* sem armazenamento */ }
     setPronto(true)
@@ -894,20 +917,51 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const nev = tempoRef.current.tipo === 'neblina', ch = ['chuva', 'trovoada'].includes(tempoRef.current.tipo)
       if (nev || ch) { cena.fog.near = nev ? 25 : 70; cena.fog.far = nev ? 120 : 220 }
     }
-    // luz de teto: painéis acesos (fortes à noite) e uma luz por sala
+    // luz de teto: painéis acesos (fortes à noite) e luz de verdade em cada sala e no corredor à noite.
+    // Desde o three r155 a intensidade é física (candela): o 1,6 de antes quase não iluminava e o andar ficava escuro.
+    // Cada sala guarda as suas luzes em E.luzSala[projeto]: quando a lâmpada real (Iluminação) está apagada, a sala apaga.
     const paineis = []
-    const matPainel = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4dc, emissiveIntensity: ceu.noite ? 1.6 : ceu.crepusculo ? 0.9 : 0.35 })   // só a face de baixo: de cima não aparece
+    const noiteOuTarde = ceu.noite || ceu.crepusculo
+    const brilhoPainel = ceu.noite ? 1.8 : ceu.crepusculo ? 1.0 : 0.35
+    const intensSala = ceu.noite ? 9 : 4
+    E.luzSala = {}
     if (ALT > 2) for (const s of salas) {
+      const matSala = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4dc, emissiveIntensity: brilhoPainel })   // só a face de baixo: de cima não aparece
       const nx = Math.max(1, Math.round((s.w * S) / 2.6)), nz = Math.max(1, Math.round((s.h * S) / 2.6))
       for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
-        const pn = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), matPainel)
+        const pn = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), matSala)
         pn.rotation.x = Math.PI / 2; pn.position.set(W(s.x + (s.w * (i + 0.5)) / nx), ALT - 0.015, Z(s.y + (s.h * (j + 0.5)) / nz)); mundo.add(pn)
       }
-      if (ceu.noite || ceu.crepusculo) {
-        const l = new THREE.PointLight(0xffe7c2, ceu.noite ? 1.6 : 0.8, Math.max(s.w, s.h) * S * 1.1, 1.6)
-        l.position.set(W(s.x + s.w / 2), ALT - 0.3, Z(s.y + s.h / 2)); mundo.add(l); paineis.push(l)
+      const reg = { mat: matSala, brilho: brilhoPainel, luzes: [], intens: intensSala }
+      if (noiteOuTarde) {
+        // sala grande ganha duas luzes (uma em cada metade) para não ficar com o fundo escuro
+        const grande = Math.max(s.w, s.h) * S > 9
+        const pontos = grande ? (s.w >= s.h ? [[s.x + s.w * 0.27, s.y + s.h / 2], [s.x + s.w * 0.73, s.y + s.h / 2]] : [[s.x + s.w / 2, s.y + s.h * 0.27], [s.x + s.w / 2, s.y + s.h * 0.73]]) : [[s.x + s.w / 2, s.y + s.h / 2]]
+        for (const [px, py] of pontos) {
+          const l = new THREE.PointLight(0xffe7c2, intensSala, Math.max(s.w, s.h) * S * (grande ? 0.75 : 1.2), 1.2)
+          l.position.set(W(px), ALT - 0.3, Z(py)); mundo.add(l); paineis.push(l); reg.luzes.push(l)
+        }
+      }
+      E.luzSala[s.p.id] = reg
+    }
+    // corredor, hall e copa: uma luz no meio de cada lado do anel em volta das salas (só com o prédio, à noite)
+    if (noiteOuTarde && comPredio && ALT > 2) {
+      const cx = (W(x0) + W(x1)) / 2, cz = (Z(y0) + Z(y1)) / 2, m = 0.35 + MARGEM / 2
+      const lados = [[cx, Z(y0) - m], [cx, Z(y1) + m], [W(x0) - m, cz], [W(x1) + m, cz]]
+      E.luzCorredor = lados.map(([lx, lz]) => {
+        const l = new THREE.PointLight(0xfff1dc, ceu.noite ? 7 : 3, Math.max(W(x1) - W(x0), Z(y1) - Z(y0)) * 0.8, 1.2)
+        l.position.set(lx, ALT - 0.3, lz); mundo.add(l); paineis.push(l); return l
+      })
+    }
+    // luz real apagada → sala escura (painéis quase sem brilho, sem luz); acesa ou sem lâmpada cadastrada → acesa
+    E.aplicarLuzes = (estados) => {
+      for (const [pid, reg] of Object.entries(E.luzSala || {})) {
+        const acesa = estados?.[pid] !== false
+        reg.mat.emissiveIntensity = acesa ? reg.brilho : 0.05
+        reg.luzes.forEach((l) => { l.intensity = acesa ? reg.intens : 0 })
       }
     }
+    if (E.estadoLuzes) E.aplicarLuzes(E.estadoLuzes)
     if (ceu.noite) matVidro.emissive = new THREE.Color(0xffd89a), matVidro.emissiveIntensity = 0.35
 
     // móveis e elementos
@@ -1618,6 +1672,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const pararControle = () => {
       const c = E.ctrl
       if (!c) return
+      if (c.fazendoAte && E.pontoCafe?.maquina) E.pontoCafe.maquina.fazendo = false   // largou no meio do café
       if (E.viagem) { E.viagem = null; E.setViagem?.(null) }
       if (E.nivel === 'terreo') {   // largou no térreo: a pessoa sobe e fica na frente do elevador do andar
         E.trocarNivel?.('andar')
@@ -1692,6 +1747,26 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       c.yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y; c.pitch = -0.25
       E.setControle?.({ modo: c.modo, info: c.info, sentado: true })
     }
+    // C (ou o botão): perto da cafeteira da copa, faz um café (a máquina trabalha uns segundos) e sai com a xícara;
+    // com a xícara, C dá um gole na hora (parado, ele também bebe de vez em quando); o café acaba depois de ~90 s
+    E.cafe = () => {
+      const c = E.ctrl
+      if (!c || E.viagem) return
+      const t = E.tAgora || 0, aviso = (texto) => E.setControle?.({ modo: c.modo, info: c.info, sentado: !!c.assento, aviso: texto })
+      if (c.assento) { aviso('Levante (F) para ir até a copa tomar café.'); return }
+      if (c.fazendoAte > t) return
+      if (c.cafeAte > t) {   // gole agora: a curva do gole atinge o pico neste instante
+        c.av.userData.fase = Math.PI / 2 / 1.55 - t
+        return
+      }
+      const pc = E.pontoCafe, P = c.av.position
+      if (!pc || E.nivel === 'terreo') { aviso('A cafeteira fica na copa do escritório (suba pelo elevador).'); return }
+      if (Math.hypot(pc.x - P.x, pc.z - P.z) > 1.6) { aviso('Vá até a cafeteira da copa (até 1,5 m dela) e aperte C.'); return }
+      c.yaw = Math.atan2(pc.olhar[0] - P.x, pc.olhar[1] - P.z)
+      c.fazendoAte = t + 5
+      if (pc.maquina) pc.maquina.fazendo = true
+      aviso('Fazendo o café…')
+    }
     const vSent = new THREE.Vector3()
     const nivelElev = () => (E.nivel === 'terreo' ? E.elevTerreo : E.elevAndar)
     const ROT_ANDAR = (v) => (v === 0 ? 'T' : String(v))
@@ -1760,7 +1835,16 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       camera.lookAt(cab[0], yB + 1.2, cab[1])
     }
     const moverControle = (dt, t) => {
-      const c = E.ctrl, av = c.av, P = av.position, k = c.teclas
+      const c = E.ctrl, av = c.av, P = av.position
+      E.tAgora = t
+      if (c.fazendoAte && t >= c.fazendoAte) {   // café pronto: sai da máquina com a xícara
+        c.fazendoAte = 0; c.cafeAte = t + 90
+        if (E.pontoCafe?.maquina) E.pontoCafe.maquina.fazendo = false
+        av.userData.fase = Math.PI / 2 / 1.55 - t - 1.2   // primeiro gole logo depois
+        E.setControle?.({ modo: c.modo, info: c.info, sentado: false, aviso: 'Café pronto. C dá um gole; parado, ele bebe sozinho.' })
+      }
+      if (c.cafeAte && t >= c.cafeAte) { c.cafeAte = 0; E.setControle?.({ modo: c.modo, info: c.info, sentado: !!c.assento, aviso: 'O café acabou.' }) }
+      const k = c.fazendoAte ? new Set() : c.teclas   // fazendo café: fica parado na máquina
       if (E.viagem) { passoViagem(dt, t); return }
       if (c.assento) {   // sentado trabalhando: digita; câmera da cabeça (1ª) ou por cima do ombro (3ª), olhando o monitor
         animarPessoa(av, t)
@@ -1804,7 +1888,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       }
       av.rotation.y = c.yaw
       c.passo += (andou / 0.68) * Math.PI * (f < 0 ? -1 : 1)
-      animarAndar(av, c.passo, Math.min(1, andou / Math.max(1e-4, 1.35 * dt)), t)
+      animarAndar(av, c.passo, Math.min(1, andou / Math.max(1e-4, 1.35 * dt)), t, false, c.cafeAte > t)
       const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), yB = E.yBase || 0
       if (c.modo === '1') {
         av.userData.pescoco.visible = false
@@ -2065,7 +2149,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         controlar={(info, modo) => { setCartao(null); setEscrevendo(false); estado.current.iniciarControle?.(info, modo) }} />}
       {acoes && <RascunhoEscrita mapa={mapa} rascunho={rascunhoEsc} setRascunho={setRascunhoEsc} acoes={acoes} ocupado={ocupado} executar={executar} />}
       <BarraControle controle={controle} nome={controle?.info?.tipo === 'pessoa' ? ((mapa.pessoas || []).find((p) => p.id === controle.info.id)?.nome || 'Pessoa') : 'Pessoa sem cadastro'}
-        mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} sentar={() => estado.current.sentar?.()}
+        mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} sentar={() => estado.current.sentar?.()} cafe={() => estado.current.cafe?.()}
         elevador={() => estado.current.irElevador?.()} andar={Number.isFinite(+mapa.andar) ? +mapa.andar : 9} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />
       {extra}
       <p className={`pointer-events-none absolute bottom-3 left-4 text-[11px] text-muted-foreground ${compacto || controle ? 'hidden' : ''}`}>{comPredio && !aberto ? 'Clique no prédio para abrir o andar do escritório' : 'Arraste para girar · role para aproximar · clique numa sala ou num ar para ir até ele'}</p>

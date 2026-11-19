@@ -9,7 +9,7 @@ import { atualizarAba } from '../favicon'
 import { Interruptor, useToast } from './ui'
 import { TONS, avisar, tocar } from '../som'
 
-const ICONES = {
+export const ICONES = {
   alerta: [AlertTriangle, 'bg-amber-500/15 text-amber-600 dark:text-amber-400'],
   falha: [Zap, 'bg-red-500/15 text-red-600 dark:text-red-400'],
   transmissor: [Radio, 'bg-sky-500/15 text-sky-600 dark:text-sky-400'],
@@ -44,6 +44,7 @@ export function useCentral() {
     vistas.current = new Set(naoLidas.map((n) => `${n.id}:${n.atualizado_em}`))
   }).catch(() => {}), [aba])
   useEffect(() => { carregar(); const t = setInterval(carregar, 15000); return () => clearInterval(t) }, [carregar])
+  useEffect(() => { window.addEventListener('clima:notificacoes-mudou', carregar); return () => window.removeEventListener('clima:notificacoes-mudou', carregar) }, [carregar])
   useEffect(() => { carregar() }, [local.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
   return { dados, aba, setAba, carregar }
 }
@@ -88,7 +89,7 @@ function Item({ n, aoAbrir, aoAtualizar }) {
   )
 }
 
-function Preferencias({ dados, voltar, aoAtualizar }) {
+export function Preferencias({ dados, voltar, aoAtualizar }) {
   const toast = useToast()
   const [p, setP] = useState(dados.preferencias)
   const salvar = async (novo) => {
@@ -97,7 +98,7 @@ function Preferencias({ dados, voltar, aoAtualizar }) {
   }
   return (
     <div className="max-h-[520px] overflow-y-auto px-4 pb-4">
-      <button onClick={voltar} className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Voltar</button>
+      {voltar && <button onClick={voltar} className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Voltar</button>}
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Mostrar</p>
       <div className="mt-2 divide-y divide-border rounded-lg border border-border">
         {Object.entries(dados.tipos).map(([k, r]) => {
@@ -249,6 +250,9 @@ export default function Notificacoes({ central }) {
                     </li>
                   )}
                 </ul>
+                <button onClick={() => { setAberto(false); navegar('/notificacoes') }} className="flex w-full items-center justify-center gap-1.5 border-t border-border px-4 py-3 text-sm font-medium text-primary hover:bg-muted/60">
+                  Ver todas, histórico e filtros
+                </button>
               </>
             )}
           </motion.div>

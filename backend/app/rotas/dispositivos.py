@@ -1,4 +1,4 @@
-"""Rotas da cafeteira, das persianas e da fechadura (aparelhos Tuya/Smart Life do escritório). Ver app/dispositivos.py.
+"""Rotas da cafeteira, das persianas, das luzes e da fechadura (aparelhos Tuya/Smart Life do escritório). Ver app/dispositivos.py.
 
 Permissões (acesso.REGRAS): ver = qualquer pessoa logada (no escopo de projetos dela); comandar cafeteira e persianas =
 aparelhos.controlar; cadastrar, conectar, configurar e apagar = transmissores.gerenciar; a fechadura (trancar/destrancar
@@ -46,7 +46,11 @@ def listar(tipo: str | None = None):
     if tipo and tipo not in dispositivos.TIPOS:
         raise HTTPException(400, "Tipo inválido.")
     f, p = _escopo()
-    return {"dispositivos": dispositivos.listar(tipo, f, p)}
+    out = {"dispositivos": dispositivos.listar(tipo, f, p)}
+    if tipo == "luz":   # a tela mostra o horário real de hoje (a automação de anoitecer usa o mesmo cálculo)
+        out["sol"] = dispositivos.sol_do_dia()
+        out["noite"] = dispositivos.e_noite()
+    return out
 
 
 @rotas_disp.get("/dispositivos/disponiveis")
@@ -61,7 +65,7 @@ def disponiveis():
 
 
 class NovoIn(BaseModel):
-    tipo: str = Field(pattern="^(cafeteira|persiana|fechadura)$")
+    tipo: str = Field(pattern="^(cafeteira|persiana|fechadura|luz)$")
     nome: str = Field(min_length=1, max_length=60)
     projeto_id: int | None = None
     mapa_elemento: str = Field("", max_length=40)
@@ -180,7 +184,7 @@ def sincronizar(d: SincIn, request: Request):
 
 
 class ComandoIn(BaseModel):
-    acao: str = Field(pattern="^(ligar|desligar|abrir|fechar|parar|posicao|trancar|destrancar)$")
+    acao: str = Field(pattern="^(ligar|desligar|abrir|fechar|parar|posicao|trancar|destrancar|brilho)$")
     valor: int | None = Field(None, ge=0, le=100)
     senha: str | None = Field(None, max_length=200)
     turnstile: str | None = Field(None, max_length=4096)
@@ -214,7 +218,7 @@ def _conferir_senha(request: Request, email: str, senha: str | None, token: str 
 @rotas_disp.post("/dispositivos/{did}/comando")
 def comandar(did: int, d: ComandoIn, request: Request):
     atual = _pegar(did)
-    validas = {"cafeteira": {"ligar", "desligar"}, "persiana": {"abrir", "fechar", "parar", "posicao"}, "fechadura": {"trancar", "destrancar"}}[atual["tipo"]]
+    validas = dispositivos.ACOES[atual["tipo"]]
     if d.acao not in validas:
         raise HTTPException(400, "Ação não vale para este aparelho.")
     if atual["tipo"] == "fechadura":
@@ -243,7 +247,7 @@ def eventos(did: int, limite: int = 60):
 class AgendaIn(BaseModel):
     dias: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5], max_length=7)
     hora: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
-    acao: str = Field(pattern="^(ligar|desligar|abrir|fechar|posicao)$")
+    acao: str = Field(pattern="^(ligar|desligar|abrir|fechar|posicao|brilho)$")
     valor: int | None = Field(None, ge=0, le=100)
     nome: str = Field("", max_length=40)
 
@@ -256,6 +260,13 @@ class SolIn(BaseModel):
     ate: str = Field("16:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
+class AnoitecerIn(BaseModel):
+    ativo: bool = False
+    antes_min: int = Field(15, ge=0, le=120)
+    ate: str = Field("19:30", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    dias: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5], max_length=7)
+
+
 class ConfigIn(BaseModel):
     agendas: list[AgendaIn] | None = Field(None, max_length=30)
     desligar_apos_min: int | None = Field(None, ge=0, le=600)
@@ -266,6 +277,9 @@ class ConfigIn(BaseModel):
     auto_trancar_min: int | None = Field(None, ge=0, le=240)
     alertar_fora_expediente: bool | None = None
     expediente: list[str] | None = Field(None, min_length=2, max_length=2)
+    anoitecer: AnoitecerIn | None = None
+    com_fechadura: bool | None = None
+    brilho_padrao: int | None = Field(None, ge=1, le=100)
 
 
 @rotas_disp.put("/dispositivos/{did}/config")

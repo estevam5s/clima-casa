@@ -463,7 +463,7 @@ alter table public.usuarios add column if not exists aparelhos jsonb not null de
 -- cortina) e fechadura Wi-Fi da porta do escritório. estado = último status lido da nuvem Tuya (código → valor).
 create table if not exists public.dispositivos (
   id bigint generated always as identity primary key,
-  tipo text not null check (tipo in ('cafeteira', 'persiana', 'fechadura')),
+  tipo text not null check (tipo in ('cafeteira', 'persiana', 'fechadura', 'luz')),
   nome text not null,
   projeto_id bigint references public.projetos(id) on delete set null,
   tuya_id text,
@@ -531,3 +531,7 @@ alter table public.treinamentos enable row level security;
 alter table public.avatares add column if not exists especie text not null default 'pessoa';
 alter table public.avatares add column if not exists parametros jsonb;
 alter table public.avatares add column if not exists escala_real integer not null default 0;
+
+-- 1.11.0: luzes (lâmpadas, painéis, fitas e interruptores Smart Life) entram nos aparelhos do escritório
+alter table public.dispositivos drop constraint if exists dispositivos_tipo_check;
+alter table public.dispositivos add constraint dispositivos_tipo_check check (tipo in ('cafeteira', 'persiana', 'fechadura', 'luz'));

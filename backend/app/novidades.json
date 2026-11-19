@@ -2,6 +2,29 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.11.0",
+      "data": "2026-11-18",
+      "titulo": "Iluminação, central de notificações, relatório por e-mail e café no mapa",
+      "resumo": "Nova tela de Iluminação com acender ao anoitecer, página de Notificações com histórico e filtros, relatório enviado por e-mail ao gerar e o avatar tomando café na copa.",
+      "novo": [
+        "Iluminação: luzes de cada sala (lâmpadas, painéis, fitas e interruptores Smart Life ou placa própria), acender e apagar, brilho, acender ao anoitecer pelo pôr do sol real e quando a porta é destrancada à noite",
+        "Notificações no menu, com contador: histórico, busca, filtros por tipo e período, arquivar e restaurar, ações em lote e exportar CSV",
+        "Relatórios: ao baixar, o relatório também vai para o seu e-mail com o arquivo anexo (ou envie só por e-mail)",
+        "Mapa 3D: controlando uma pessoa, tecla C (ou botão Café) faz um café na copa e ela anda com a xícara e bebe"
+      ],
+      "melhorias": [
+        "Mapa 3D à noite: salas, corredor e copa iluminados de verdade; sala com a luz real apagada fica escura",
+        "Painel de notificações do topo com o atalho Ver todas"
+      ],
+      "seguranca": [
+        "Relatório por e-mail só para e-mails de usuários do sistema, com limite por hora"
+      ],
+      "correcoes": [
+        "Mapa 3D: a barra de controle da pessoa às vezes não aparecia (e as teclas F e R não respondiam)",
+        "Mapa 3D: avisos da barra de controle não apareciam com a pessoa sentada"
+      ]
+    },
+    {
       "versao": "1.10.1",
       "data": "2026-11-18",
       "titulo": "Agente que não trava, passo a passo para gravar botões e correções",

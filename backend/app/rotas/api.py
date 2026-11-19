@@ -2155,6 +2155,58 @@ def relatorio_exportar(request: Request, formato: str = "pdf", dias: int = 30, i
     return Response(corpo, media_type=tipo, headers={"Content-Disposition": f'attachment; filename="{nome}"'})
 
 
+class RelatorioEmailIn(BaseModel):
+    formato: str = Field("pdf", max_length=8)
+    dias: int = Field(30, ge=1, le=3660)
+    inicio: str | None = Field(None, max_length=10)
+    fim: str | None = Field(None, max_length=10)
+    projeto_id: int | None = None
+    aparelho_id: int | None = None
+    modelo: str = Field("pmf", pattern="^(pmf|moderno)$")
+    para: list[str] = Field([], max_length=10)   # vazio = o e-mail de quem gerou
+
+
+@api.post("/relatorios/enviar")
+def relatorio_enviar(d: RelatorioEmailIn, request: Request):
+    """Gera o relatório (com o mesmo escopo de quem pede) e manda por e-mail com o arquivo anexo. Só para e-mails de
+    usuários cadastrados no sistema (nunca para um endereço qualquer): o relatório tem dados internos."""
+    from .. import correio, relatorio
+    if d.formato not in relatorio.FORMATOS:
+        raise HTTPException(400, f"Formato inválido. Use: {', '.join(relatorio.FORMATOS)}.")
+    if not correio.configurado():
+        raise HTTPException(409, "O envio de e-mails ainda não foi configurado (E-mails → Conexões).")
+    u = getattr(request.state, "u", None) or {}
+    meu = (u.get("email") or "").strip().lower()
+    cadastrados = {(r["email"] or "").strip().lower() for r in db.consultar("SELECT email FROM usuarios WHERE ativo")}
+    destinos = sorted({e.strip().lower() for e in (d.para or [meu]) if e.strip()})
+    fora = [e for e in destinos if e not in cadastrados]
+    if not destinos or fora:
+        raise HTTPException(400, "O relatório só pode ir para e-mails de usuários do sistema." + (f" Não cadastrado: {', '.join(fora)}." if fora else ""))
+    recentes = db.um("SELECT count(*) n FROM email_envios WHERE tipo = 'relatorio' AND criado_em > ?", (db.agora() - 3600,))["n"]
+    if recentes + len(destinos) > 30:
+        raise HTTPException(429, "Muitos relatórios enviados na última hora. Tente de novo mais tarde.")
+    a, b = _intervalo(d.dias, d.inicio, d.fim)
+    dados = relatorio.montar(a, b, d.projeto_id, d.aparelho_id)
+    dados["gerado_por"] = " · ".join(x for x in (u.get("nome"), u.get("cargo")) if x) or u.get("email") or ""
+    corpo, _tipo, ext = relatorio.exportar(d.formato, dados, d.modelo)
+    nome = f"relatorio-clima-{time.strftime('%Y%m%d-%H%M')}.{ext}"
+    periodo = time.strftime("%d/%m/%Y", time.gmtime(a - 3 * 3600)) + " a " + time.strftime("%d/%m/%Y", time.gmtime(b - 3 * 3600))
+    linhas = [list(x) for x in relatorio._resumo_linhas(dados)[1:6]]
+    enviados, falhas = [], []
+    for para in destinos:
+        try:
+            correio.enviar(para, "relatorio", {"nome": u.get("nome") if para == meu else "", "periodo": periodo, "formato": d.formato.upper(),
+                                               "arquivo": nome, "linhas": linhas, "gerado_por": dados["gerado_por"]},
+                           anexos=[{"filename": nome, "content": corpo if isinstance(corpo, bytes) else str(corpo).encode()}])
+            enviados.append(para)
+        except Exception as e:  # noqa: BLE001
+            falhas.append({"para": para, "erro": str(e)[:200]})
+    db.registrar("painel", "Relatório enviado por e-mail", ok=not falhas, detalhe=f"{d.formato.upper()} · {len(enviados)} destino(s)" + (f" · {len(falhas)} falha(s)" if falhas else ""))
+    if not enviados:
+        raise HTTPException(502, falhas[0]["erro"] if falhas else "Não foi possível enviar.")
+    return {"enviados": enviados, "falhas": falhas, "arquivo": nome}
+
+
 # ---------------- Sinric Pro (Alexa / Google Home) ----------------
 class SinricIn(BaseModel):
     ativo: bool = True
@@ -2650,7 +2702,8 @@ def listar_notificacoes(filtro: str = "todas"):
     hubs = db.um(f"SELECT count(*) FILTER (WHERE online = 1) AS online, count(*) AS total FROM hubs{wh}", ph)
     msgs = db.um("SELECT count(*) AS n FROM site_mensagens WHERE NOT lida AND NOT arquivada") if acesso.pode("mensagens.ver") else {"n": 0}
     r["status"] = {"agente_online": transmissor.agente_online(), "ligados": ligados["ligados"], "aparelhos": ligados["total"],
-                   "hubs_online": hubs["online"], "hubs": hubs["total"], "mensagens_nao_lidas": msgs["n"]}
+                   "hubs_online": hubs["online"], "hubs": hubs["total"], "mensagens_nao_lidas": msgs["n"],
+                   "notificacoes": r["total"]}
     return r
 
 
@@ -2729,7 +2782,34 @@ class PrefNotificacoesIn(BaseModel):
 def historico_notificacoes(limite: int = 200):
     vis = _visibilidade_notificacoes()
     itens = db.consultar("SELECT * FROM notificacoes ORDER BY atualizado_em DESC LIMIT ?", (min(limite, 500) if vis is None else 2000,))
-    return itens if vis is None else [n for n in itens if vis(n)][:min(limite, 500)]
+    itens = itens if vis is None else [n for n in itens if vis(n)][:min(limite, 500)]
+    for i in itens:   # a tela usa a ação como objeto (igual a /notificacoes)
+        if isinstance(i.get("acao"), str):
+            try:
+                i["acao"] = json.loads(i["acao"])
+            except ValueError:
+                i["acao"] = None
+    return itens
+
+
+class LoteNotificacoesIn(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=500)
+    acao: str = Field(pattern="^(lidas|nao_lidas|arquivar|restaurar)$")
+
+
+@api.post("/notificacoes/lote")
+def lote_notificacoes(d: LoteNotificacoesIn):
+    """Marcar como lidas/não lidas, arquivar ou restaurar várias de uma vez (só as que a pessoa enxerga)."""
+    vis = _ids_notificacoes_visiveis("")
+    ids = [i for i in set(d.ids) if vis is None or i in vis]
+    if not ids:
+        raise HTTPException(404, "Nenhuma dessas notificações está visível para você.")
+    sql = {"lidas": "lida = true", "nao_lidas": "lida = false", "arquivar": "arquivada = true, lida = true",
+           "restaurar": "arquivada = false"}[d.acao]
+    db.executar(f"UPDATE notificacoes SET {sql} WHERE id IN ({','.join('?' * len(ids))})", tuple(ids))
+    if d.acao in ("arquivar", "restaurar"):
+        db.registrar("painel", f"Notificações {'arquivadas' if d.acao == 'arquivar' else 'restauradas'}", detalhe=f"{len(ids)} item(ns)")
+    return {"ok": True, "alteradas": len(ids)}
 
 
 @api.put("/notificacoes/preferencias")

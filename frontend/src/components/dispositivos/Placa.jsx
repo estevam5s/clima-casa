@@ -59,6 +59,26 @@ void configurarAparelho() { pinMode(PINO_FECHO, OUTPUT); pinMode(PINO_SENSOR, IN
 void preencherEstado(JsonObject e) { e["trancada"] = trancada; e["porta_aberta"] = digitalRead(PINO_SENSOR) == HIGH; }
 void executar(const char* acao, int) { if (!strcmp(acao, "destrancar")) trancar(false); else if (!strcmp(acao, "trancar")) trancar(true); }
 void cuidarDoAparelho() { if (!TIPO_ELETROIMA && !trancada && millis() - abriuEm > PULSO_MS) trancar(true); }   // o fecho só abre durante o pulso`
+  if (tipo === 'luz') return `
+// Luz: um relé liga e desliga a lâmpada. Se for fita de LED 12 V (com MOSFET no pino), o brilho sai por PWM;
+// com relé comum (lâmpada 127/220 V) o brilho só liga/desliga (qualquer valor acima de 0 acende).
+const int PINO_LUZ = ${p.pino};
+const int RELE_ATIVO = ${ativo};
+const bool USA_PWM = false;                 // true para fita de LED com MOSFET (brilho de 1 a 100%)
+bool ligada = false; int brilho = 100;
+void aplicar() {
+  if (USA_PWM) analogWrite(PINO_LUZ, ligada ? map(brilho, 0, 100, 0, 255) : 0);
+  else digitalWrite(PINO_LUZ, ligada ? RELE_ATIVO : !RELE_ATIVO);
+}
+void configurarAparelho() { pinMode(PINO_LUZ, OUTPUT); aplicar(); }
+void preencherEstado(JsonObject e) { e["ligada"] = ligada; e["brilho"] = brilho; }
+void executar(const char* acao, int valor) {
+  if (!strcmp(acao, "ligar")) ligada = true;
+  else if (!strcmp(acao, "desligar")) ligada = false;
+  else if (!strcmp(acao, "brilho") && valor >= 0) { brilho = constrain(valor, 1, 100); ligada = true; }
+  aplicar();
+}
+void cuidarDoAparelho() {}`
   return `
 // Cafeteira: um relé liga e desliga a energia da máquina. Segurança local: desliga sozinha depois de DESLIGAR_APOS_MS,
 // mesmo sem internet.
@@ -199,6 +219,7 @@ void loop() {
 const LIGACAO = {
   cafeteira: ['Módulo de relé de 1 canal (10 A / 250 V) ou relé de estado sólido (SSR) para a tomada da cafeteira.', 'Sinal do relé no pino indicado, GND no GND e VCC no 5 V (ou 3,3 V, conforme o módulo).', 'A fase da tomada passa pelo COM e NA (normalmente aberto) do relé. Instalação em 127/220 V: com eletricista, numa caixa fechada.'],
   persiana: ['Motor de persiana de 2 sentidos (subir/descer) e 2 relés com intertravamento: nunca os dois ligados.', 'Relé 1 = subir, relé 2 = descer, nos pinos indicados. Meça o tempo de fechada a aberta e ajuste CURSO_MS.', 'Motor em 127/220 V: instalação por eletricista.'],
+  luz: ['Lâmpada ou luminária de 127/220 V: módulo de relé de 1 canal no pino indicado (COM e NA na fase da lâmpada).', 'Fita de LED de 12 V: MOSFET (ex.: IRLZ44N) no pino indicado e USA_PWM = true para ter brilho de 1 a 100%.', 'Instalação na rede elétrica: com eletricista, numa caixa fechada.'],
   fechadura: ['Fecho elétrico (12 V, abre com pulso) ou eletroímã (trancado enquanto energizado) com fonte própria.', 'Relé no pino indicado; sensor magnético (reed) da porta entre o pino do sensor e o GND.', 'Eletroímã: deixe TIPO_ELETROIMA = true e garanta saída de emergência (botoeira) conforme a norma.'],
 }
 

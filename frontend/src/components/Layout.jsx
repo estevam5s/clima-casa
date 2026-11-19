@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, AirVent, BarChart3, Blinds, BookOpen, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X } from 'lucide-react'
+import { Activity, AirVent, BarChart3, Bell, Blinds, BookOpen, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -33,6 +33,7 @@ export const GRUPOS = [
   ] },
   { titulo: 'Escritório', itens: [
     { para: '/cafeteira', rotulo: 'Cafeteira', icone: Coffee },
+    { para: '/luzes', rotulo: 'Iluminação', icone: Lightbulb },
     { para: '/persianas', rotulo: 'Persianas', icone: Blinds },
     { para: '/fechadura', rotulo: 'Fechadura', icone: DoorClosed },
   ] },
@@ -46,6 +47,7 @@ export const GRUPOS = [
     { para: '/rede', rotulo: 'Rede e velocidade', icone: Wifi, perm: 'configuracoes.gerenciar' },
   ] },
   { titulo: 'Sistema', itens: [
+    { para: '/notificacoes', rotulo: 'Notificações', icone: Bell, contador: 'notificacoes' },
     { para: '/atividade', rotulo: 'Atividade', icone: Activity, perm: 'atividade.ver' },
     { para: '/seguranca', rotulo: 'Segurança', icone: ShieldCheck, perm: 'seguranca.gerenciar' },
     { para: '/mensagens', rotulo: 'Mensagens do site', icone: Inbox, contador: 'mensagens_nao_lidas', perm: 'mensagens.ver' },
@@ -59,7 +61,7 @@ export const GRUPOS = [
 const TODAS = GRUPOS.flatMap((g) => g.itens)
 // sinônimos para a busca do menu (o rótulo já conta)
 const CHAVES = {
-  '/': 'inicio dashboard resumo', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
+  '/': 'inicio dashboard resumo', '/notificacoes': 'avisos alertas sino central historico', '/luzes': 'luz lampada iluminacao anoitecer interruptor', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
   '/relatorios': 'pdf exportar consumo gasto energia', '/aparelhos': 'ar condicionado ares split botoes gravar', '/cenas': 'atalhos',
   '/automacoes': 'regras gatilhos', '/agendamentos': 'horario agenda temporizador', '/transmissores': 'ir infravermelho smart ir tuya hub controle remoto',
   '/musica': 'spotify som', '/integracoes': 'alexa google sinric echo voz', '/comandos-alexa': 'frases voz alexa', '/emails': 'resend correio',

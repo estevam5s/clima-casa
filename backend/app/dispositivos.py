@@ -1,9 +1,12 @@
-"""Aparelhos do escritório além dos ares: cafeteira, persianas e a fechadura da porta do escritório.
+"""Aparelhos do escritório além dos ares: cafeteira, persianas, luzes e a fechadura da porta do escritório.
 
 Hardware (Tuya / Smart Life, a mesma conta já conectada para os transmissores):
 - cafeteira: TOMADA INTELIGENTE (categoria cz/pc/kg). A cafeteira de cápsulas não tem rede: o sistema liga e desliga a
   energia (pré-aquece e desliga sozinha); a cápsula e o botão de passar o café continuam na mão de alguém.
 - persiana: MOTOR DE CORTINA/PERSIANA (categoria cl/clkg): abrir, fechar, parar e posição em %.
+- luz: LÂMPADA, PAINEL, FITA ou INTERRUPTOR inteligente (categorias dj/dd/fwd/xdd/dc/tgq/tgkg/kg): ligar, desligar e brilho
+  em %. Automações: acender ao anoitecer (pôr do sol real calculado para a posição do escritório) até uma hora, e acender
+  quando a fechadura for destrancada à noite.
 - fechadura: FECHADURA Wi-Fi (categoria ms/jtmspro…): estado, bateria e sensor de porta; trancar/destrancar pela internet
   só se o modelo aceitar comando remoto (muitos não aceitam: a tela diz).
 
@@ -20,13 +23,49 @@ import logging
 from . import db
 
 log = logging.getLogger("clima.dispositivos")
-TIPOS = ("cafeteira", "persiana", "fechadura")
-CATEGORIAS = {"cafeteira": {"cz", "pc", "kg", "tdq"}, "persiana": {"cl", "clkg"}, "fechadura": {"ms", "jtmspro", "jtmsbh", "videolock", "bxx", "gyms"}}
+TIPOS = ("cafeteira", "persiana", "fechadura", "luz")
+CATEGORIAS = {"cafeteira": {"cz", "pc", "kg", "tdq"}, "persiana": {"cl", "clkg"}, "fechadura": {"ms", "jtmspro", "jtmsbh", "videolock", "bxx", "gyms"},
+              "luz": {"dj", "dd", "fwd", "xdd", "dc", "tgq", "tgkg", "kg", "fsd"}}
 PADRAO_CONFIG = {
     "cafeteira": {"agendas": [], "desligar_apos_min": 45, "capsulas": 0, "capsulas_alerta": 5, "potencia_w": 1500},
     "persiana": {"agendas": [], "sol_forte": {"ativo": False, "temp_min": 27, "posicao": 30, "das": "10:00", "ate": "16:00"}},
     "fechadura": {"auto_trancar_min": 0, "alertar_fora_expediente": True, "expediente": ["07:00", "19:00"]},
+    "luz": {"agendas": [], "anoitecer": {"ativo": False, "antes_min": 15, "ate": "19:30", "dias": [1, 2, 3, 4, 5]},
+            "com_fechadura": False, "brilho_padrao": 100, "potencia_w": 40},
 }
+
+# posição do escritório para o pôr do sol (Florianópolis); o projeto pode ter outra cidade, mas o prédio é um só
+LAT_ESCRITORIO, LON_ESCRITORIO = -27.5954, -48.5480
+
+
+def sol_do_dia(data: datetime.date | None = None, lat: float = LAT_ESCRITORIO, lon: float = LON_ESCRITORIO) -> dict:
+    """Nascer e pôr do sol (horário de Brasília, UTC-3) pela aproximação da NOAA (erro de 1-2 min)."""
+    import math
+    data = data or (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).date()
+    n = data.timetuple().tm_yday
+    g = 2 * math.pi / 365 * (n - 1)
+    eqt = 229.18 * (0.000075 + 0.001868 * math.cos(g) - 0.032077 * math.sin(g) - 0.014615 * math.cos(2 * g) - 0.040849 * math.sin(2 * g))
+    decl = 0.006918 - 0.399912 * math.cos(g) + 0.070257 * math.sin(g) - 0.006758 * math.cos(2 * g) + 0.000907 * math.sin(2 * g) \
+        - 0.002697 * math.cos(3 * g) + 0.00148 * math.sin(3 * g)
+    phi = math.radians(lat)
+    cos_h = (math.cos(math.radians(90.833)) - math.sin(phi) * math.sin(decl)) / (math.cos(phi) * math.cos(decl))
+    h = math.degrees(math.acos(max(-1, min(1, cos_h))))
+    def hm(minutos_utc):
+        m = (minutos_utc - 180) % 1440
+        return f"{int(m // 60):02d}:{int(m % 60):02d}"
+    return {"nascer": hm(720 - 4 * (lon + h) - eqt), "por": hm(720 - 4 * (lon - h) - eqt)}
+
+
+def _mais(hhmm: str, minutos: int) -> str:
+    h, m = map(int, hhmm.split(":"))
+    t = (h * 60 + m + minutos) % 1440
+    return f"{t // 60:02d}:{t % 60:02d}"
+
+
+def e_noite(agora_hhmm: str | None = None) -> bool:
+    sol = sol_do_dia()
+    hm = agora_hhmm or (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).strftime("%H:%M")
+    return hm >= sol["por"] or hm < sol["nascer"]
 
 
 def _j(v, padrao):
@@ -126,6 +165,16 @@ def resumo(d: dict) -> dict:
             return {"posicao": st.get("posicao"), "movimento": st.get("movimento")}
         if t == "fechadura":
             return {"trancada": st.get("trancada"), "porta_aberta": st.get("porta_aberta"), "bateria": st.get("bateria"), "alarme": st.get("alarme")}
+        if t == "luz":
+            return {"ligada": st.get("ligada"), "brilho": st.get("brilho")}
+    if t == "luz":
+        lig = next((st[k] for k in ("switch_led", "switch_1", "switch", "led_switch") if k in st), None)
+        bruto = next(((k, st[k]) for k in ("bright_value_v2", "bright_value", "bright_value_1") if isinstance(st.get(k), (int, float))), None)
+        brilho = None
+        if bruto:   # v2 vai de 10 a 1000; as antigas de 25 a 255
+            k, v = bruto
+            brilho = round(max(0, min(100, (v - 10) / 990 * 100 if k == "bright_value_v2" else (v - 25) / 230 * 100)))
+        return {"ligada": lig, "brilho": brilho}
     if t == "cafeteira":
         lig = next((st[k] for k in ("switch_1", "switch") if k in st), None)
         pot = st.get("cur_power")
@@ -149,6 +198,20 @@ def _cmds(d: dict, acao: str, valor) -> list[dict]:
         cod = "switch_1" if "switch_1" in f or not f else "switch"
         if acao in ("ligar", "desligar"):
             return [{"code": cod, "value": acao == "ligar"}]
+    if d["tipo"] == "luz":
+        cod = next((c for c in ("switch_led", "switch_1", "switch", "led_switch") if c in f), "switch_led" if not f else None)
+        if acao in ("ligar", "desligar"):
+            if not cod:
+                raise RuntimeError("Esta luz não expõe o comando de ligar/desligar na nuvem.")
+            return [{"code": cod, "value": acao == "ligar"}]
+        if acao == "brilho":
+            pct = max(1, min(100, int(valor if valor is not None else 100)))
+            if "bright_value_v2" in f or not f:
+                return [{"code": cod or "switch_led", "value": True}, {"code": "bright_value_v2", "value": int(10 + pct / 100 * 990)}]
+            for k in ("bright_value", "bright_value_1"):
+                if k in f:
+                    return [{"code": cod or "switch_led", "value": True}, {"code": k, "value": int(25 + pct / 100 * 230)}]
+            raise RuntimeError("Esta luz não tem ajuste de brilho (só liga e desliga).")
     if d["tipo"] == "persiana":
         if acao in ("abrir", "fechar", "parar"):
             return [{"code": "control", "value": {"abrir": "open", "fechar": "close", "parar": "stop"}[acao]}]
@@ -167,7 +230,9 @@ def _cmds(d: dict, acao: str, valor) -> list[dict]:
     raise RuntimeError("Ação não reconhecida para este aparelho.")
 
 
-ACOES_PLACA = {"cafeteira": {"ligar", "desligar"}, "persiana": {"abrir", "fechar", "parar", "posicao"}, "fechadura": {"trancar", "destrancar"}}
+ACOES_PLACA = {"cafeteira": {"ligar", "desligar"}, "persiana": {"abrir", "fechar", "parar", "posicao"}, "fechadura": {"trancar", "destrancar"},
+               "luz": {"ligar", "desligar", "brilho"}}
+ACOES = ACOES_PLACA   # ações válidas por tipo (a rota usa a mesma lista)
 
 
 def comando(did: int, acao: str, valor=None, origem: str = "painel") -> dict:
@@ -201,7 +266,7 @@ def comando(did: int, acao: str, valor=None, origem: str = "painel") -> dict:
 
 def _rotulo(acao, valor) -> str:
     return {"ligar": "Ligou", "desligar": "Desligou", "abrir": "Abriu", "fechar": "Fechou", "parar": "Parou", "trancar": "Trancou",
-            "destrancar": "Destrancou", "posicao": f"Posição {valor}%"}.get(acao, acao)
+            "destrancar": "Destrancou", "posicao": f"Posição {valor}%", "brilho": f"Brilho {valor}%"}.get(acao, acao)
 
 
 # ---------------- placa própria (Arduino / ESP) ----------------
@@ -260,9 +325,9 @@ def disponiveis() -> list[dict]:
     ja = {r["tuya_id"] for r in db.consultar("SELECT tuya_id FROM dispositivos WHERE tuya_id IS NOT NULL")}
     saida = []
     for a in tuya_nuvem.listar_aparelhos():
-        tipo = next((t for t, cats in CATEGORIAS.items() if a["categoria"] in cats), None)
-        if tipo:
-            saida.append({**a, "tipo": tipo, "ja_cadastrado": a["id"] in ja})
+        tipos = [t for t, cats in CATEGORIAS.items() if a["categoria"] in cats]
+        if tipos:
+            saida.append({**a, "tipo": tipos[0], "tipos": tipos, "ja_cadastrado": a["id"] in ja})
     return saida
 
 
@@ -324,6 +389,8 @@ def ciclo(contador: int = 0):
                     if c.get("temperatura") is not None and c["temperatura"] >= float(s.get("temp_min", 27)) and c.get("tipo") in ("limpo", None) \
                             and (r.get("posicao") is None or r["posicao"] > int(s.get("posicao", 30))):
                         comando(d["id"], "posicao", int(s.get("posicao", 30)), "sol forte")
+            if d["tipo"] == "luz":
+                _automacao_luz(d, cfg, r, agora, dia)
             if d["tipo"] == "fechadura":
                 if r.get("trancada") is False:
                     lim = int(cfg.get("auto_trancar_min") or 0)
@@ -340,3 +407,38 @@ def ciclo(contador: int = 0):
                                                "Confira a porta do escritório.", link="/fechadura")
         except Exception as e:  # noqa: BLE001
             log.warning("automação de %s: %s", d["nome"], e)
+
+
+def _automacao_luz(d: dict, cfg: dict, r: dict, agora: datetime.datetime, dia: int):
+    """Acende ao anoitecer (até a hora escolhida) e quando a fechadura é destrancada à noite. Uma vez por dia/evento:
+    se alguém apagar na mão depois, o sistema não acende de novo."""
+    hm = _hhmm(agora)
+    sol = sol_do_dia(agora.date())
+    an = cfg.get("anoitecer") or {}
+    if an.get("ativo") and dia in (an.get("dias") or [1, 2, 3, 4, 5]):
+        inicio, ate = _mais(sol["por"], -int(an.get("antes_min") or 0)), an.get("ate") or "19:30"
+        marca = f"luz:{d['id']}:anoitecer:{agora:%Y%m%d}"
+        if inicio <= hm < ate and _ultimo.get(marca) is None and r.get("ligada") is not True:
+            _ultimo[marca] = hm
+            alvo = int(cfg.get("brilho_padrao") or 100)
+            try:
+                comando(d["id"], "brilho" if alvo < 100 and _tem_brilho(d) else "ligar", alvo, "anoitecer")
+            except RuntimeError as e:
+                log.warning("anoitecer %s: %s", d["nome"], e)
+    if cfg.get("com_fechadura") and (hm >= sol["por"] or hm < sol["nascer"]):
+        ult = db.um("SELECT e.quando FROM dispositivos_eventos e JOIN dispositivos f ON f.id = e.dispositivo_id "
+                    "WHERE f.tipo = 'fechadura' AND e.acao LIKE 'Destrancou%' AND e.ok = 1 ORDER BY e.quando DESC LIMIT 1")
+        if ult and db.agora() - ult["quando"] < 120:
+            marca = f"luz:{d['id']}:fechadura:{ult['quando']}"
+            if _ultimo.get(marca) is None:
+                _ultimo[marca] = hm
+                if r.get("ligada") is not True:
+                    try:
+                        comando(d["id"], "ligar", None, "porta destrancada")
+                    except RuntimeError as e:
+                        log.warning("luz com a fechadura %s: %s", d["nome"], e)
+
+
+def _tem_brilho(d: dict) -> bool:
+    f = set(d.get("funcoes") or [])
+    return d.get("driver") == "placa" or not f or bool(f & {"bright_value_v2", "bright_value", "bright_value_1"})

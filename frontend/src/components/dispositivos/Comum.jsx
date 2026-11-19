@@ -32,7 +32,7 @@ export function ConectarAparelho({ d, aberto, aoFechar, aoConectar }) {
   const { dados, erro, recarregar } = useDados(() => (aberto ? api.get('/api/dispositivos/disponiveis') : Promise.resolve(null)), [aberto])
   const [ocupado, setOcupado] = useState('')
   const [aba, setAba] = useState(d.driver === 'placa' ? 'placa' : 'tuya')
-  const lista = (dados?.aparelhos || []).filter((a) => a.tipo === d.tipo)
+  const lista = (dados?.aparelhos || []).filter((a) => (a.tipos || [a.tipo]).includes(d.tipo))
   const conectar = async (tid) => {
     setOcupado(tid)
     try { aoConectar(await api.post(`/api/dispositivos/${d.id}/conectar`, { tuya_id: tid })); toast('Aparelho conectado.'); aoFechar() } catch (e) { toast(e.message, 'erro') } finally { setOcupado('') }
@@ -100,6 +100,7 @@ export function Agendas({ d, acoes, aoSalvar, podeEditar }) {
         <li key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2">
           <input type="time" value={a.hora} onChange={(e) => mudar(i, 'hora', e.target.value)} className="campo h-8 w-28" aria-label="Horário" disabled={!podeEditar} />
           <select value={a.acao} onChange={(e) => mudar(i, 'acao', e.target.value)} className="campo h-8 w-36" aria-label="Ação" disabled={!podeEditar}>{acoes.map(([k, r]) => <option key={k} value={k}>{r}</option>)}</select>
+          {a.acao === 'brilho' && <input type="number" min="1" max="100" value={a.valor ?? 60} onChange={(e) => mudar(i, 'valor', +e.target.value)} className="campo h-8 w-20" aria-label="Brilho em %" disabled={!podeEditar} />}
           {a.acao === 'posicao' && <input type="number" min="0" max="100" value={a.valor ?? 50} onChange={(e) => mudar(i, 'valor', +e.target.value)} className="campo h-8 w-20" aria-label="Posição em %" disabled={!podeEditar} />}
           <div className="flex flex-wrap gap-1">{DIAS.map(([n, r]) => (
             <button key={n} type="button" disabled={!podeEditar} aria-pressed={(a.dias || []).includes(n)} onClick={() => mudar(i, 'dias', (a.dias || []).includes(n) ? a.dias.filter((x) => x !== n) : [...(a.dias || []), n].sort())}
