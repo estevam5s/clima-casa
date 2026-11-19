@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { CalendarClock, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { CalendarClock, Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { DIAS, MODOS, VENTILACAO, api } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
 import { motion } from 'framer-motion'
@@ -146,13 +146,19 @@ export default function Agendamentos() {
   const { dados, erro, recarregar } = useDados(() => Promise.all([api.get('/api/agendamentos'), api.get('/api/aparelhos')]))
   const [modal, setModal] = useState(null)
   const toast = useToast()
+  const [apagar, setApagar] = useState(null)
+  const [filtroAr, setFiltroAr] = useState('')
+  const ordenada = useMemo(() => (dados ? [...dados[0]].filter((g) => !filtroAr || String(g.aparelho_id) === filtroAr).sort((a, b) => a.hora.localeCompare(b.hora) || a.nome.localeCompare(b.nome)) : []), [dados, filtroAr])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const [lista, aparelhos] = dados
 
+  const corpo = (g, extra = {}) => ({ ...g.acao, aparelho_id: g.aparelho_id, nome: g.nome, dias: g.dias, hora: g.hora, ativo: g.ativo, ...extra })
   const alternar = async (g, ativo) => {
-    await api.put(`/api/agendamentos/${g.id}`, { ...g.acao, aparelho_id: g.aparelho_id, nome: g.nome, dias: g.dias, hora: g.hora, ativo })
-    recarregar()
+    try { await api.put(`/api/agendamentos/${g.id}`, corpo(g, { ativo })); toast(ativo ? 'Agendamento ativado.' : 'Agendamento pausado.'); recarregar() } catch (e) { toast(e.message, 'erro') }
+  }
+  const duplicar = async (g) => {
+    try { await api.post('/api/agendamentos', corpo(g, { nome: `${g.nome} (cópia)`.slice(0, 60), ativo: false })); toast('Cópia criada, pausada: ajuste e ative.'); recarregar() } catch (e) { toast(e.message, 'erro') }
   }
   const descrever = (g) => (g.acao.ligado
     ? `Ligar${g.acao.modo ? ` em ${MODOS[g.acao.modo].toLowerCase()}` : ''}${g.acao.temperatura ? ` ${g.acao.temperatura}°C` : ''}`
@@ -183,7 +189,17 @@ export default function Agendamentos() {
           acao={aparelhos.length > 0 && <Botao icone={Plus} onClick={() => setModal({})}>Novo agendamento</Botao>} />
       ) : (
         <div className="cartao divide-y divide-border">
-          {lista.map((g) => (
+          {new Set(lista.map((g) => g.aparelho_id)).size > 1 && (
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+              <span className="text-xs text-muted-foreground">Ar</span>
+              <select className="campo h-8 w-auto text-sm" value={filtroAr} onChange={(e) => setFiltroAr(e.target.value)} aria-label="Filtrar por ar">
+                <option value="">Todos</option>
+                {[...new Map(lista.map((g) => [g.aparelho_id, g.aparelho_nome])).entries()].map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+              </select>
+              <span className="text-xs text-muted-foreground">{ordenada.length} agendamento(s), por horário</span>
+            </div>
+          )}
+          {ordenada.map((g) => (
             <div key={g.id} className={`flex items-center gap-4 px-4 py-3 ${g.ativo ? '' : 'opacity-50'}`}>
               <p className="w-14 text-lg font-semibold tabular-nums">{g.hora}</p>
               <div className="min-w-0 flex-1">
@@ -192,12 +208,19 @@ export default function Agendamentos() {
               </div>
               <Interruptor ligado={!!g.ativo} onChange={(v) => alternar(g, v)} rotulo="Ativo" />
               <button className="rounded p-1.5 text-muted-foreground hover:bg-muted" onClick={() => setModal(g)} aria-label="Editar"><Pencil className="h-4 w-4" /></button>
-              <button className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600 " aria-label="Apagar"
-                onClick={async () => { await api.del(`/api/agendamentos/${g.id}`); toast('Agendamento apagado.'); recarregar() }}><Trash2 className="h-4 w-4" /></button>
+              <button className="rounded p-1.5 text-muted-foreground hover:bg-muted" onClick={() => duplicar(g)} aria-label="Duplicar" title="Duplicar"><Copy className="h-4 w-4" /></button>
+              <button className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600" aria-label="Apagar" onClick={() => setApagar(g)}><Trash2 className="h-4 w-4" /></button>
             </div>
           ))}
         </div>
       )}
+      <Modal aberto={!!apagar} titulo={`Apagar ${apagar?.nome || 'o agendamento'}?`} onFechar={() => setApagar(null)}>
+        <p className="text-sm text-muted-foreground">{apagar?.aparelho_nome} deixa de {apagar?.acao?.ligado ? 'ligar' : 'desligar'} sozinho às {apagar?.hora}. Para só suspender, use o botão Ativo.</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Botao variante="secundario" onClick={() => setApagar(null)}>Cancelar</Botao>
+          <Botao variante="perigo" onClick={async () => { const g = apagar; setApagar(null); try { await api.del(`/api/agendamentos/${g.id}`); toast('Agendamento apagado.'); recarregar() } catch (e) { toast(e.message, 'erro') } }}>Apagar</Botao>
+        </div>
+      </Modal>
       <Modal aberto={!!modal} titulo={modal?.id ? 'Editar agendamento' : 'Novo agendamento'} onFechar={() => setModal(null)}>
         {modal && <Form inicial={modal.id ? modal : null} aparelhos={aparelhos} aoSalvar={recarregar} onFechar={() => setModal(null)} />}
       </Modal>

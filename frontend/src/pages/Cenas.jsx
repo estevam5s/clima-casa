@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Coffee, Moon, Pencil, Play, Plus, Power, Snowflake, Sparkles, Sun, Trash2, X } from 'lucide-react'
+import { Copy, Coffee, Moon, Pencil, Play, Plus, Power, Search, Snowflake, Sparkles, Sun, Trash2, X } from 'lucide-react'
 import { MODOS, VENTILACAO, api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Carregando, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
 
 const ICONES = { sparkles: Sparkles, moon: Moon, sun: Sun, snowflake: Snowflake, coffee: Coffee, power: Power }
 
@@ -84,10 +84,29 @@ export default function Cenas() {
   const { dados, erro, recarregar } = useDados(() => Promise.all([api.get(comFiltro('/api/cenas', filtro)), api.get('/api/aparelhos')]), [filtro])
   const [modal, setModal] = useState(null)
   const [rodando, setRodando] = useState(null)
+  const [apagar, setApagar] = useState(null)
+  const [busca, setBusca] = useState('')
+  const [ordem, setOrdem] = useState('recentes')
   const toast = useToast()
+  const visiveis = useMemo(() => {
+    if (!dados) return []
+    const q = busca.trim().toLowerCase()
+    const l = dados[0].filter((c) => !q || `${c.nome} ${c.projeto_nome || ''} ${c.acoes.map((a) => a.aparelho_nome).join(' ')}`.toLowerCase().includes(q))
+    const chave = { recentes: (c) => -(c.executada_em || 0), nome: (c) => c.nome.toLowerCase(), comandos: (c) => -c.acoes.length }[ordem]
+    return [...l].sort((a, b) => (chave(a) > chave(b) ? 1 : chave(a) < chave(b) ? -1 : 0))
+  }, [dados, busca, ordem])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const [cenas, aparelhos] = dados
+  const semana = Date.now() / 1000 - 7 * 86400
+  const envolvidos = new Set(cenas.flatMap((c) => c.acoes.map((a) => a.aparelho_id)))
+  const duplicar = async (c) => {
+    try {
+      await api.post('/api/cenas', { nome: `${c.nome} (cópia)`.slice(0, 60), icone: c.icone, projeto_id: c.projeto_id ?? null,
+        acoes: c.acoes.map(({ aparelho_id, ligado, modo, temperatura, ventilador }) => ({ aparelho_id, ligado, modo, temperatura, ventilador })) })
+      toast('Cena duplicada.'); recarregar()
+    } catch (e) { toast(e.message, 'erro') }
+  }
 
   const executar = async (c) => {
     setRodando(c.id)
@@ -97,19 +116,41 @@ export default function Cenas() {
       if (falhas.length) toast(`${c.nome}: ${falhas.length} de ${r.resultados.length} falharam. ${falhas[0].erro}`, 'erro')
       else toast(`${c.nome} executada.`)
       recarregar()
-    } finally { setRodando(null) }
+    } catch (e) { toast(e.message, 'erro') } finally { setRodando(null) }
   }
 
   return (
     <div className="w-full">
       <Cabecalho titulo="Cenas" descricao="Um toque executa vários comandos: ligar a sala de reunião em 23° e desligar a recepção, por exemplo."
         acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Nova cena</Botao>} />
+      {cenas.length > 0 && (
+        <>
+          <div className="mb-5">
+            <FaixaMetricas itens={[
+              { rotulo: 'Cenas', valor: cenas.length, dica: `${cenas.filter((c) => !c.projeto_id).length} sem projeto` },
+              { rotulo: 'Executadas em 7 dias', valor: cenas.filter((c) => c.executada_em > semana).length, dica: 'pelo painel, Alexa ou automação' },
+              { rotulo: 'Ares envolvidos', valor: envolvidos.size, sufixo: ` / ${aparelhos.length}`, dica: 'em pelo menos uma cena' },
+              { rotulo: 'Comandos por cena', valor: (cenas.reduce((n, c) => n + c.acoes.length, 0) / cenas.length).toFixed(1).replace('.', ','), dica: 'em média' },
+            ]} />
+          </div>
+          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,20rem)_auto] sm:justify-between">
+            <label className="relative">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input className="campo h-9 pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cena, projeto ou ar" type="search" name="busca-cenas" autoComplete="off" aria-label="Buscar cenas" />
+            </label>
+            <select className="campo h-9 w-auto" value={ordem} onChange={(e) => setOrdem(e.target.value)} aria-label="Ordenar">
+              <option value="recentes">Usadas por último</option><option value="nome">Nome</option><option value="comandos">Mais comandos</option>
+            </select>
+          </div>
+        </>
+      )}
       {cenas.length === 0 ? (
         <Vazio icone={Sparkles} titulo="Nenhuma cena" texto={aparelhos.length ? 'Crie "Dormir", "Sair de casa" ou "Chegar do trabalho".' : 'Cadastre um aparelho primeiro.'}
           acao={aparelhos.length > 0 && <Botao icone={Plus} onClick={() => setModal({})}>Nova cena</Botao>} />
       ) : (
         <div className="grid justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
-          {cenas.map((c, i) => {
+          {visiveis.length === 0 && <p className="col-span-full py-10 text-center text-sm text-muted-foreground">Nenhuma cena com essa busca.</p>}
+          {visiveis.map((c, i) => {
             const I = ICONES[c.icone] || Sparkles
             return (
               <motion.div key={c.id} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }} className="cartao group flex flex-col p-5">
@@ -121,7 +162,8 @@ export default function Cenas() {
                   </div>
                   <div className="flex gap-0.5 opacity-60 group-hover:opacity-100">
                     <button className="rounded-md p-1.5 hover:bg-muted" onClick={() => setModal(c)} aria-label="Editar"><Pencil className="h-4 w-4" /></button>
-                    <button className="rounded-md p-1.5 hover:bg-muted hover:text-red-600" aria-label="Apagar" onClick={async () => { await api.del(`/api/cenas/${c.id}`); recarregar() }}><Trash2 className="h-4 w-4" /></button>
+                    <button className="rounded-md p-1.5 hover:bg-muted" onClick={() => duplicar(c)} aria-label="Duplicar" title="Duplicar"><Copy className="h-4 w-4" /></button>
+                    <button className="rounded-md p-1.5 hover:bg-muted hover:text-red-600" aria-label="Apagar" onClick={() => setApagar(c)}><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </div>
                 <ul className="mt-4 flex-1 space-y-1.5 text-sm">
@@ -138,6 +180,13 @@ export default function Cenas() {
           })}
         </div>
       )}
+      <Modal aberto={!!apagar} titulo={`Apagar a cena ${apagar?.nome || ''}?`} onFechar={() => setApagar(null)}>
+        <p className="text-sm text-muted-foreground">Os ares não mudam. Se alguma automação ou frase da Alexa usa esta cena, ela deixa de funcionar.</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Botao variante="secundario" onClick={() => setApagar(null)}>Cancelar</Botao>
+          <Botao variante="perigo" onClick={async () => { const c = apagar; setApagar(null); try { await api.del(`/api/cenas/${c.id}`); toast('Cena apagada.'); recarregar() } catch (e) { toast(e.message, 'erro') } }}>Apagar</Botao>
+        </div>
+      </Modal>
       <Modal aberto={!!modal} titulo={modal?.id ? 'Editar cena' : 'Nova cena'} onFechar={() => setModal(null)} largura="max-w-2xl">
         {modal && <Form inicial={modal.id ? modal : null} aparelhos={aparelhos} projetos={projetos} projetoPadrao={projeto?.id} onFechar={() => setModal(null)}
           aoSalvar={async (f) => { if (modal.id) await api.put(`/api/cenas/${modal.id}`, f); else await api.post('/api/cenas', f); toast('Cena salva.'); recarregar() }} />}

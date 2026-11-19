@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Activity, AlertOctagon, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../api'
-import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Secao, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Secao, useDados, useToast } from '../components/ui'
 import PainelSeguranca from '../components/config/PainelSeguranca'
 import { useSearchParams } from 'react-router-dom'
 import { Acessos, Conformidade, Incidentes, Integridade, Riscos, TestesAoVivo } from '../components/seguranca/Governanca'
@@ -129,13 +129,16 @@ function AcoesIp({ ip, bloqueado, aoMudar }) {
 function Escudo({ escudo, aoMudar }) {
   const toast = useToast()
   const [ocupado, setOcupado] = useState(false)
+  const [confirmar, setConfirmar] = useState(null)   // antes de qualquer return: regra dos hooks
   if (!escudo) return null
   const ativo = escudo.ativo
   const c = escudo.config || {}
   const taxa = escudo.taxa || { req_seg: 0, ips_min: 0 }
   const pct = Math.min(100, Math.round((taxa.req_seg / Math.max(1, c.ddos_req_seg || 60)) * 100))
-  const mudar = async (acao) => {
-    if (acao === 'desligar' && !window.confirm('Desligar o escudo agora? Os limites voltam ao normal.')) return
+  const mudar = async (acao, confirmado = false) => {
+    // ligar à mão bloqueia logins (a Vercel desafia todo acesso): confirma no sistema, explicando o efeito
+    if (!confirmado) { setConfirmar(acao); return }
+    setConfirmar(null)
     setOcupado(true)
     try { aoMudar(await api.post('/api/seguranca/escudo', { acao, minutos: c.escudo_minutos || 30 })); toast(acao === 'ligar' ? 'Escudo ligado.' : 'Escudo desligado.') } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
   }
@@ -157,6 +160,22 @@ function Escudo({ escudo, aoMudar }) {
           </motion.div>
         )}
       </AnimatePresence>
+      <Modal aberto={!!confirmar} titulo={confirmar === 'ligar' ? 'Ligar o escudo anti-DDoS?' : 'Desligar o escudo agora?'} onFechar={() => setConfirmar(null)}>
+        {confirmar === 'ligar' ? (
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>Use só durante um ataque de verdade. Enquanto estiver ligado (até {c.escudo_minutos || 30} min):</p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li><b className="text-foreground">Ninguém consegue entrar no sistema</b> (a Vercel desafia todo acesso e o login é barrado). Quem já está logado continua usando.</li>
+              <li>Os apps do celular e do computador podem parar de responder.</li>
+              <li>Os ares continuam obedecendo pelo agente do escritório e pela Alexa.</li>
+            </ul>
+          </div>
+        ) : <p className="text-sm text-muted-foreground">Os limites voltam ao normal e o modo de ataque da Vercel é desligado.</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <Botao variante="secundario" onClick={() => setConfirmar(null)}>Cancelar</Botao>
+          <Botao variante={confirmar === 'ligar' ? 'perigo' : 'primario'} onClick={() => mudar(confirmar, true)}>{confirmar === 'ligar' ? 'Ligar mesmo assim' : 'Desligar'}</Botao>
+        </div>
+      </Modal>
       <section className="cartao p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

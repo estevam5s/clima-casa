@@ -13,6 +13,20 @@ import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Vazio, useDad
 const CORES = ['#0f766a', '#2563a8', '#c2410c', '#7c3aed', '#be123c', '#4d7c0f', '#0e7490', '#52525b']
 const TIPOS = { escritorio: ['Escritório', Building2], sala: ['Sala', LayoutGrid], casa: ['Casa', Home], loja: ['Loja', Store], consultorio: ['Consultório', Stethoscope], outro: ['Outro', FolderKanban] }
 const ORDENS = [['nome', 'Nome'], ['ligados', 'Mais ligados'], ['custo', 'Maior custo no mês'], ['uso', 'Mais usados (14 dias)']]
+// transmissor da sala: infravermelho não atravessa parede, então sala fechada que obedece sozinha precisa do seu
+const TX = {
+  proprio: ['Transmissor próprio', 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'],
+  dividido: ['Divide transmissor', 'bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300'],
+  parcial: ['Ar sem transmissor', 'bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300'],
+  sem: ['Sem transmissor', 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300'],
+}
+function SeloTx({ p }) {
+  const t = TX[p.tx_estado]
+  if (!t) return null
+  const dica = p.tx_estado === 'dividido' ? 'O transmissor desta sala também atende outra sala: ares iguais que ele alcança mudam juntos.'
+    : p.ares_sem_transmissor?.length ? `Sem transmissor: ${p.ares_sem_transmissor.join(', ')}` : 'Os ares desta sala têm transmissor só deles.'
+  return <span title={dica} className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${t[1]}`}><Radio className="h-3 w-3" />{t[0]}</span>
+}
 const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const ler = (k, p) => { try { return localStorage.getItem(k) || p } catch { return p } }
 
@@ -123,7 +137,8 @@ function Cartao({ p, i, atual, acoes }) {
             ]} />}
           </div>
         </div>
-        {p.descricao && <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>}
+        <div className="mt-3 flex flex-wrap gap-1.5"><SeloTx p={p} /></div>
+        {p.descricao && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>}
       </div>
 
       <div className="border-t border-border px-5 py-3">
@@ -184,16 +199,18 @@ export default function Projetos() {
   const [tipo, setTipo] = useState('')
   const [ordem, setOrdem] = useState('nome')
   const [vista, setVista] = useState(() => ler('clima-projetos-vista', 'grade'))
+  const [soTx, setSoTx] = useState(false)   // só as salas que precisam de atenção no transmissor
+  const [desligando, setDesligando] = useState(null)
   const toast = useToast()
   const navegar = useNavigate()
   useEffect(() => { const t = setInterval(() => { if (!document.hidden) recarregar() }, 30000); return () => clearInterval(t) }, [recarregar])
   useEffect(() => { try { localStorage.setItem('clima-projetos-vista', vista) } catch { /* */ } }, [vista])
 
   const lista = useMemo(() => {
-    const l = (dados || []).filter((p) => (!tipo || p.tipo === tipo) && (!busca || `${p.nome} ${p.endereco} ${p.responsavel} ${p.descricao} ${p.aparelhos.map((a) => a.nome).join(' ')}`.toLowerCase().includes(busca.toLowerCase())))
+    const l = (dados || []).filter((p) => (!soTx || ['sem', 'parcial', 'dividido'].includes(p.tx_estado)) && (!tipo || p.tipo === tipo) && (!busca || `${p.nome} ${p.endereco} ${p.responsavel} ${p.descricao} ${p.aparelhos.map((a) => a.nome).join(' ')}`.toLowerCase().includes(busca.toLowerCase())))
     const chave = { nome: (p) => p.nome.toLowerCase(), ligados: (p) => -p.aparelhos.filter((a) => a.ligado).length, custo: (p) => -p.custo_mes, uso: (p) => -p.comandos_14d }[ordem]
     return [...l].sort((a, b) => (chave(a) > chave(b) ? 1 : chave(a) < chave(b) ? -1 : 0))
-  }, [dados, busca, tipo, ordem])
+  }, [dados, busca, tipo, ordem, soTx])
 
   if (erro) return <Aviso>{erro}</Aviso>
   const atualizar = () => { recarregar(); recarregarCtx() }
@@ -204,10 +221,7 @@ export default function Projetos() {
     relatorio: (p) => { setAtual(p.id); navegar('/relatorios') },
     aparelho: (a) => navegar(`/aparelhos/${a.id}`),
     exportar: async (p) => { try { toast(`Arquivo salvo: ${await api.baixar(`/api/projetos/${p.id}/exportar`)}`) } catch (e) { toast(e.message, 'erro') } },
-    desligar: async (p) => {
-      if (!window.confirm(`Desligar todos os ares ligados de ${p.nome}?`)) return
-      try { const r = await api.post(`/api/projetos/${p.id}/desligar`); toast(r.falhas.length ? `${r.desligados} desligado(s); ${r.falhas.length} falharam.` : `${r.desligados} ar(es) desligado(s).`, r.falhas.length ? 'erro' : undefined); recarregar() } catch (e) { toast(e.message, 'erro') }
-    },
+    desligar: (p) => setDesligando(p),   // confirma no próprio sistema (a caixa nativa do navegador travava a tela)
   }
   const tot = (f) => (dados || []).reduce((s, p) => s + f(p), 0)
   const ligadosTotal = tot((p) => p.aparelhos.filter((a) => a.ligado).length)
@@ -253,6 +267,12 @@ export default function Projetos() {
             </div>
           </div>
 
+          {dados.some((p) => ['sem', 'parcial', 'dividido'].includes(p.tx_estado)) && (
+            <label className="mb-4 flex w-fit items-center gap-2 text-sm text-muted-foreground">
+              <input type="checkbox" checked={soTx} onChange={(e) => setSoTx(e.target.checked)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
+              Só salas sem transmissor próprio ({dados.filter((p) => ['sem', 'parcial', 'dividido'].includes(p.tx_estado)).length})
+            </label>
+          )}
           {dados.length === 0 ? <Vazio icone={FolderKanban} titulo="Nenhum projeto" texto="Crie o primeiro lugar para cadastrar transmissores e aparelhos nele." acao={<Botao icone={Plus} onClick={() => setModal({})}>Novo projeto</Botao>} />
             : lista.length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Nenhum projeto com esse filtro.</p>
               : vista === 'grade' ? (
@@ -262,7 +282,7 @@ export default function Projetos() {
               ) : (
                 <div className="cartao overflow-x-auto">
                   <table className="tabela w-full min-w-[900px]">
-                    <thead><tr><th>Projeto</th><th>Responsável</th><th className="!text-right">Ares</th><th className="!text-right">IR online</th><th className="!text-right">Comandos 14 d</th><th className="!text-right">Gasto no mês</th><th>Meta</th><th /></tr></thead>
+                    <thead><tr><th>Projeto</th><th>Responsável</th><th className="!text-right">Ares</th><th className="!text-right">IR online</th><th>Transmissor</th><th className="!text-right">Comandos 14 d</th><th className="!text-right">Gasto no mês</th><th>Meta</th><th /></tr></thead>
                     <tbody>{lista.map((p) => {
                       const lig = p.aparelhos.filter((a) => a.ligado).length
                       const pct = p.meta_custo_mes ? (p.projecao_mes / p.meta_custo_mes) * 100 : null
@@ -272,6 +292,7 @@ export default function Projetos() {
                           <td className="text-sm">{p.responsavel || <span className="text-muted-foreground">—</span>}</td>
                           <td className="text-right tabular">{lig > 0 ? <span className="font-medium text-sky-600">{lig}</span> : 0}/{p.aparelhos.length}</td>
                           <td className="text-right tabular">{p.transmissores.filter((h) => h.online).length}/{p.transmissores.length}</td>
+                          <td><SeloTx p={p} /></td>
                           <td className="text-right tabular">{p.comandos_14d}</td>
                           <td className="text-right tabular">{brl(p.custo_mes)}</td>
                           <td className="w-40">{pct == null ? <span className="text-xs text-muted-foreground">sem meta</span> : <div className="flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${pct > 100 ? 'bg-red-500' : pct > 85 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, pct)}%` }} /></div><span className="w-9 text-right text-xs tabular text-muted-foreground">{Math.round(pct)}%</span></div>}</td>
@@ -295,6 +316,16 @@ export default function Projetos() {
             toast('Projeto salvo.'); atualizar()
           }} />
         )}
+      </Modal>
+      <Modal aberto={!!desligando} titulo={`Desligar os ares de ${desligando?.nome || ''}?`} onFechar={() => setDesligando(null)}>
+        <p className="text-sm text-muted-foreground">Desliga os {desligando?.aparelhos?.filter((a) => a.ligado).length} ar(es) ligado(s) deste projeto, um por vez. Se o transmissor também atende outra sala, os ares iguais à vista dele desligam juntos.</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Botao variante="secundario" onClick={() => setDesligando(null)}>Cancelar</Botao>
+          <Botao variante="perigo" icone={Power} onClick={async () => {
+            const p = desligando; setDesligando(null)
+            try { const r = await api.post(`/api/projetos/${p.id}/desligar`); toast(r.falhas.length ? `${r.desligados} desligado(s); ${r.falhas.length} falharam.` : `${r.desligados} ar(es) desligado(s).`, r.falhas.length ? 'erro' : undefined); recarregar() } catch (e) { toast(e.message, 'erro') }
+          }}>Desligar</Botao>
+        </div>
       </Modal>
       <Modal aberto={!!modal?.apagar} titulo={`Remover ${modal?.nome}?`} onFechar={() => setModal(null)}>
         <p className="text-sm text-muted-foreground">Os {modal?.aparelhos?.length} aparelho(s) e {modal?.transmissores?.length} transmissor(es) continuam cadastrados, só ficam sem projeto. As cenas do projeto são apagadas e a sala sai do mapa.</p>

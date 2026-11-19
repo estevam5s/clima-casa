@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, Pencil, Play, Plus, Trash2, Workflow, X } from 'lucide-react'
+import { ArrowRight, LayoutTemplate, Pencil, Play, Plus, Search, Trash2, Workflow, X } from 'lucide-react'
 import { DIAS, MODOS, VENTILACAO, api, haQuanto } from '../api'
-import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
 
 const GATILHOS = { ligou: 'Quando ligar', desligou: 'Quando desligar', ligado_ha: 'Quando ficar ligado por', horario: 'Todo dia às' }
 const ORIGENS = { qualquer: 'por qualquer meio', alexa: 'pela Alexa (skill própria)', sinric: 'pela Alexa/Google (Sinric)', painel: 'pelo painel ou app', agenda: 'pela agenda', cena: 'por uma cena' }
@@ -133,10 +133,22 @@ function Form({ inicial, aparelhos, cenas, aoSalvar, onFechar }) {
 export default function Automacoes() {
   const { dados, erro, recarregar } = useDados(() => Promise.all([api.get('/api/automacoes'), api.get('/api/aparelhos'), api.get('/api/cenas'), api.get('/api/temporizadores')]))
   const [modal, setModal] = useState(null)
+  const [apagar, setApagar] = useState(null)
+  const [modelos, setModelos] = useState(false)
+  const [busca, setBusca] = useState('')
+  const [situacao, setSituacao] = useState('todas')
   const toast = useToast()
+  const visiveis = useMemo(() => {
+    if (!dados) return []
+    const q = busca.trim().toLowerCase()
+    return dados[0].filter((a) => (situacao === 'todas' || (situacao === 'ativas' ? a.ativo : !a.ativo)) && (!q || a.nome.toLowerCase().includes(q)))
+  }, [dados, busca, situacao])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const [autos, aparelhos, cenas, timers] = dados
+  // toda ação mostra o erro (antes, ligar/pausar, rodar e apagar falhavam em silêncio)
+  const agir = async (fn, ok) => { try { await fn(); if (ok) toast(ok); recarregar() } catch (e) { toast(e.message, 'erro') } }
+  const ultimo = Math.max(0, ...autos.map((a) => a.ultimo_disparo || 0))
   const salvar = async (f) => {
     if (modal?.id) await api.put(`/api/automacoes/${modal.id}`, f); else await api.post('/api/automacoes', f)
     toast('Automação salva.'); recarregar()
@@ -144,7 +156,20 @@ export default function Automacoes() {
   return (
     <div className="w-full">
       <Cabecalho titulo="Automações" descricao="Regras que agem sozinhas: quando algo acontece (inclusive pela Alexa), o Clima Escritório faz o resto."
-        acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Nova automação</Botao>} />
+        acoes={<>
+          {autos.length > 0 && <Botao variante="secundario" icone={LayoutTemplate} onClick={() => setModelos(true)}>Modelos prontos</Botao>}
+          <Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Nova automação</Botao>
+        </>} />
+      {autos.length > 0 && (
+        <div className="mb-5">
+          <FaixaMetricas itens={[
+            { rotulo: 'Ativas', valor: autos.filter((a) => a.ativo).length, sufixo: ` / ${autos.length}`, dica: `${autos.filter((a) => !a.ativo).length} pausada(s)` },
+            { rotulo: 'Disparos', valor: autos.reduce((n, a) => n + (a.disparos || 0), 0), dica: 'desde que foram criadas' },
+            { rotulo: 'Último disparo', valor: ultimo ? haQuanto(ultimo).replace('há ', '') : '—', dica: ultimo ? new Date(ultimo * 1000).toLocaleString('pt-BR') : 'nenhuma disparou ainda' },
+            { rotulo: 'Temporizadores', valor: timers.length, dica: timers.length ? 'em andamento' : 'nenhum agora' },
+          ]} />
+        </div>
+      )}
 
       {timers.length > 0 && (
         <div className="cartao mb-6 p-4">
@@ -152,7 +177,7 @@ export default function Automacoes() {
           {timers.map((t) => (
             <div key={t.id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
               <span>{t.aparelho_nome}: {t.acao.ligado === false ? 'desligar' : 'ajustar'} {haQuanto(t.executar_em).replace('há', 'em')}</span>
-              <button className="text-xs text-muted-foreground hover:text-foreground" onClick={async () => { await api.del(`/api/aparelhos/${t.aparelho_id}/temporizador`); recarregar() }}>Cancelar</button>
+              <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => agir(() => api.del(`/api/aparelhos/${t.aparelho_id}/temporizador`), 'Temporizador cancelado.')}>Cancelar</button>
             </div>
           ))}
         </div>
@@ -172,7 +197,19 @@ export default function Automacoes() {
         </>
       ) : (
         <div className="space-y-3">
-          {autos.map((a, i) => {
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,20rem)_auto] sm:justify-between">
+            <label className="relative">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input className="campo h-9 pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar automação" type="search" name="busca-automacoes" autoComplete="off" aria-label="Buscar automações" />
+            </label>
+            <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5" role="group" aria-label="Situação">
+              {[['todas', 'Todas'], ['ativas', 'Ativas'], ['pausadas', 'Pausadas']].map(([k, r]) => (
+                <button key={k} onClick={() => setSituacao(k)} aria-pressed={situacao === k} className={`rounded-md px-3 py-1.5 text-sm ${situacao === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}>{r}</button>
+              ))}
+            </div>
+          </div>
+          {visiveis.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Nenhuma automação com esse filtro.</p>}
+          {visiveis.map((a, i) => {
             const [quando, acoes] = resumo(a, aparelhos, cenas)
             return (
               <motion.div key={a.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
@@ -185,16 +222,33 @@ export default function Automacoes() {
                   <p className="mt-1 text-xs text-muted-foreground">{a.disparos} disparo(s){a.ultimo_disparo ? ` · último ${haQuanto(a.ultimo_disparo)}` : ''}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Interruptor ligado={!!a.ativo} rotulo="Ativa" onChange={async (v) => { await api.put(`/api/automacoes/${a.id}`, { ...a, ativo: v }); recarregar() }} />
-                  <button className="rounded-md p-2 text-muted-foreground hover:bg-muted" title="Rodar agora" onClick={async () => { await api.post(`/api/automacoes/${a.id}/executar`); toast('Executada.'); recarregar() }}><Play className="h-4 w-4" /></button>
+                  <Interruptor ligado={!!a.ativo} rotulo="Ativa" onChange={(v) => agir(() => api.put(`/api/automacoes/${a.id}`, { ...a, ativo: v }), v ? 'Automação ativada.' : 'Automação pausada.')} />
+                  <button className="rounded-md p-2 text-muted-foreground hover:bg-muted" title="Rodar agora" aria-label="Rodar agora" onClick={() => agir(() => api.post(`/api/automacoes/${a.id}/executar`), `${a.nome}: executada.`)}><Play className="h-4 w-4" /></button>
                   <button className="rounded-md p-2 text-muted-foreground hover:bg-muted" onClick={() => setModal(a)} aria-label="Editar"><Pencil className="h-4 w-4" /></button>
-                  <button className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-red-600" onClick={async () => { await api.del(`/api/automacoes/${a.id}`); recarregar() }} aria-label="Apagar"><Trash2 className="h-4 w-4" /></button>
+                  <button className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-red-600" onClick={() => setApagar(a)} aria-label="Apagar"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </motion.div>
             )
           })}
         </div>
       )}
+      <Modal aberto={!!apagar} titulo={`Apagar a automação ${apagar?.nome || ''}?`} onFechar={() => setApagar(null)}>
+        <p className="text-sm text-muted-foreground">Ela para de agir na hora. Se quiser só suspender, use o botão Ativa (dá para voltar depois).</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Botao variante="secundario" onClick={() => setApagar(null)}>Cancelar</Botao>
+          <Botao variante="perigo" onClick={() => { const a = apagar; setApagar(null); agir(() => api.del(`/api/automacoes/${a.id}`), 'Automação apagada.') }}>Apagar</Botao>
+        </div>
+      </Modal>
+      <Modal aberto={modelos} titulo="Modelos prontos" onFechar={() => setModelos(false)} largura="max-w-2xl">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {MODELOS.map((m) => (
+            <button key={m.nome} onClick={() => { setModelos(false); setModal({ modelo: m }) }} className="rounded-lg border border-border p-3 text-left hover:border-primary hover:bg-muted/50">
+              <p className="text-sm font-medium">{m.nome}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{resumo(m, aparelhos, cenas)[0]} → {resumo(m, aparelhos, cenas)[1].join(', ')}</p>
+            </button>
+          ))}
+        </div>
+      </Modal>
       <Modal aberto={!!modal} titulo={modal?.id ? 'Editar automação' : 'Nova automação'} onFechar={() => setModal(null)} largura="max-w-2xl">
         {modal && <Form inicial={modal.id ? modal : modal.modelo ? { ...modal.modelo, ativo: true } : null} aparelhos={aparelhos} cenas={cenas} aoSalvar={salvar} onFechar={() => setModal(null)} />}
       </Modal>

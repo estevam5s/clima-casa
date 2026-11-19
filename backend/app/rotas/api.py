@@ -1457,10 +1457,17 @@ def visao_projetos():
     except Exception:  # noqa: BLE001 - sem dados não derruba a tela
         custos = {}
     saida = []
+    # que projetos cada transmissor atende (só ids: para dizer se a sala tem transmissor próprio ou dividido)
+    salas_do_hub: dict[str, set] = {}
+    for r in db.consultar("SELECT hub_id, projeto_id FROM aparelhos WHERE hub_id IS NOT NULL"):
+        salas_do_hub.setdefault(r["hub_id"], set()).add(r["projeto_id"])
     for p in projetos:
         pid = p["id"]
         aps = [a for a in aparelhos if a["projeto_id"] == pid]
         hs = [h for h in hubs if h["projeto_id"] == pid]
+        sem_tx = [a["nome"] for a in aps if not a["hub_id"]]
+        divide = any(len(salas_do_hub.get(a["hub_id"], set())) > 1 for a in aps if a["hub_id"])
+        tx_estado = ("sem_ares" if not aps else "sem" if len(sem_tx) == len(aps) else "parcial" if sem_tx else "dividido" if divide else "proprio")
         aids = {a["id"] for a in aps}
         n_auto = sum(1 for x in automacoes if any(f'"aparelho_id": {i}' in (x["g"] + x["ac"]) or f'"aparelho_id":{i}' in (x["g"] + x["ac"]) for i in aids))
         serie = [{"d": i, "comandos": 0, "falhas": 0} for i in range(14)]
@@ -1476,6 +1483,7 @@ def visao_projetos():
                       "aparelhos": [{"id": a["id"], "nome": a["nome"], "comodo": a["comodo"], "ligado": bool(a["ligado"]), "modo": a["modo"],
                                      "temperatura": a["temperatura"], "ligado_desde": a["ligado_desde"], "hub_online": bool(a["hub_online"])} for a in aps],
                       "transmissores": [{"id": h["id"], "nome": h["nome"], "online": bool(h["online"]), "problema": h["problema"]} for h in hs],
+                      "tx_estado": tx_estado, "ares_sem_transmissor": sem_tx,
                       "cenas": next((c["n"] for c in cenas if c["projeto_id"] == pid), 0),
                       "agendamentos": next((g["n"] for g in agenda if g["projeto_id"] == pid), 0),
                       "automacoes": n_auto, "pessoas": pessoas,
