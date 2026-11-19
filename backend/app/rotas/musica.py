@@ -89,17 +89,19 @@ def tocando():
 
 
 class Comando(BaseModel):
-    acao: str = Field(pattern=r"^(tocar|pausar|proxima|anterior|volume|aleatorio|repetir|transferir|fila)$")
+    acao: str = Field(pattern=r"^(tocar|pausar|proxima|anterior|volume|aleatorio|repetir|transferir|fila|posicao)$")
     device_id: str | None = Field(None, max_length=80)
     uri: str | None = Field(None, max_length=120, pattern=r"^spotify:[a-z]+:[A-Za-z0-9:]+$")
+    contexto: str | None = Field(None, max_length=120, pattern=r"^spotify:(playlist|album|artist):[A-Za-z0-9]+$")
     volume: int | None = Field(None, ge=0, le=100)
+    posicao_ms: int | None = Field(None, ge=0, le=24 * 3600 * 1000)
     valor: bool | str | None = None
 
 
 @rotas_musica.post("/comando")
 def comando(d: Comando):
     _controla()
-    _sp(musica.comando, d.acao, device_id=d.device_id, uri=d.uri, volume=d.volume, valor=d.valor)
+    _sp(musica.comando, d.acao, device_id=d.device_id, uri=d.uri, volume=d.volume, valor=d.valor, posicao_ms=d.posicao_ms, contexto=d.contexto)
     time.sleep(0.35)   # o Spotify demora um instante para refletir a mudança
     return _sp(musica.tocando)
 
@@ -119,6 +121,33 @@ def playlists():
     return _sp(musica.playlists)
 
 
+@rotas_musica.get("/inicio")
+def inicio():
+    _controla()
+    return _sp(musica.inicio)
+
+
+@rotas_musica.get("/detalhe")
+def detalhe(uri: str):
+    _controla()
+    if not re.fullmatch(r"spotify:(playlist|album|artist):[A-Za-z0-9]{10,40}", uri or ""):
+        raise HTTPException(422, "Item inválido.")
+    return _sp(musica.detalhe, uri)
+
+
+@rotas_musica.get("/fila")
+def ver_fila():
+    _controla()
+    return _sp(musica.fila)
+
+
+@rotas_musica.get("/token-player")
+def token_player():
+    # token curto (1 h) só para o Web Playback SDK deste navegador virar um aparelho do Spotify; nunca é guardado no navegador
+    _controla()
+    return _sp(musica.token_player)
+
+
 HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
 
 
@@ -127,6 +156,7 @@ class Gatilho(BaseModel):
     hora: str | None = Field(None, pattern=HHMM)
     dias: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5], max_length=7)
     aparelho_id: int | None = None
+    origem: str = Field("qualquer", pattern=r"^(qualquer|alexa|painel|agenda)$")
 
 
 class Janela(BaseModel):

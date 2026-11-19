@@ -81,7 +81,7 @@ def processar_evento(aparelho_id: int, origem: str, ligado: bool):
     tipo = "ligou" if ligado else "desligou"
     try:
         from . import musica
-        musica.evento_ar(aparelho_id, ligado)   # rotinas de música "quando o ar ligar/desligar"
+        musica.evento_ar(aparelho_id, ligado, origem)   # rotinas de música "quando o ar ligar/desligar"
     except Exception as e:  # noqa: BLE001
         log.warning("rotinas de música: %s", e)
     for auto in _ativas(tipo):

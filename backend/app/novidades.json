@@ -2,6 +2,30 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.22.0",
+      "data": "2026-11-19",
+      "titulo": "Música com a cara do Spotify, tocando no próprio painel e reagindo à Alexa",
+      "resumo": "A tela de Música foi refeita no estilo do Spotify, o painel virou um aparelho do Spotify e as rotinas podem disparar só quando a Alexa liga ou desliga um ar.",
+      "novo": [
+        "Tela de Música no estilo do Spotify: biblioteca à esquerda, Início, Buscar, Rotinas e Alexa no meio e o player fixo embaixo.",
+        "Tocar neste navegador: o painel aparece como aparelho do Spotify, então dá para tocar mesmo sem celular ou Echo com o Spotify aberto.",
+        "Abrir playlist, álbum e artista com a lista de músicas, como no Spotify, e tocar a partir de qualquer faixa.",
+        "Fila do que vem a seguir, troca de aparelho num painel lateral e avançar a música clicando na barra.",
+        "Rotinas de música com o filtro \"quem mandou\": por exemplo, tocar só quando alguém pedir à Alexa para ligar um ar.",
+        "Aba Alexa com os Echo visíveis, modelos prontos de automação e frases de voz para qualquer música."
+      ],
+      "melhorias": [
+        "Início com tocadas recentemente, suas playlists, artistas do momento, mais ouvidas e músicas curtidas.",
+        "Quando o Spotify não libera um dado para apps em modo de desenvolvimento, a tela explica em vez de mostrar erro."
+      ],
+      "seguranca": [
+        "O token do player no navegador vale 1 hora, só é entregue a quem pode controlar a música e não fica guardado no navegador."
+      ],
+      "correcoes": [
+        "Música não tocava quando nenhum aparelho do Spotify estava aberto: agora o painel toca sozinho."
+      ]
+    },
+    {
       "versao": "1.21.0",
       "data": "2026-11-19",
       "titulo": "Mapa multijogador, carros da biblioteca nas ruas e escritório com os modelos novos",

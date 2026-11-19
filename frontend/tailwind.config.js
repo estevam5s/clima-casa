@@ -7,6 +7,12 @@ export default {
     extend: {
       fontFamily: { sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'], mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'] },
       colors: {
+        // marca: paleta do Spotify, usada só na tela de Música (de propósito, para ficar com a cara do Spotify)
+        sp: {
+          preto: '#000000', base: '#121212', cartao: '#181818', topo: '#1b1b1b', aviso: '#1f1f1f', campo: '#242424', 'campo-hover': '#2a2a2a',
+          realce: '#282828', verde: '#1ed760', 'verde-hover': '#3be477', texto1: '#d4d4d4', texto2: '#a7a7a7', texto3: '#b3b3b3',
+          icone: '#7f7f7f', trilho: '#4d4d4d', curtidas: '#4b2ef0',
+        },
         background: v('background'), foreground: v('foreground'),
         card: v('card'), muted: v('muted'), 'muted-foreground': v('muted-foreground'),
         border: v('border'), primary: v('primary'), 'primary-foreground': v('primary-foreground'),

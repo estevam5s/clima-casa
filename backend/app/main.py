@@ -117,7 +117,7 @@ async def cabecalhos(request: Request, chamar):
         resp.headers["Cache-Control"] = "no-store"
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data: blob: https://challenges.cloudflare.com https://*.scdn.co https://*.spotifycdn.com; style-src 'self' 'unsafe-inline'; "
-        "script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; "
+        "script-src 'self' https://challenges.cloudflare.com https://sdk.scdn.co; frame-src https://challenges.cloudflare.com https://sdk.scdn.co; "
         "font-src 'self'; connect-src 'self' blob: data: https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://api.pwnedpasswords.com https://speed.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests")
     if request.url.scheme == "https":
         resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
