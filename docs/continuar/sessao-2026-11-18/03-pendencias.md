@@ -28,9 +28,12 @@ Bloqueado (precisa de ação do dono):
   sudo). Depois: Infra → Agentes → Preferir o Raspberry.
 - **Spotify pelo navegador**: a extensão do Claude não conecta (o dono usa Brave; precisa do Chrome com a extensão logada).
 
+Feito também:
+- **clima-ia** (agente de IA no terminal, NVIDIA Nemotron 3 Ultra): `./agente-ia/instalar.sh` → comando `clima-ia`; chave em
+  `NVIDIA_API_KEY` no `.env`. Ferramentas com confirmação; segredos mascarados antes de sair da máquina.
+- **Transferir o posto de dono** (1.15.0): Usuários → coroa; senha + Turnstile + e-mail digitado.
+
 A fazer (decisões já tomadas pelo dono):
-1. Agente de IA no terminal igual ao Claude Code usando a API da NVIDIA (`docs/credentials/nvidia.md`, gitignored).
-2. Transferir o posto de dono (só o dono; o novo dono recebe a mesma função).
 3. Apps por link temporário do Storage do Supabase (sem GitHub) + releases novos de Android e desktop (confirmado).
 4. Treinamento com 1.000+ perguntas próprias (ISO e LGPD), nota na tela e por e-mail.
 5. Área de Bugs (usuários relatam; o sistema procura bugs nele mesmo, sugere correções e gera prompt para a IA).
