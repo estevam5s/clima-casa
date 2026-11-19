@@ -25,7 +25,10 @@ caminhos de serviço e o projeto da Vercel).
 6. **Sem cara de IA** na interface (seção 8.9) e copy direta em pt-BR.
 7. **Toda publicação que muda o que o usuário vê ou usa ganha entrada nova em `backend/app/novidades.json`** (seção 16):
    versão, novo, melhorias, segurança, correções. Só fatos que entraram; o modal "O que há de novo" mostra isso a cada pessoa.
-8. **Ar só obedece com um agente no escritório.** O agente principal precisa enxergar os transmissores (Infra → Agentes:
+8. **Diário de sessão**: toda sessão de trabalho termina com a pasta `docs/continuar/sessao-AAAA-MM-DD/` (00-LEIA-PRIMEIRO,
+   01-historico, 02-estado-atual, 03-pendencias, 04-decisoes, 05-testes, PROMPT.md, continuar.sh). Sessão nova: leia a
+   pasta mais recente antes de mexer (a última é `sessao-2026-11-18`).
+9. **Ar só obedece com um agente no escritório.** O agente principal precisa enxergar os transmissores (Infra → Agentes:
    "enxerga N de M"). Mac em casa + PC do escritório desligado = nenhum comando chega ao ar, mesmo com o painel "online".
    Antes de dizer que algo "funciona", confira isso e a Atividade.
 
@@ -73,6 +76,13 @@ caminhos de serviço e o projeto da Vercel).
 | Teste de velocidade da rede | `backend/app/rede.py` (op `rede_teste` no agente), `rotas/infra.py` (`/infra/rede/*`), `pages/Rede.jsx` (mede no navegador via speed.cloudflare.com, liberado na CSP) |
 | Avatares 3D (GLB) | `backend/app/avatares.py` (Storage privado `avatares`), rotas `/api/avatares…`, `components/avatares/AvatarViewer.jsx` (`carregarAvatar`, `caixaReal`), `pages/Avatares.jsx`, `Mapa3D.jsx` (`E.glbs`), `docs/AVATARES_3D.md` |
 | Copa, banheiro, cafeteira vermelha, xícara, portas de vidro, mesa da Reunião, elevador na planta | `components/copa3d.js`, `Mapa3D.jsx` (`portaDeVidro`, `salaCorredor`, `E.pontoCafe`, `mapa.elevador`), `pages/Mapa.jsx` (editor) |
+| Iluminação (lâmpadas/interruptores, anoitecer, pôr do sol real) | `backend/app/dispositivos.py` (tipo `luz`, `sol_do_dia`, `_automacao_luz`), `rotas/dispositivos.py`, `pages/Luzes.jsx`; no 3D `Mapa3D.jsx` (`E.luzSala`, `E.aplicarLuzes`, efeito que lê `/api/dispositivos?tipo=luz`) |
+| Central de notificações (página) | `pages/Notificacoes.jsx`, `GET /api/notificacoes/historico`, `POST /api/notificacoes/lote`, contador `status.notificacoes` no menu (`Layout.jsx`) |
+| Relatório por e-mail | `POST /api/relatorios/enviar` (só para e-mails de usuários, limite por hora), `correio.enviar(..., anexos=)`, modelo `relatorio`, menu Exportar em `pages/Relatorios.jsx` |
+| Atalhos do topo e backup em um clique | `components/AcessoRapido.jsx` (usa `GET /api/backup`, só dono/admin) |
+| Avatar: café (tecla C), andar pelas ruas | `Mapa3D.jsx` (`E.cafe`, `moverControle` com `E.cidadeRuas`), `cidade3d.js` (`obstaculos`, `limite`), `predio3d.js` (`cidade`) |
+| Transmissor por sala, protocolo Tuya, remover/voltar | `transmissor.py` (`_acertar_versao`, `sem_agente`), `rotas/api.py` (`_guardar_removido`, `_restaurar_removido`, `importar_hub(projeto_id)`, `/projetos/visao` → `tx_estado`), `pages/Transmissores.jsx` (`SalasResumo`), `components/FormAparelho.jsx` (`hubDaSala`) |
+| Agente que não trava (rede caiu/dormiu) | `db.py` (keepalives), `coordenador.py` (`iniciar_cao_de_guarda`, `_girou`), `sinric.py` (`_laco` não morre) |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
@@ -840,11 +850,28 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | Rolagem lateral numa tela com gráficos/tabelas | grade sem coluna base (`grid gap-6 lg:grid-cols-…`) cresce pelo conteúdo no celular: `grid-cols-1` ou `minmax(0,1fr)` |
 | `pip download --platform …` dá "Invalid requirement" no zsh | variável com várias opções não se divide no zsh: escreva as opções por extenso |
 | Avatar preso na recepção do térreo | a grade do térreo precisa incluir `T.limitesFora` e as `T.paredes` (vão da porta livre); a porta automática abre a 3,4 m |
+| Agente "vivo" (serviço rodando) mas sem anunciar há horas | conexão do pool morta depois de trocar de rede/dormir: consulta esperava para sempre. Corrigido (1.10.1): keepalive no Postgres + cão de guarda que reinicia o agente se o laço parar 3 min |
+| Gravação "Nenhum sinal recebido" com o controle apontado certo | protocolo Tuya cadastrado errado (3.5 num SRW-004 que é 3.3). O agente agora testa 3.3/3.4/3.5 (`_acertar_versao`); na mão: `diagnosticar({...h, versao})` |
+| Tela de Segurança travava/fechava a aba | `filter: blur()` e milhares de pontos numa tela de canvas acelerada viram segundos de GPU no envio da textura; universo inteiro montado ao abrir. Ver 1.9.1 |
+| 403 do Spotify bloqueou o IP do dono | erro de serviço de fora repassado como 403 conta no firewall. Erros de terceiros = 424 (`ErroSpotify`) |
+| Login 403 "Vercel Security Checkpoint" | escudo anti-DDoS ligado (modo de ataque da Vercel barra o POST do login). Desligar em Segurança → Escudo ou `firewall.desligar_escudo()` + `vercel_ataque.sincronizar()` |
+| Busca do menu aparece com um e-mail | gerenciador de senhas trata campo `type=password` de chave como login: use `autoComplete="new-password"` e `type="search"`/`autoComplete="off"` nas buscas |
+| Barra de controle do 3D some / teclas F, R, C sem efeito | o efeito principal do `Mapa3D` recriava `estado.current` sem `setControle`; ele agora carrega as funções do React |
+| No térreo, rua preta | `trocarNivel('terreo')` escondia sol, céu e chão; mantém luzes não pontuais e o `chao` |
+| `useState` depois de `if (...) return` | quebra a regra dos hooks quando os dados chegam. Hooks sempre antes de qualquer return |
+| Confirmação com `window.confirm` | trava a tela e foge do visual; use `Modal` (ainda há ~25 pontos antigos: `grep -rn "window.confirm" frontend/src`) |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
 
-## 14. Estado atual e pendências (16/11/2026, noite)
+## 14. Estado atual e pendências
+
+- **18/11, noite (1.9.1 a 1.13.0)**: diário completo em `docs/continuar/sessao-2026-11-18/` (estado conferido no banco e pendências
+  por fase). Transmissores: **Escritório** (ebd5de43, 3.3) com Ar do escritório, analistas, Deison e diretor; **Smart IR · Devs**
+  (ebc402, "Sala de reunião" no Smart Life, 3.3) com Ar dos devs, servidor e Guilherme; Ar do Fabio e Ar da reunião sem transmissor.
+  PC do João é o preferido mas está em **versão antiga** do agente (atualizar). Ekaza Mini 3 comprado, não pareado. Spotify com 403
+  (falta User Management). Fase 4 (agente de IA local, transferir dono, apps sem GitHub, bot do Telegram, treinamento ISO, releases)
+  aguarda respostas do dono.
 
 - **18/11, madrugada (1.8.0)**: cafeteira (item 11), 10 persianas (uma por janela, ligadas às janelas do mapa) e a fechadura
   (`porta-entrada`) cadastradas **sem aparelho**: a tela diz "sem aparelho conectado" até parear tomada, motores e fechadura
