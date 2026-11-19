@@ -2,6 +2,32 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.21.0",
+      "data": "2026-11-19",
+      "titulo": "Mapa multijogador, carros da biblioteca nas ruas e escritório com os modelos novos",
+      "resumo": "Quem está no mapa ao mesmo tempo aparece para os outros, o trânsito e os estacionamentos usam os carros da biblioteca, e as mesas ganharam monitor, teclado, mouse e PC 3D.",
+      "novo": [
+        "Mapa multijogador: quem estiver no mapa ao mesmo tempo aparece com o nome em cima, andando ou dirigindo, e os carros dos outros batem no seu",
+        "Trânsito e estacionamentos com os carros da biblioteca (Avatares)",
+        "Entrar e sair do carro com animação: a pessoa corre até a porta do motorista, abaixa e entra; ao pegar um carro do trânsito, o motorista sai correndo",
+        "Batida em carro do trânsito: ele para e balança",
+        "Cidade maior: avenidas de 640 m e quadras até cerca de 290 m do prédio, com mais trânsito",
+        "Mesas e bancadas com monitor, teclado, mouse e PC 3D da biblioteca (a tela continua mostrando o trabalho de cada posto)",
+        "Cafeteira expresso preta da biblioteca no mapa e na página Cafeteira"
+      ],
+      "melhorias": [
+        "Café: dá para fazer encostado em qualquer lado livre do armário da cafeteira, não só na copa"
+      ],
+      "seguranca": [
+        "O canal do mapa multijogador é privado: só usuários ativos do sistema entram, enviam e recebem posições; nada fica gravado"
+      ],
+      "correcoes": [
+        "Erro na tela do mapa quando ninguém estava no térreo",
+        "Tela do Telegram antiga no cache do navegador quebrava com a lista nova de comandos",
+        "Agente fora do escritório deixou de virar bug: agora é uma notificação"
+      ]
+    },
+    {
       "versao": "1.20.0",
       "data": "2026-11-19",
       "titulo": "Bot do Telegram com 264 comandos, carros mais estáveis e cidade mais viva",

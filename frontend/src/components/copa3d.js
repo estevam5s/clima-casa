@@ -42,7 +42,25 @@ export function cafeteiraVermelha({ ligada = true } = {}) {
       v.scale.setScalar(0.6 + k * 1.4)
     })
   }
-  return { g, animar, definirLigada: (l) => { ligada = l } }
+  // trocar o desenho pelo modelo 3D da biblioteca (Avatares): some o corpo vermelho, ficam a xícara, a luz e o vapor,
+  // reposicionados no bico do modelo. O modelo vem de frente para +z (como os do Tripo) e é escalado para 33 cm de altura
+  const desenho = [corpo, base, tanque, agua, tampa, alavanca, grade, ...g.children.filter((o) => o.isMesh && o.geometry?.type === 'BoxGeometry' && o !== agua)]
+  const trocar = (modelo, altura = 0.33) => {
+    const bb = new THREE.Box3().setFromObject(modelo), tam = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3())
+    const k = altura / Math.max(0.01, tam.y)
+    const m = new THREE.Group(); m.add(modelo); modelo.position.set(-c.x, -bb.min.y, -c.z); m.scale.setScalar(k)
+    modelo.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
+    desenho.forEach((o) => { o.visible = false })
+    g.add(m)
+    const fz = (tam.z * k) / 2
+    xic.position.set(0, 0.03, fz * 0.45); vapor.forEach((v) => { v.userData.z = fz * 0.45 })
+    luz.position.set(tam.x * k * 0.32, altura * 0.82, fz + 0.004)
+    zV = fz * 0.45; yV = altura * 0.42
+  }
+  let zV = 0.09, yV = 0.12
+  const animarBase = animar
+  return { g, animar: (t, fazendo) => { animarBase(t, fazendo); if (zV !== 0.09) vapor.forEach((v, i) => { const k2 = ((t * 0.6 + i / 6) % 1); v.position.set(Math.sin(t * 2 + i) * 0.012, yV - 0.1 + k2 * 0.16, zV) }) },
+    definirLigada: (l) => { ligada = l }, trocar }
 }
 
 // xícara branca com café (também vai na mão das pessoas)

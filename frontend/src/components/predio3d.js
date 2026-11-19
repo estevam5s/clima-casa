@@ -400,7 +400,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   const matAmarela = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.6 })
   const matGrama = new THREE.MeshStandardMaterial({ color: noite ? 0x1e3a24 : 0x5f9e4a, roughness: 1 })
   const plano = (w, d, m, x, z, y = 0.005) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.x = -Math.PI / 2; o.position.set(x, y, z); o.receiveShadow = true; entorno.add(o); return o }
-  const CAL = 4.2, RUA = 10, MED = 3
+  const CAL = 4.2, RUA = 10, MED = 3, MEIA_AV = 320   // avenidas de 640 m (a cidade vai a ±290 m)
   plano(BW + 2 * CAL + 6, BD + 2 * CAL + 6, matCalcada, cxp, czp, 0.004)
   // rua do lado da entrada (oeste/leste → corre em z; norte/sul → corre em x) e a rua da esquina (sul)
   const ruas = []
@@ -408,14 +408,14 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   const ladoRua1 = ladoEntrada, ladoRua2 = ['oeste', 'leste'].includes(ladoEntrada) ? 'sul' : 'oeste'
   for (const lado of [ladoRua1, ladoRua2]) {
     const L = LADOS[lado], horiz = L.horiz
-    const meio = L.k + L.n * (CAL + 3 + RUA / 2), comp = 380
+    const meio = L.k + L.n * (CAL + 3 + RUA / 2), comp = 2 * MEIA_AV
     plano(horiz ? comp : RUA, horiz ? RUA : comp, matAsfalto, horiz ? cxp : meio, horiz ? meio : czp, 0.006)
     // canteiro central com grama e palmeiras (como na foto), faixas tracejadas
     const can = meio + L.n * (RUA / 2 + MED / 2)
     plano(horiz ? comp : MED, horiz ? MED : comp, matGrama, horiz ? cxp : can, horiz ? can : czp, 0.01)
     const meio2 = can + L.n * (MED / 2 + RUA / 2)
     plano(horiz ? comp : RUA, horiz ? RUA : comp, matAsfalto, horiz ? cxp : meio2, horiz ? meio2 : czp, 0.006)
-    for (let k = -185; k < 185; k += 4.5) {
+    for (let k = -MEIA_AV; k < MEIA_AV; k += 4.5) {
       plano(horiz ? 2.2 : 0.14, horiz ? 0.14 : 2.2, matFaixa, horiz ? cxp + k : meio, horiz ? meio : czp + k, 0.012)
       plano(horiz ? 2.2 : 0.14, horiz ? 0.14 : 2.2, matFaixa, horiz ? cxp + k : meio2, horiz ? meio2 : czp + k, 0.012)
     }
@@ -459,13 +459,13 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   const sorteiaTipo = () => { const x = r(); return x < 0.46 ? 'sedan' : x < 0.66 ? 'suv' : x < 0.76 ? 'picape' : x < 0.85 ? 'van' : x < 0.94 ? 'moto' : 'onibus' }
   ruas.forEach((rua, ir) => rua.faixas.forEach((lin, idx) => {
     const sentido = idx < 2 ? -1 : 1
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const tipo = sorteiaTipo()
       const c = carro(tipo === 'onibus' ? 0xe5e7eb : cores[Math.floor(r() * cores.length)], tipo)
       c.g.rotation.y = rua.horiz ? (sentido > 0 ? 0 : Math.PI) : (sentido > 0 ? -Math.PI / 2 : Math.PI / 2)
       entorno.add(c.g)
       const vmax = tipo === 'onibus' ? 6 + r() * 2 : tipo === 'moto' ? 9 + r() * 6 : 7 + r() * 5
-      carros.push({ ...c, rua, lin, sentido, u: -170 + ((i * 123 + idx * 47 + ir * 31) % 340) + r() * 8, vel: vmax, vmax, comp: TIPOS_TRANSITO[tipo].L })
+      carros.push({ ...c, rua, lin, sentido, u: -MEIA_AV + 10 + ((i * 127 + idx * 47 + ir * 31) % (2 * MEIA_AV - 20)) + r() * 8, vel: vmax, vmax, comp: TIPOS_TRANSITO[tipo].L })
     }
   }))
   const moveis = []   // pessoa controlada / carro dirigido: o trânsito freia antes deles
@@ -499,7 +499,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
   }
   let cidadeInfo = { calcadas: [], pracas: [], obstaculos: [], limite: null }, posTerminal = null
   if (cidade) {
-    plano(400, 400, matAsfalto, cxp, czp, 0.002)   // ruas entre as quadras
+    plano(2 * MEIA_AV, 2 * MEIA_AV, matAsfalto, cxp, czp, 0.002)   // ruas entre as quadras
     const livres = [[bx0 - CAL - 9, bz0 - CAL - 9, bx1 + CAL + 9, bz1 + CAL + 9]]
     for (const lado of [ladoRua1, ladoRua2]) {
       const L = LADOS[lado], a = L.k + L.n * (CAL + 1), b = L.k + L.n * (CAL + 6 + 2 * RUA + MED)
@@ -546,6 +546,13 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     if (cruz) for (const via of ['H', 'V']) { const cor = corDe(via, k); for (const nome of ['vermelho', 'amarelo', 'verde']) lampadas[via][nome].emissiveIntensity = nome === cor ? 2.2 : 0 }
     carros.forEach((c) => {
       if (c.roubado) return
+      if (c.batido > 0) {   // levou uma batida: para, balança e depois segue
+        c.batido -= dt; c.vel = 0
+        const k2 = Math.max(0, c.batido) / 3
+        c.g.rotation.z = Math.sin(c.batido * 18) * 0.05 * k2
+        if (c.batido <= 0) c.g.rotation.z = 0
+        return
+      }
       // semáforo: freia antes da faixa de retenção se não estiver verde; fila: guarda distância do carro da frente
       let alvo = c.vmax
       if (cruz) {
@@ -568,8 +575,8 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       }
       c.vel += Math.max(-dt * 9, Math.min(dt * 3.5, alvo - c.vel))
       c.u += c.sentido * c.vel * dt
-      if (c.u > 185) c.u -= 370
-      if (c.u < -185) c.u += 370
+      if (c.u > MEIA_AV) c.u -= 2 * MEIA_AV
+      if (c.u < -MEIA_AV) c.u += 2 * MEIA_AV
       const base2 = c.rua.horiz ? cxp : czp
       if (c.rua.horiz) c.g.position.set(base2 + c.u, 0, c.lin); else c.g.position.set(c.lin, 0, base2 + c.u)
       c.rodas.forEach((w) => { w.rotation.y += c.vel * dt / 0.33 * c.sentido })
@@ -598,8 +605,17 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     cidade: { obstaculos: cidadeInfo.obstaculos, limite: cidadeInfo.limite, podio: [bx0, bz0, bx1, bz1] },
     // trânsito para o Mapa3D: posição de cada veículo no mundo, tirar um da rua (a pessoa pegou para dirigir) e quem o trânsito evita
     transito: {
-      lista: () => carros.filter((c) => !c.roubado && c.g.visible).map((c) => ({ c, x: c.g.position.x, z: c.g.position.z, psi: c.g.rotation.y + Math.PI / 2, vel: c.vel * c.sentido, tipo: c.tipo, comp: c.comp })),
+      lista: () => carros.filter((c) => !c.roubado && c.g.visible).map((c) => ({ c, x: c.g.position.x, z: c.g.position.z, psi: c.g.rotation.y + Math.PI / 2, vel: c.vel * c.sentido, tipo: c.tipo, comp: c.comp, W: c.W || TIPOS_TRANSITO[c.tipo]?.W || 1.8, frota: c.frota })),
       tirar(c) { c.roubado = true; c.g.visible = false },
+      bater(c, forca) { c.batido = Math.max(c.batido || 0, 1 + Math.min(3, forca)); c.vel = 0 },
+      // troca o desenho de cada veículo por um modelo 3D (fn devolve { grupo, comp, W, frota } ou null para manter)
+      vestir(fn) {
+        carros.forEach((c, i) => {
+          const v = fn(c, i); if (!v) return
+          c.g.children.forEach((o) => { o.visible = false })
+          c.g.add(v.grupo); c.comp = v.comp; c.W = v.W; c.frota = v.frota; c.rodas = []
+        })
+      },
       devolver(c) { c.roubado = false; c.g.visible = true; c.vel = 0 },
       moveis,
       estacionados: cidadeInfo.estacionados || null,

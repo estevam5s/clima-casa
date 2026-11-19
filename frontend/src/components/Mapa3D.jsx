@@ -15,6 +15,7 @@ import { ELEV, montarElevador, montarTerreo } from './elevador3d'
 import MiniMapa from './MiniMapa'
 import PainelCarro from './PainelCarro'
 import { colisorCidade, criarMarcas, criarSom, criarVeiculo } from './veiculo3d'
+import { conectarMultijogador } from './multijogador'
 import { cafeteiraVermelha, montarBanheiro, montarCozinha, xicara } from './copa3d'
 import { caixaReal, carregarAvatar } from './avatares/AvatarViewer'
 import { clone as clonarComOssos } from 'three/examples/jsm/utils/SkeletonUtils.js'
@@ -452,6 +453,16 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   // cartões do 3D (janela, item, pessoa, escrita), modo de escrever no vidro e controle de avatar
   const [cartao, setCartao] = useState(null)
   const [controle, setControle] = useState(null)
+  const [online, setOnline] = useState([])   // quem está no mapa agora (multijogador)
+  // multijogador: um canal por aba enquanto o mapa com o prédio está aberto
+  useEffect(() => {
+    if (!comPredio) return undefined
+    let vivo = true, m = null
+    conectarMultijogador({ aoMudar: () => { if (vivo && m) setOnline(m.pessoas()) } })
+      .then((x) => { if (!vivo) { x?.fechar(); return } m = x; if (estado.current) estado.current.mp = x; if (x) setOnline(x.pessoas()) })
+      .catch(() => { /* sem Realtime: joga sozinho */ })
+    return () => { vivo = false; m?.fechar(); if (estado.current) estado.current.mp = null }
+  }, [comPredio])
   const [nivel, setNivel] = useState('andar')       // 'andar' (escritório) ou 'terreo' (recepção, pelo elevador)
   const [viagem, setViagem] = useState(null)        // elevador andando: { andar, seta, destino }
   const [escrevendo, setEscrevendo] = useState(false)
@@ -613,6 +624,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const x0 = Math.min(...salas.map((s) => s.x)), y0 = Math.min(...salas.map((s) => s.y))
     const x1 = Math.max(...salas.map((s) => s.x + s.w)), y1 = Math.max(...salas.map((s) => s.y + s.h))
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
+    let cafeTrocada = false
+    const cafesArmario = []
     const cafeteiras = []   // máquinas de café do andar (balcões e a copa): luz e vapor quando alguém faz café
     E.pontoCafe = null
     const W = (mx) => (mx - cx) * S, Z = (my) => (my - cy) * S
@@ -624,7 +637,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const ceu = ceuDaHora(h)
     E.ceu = ceu
     const fundoCeu = texturaCeu(ceu); cena.background = fundoCeu
-    cena.fog = new THREE.Fog(new THREE.Color(ceu.noite ? 0x0b1530 : ceu.crepusculo ? 0xe2a07a : 0xdbe9f6), comPredio ? 110 : 45, comPredio ? 300 : 95)
+    cena.fog = new THREE.Fog(new THREE.Color(ceu.noite ? 0x0b1530 : ceu.crepusculo ? 0xe2a07a : 0xdbe9f6), comPredio ? 120 : 45, comPredio ? 380 : 95)
     E.foNear0 = cena.fog.near; E.foFar0 = cena.fog.far
     controles.maxDistance = comPredio ? 170 : 45
     camera.far = comPredio ? 700 : 200; camera.updateProjectionMatrix()
@@ -1050,6 +1063,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       return t
     }
     const assentos = []   // lugares: { g, posto, comPessoa, nome }; as pessoas entram depois (cadastradas primeiro)
+    const pecas = []      // monitor/teclado/mouse/PC de cada posto (modelos da biblioteca, instanciados depois)
     const estacao = (pai, x, z, ry, comPessoa, nome, semMesa = false, posto = null, cor = null) => {
       const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; pai.add(g)
       if (!semMesa) {
@@ -1061,15 +1075,16 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         for (const y of [0.16, 0.34, 0.5]) caixa(0.12, 0.012, 0.012, matPerfil, -0.38, y, 0.26, 0, g)
         caixa(0.21, 0.004, 0.3, new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.9 }), -0.42, 0.77, 0.05, 0.15, g)   // papéis
         caixa(0.08, 0.1, 0.08, new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.4 }), 0.52, 0.82, -0.18, 0, g)   // caneca
-        caixa(0.06, 0.03, 0.1, matPreto, 0.32, 0.785, 0.08, 0, g)   // mouse
       } else {
         caixa(0.36, 0.008, 0.26, new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.9 }), 0.32, 0.765, 0.08, 0, g)   // mouse pad
-        caixa(0.06, 0.03, 0.1, matPreto, 0.32, 0.785, 0.08, 0, g)   // mouse
       }
-      caixa(0.6, 0.36, 0.03, matPreto, 0, 1.06, -0.22, 0, g)
+      const mo = caixa(0.06, 0.03, 0.1, matPreto, 0.32, 0.785, 0.08, 0, g)   // mouse
+      const bez = caixa(0.6, 0.36, 0.03, matPreto, 0, 1.06, -0.22, 0, g)
       const tela = caixa(0.56, 0.32, 0.005, matTela, 0, 1.06, -0.203, 0, g); tela.castShadow = false
-      caixa(0.05, 0.14, 0.05, matPreto, 0, 0.83, -0.24, 0, g)
-      caixa(0.42, 0.015, 0.14, matPreto, 0, 0.77, 0.05, 0, g)
+      const pe = caixa(0.05, 0.14, 0.05, matPreto, 0, 0.83, -0.24, 0, g)
+      const tec = caixa(0.42, 0.015, 0.14, matPreto, 0, 0.77, 0.05, 0, g)
+      // lugares dos modelos da biblioteca (monitor, teclado, mouse e PC): trocam as caixas quando carregam
+      pecas.push({ g, y: 0.7675, monitor: [0, -0.22, [bez, pe], tela], teclado: [0, 0.05, [tec]], mouse: [0.32, 0.08, [mo]], gabinete: semMesa ? null : [0.42, -0.1, [], 0] })
       cadeira(g, 0, 0.55, Math.PI)
       assentos.push({ g, posto, comPessoa, nome, x: 0, z: 0.5, ry: Math.PI, tela })
       return g
@@ -1134,12 +1149,13 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const n = Math.max(1, Math.round(longo / 1.2))
         for (let i = 0; i < n; i++) {
           const ax = -longo / 2 + longo * (i + 0.5) / n, fz = -prof / 2 + 0.16
-          caixa(0.6, 0.36, 0.03, matPreto, ax, 1.07, fz, 0, g)
+          const bez = caixa(0.6, 0.36, 0.03, matPreto, ax, 1.07, fz, 0, g)
           const tela = caixa(0.56, 0.32, 0.005, matTela, ax, 1.07, fz + 0.017, 0, g); tela.castShadow = false
-          caixa(0.05, 0.16, 0.05, matPreto, ax, 0.84, fz - 0.02, 0, g); caixa(0.22, 0.012, 0.16, matPreto, ax, 0.774, fz - 0.01, 0, g)
-          caixa(0.42, 0.015, 0.14, matPreto, ax - 0.04, 0.775, fz + 0.3, 0, g)   // teclado
+          const pe = caixa(0.05, 0.16, 0.05, matPreto, ax, 0.84, fz - 0.02, 0, g), pb = caixa(0.22, 0.012, 0.16, matPreto, ax, 0.774, fz - 0.01, 0, g)
+          const tec = caixa(0.42, 0.015, 0.14, matPreto, ax - 0.04, 0.775, fz + 0.3, 0, g)   // teclado
           caixa(0.24, 0.004, 0.2, new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.9 }), ax + 0.33, 0.769, fz + 0.3, 0, g)   // mouse pad
-          caixa(0.06, 0.03, 0.1, matPreto, ax + 0.33, 0.786, fz + 0.3, 0, g)   // mouse
+          const mo = caixa(0.06, 0.03, 0.1, matPreto, ax + 0.33, 0.786, fz + 0.3, 0, g)   // mouse
+          pecas.push({ g, y: 0.7675, monitor: [ax, fz, [bez, pe, pb], tela], teclado: [ax - 0.04, fz + 0.3, [tec]], mouse: [ax + 0.33, fz + 0.3, [mo]], gabinete: [ax + 0.42, fz + 0.05, [], 0] })
           cadeira(g, ax, prof / 2 + 0.25, Math.PI)
           assentos.push({ g, posto: `${e.id}:${i}`, comPessoa: i === 0 && r() > 0.3, nome: null, x: ax, z: prof / 2 + 0.2, ry: Math.PI, tela })
         }
@@ -1161,6 +1177,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         caixa(w, 1.0, d, e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.6 }) : matMadeira, x, 0.5, z, ry)
         caixa(w * 0.95, 0.03, d * 0.95, matMesa, x, 1.015, z, ry)
         const cf = cafeteiraVermelha({ ligada: e.ligado !== false }); cf.g.position.set(x, 1.03, z); cf.g.rotation.y = ry; mundo.add(cf.g); cafeteiras.push(cf)   // cafeteira de cápsulas
+        cafesArmario.push({ x, z, w, d, ry, maquina: cf })   // dá para fazer café encostado em qualquer lado livre do armário
         alvoItem(e.id, x, z, w, d, 1.1, ry)
       } else if (e.tipo === 'sofa') {
         bloquear(x, z, w, d, ry)
@@ -1298,6 +1315,52 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       telas.push({ a, cv, g: cv.getContext('2d'), tx, sem, pos: tw, ult: -9 })
     })
     E.telas = telas
+    // modelos da biblioteca nos postos (Avatares → mapa_modelos): cada tipo vira UMA malha instanciada (uma chamada de
+    // desenho para todos os monitores, outra para os teclados…); as caixas desenhadas somem quando o modelo chega.
+    // Ajuste de cada modelo: girar para a posição de uso e o tamanho real (largura do monitor, comprimento do mouse…)
+    const MODELO_POSTO = {
+      monitor: { medida: 'x', tam: 0.62 }, teclado: { medida: 'x', tam: 0.44 },
+      mouse: { medida: 'z', tam: 0.115, rx: -Math.PI / 2 }, gabinete: { medida: 'y', tam: 0.46, ry: Math.PI / 2 },
+    }
+    const mundoPecas = mundo
+    Object.entries(MODELO_POSTO).forEach(([tipo, cfgM]) => {
+      const id = mapa.modelos?.[tipo], lista = pecas.filter((p) => p[tipo])
+      if (!id || !lista.length) return
+      carregarAvatar(id).then((gl) => {
+        if (estado.current?.mundo !== mundoPecas) return
+        let malha = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !malha) malha = o })
+        if (!malha) return
+        const geo = malha.geometry.clone(); geo.applyMatrix4(malha.matrixWorld)
+        if (cfgM.rx) geo.rotateX(cfgM.rx)
+        if (cfgM.ry) geo.rotateY(cfgM.ry)
+        geo.computeBoundingBox()
+        const bb = geo.boundingBox, tam = bb.getSize(new THREE.Vector3())
+        const k = cfgM.tam / Math.max(1e-4, tam[cfgM.medida])
+        geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2); geo.scale(k, k, k); geo.computeBoundingBox()
+        const im = new THREE.InstancedMesh(geo, malha.material, lista.length); im.castShadow = true; im.receiveShadow = true
+        // painel do monitor: vértices da parte de cima (sem o pé) dão a moldura onde fica a tela com o conteúdo
+        let painel = null
+        if (tipo === 'monitor') {
+          const pos = geo.attributes.position, H = geo.boundingBox.max.y, pb = new THREE.Box3()
+          for (let i = 0; i < pos.count; i++) if (pos.getY(i) > H * 0.42) pb.expandByPoint(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)))
+          painel = { cx: (pb.min.x + pb.max.x) / 2, cy: (pb.min.y + pb.max.y) / 2, w: pb.max.x - pb.min.x, h: pb.max.y - pb.min.y, fz: pb.max.z }
+        }
+        const inv = new THREE.Matrix4().copy(mundoPecas.matrixWorld).invert(), m4 = new THREE.Matrix4(), loc = new THREE.Matrix4()
+        lista.forEach((p, i) => {
+          const [x, z, esconder, yy] = p[tipo]
+          p.g.updateMatrixWorld(true)
+          loc.makeTranslation(x, yy ?? p.y, z)
+          m4.multiplyMatrices(inv, p.g.matrixWorld).multiply(loc); im.setMatrixAt(i, m4)
+          esconder.forEach((o) => { o.visible = false })
+          const tela = p[tipo][3]
+          if (painel && tela?.isMesh) {   // a tela com o conteúdo do posto vai para a frente do painel do modelo
+            tela.position.set(x + painel.cx, p.y + painel.cy, z + painel.fz + 0.004)
+            tela.scale.set((painel.w * 0.93) / 0.56, (painel.h * 0.9) / 0.32, 1)
+          }
+        })
+        im.instanceMatrix.needsUpdate = true; mundoPecas.add(im)
+      }).catch(() => { /* modelo apagado da biblioteca: ficam as caixas */ })
+    })
     const ocupado = new Map(), semLugar = []
     for (const pp of presentes) {
       let a = pp.posto ? assentos.find((x) => x.posto === pp.posto && !ocupado.has(x)) : null
@@ -1505,11 +1568,51 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       E.colideCarro = colideFixo && ((x, z, psi, L, W) => {
         const fixo = colideFixo(x, z, psi, L, W)
         if (fixo) return fixo
-        const extra = []
-        for (const o of tr?.lista() || []) { if (Math.hypot(o.x - x, o.z - z) < 14) { const ca = Math.abs(Math.cos(o.psi)) > 0.5, hl = o.comp / 2, hw = (TIPOS_TRANSITO[o.tipo]?.W || 1.8) / 2; extra.push(ca ? [o.x - hw, o.z - hl, o.x + hw, o.z + hl] : [o.x - hl, o.z - hw, o.x + hl, o.z + hw]) } }
+        const extra = [], quem = []
+        for (const o of tr?.lista() || []) { if (Math.hypot(o.x - x, o.z - z) < 16) { const ca = Math.abs(Math.cos(o.psi)) > 0.5, hl = o.comp / 2, hw = o.W / 2; extra.push(ca ? [o.x - hw, o.z - hl, o.x + hw, o.z + hl] : [o.x - hl, o.z - hw, o.x + hl, o.z + hw]); quem.push(o) } }
+        for (const o of E.outros?.carros() || []) { if (Math.hypot(o.x - x, o.z - z) < 16) { const ca = Math.abs(Math.cos(o.psi)) > 0.5, hl = o.L / 2, hw = o.W / 2; extra.push(ca ? [o.x - hw, o.z - hl, o.x + hw, o.z + hl] : [o.x - hl, o.z - hw, o.x + hl, o.z + hw]) } }
         for (const v of E.veiculos || []) { if (v === E.dirigindo?.ref) continue; const S = v.veh.S; if (S.y > 1 || Math.hypot(S.x - x, S.z - z) > 14) continue; const ca = Math.abs(Math.cos(S.psi)) > 0.5, hl = v.veh.dims.L / 2, hw = v.veh.dims.W / 2; extra.push(ca ? [S.x - hw, S.z - hl, S.x + hw, S.z + hl] : [S.x - hl, S.z - hw, S.x + hl, S.z + hw]) }
-        return extra.length ? colisorCidade({ obstaculos: extra })(x, z, psi, L, W) : null
+        const r2 = extra.length ? colisorCidade({ obstaculos: extra })(x, z, psi, L, W) : null
+        if (r2 && quem.length) {   // bateu num carro do trânsito: ele para e balança (mais forte quanto mais rápido)
+          const S = E.dirigindo?.veh.S, o = quem.sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z))[0]
+          if (S && Math.abs(S.vx) > 1.5) tr.bater(o.c, Math.abs(S.vx) / 6)
+        }
+        return r2
       })
+      // trânsito e estacionamentos com os carros da biblioteca (versões leves): cada veículo do trânsito vira um deles
+      E.frota = []
+      const leves = mapa.modelos?.leves || {}
+      const frotaCfg = (mapa.veiculos || []).filter((v) => leves[v.avatar_id])
+      if (tr && frotaCfg.length) {
+        const mundoF = mundo
+        Promise.all(frotaCfg.map((v) => carregarAvatar(leves[v.avatar_id]).then((gl) => ({ v, gl })).catch(() => null))).then((lst) => {
+          if (estado.current?.mundo !== mundoF) return
+          const prontos = lst.filter(Boolean).map(({ v, gl }) => {
+            // geometria única, frente em +z → normaliza para o comprimento real, base no chão e frente em +x (trânsito)
+            let malha = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !malha) malha = o })
+            if (!malha) return null
+            const geo = malha.geometry.clone(); geo.applyMatrix4(malha.matrixWorld); geo.computeBoundingBox()
+            const bb = geo.boundingBox, tam = bb.getSize(new THREE.Vector3())
+            if (tam.x > tam.z * 1.2) geo.rotateY(Math.PI / 2)
+            geo.computeBoundingBox()
+            const b2 = geo.boundingBox, t2 = b2.getSize(new THREE.Vector3())
+            const Lr = v.fisica?.comprimento > 0 ? v.fisica.comprimento : t2.z < 2 ? 4.5 : t2.z
+            const k = Lr / t2.z
+            geo.translate(-(b2.min.x + b2.max.x) / 2, -b2.min.y, -(b2.min.z + b2.max.z) / 2); geo.scale(k, k, k); geo.rotateY(Math.PI / 2)
+            return { v, gl, geo, mat: malha.material, L: Lr, W: t2.x * k }
+          }).filter(Boolean)
+          E.frota = prontos
+          const moto = prontos.find((f) => f.v.fisica?.duasRodas), onibus = prontos.find((f) => f.L >= 8)
+          const carros = prontos.filter((f) => f !== moto && f !== onibus)
+          tr.vestir((c, i) => {
+            const f = c.tipo === 'moto' ? moto : c.tipo === 'onibus' ? onibus : carros[i % Math.max(1, carros.length)]
+            if (!f) return null
+            const m = new THREE.Mesh(f.geo, f.mat); m.castShadow = true; m.receiveShadow = true
+            return { grupo: m, comp: f.L, W: f.W, frota: f }
+          })
+          if (carros.length) tr.estacionados?.trocar(carros.map((f) => ({ geo: f.geo, mat: f.mat, f })))
+        })
+      }
       if (cidC && (mapa.veiculos || []).length) {
         const colide = colisorCidade(cidC)
         const vagas = []   // em volta da calçada do prédio, paralelas ao meio-fio, sem bater em lote
@@ -1522,8 +1625,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           if (vagas.length >= mapa.veiculos.length * 2 + 4) break
         }
         const mundoAtual = mundo
+        const levesV = mapa.modelos?.leves || {}
         mapa.veiculos.forEach((vc, i) => {
-          carregarAvatar(vc.avatar_id).then((gltf) => {
+          // parado na rua: versão leve (9 mil triângulos); ao entrar, troca pelo modelo completo
+          carregarAvatar(levesV[vc.avatar_id] || vc.avatar_id).then((gltf) => {
             if (estado.current?.mundo !== mundoAtual) return   // a cena foi refeita enquanto baixava
             const veh = criarVeiculo(clonarComOssos(gltf.scene), vc.fisica || {})
             let x = vc.x, z = vc.z, psi = vc.rot || 0
@@ -1535,7 +1640,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
               ;[x, z, psi] = v
             }
             veh.colocar(x, z, psi); veh.atualizar(0, null, yT); grupoCarros.add(veh.raiz)
-            E.veiculos.push({ cfg: vc, veh, colide: E.colideCarro || colide, yT, nome: vc.nome || gltf.meta?.nome || 'Carro' })
+            E.veiculos.push({ cfg: vc, veh, colide: E.colideCarro || colide, yT, nome: vc.nome || gltf.meta?.nome || 'Carro', completo: levesV[vc.avatar_id] ? vc.avatar_id : null })
           }).catch(() => { /* veículo apagado da biblioteca: fica fora das ruas */ })
         })
       }
@@ -1740,7 +1845,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const c = E.ctrl
       if (!c) return
       if (E.dirigindo) sairDoCarro(true)
-      if (c.fazendoAte && E.pontoCafe?.maquina) E.pontoCafe.maquina.fazendo = false   // largou no meio do café
+      if (c.fazendoAte && (E.cafeAtual || E.pontoCafe)?.maquina) (E.cafeAtual || E.pontoCafe).maquina.fazendo = false   // largou no meio do café
       if (E.viagem) { E.viagem = null; E.setViagem?.(null) }
       if (E.nivel === 'terreo') {   // largou no térreo: a pessoa sobe e fica na frente do elevador do andar
         E.trocarNivel?.('andar')
@@ -1827,9 +1932,19 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         c.av.userData.fase = Math.PI / 2 / 1.55 - t
         return
       }
-      const pc = E.pontoCafe, P = c.av.position
-      if (!pc || E.nivel === 'terreo') { aviso('A cafeteira fica na copa do escritório (suba pelo elevador).'); return }
-      if (Math.hypot(pc.x - P.x, pc.z - P.z) > 1.6) { aviso('Vá até a cafeteira da copa (até 1,5 m dela) e aperte C.'); return }
+      const P = c.av.position
+      if (E.nivel === 'terreo') { aviso('As cafeteiras ficam no andar do escritório (suba pelo elevador).'); return }
+      // a máquina mais perto: a da copa (até 1,6 m do ponto de café) ou a de cima de um armário (até 1 m da borda dele)
+      let pc = null, dm = Infinity
+      if (E.pontoCafe) { const d0 = Math.hypot(E.pontoCafe.x - P.x, E.pontoCafe.z - P.z); if (d0 <= 1.6) { pc = E.pontoCafe; dm = d0 } }
+      for (const a of cafesArmario) {
+        const cs = Math.cos(a.ry), sn = Math.sin(a.ry), dx = P.x - a.x, dz = P.z - a.z
+        const u = dx * cs - dz * sn, v = dx * sn + dz * cs   // no sistema do armário
+        const d1 = Math.hypot(Math.max(0, Math.abs(u) - a.w / 2), Math.max(0, Math.abs(v) - a.d / 2))
+        if (d1 <= 1 && d1 < dm) { dm = d1; pc = { x: P.x, z: P.z, olhar: [a.x, a.z], maquina: a.maquina } }
+      }
+      if (!pc) { aviso(cafesArmario.length ? 'Encoste numa cafeteira (copa ou armário, até 1 m) e aperte C.' : 'Vá até a cafeteira da copa e aperte C.'); return }
+      E.cafeAtual = pc
       c.yaw = Math.atan2(pc.olhar[0] - P.x, pc.olhar[1] - P.z)
       c.fazendoAte = t + 5
       if (pc.maquina) pc.maquina.fazendo = true
@@ -1957,7 +2072,9 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const cid = E.cidadeRuas, livreRua = (x, z) => !cid || (!cid.obstaculos.some((o) => x > o[0] - 0.3 && x < o[2] + 0.3 && z > o[1] - 0.3 && z < o[3] + 0.3))
       const [dx, dz] = opc.find(([a, b]) => livreRua(S.x + a, S.z + b)) || opc[0]
       D.veh.ent.acel = D.veh.ent.freio = D.veh.ent.dir = 0; D.veh.ent.mao = true
-      c.av.position.set(S.x + dx, D.yT, S.z + dz); c.av.visible = true; c.yaw = S.psi
+      c.av.position.set(S.x + lx * W * 0.18, D.yT, S.z + lz * W * 0.18); c.av.visible = true; c.av.scale.y = 0.7; c.yaw = S.psi
+      if (!forcar) E.transicao = { fase: 'sair', t: 0, item: D.ref || D, porta: [S.x + dx, S.z + dz] }
+      else c.av.position.set(S.x + dx, D.yT, S.z + dz)
       D.som?.buzinar(false); D.som?.fechar(); E.dirigindo = null; E.hudCarro = null; c.teclas.clear()
       salvarVaga(D)
       if (!forcar) E.setControle?.({ modo: c.modo, info: c.info, sentado: false, carro: D.nome, aviso: 'Carro estacionado aqui. E perto dele entra de novo.' })
@@ -1966,6 +2083,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     E.alternarCarro = () => {
       const c = E.ctrl
       if (!c || c.assento || E.viagem) return false
+      if (E.transicao) return true   // já entrando ou saindo
       if (E.dirigindo) return sairDoCarro(false)
       if (E.nivel !== 'terreo') return false
       const P = c.av.position
@@ -1975,11 +2093,62 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         if (!novo) return false
         v = { x: novo }
       }
-      v.x.veh.ent.mao = false
-      E.dirigindo = { ...v.x, ref: v.x, cam: 'perseguicao', som: criarSom(), camPsi: null }
-      c.av.visible = false; c.teclas.clear(); if (c.label) c.label.visible = false
-      E.setControle?.({ modo: c.modo, info: c.info, sentado: false, dirigindo: v.x.nome, voar: !!v.x.veh.F.voar, aviso: v.x.cfg?.roubado ? `Você pegou ${v.x.nome.toLowerCase()} da rua. Ele fica onde você deixar (só nesta visita).` : undefined })
+      // como no jogo: corre até a porta do motorista, abaixa, entra e só então assume o volante
+      const item = v.x
+      c.teclas.clear()
+      E.transicao = { fase: 'ir', t: 0, item, fim: () => {
+        item.veh.ent.mao = false; item.veh.ent.freio = 0
+        E.dirigindo = { ...item, ref: item, cam: 'perseguicao', som: criarSom(), camPsi: null }
+        c.av.visible = false; c.av.scale.y = 1; if (c.label) c.label.visible = false
+        E.setControle?.({ modo: c.modo, info: c.info, sentado: false, dirigindo: item.nome, voar: !!item.veh.F.voar, aviso: item.cfg?.roubado ? `Você pegou ${item.nome} da rua. Ele fica onde você deixar (só nesta visita).` : undefined })
+        const completo = item.completo || item.cfg?.avatar
+        if (completo) carregarAvatar(completo).then((gl) => {   // modelo completo enquanto dirige (a física continua igual)
+          if (E.dirigindo?.ref !== item || item.veh.completo) return
+          const velho = item.veh, nv = criarVeiculo(clonarComOssos(gl.scene), velho.F)
+          Object.assign(nv.S, velho.S); Object.assign(nv.ent, velho.ent); nv.completo = true
+          nv.atualizar(0, null, item.yT); velho.raiz.parent?.add(nv.raiz); velho.raiz.removeFromParent()
+          item.veh = nv; E.dirigindo.veh = nv; item.completo = null
+        }).catch(() => { /* segue com a versão leve */ })
+      } }
       return true
+    }
+    // pessoa que sai correndo do carro roubado (some depois de alguns segundos)
+    E.fugitivos = []
+    const fugir = (x, z, psi, W, yT) => {
+      const p = pessoa(Math.random, false); const lx = Math.cos(psi), lz = -Math.sin(psi)
+      p.position.set(x + lx * (W / 2 + 0.4), yT, z + lz * (W / 2 + 0.4)); E.grupoCarros.add(p)
+      const ang = Math.atan2(lx, lz) + (Math.random() - 0.5) * 0.8
+      E.fugitivos.push({ p, dx: Math.sin(ang), dz: Math.cos(ang), t: 5, passo: 0 })
+    }
+    // entrar e sair do carro (posição da porta do motorista e do banco), chamado pelo moverControle; devolve o quanto andou
+    const passoTransicao = (dt, c) => {
+      const T = E.transicao, P = c.av.position, S = T.item.veh.S, { L, W } = T.item.veh.dims
+      if (T.fase !== 'sair') { T.item.veh.ent.freio = 1; T.item.veh.ent.acel = 0; T.item.veh.atualizar(dt, T.item.colide, T.item.yT) }   // carro andando: freia sozinho
+      const lx = Math.cos(S.psi), lz = -Math.sin(S.psi), fx = Math.sin(S.psi), fz = Math.cos(S.psi)
+      const porta = T.porta || [S.x + lx * (W / 2 + 0.45) + fx * L * 0.06, S.z + lz * (W / 2 + 0.45) + fz * L * 0.06]
+      const banco = [S.x + lx * W * 0.18, S.z + lz * W * 0.18]
+      T.t += dt
+      const suave = (k) => k * k * (3 - 2 * k)
+      if (T.fase === 'ir') {
+        const dx = porta[0] - P.x, dz = porta[1] - P.z, d = Math.hypot(dx, dz)
+        if (d < 0.12 || T.t > 4) { T.fase = 'entrar'; T.t = 0; return 0 }
+        const passo = Math.min(d, 3.4 * dt); P.x += (dx / d) * passo; P.z += (dz / d) * passo; c.yaw = Math.atan2(dx, dz)
+        return passo
+      }
+      const k = suave(Math.min(1, T.t / (T.fase === 'entrar' ? 0.75 : 0.6)))
+      if (T.fase === 'entrar') {
+        c.yaw = Math.atan2(-lx, -lz) + (S.psi - Math.atan2(-lx, -lz)) * k
+        P.x = porta[0] + (banco[0] - porta[0]) * k; P.z = porta[1] + (banco[1] - porta[1]) * k
+        c.av.scale.y = 1 - 0.3 * k
+        if (k >= 1) { E.transicao = null; T.fim() }
+        return 0
+      }
+      // sair: do banco para a porta, levantando
+      c.av.visible = true
+      P.x = banco[0] + (porta[0] - banco[0]) * k; P.z = banco[1] + (porta[1] - banco[1]) * k
+      c.av.scale.y = 0.7 + 0.3 * k; c.yaw = S.psi
+      if (k >= 1) { c.av.scale.y = 1; E.transicao = null; T.fim?.() }
+      return 0
     }
     // veículo do trânsito ou de um estacionamento perto da pessoa (até 3,5 m): sai da rua e vira dirigível com a física
     // do tipo dele; o motorista some (ilustração: ninguém se machuca) e o carro continua na velocidade em que estava
@@ -1992,7 +2161,12 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       for (const p of tr.estacionados?.lista() || []) { const d = Math.hypot(p.x - P.x, p.z - P.z) - 2.1; if (d < 3.5 && (!m || d < m.d)) m = { d, o: p, de: 'parado' } }
       return m
     }
-    E.pertoDaRua = (P) => { const m = perto(P); return m ? (m.de === 'parado' ? 'Sedã estacionado' : `${NOMES_TIPO[m.o.tipo] || 'Carro'} do trânsito`) : null }
+    const frotaDe = (m) => (m.de === 'transito' ? m.o.frota : (E.frota || []).filter((f) => f.L < 8 && !f.v.fisica?.duasRodas)[m.o.mi ?? -1])
+    E.pertoDaRua = (P) => {
+      const m = perto(P); if (!m) return null
+      const f = frotaDe(m), nome = f ? f.v.nome : (m.de === 'parado' ? 'Sedã' : NOMES_TIPO[m.o.tipo] || 'Carro')
+      return m.de === 'parado' ? `${nome} estacionado` : `${nome} do trânsito`
+    }
     const pegarDaRua = (P) => {
       const m = perto(P)
       if (!m || !E.colideCarro) return null
@@ -2005,14 +2179,22 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const p = tr.estacionados.tirar(m.o.i); if (!p) return null
         tipo = 'sedan'; x = p.x; z = p.z; psi = p.psi; cor = p.cor
       }
-      const modelo = carroTransito(cor, tipo).g
-      const rodasDoModelo = []; modelo.traverse((o) => { if (o.isMesh && o.geometry?.type === 'CylinderGeometry' && o.rotation.x !== 0) rodasDoModelo.push(o) })
-      if (tipo !== 'moto') rodasDoModelo.forEach((o) => o.removeFromParent())   // as rodas passam a ser as da física
-      const T = TIPOS_TRANSITO[tipo] || TIPOS_TRANSITO.sedan
-      const veh = criarVeiculo(modelo, { ...T.fisica, inverter: 1, comprimento: T.L, esc: 1, nitro: 1 })
+      const f = frotaDe(m)
+      let veh, nome
+      if (f) {   // carro da biblioteca (versão leve): a física é a mesma do modelo completo
+        veh = criarVeiculo(clonarComOssos(f.gl.scene), { ...(f.v.fisica || {}), comprimento: f.L })
+        nome = f.v.nome
+      } else {
+        const modelo = carroTransito(cor, tipo).g
+        const rodasDoModelo = []; modelo.traverse((o) => { if (o.isMesh && o.geometry?.type === 'CylinderGeometry' && o.rotation.x !== 0) rodasDoModelo.push(o) })
+        if (tipo !== 'moto') rodasDoModelo.forEach((o) => o.removeFromParent())   // as rodas passam a ser as da física
+        const T = TIPOS_TRANSITO[tipo] || TIPOS_TRANSITO.sedan
+        veh = criarVeiculo(modelo, { ...T.fisica, inverter: 1, comprimento: T.L, esc: 1, nitro: 1 })
+        nome = NOMES_TIPO[tipo] || 'Carro'
+      }
       veh.colocar(x, z, psi); veh.S.vx = vel; veh.atualizar(0, null, yT); E.grupoCarros.add(veh.raiz)
-      const nome = NOMES_TIPO[tipo] || 'Carro'
-      const item = { cfg: { id: null, roubado: true }, veh, colide: E.colideCarro, yT, nome }
+      if (m.de === 'transito') fugir(x, z, psi, veh.dims.W, yT)   // o motorista sai correndo
+      const item = { cfg: { id: null, roubado: true, avatar: f?.v.avatar_id || null }, veh, colide: E.colideCarro, yT, nome }
       E.veiculos.push(item)
       return item
     }
@@ -2026,12 +2208,67 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     E.camCarro = () => { const D = E.dirigindo; if (D) D.cam = { perseguicao: 'capo', capo: 'cima', cima: 'perseguicao' }[D.cam] }
     E.buzina = (on) => E.dirigindo?.som?.buzinar(on)
     E.desvirar = () => { const D = E.dirigindo; if (!D) return; const S = D.veh.S; D.veh.colocar(S.x, S.z, S.psi) }
+    // ---------------- multijogador: manda a minha posição e desenha os outros ----------------
+    const remotos = new Map()   // id → { p, rot, carro: { chave, veh }, alvo }
+    E.remotos = remotos
+    E.outros = { carros: () => [...remotos.values()].filter((r) => r.carro?.veh && r.alvo?.carro && r.alvo.nivel === E.nivel).map((r) => { const S = r.carro.veh.S; return { x: S.x, z: S.z, psi: S.psi, L: r.carro.veh.dims.L, W: r.carro.veh.dims.W } }) }
+    const angLerp = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k
+    const sincronizarRemotos = (dt, t) => {
+      const mp = E.mp
+      if (!mp) return
+      const c = E.ctrl
+      if (c && !E.viagem) {
+        const D = E.dirigindo, P = c.av.position
+        mp.enviar(D ? { nivel: E.nivel, x: +D.veh.S.x.toFixed(2), z: +D.veh.S.z.toFixed(2), y: P.y, yaw: c.yaw,
+          carro: { av: D.cfg?.avatar_id || D.cfg?.avatar || null, nome: D.nome, L: D.veh.dims.L, x: +D.veh.S.x.toFixed(2), z: +D.veh.S.z.toFixed(2), alt: +D.veh.S.y.toFixed(2), psi: +D.veh.S.psi.toFixed(3), pitch: +D.veh.S.pitch.toFixed(3), roll: +D.veh.S.roll.toFixed(3), kmh: D.veh.hud().kmh } }
+          : { nivel: E.nivel, x: +P.x.toFixed(2), z: +P.z.toFixed(2), y: +P.y.toFixed(2), yaw: +c.yaw.toFixed(3), sent: !!c.assento, esc: c.av.scale.y < 0.95 })
+      }
+      const agora = performance.now()
+      for (const [id, o] of mp.outros) {
+        let r = remotos.get(id)
+        if (agora - o.recebido_em > 6000) { if (r) { r.p.removeFromParent(); r.carro?.veh.raiz.removeFromParent(); remotos.delete(id) } mp.outros.delete(id); continue }
+        if (!r) {   // figura com aparência sorteada pelo id (sempre a mesma para a mesma pessoa) e o nome em cima
+          let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+          const p = pessoa(aleatorio(h), false); const rot = etiqueta(o.nome || 'Pessoa', '#ffffff', 'rgba(124,58,237,0.9)'); rot.position.y = 2.15; p.add(rot)
+          p.position.set(o.x, o.y || 0, o.z); E.grupoCarros?.add(p) || mundo.add(p)
+          r = { p, rot, passo: 0 }; remotos.set(id, r)
+        }
+        r.alvo = o
+        const visivel = o.nivel === E.nivel
+        // carro: monta o modelo (biblioteca) uma vez por carro e só mexe a pose
+        const chave = o.carro ? `${o.carro.av || 'sedan'}` : null
+        if (chave !== (r.carro?.chave || null)) {
+          r.carro?.veh?.raiz.removeFromParent(); r.carro = chave ? { chave, veh: null } : null
+          if (chave) {
+            const montar = (modelo, fis) => { if (r.carro?.chave !== chave) return; const veh = criarVeiculo(modelo, fis); r.carro.veh = veh; veh.colocar(o.carro.x, o.carro.z, o.carro.psi); veh.atualizar(0, null, -(predio?.yA || 0)); E.grupoCarros?.add(veh.raiz) }
+            if (o.carro.av) carregarAvatar(o.carro.av).then((gl) => montar(clonarComOssos(gl.scene), { ...((mapa.veiculos || []).find((v) => v.avatar_id === o.carro.av)?.fisica || {}), comprimento: o.carro.L })).catch(() => { /* sem o modelo */ })
+            else { const m2 = carroTransito(0x9ca3af, 'sedan').g; montar(m2, { inverter: 1, comprimento: o.carro.L || 4.2 }) }
+          }
+        }
+        if (r.carro?.veh) {
+          const S = r.carro.veh.S, k = Math.min(1, dt * 10)
+          S.x += (o.carro.x - S.x) * k; S.z += (o.carro.z - S.z) * k; S.psi = angLerp(S.psi, o.carro.psi, k); S.y += (o.carro.alt - S.y) * k
+          S.pitch = o.carro.pitch; S.roll = o.carro.roll; S.voando = o.carro.alt > 0.3
+          r.carro.veh.atualizar(0, null, -(predio?.yA || 0)); r.carro.veh.raiz.visible = visivel
+          r.p.visible = false
+          continue
+        }
+        const k = Math.min(1, dt * 10), ax = r.p.position.x, az = r.p.position.z
+        r.p.position.x += (o.x - ax) * k; r.p.position.z += (o.z - az) * k; r.p.position.y = o.y || 0
+        r.p.rotation.y = angLerp(r.p.rotation.y, o.yaw || 0, k)
+        const andou = Math.hypot(r.p.position.x - ax, r.p.position.z - az)
+        r.passo += (andou / 0.68) * Math.PI
+        r.p.scale.y = o.esc ? 0.7 : 1
+        animarAndar(r.p, r.passo, Math.min(1, andou / Math.max(1e-4, 1.35 * dt)), t)
+        r.p.visible = visivel
+      }
+    }
     const moverControle = (dt, t) => {
       const c = E.ctrl, av = c.av, P = av.position
       E.tAgora = t
       if (c.fazendoAte && t >= c.fazendoAte) {   // café pronto: sai da máquina com a xícara
         c.fazendoAte = 0; c.cafeAte = t + 90
-        if (E.pontoCafe?.maquina) E.pontoCafe.maquina.fazendo = false
+        if ((E.cafeAtual || E.pontoCafe)?.maquina) (E.cafeAtual || E.pontoCafe).maquina.fazendo = false
         av.userData.fase = Math.PI / 2 / 1.55 - t - 1.2   // primeiro gole logo depois
         E.setControle?.({ modo: c.modo, info: c.info, sentado: false, aviso: 'Café pronto. C dá um gole; parado, ele bebe sozinho.' })
       }
@@ -2039,6 +2276,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const k = c.fazendoAte ? new Set() : c.teclas   // fazendo café: fica parado na máquina
       if (E.viagem) { passoViagem(dt, t); return }
       if (E.dirigindo) { dirigir(dt, c); return }
+      if (E.transicao) c.teclas.clear()   // entrando ou saindo do carro: as teclas esperam
       if (c.assento) {   // sentado trabalhando: digita; câmera da cabeça (1ª) ou por cima do ombro (3ª), olhando o monitor
         animarPessoa(av, t)
         av.getWorldPosition(vSent)
@@ -2063,7 +2301,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw)
       let mx = fx * f + fz * lat, mz = fz * f - fx * lat
       const n = Math.hypot(mx, mz)
-      let andou = 0
+      let andou = E.transicao ? passoTransicao(dt, c) : 0
       const vel = k.has('shift') ? 2.7 : 1.35
       if (n > 0) {
         mx /= n; mz /= n
@@ -2145,12 +2383,24 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       andarilhos.forEach((a) => moverAndarilho(a, dt, t))
       animarDispositivos(dispositivos, dt, t)
       if (E.ctrl) moverControle(dt, t)
+      sincronizarRemotos(dt, t)
       // plano de corte perto da câmera: 10 cm de perto (avatar, dentro do andar); 60 cm com a câmera longe (prédio de
       // fora), o que dá ~6x mais precisão de profundidade e acaba com o pisca-pisca de superfícies próximas
       const nearAlvo = E.ctrl || camera.position.distanceTo(controles.target) < 35 ? 0.1 : 0.6
       if (camera.near !== nearAlvo) { camera.near = nearAlvo; camera.updateProjectionMatrix() }
       E.elevAndar?.el.tick(dt); E.elevTerreo?.el.tick(dt)
       cafeteiras.forEach((c) => c.animar(t, !!c.fazendo))
+      if (!cafeTrocada && mapa.modelos?.cafeteira && cafeteiras.length) {   // cafeteira da biblioteca no lugar do desenho
+        cafeTrocada = true
+        const mundoC = mundo
+        carregarAvatar(mapa.modelos.cafeteira).then((gl) => { if (estado.current?.mundo === mundoC) cafeteiras.forEach((c) => c.trocar?.(clonarComOssos(gl.scene))) }).catch(() => { /* fica o desenho */ })
+      }
+      if (E.fugitivos?.length) E.fugitivos = E.fugitivos.filter((f) => {
+        f.t -= dt; f.passo += dt * 9; f.p.position.x += f.dx * 4.2 * dt; f.p.position.z += f.dz * 4.2 * dt; f.p.rotation.y = Math.atan2(f.dx, f.dz)
+        animarAndar(f.p, f.passo, 1, t)
+        if (f.t <= 0) { f.p.removeFromParent(); return false }
+        return true
+      })
       for (const P of E.personagens || []) { if (E.nivel !== 'terreo') E.moverPersonagem(P, dt); P.mixer.update(dt) }
       for (const g of E.glbs || []) {   // avatares GLB: animação pelo movimento (andando × parado) ou sentado na mesa
         const pos = g.it.av.getWorldPosition(new THREE.Vector3())
@@ -2365,6 +2615,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         controlar={(info, modo) => { setCartao(null); setEscrevendo(false); estado.current.iniciarControle?.(info, modo) }} />}
       {acoes && <RascunhoEscrita mapa={mapa} rascunho={rascunhoEsc} setRascunho={setRascunhoEsc} acoes={acoes} ocupado={ocupado} executar={executar} />}
       {controle && <MiniMapa estado={estado} />}
+      {online.length > 1 && (
+        <p className="pointer-events-none absolute right-3 top-14 z-10 max-w-[60%] truncate rounded-md bg-violet-600/90 px-2 py-1 text-[11px] font-medium text-white" title={online.join(', ')}>
+          No mapa agora: {online.join(', ')}
+        </p>
+      )}
       {controle?.dirigindo && <PainelCarro estado={estado} propulsores={() => estado.current.propulsores?.()} tecla={(k, on) => { const t = estado.current.ctrl?.teclas; if (t) { if (on) t.add(k); else t.delete(k) } }} />}
       <BarraControle controle={controle} carro={() => estado.current.alternarCarro?.()} camCarro={() => estado.current.camCarro?.()} propulsores={() => estado.current.propulsores?.()} nome={controle?.info?.tipo === 'pessoa' ? ((mapa.pessoas || []).find((p) => p.id === controle.info.id)?.nome || 'Pessoa') : 'Pessoa sem cadastro'}
         mudarModo={(m) => estado.current.mudarModo?.(m)} sair={() => estado.current.pararControle?.()} sentar={() => estado.current.sentar?.()} cafe={() => estado.current.cafe?.()}

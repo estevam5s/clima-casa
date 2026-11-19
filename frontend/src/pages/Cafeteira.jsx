@@ -4,6 +4,8 @@ import { Coffee, Flame, Link2, Package, Power, PowerOff, Timer, Zap } from 'luci
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { cafeteiraVermelha } from '../components/copa3d'
+import { carregarAvatar } from '../components/avatares/AvatarViewer'
+import { clone as clonarComOssos } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { Agendas, ConectarAparelho, Estado, Historico, SemAparelho, useDispositivos } from '../components/dispositivos/Comum'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Vazio, useDados, useToast } from '../components/ui'
 
@@ -20,14 +22,16 @@ function Maquina3D({ ligada }) {
     cam.position.set(0.55, 0.42, 0.75); cam.lookAt(0, 0.15, 0)
     cena.add(new THREE.HemisphereLight(0xffffff, 0x94a3b8, 1.6)); const sol = new THREE.DirectionalLight(0xffffff, 1.8); sol.position.set(1, 2, 1.5); cena.add(sol)
     const m = cafeteiraVermelha({ ligada }); cena.add(m.g)
+    let vivo = true   // o modelo da biblioteca (Avatares) escolhido para a cafeteira; sem ele fica o desenho vermelho
+    api.get('/api/mapa').then((mp) => mp?.modelos?.cafeteira && carregarAvatar(mp.modelos.cafeteira)).then((gl) => { if (vivo && gl) m.trocar(clonarComOssos(gl.scene)) }).catch(() => { /* fica o desenho */ })
     const medir = () => { const w = el.clientWidth, h = el.clientHeight; r.setSize(w, h); cam.aspect = w / Math.max(1, h); cam.updateProjectionMatrix() }
     medir(); const ro = new ResizeObserver(medir); ro.observe(el)
     let raf = 0; const t0 = performance.now()
     const q = () => { raf = requestAnimationFrame(q); const t = (performance.now() - t0) / 1000; if (!parado) m.g.rotation.y = Math.sin(t * 0.4) * 0.6; m.animar(t, estado.current.ligada); r.render(cena, cam) }
     q()
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() }); r.dispose(); r.domElement.remove() }
+    return () => { vivo = false; cancelAnimationFrame(raf); ro.disconnect(); cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() }); r.dispose(); r.domElement.remove() }
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps
-  return <div ref={ref} className="h-56 w-full" role="img" aria-label={`Cafeteira de cápsulas vermelha ${ligada ? 'ligada' : 'desligada'}`} />
+  return <div ref={ref} className="h-56 w-full" role="img" aria-label={`Cafeteira ${ligada ? 'ligada' : 'desligada'}`} />
 }
 
 function Painel({ d0, aoMudar, podeGerenciar, podeControlar }) {

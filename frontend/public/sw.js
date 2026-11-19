@@ -1,5 +1,5 @@
 // Service worker do Clima Escritório: guarda a interface para abrir sem rede. A API nunca vai para o cache.
-const VERSAO = 'clima-escritorio-v5'
+const VERSAO = 'clima-escritorio-v6'
 const BASICO = ['/', '/manifest.webmanifest', '/icone-192.png', '/icone-512.png', '/icone.svg']
 
 self.addEventListener('install', (e) => {

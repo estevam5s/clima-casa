@@ -98,7 +98,7 @@ const planoGeo = (w, d, x, y, z) => { const g = new THREE.PlaneGeometry(w, d); g
 export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 }) {
   const grupo = new THREE.Group()
   const [cx, cz] = centro
-  const PASSO = 34, LOTE = 24, N = 5          // lotes de 24 m a cada 34 m (10 m de rua) até ±170 m
+  const PASSO = 34, LOTE = 24, N = 8          // lotes de 24 m a cada 34 m (10 m de rua) até ±272 m
   const porEstilo = Object.fromEntries(Object.keys(ESTILOS).map((k) => [k, { perto: [], longe: [] }]))
   const tetos = [], parapeitos = [], sacadas = [], maquinas = [], caixas = [], calcadas = [], gramados = [], toldos = []
   const arvores = [], postes = []
@@ -163,14 +163,14 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
       obstaculos.push([lx + 5.4, lz - 5.1, lx + 11.6, lz + 5.1], [lx - 4.6, lz - 2.8, lx + 0.6, lz - 1.2], [lx - 4.6, lz + 1.2, lx + 0.6, lz + 2.8])
       continue
     }
-    if (sorte >= 0.1 && sorte < 0.2 && !(naFrente && dist < 60)) {   // estacionamento aberto: 2 fileiras de vagas com carros
+    if (sorte >= 0.1 && sorte < 0.15 && dist < 190 && !(naFrente && dist < 60)) {   // estacionamento aberto (perto do centro): 2 fileiras de vagas com carros
       pisoEst.push(planoGeo(LOTE - 1, LOTE - 1, lx, 0.02, lz))
       const giroE = r() < 0.5 ? 0 : Math.PI / 2
       for (const fil of [-1, 1]) for (let k = 0; k < 8; k++) {
         const u = -LOTE / 2 + 1.9 + k * 2.75, v = fil * 6
         const [px, pz] = giroE ? [lx + v, lz + u] : [lx + u, lz + v]
         vagasLinhas.push(giroE ? caixaGeo(5, 0.01, 0.1, px, 0.03, pz - 1.37) : caixaGeo(0.1, 0.01, 5, px - 1.37, 0.03, pz))
-        if (r() < 0.72) {   // carro na vaga, de frente para o corredor
+        if (r() < 0.55) {   // carro na vaga, de frente para o corredor
           const psi = (giroE ? (fil > 0 ? -Math.PI / 2 : Math.PI / 2) : (fil > 0 ? Math.PI : 0))
           parados.push({ x: px, z: pz, psi, cor: [0xf8fafc, 0xd4d4d8, 0x9ca3af, 0x1f2937, 0xb91c1c, 0x1e40af, 0x0f766e, 0x111827][Math.floor(r() * 8)] })
         }
@@ -245,7 +245,7 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
 
   // skyline distante (sem detalhes, some na névoa)
   for (let k = 0; k < 46; k++) {
-    const ang = r() * Math.PI * 2, dist = 205 + r() * 70
+    const ang = r() * Math.PI * 2, dist = N * PASSO + 40 + r() * 80
     const dx = Math.cos(ang), dz = Math.sin(ang)
     if (dx * cam[0] + dz * cam[1] > 0.7) continue
     const estilo = nomes[Math.floor(r() * nomes.length)], e = ESTILOS[estilo]
@@ -342,11 +342,27 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
     })
     for (const m of [lata, vid, rod]) { m.castShadow = true; m.receiveShadow = true; grupo.add(m) }
     const zero = new THREE.Matrix4().makeScale(0, 0, 0)
+    let trocados = null   // [InstancedMesh por modelo] quando os carros viram modelos 3D da biblioteca
     estacionados = {
       lista: () => parados.map((p, i) => ({ ...p, i })).filter((p) => !p.fora),
+      // troca as caixas por modelos (cada um { geo, mat }, frente em +x, base no chão): um InstancedMesh por modelo
+      trocar(modelos) {
+        if (!modelos.length) return
+        const cont = modelos.map(() => 0)
+        parados.forEach((p, i) => { p.mi = i % modelos.length; p.ii = cont[p.mi]++ })
+        trocados = modelos.map((m, k) => { const im = new THREE.InstancedMesh(m.geo, m.mat, Math.max(1, cont[k])); im.castShadow = true; im.receiveShadow = true; grupo.add(im); return im })
+        const up = new THREE.Vector3(0, 1, 0), um = new THREE.Vector3(1, 1, 1)
+        parados.forEach((p) => {
+          if (p.fora) { trocados[p.mi].setMatrixAt(p.ii, zero); return }
+          q.setFromAxisAngle(up, p.psi - Math.PI / 2); mat4.compose(new THREE.Vector3(p.x, 0, p.z), q, um); trocados[p.mi].setMatrixAt(p.ii, mat4)
+        })
+        trocados.forEach((im) => { im.instanceMatrix.needsUpdate = true })
+        for (const m of [lata, vid, rod]) m.visible = false
+      },
       tirar(i) {
         const p = parados[i]; if (!p || p.fora) return null
         p.fora = true; for (const m of [lata, vid, rod]) { m.setMatrixAt(i, zero); m.instanceMatrix.needsUpdate = true }
+        if (trocados && p.mi != null) { trocados[p.mi].setMatrixAt(p.ii, zero); trocados[p.mi].instanceMatrix.needsUpdate = true }
         const k = obstaculos.indexOf(p.ret); if (k >= 0) obstaculos.splice(k, 1)
         return p
       },

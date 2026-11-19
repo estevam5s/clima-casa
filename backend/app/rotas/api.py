@@ -1671,7 +1671,7 @@ def ver_mapa(request: Request):
                  "ares": {k: v for k, v in mapa["ares"].items() if k in ids_a},
                  "elementos": mapa["elementos"], "atualizado_em": mapa.get("atualizado_em"),
                  "auto": mapa.get("auto", []), "andar": mapa.get("andar", 9), "andares": mapa.get("andares", 11),
-                 "pessoas": mapa.get("pessoas", []), "escritas": mapa.get("escritas", []), "veiculos": db.cfg("mapa_veiculos") or []},
+                 "pessoas": mapa.get("pessoas", []), "escritas": mapa.get("escritas", []), "modelos": db.cfg("mapa_modelos") or {}, "veiculos": db.cfg("mapa_veiculos") or []},
         "projetos": projetos, "ares": ares, "pode_editar": acesso.pode("projetos.gerenciar"),
         "edita_elementos": tudo, "pode_controlar": acesso.pode("aparelhos.controlar"),
         "admin": (acesso.atual.get() or {}).get("papel") in ("dono", "admin"),

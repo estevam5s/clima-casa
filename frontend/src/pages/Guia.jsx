@@ -316,6 +316,7 @@ const CAPITULOS = [
       { t: 'Editar a aparência', d: 'Avatares → Editar aparência: matiz, saturação, brilho, contraste e tingir; Recolorir região (clique na calça, camisa ou carroceria); Pincel; material (fosco, metal, brilho próprio); forma (escala, largura, altura). Salvar guarda uma versão nova e o original fica para Voltar ao original.', link: ['/avatares', 'Abrir Avatares'] },
       { t: 'Carros nas ruas', d: 'Num avatar do tipo Veículo: Nas ruas do mapa 3D → Colocar nas ruas e ajuste a física (massa, potência, aderência, freios, câmbio, tração).' },
       { t: 'Dirigir', d: 'No mapa, controle uma pessoa, desça ao térreo, saia do prédio e aperte E perto do carro. W acelera, S freia (parado engata a ré), A/D vira, Espaço é o freio de mão, Shift o nitro, C troca a câmera, H buzina, R desvira e E sai. O câmbio é automático e o controle de estabilidade segura a derrapagem. No Roadster elétrico, T liga os propulsores: Espaço sobe, X desce. Perto de um carro do trânsito ou de um estacionamento, E pega ele.' },
+      { t: 'Jogar junto', d: 'Quem abrir o mapa ao mesmo tempo aparece para os outros, com o nome em cima, andando ou dirigindo (o selo roxo mostra quem está no mapa). Só usuários do sistema entram.' },
     ],
   },
   {

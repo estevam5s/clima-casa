@@ -159,18 +159,19 @@ def varrer() -> dict:
         principal = None
     cego = bool(principal) and not principal.get("ve_transmissores")
     if visto and db.agora() - int(visto) > 3 * 3600:
-        registrar_auto(_chave("agente_off", time.strftime("%Y%m%d")), "Nenhum agente ligado há mais de 3 horas",
-                       "Sem agente, nenhum comando chega aos ares. Ligue o computador do escritório (ou o Raspberry Pi).", pagina="/infra", gravidade="alta", categoria="agente")
-        achados += 1
+        # situação de operação (computador desligado), não defeito do sistema: vira notificação, não bug
+        from . import notificacoes
+        notificacoes.notificar("agente:off", "agente", "alta", "Nenhum agente ligado há mais de 3 horas",
+                               "Sem agente, nenhum comando chega aos ares. Ligue o computador do escritório (ou o Raspberry Pi).", "/infra?aba=agentes")
     elif cego:
         cegos = int(db.cfg("agente_cego_desde", 0) or 0) or db.agora()
         db.set_cfg("agente_cego_desde", cegos)
         if db.agora() - cegos > 3 * 3600:
-            registrar_auto(_chave("agente_cego", time.strftime("%Y%m%d")), "O agente no comando não está no escritório",
-                           f"O computador no comando ({principal.get('nome')}) não enxerga nenhum transmissor há mais de 3 horas: os comandos "
-                           "não chegam aos ares. Ligue um computador do escritório (ou o Raspberry Pi) e deixe-o como preferido em Infra → Agentes.",
-                           pagina="/infra", gravidade="alta", categoria="agente")
-            achados += 1
+            from . import notificacoes   # operação (computador fora do escritório), não defeito: notificação, não bug
+            notificacoes.notificar("agente:cego", "agente", "alta", "O agente no comando não está no escritório",
+                                   f"O computador no comando ({principal.get('nome')}) não enxerga nenhum transmissor há mais de 3 horas: os comandos "
+                                   "não chegam aos ares. Ligue um computador do escritório (ou o Raspberry Pi) e deixe-o como preferido em Infra → Agentes.",
+                                   "/infra?aba=agentes")
     if not cego:
         db.set_cfg("agente_cego_desde", 0)
     if not (cego or (visto and db.agora() - int(visto) > 3 * 3600)):

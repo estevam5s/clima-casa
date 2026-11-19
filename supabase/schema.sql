@@ -564,3 +564,13 @@ create index if not exists bugs_estado_atualizado on public.bugs (estado, atuali
 alter table public.avatares add column if not exists arquivo_original text;
 alter table public.avatares add column if not exists arquivo_novo text;
 alter table public.avatares add column if not exists ajustes jsonb;
+
+-- Mapa 3D multijogador (Realtime, canal privado "mapa-escritorio"): só usuários ativos do sistema entram, enviam e recebem
+CREATE OR REPLACE FUNCTION public.mapa_usuario_ativo() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (SELECT 1 FROM public.usuarios u WHERE u.id::text = auth.uid()::text AND u.ativo) $$;
+REVOKE ALL ON FUNCTION public.mapa_usuario_ativo() FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.mapa_usuario_ativo() TO authenticated;
+DROP POLICY IF EXISTS "mapa: usuarios ativos recebem" ON realtime.messages;
+DROP POLICY IF EXISTS "mapa: usuarios ativos enviam" ON realtime.messages;
+CREATE POLICY "mapa: usuarios ativos recebem" ON realtime.messages FOR SELECT TO authenticated USING (realtime.topic() = 'mapa-escritorio' AND public.mapa_usuario_ativo());
+CREATE POLICY "mapa: usuarios ativos enviam" ON realtime.messages FOR INSERT TO authenticated WITH CHECK (realtime.topic() = 'mapa-escritorio' AND public.mapa_usuario_ativo());
