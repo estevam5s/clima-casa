@@ -42,6 +42,13 @@ Feito também:
 - **1.17.0**: relatório de Segurança no modelo da Prefeitura (PDF/Word) e por e-mail (`POST /api/seguranca/relatorio/enviar`,
   só e-mails de usuários); Guia em PDF oficial (`POST /api/guia/pdf`) e 7 capítulos novos.
 
+- **19/11 (1.18.0 e 1.19.0)**: 3 bugs corrigidos na raiz (formato de comando, gravação cortada, falha por agente fora);
+  assistente de IA (NVIDIA, chave cifrada em `config.ia`) no painel `/ia` e no Telegram (texto livre); bot com painel
+  completo do ar; editor de aparência dos avatares; 7 modelos da pasta `blender` na biblioteca (ids 12–18); carro
+  esportivo (id 18) nas ruas do mapa com física. CSP corrigida (texturas de .glb).
+  **Spotify**: 403 "The user is not registered for this application": a conta conectada em 18/11 não está em User
+  Management do app (developer.spotify.com). Só o dono resolve lá (ou reconecta com a conta Premium que estava antes).
+
 A fazer (decisões já tomadas pelo dono):
 3. Apps por link temporário do Storage do Supabase (sem GitHub) + releases novos de Android e desktop (confirmado).
 4. Treinamento com 1.000+ perguntas próprias (ISO e LGPD), nota na tela e por e-mail.
