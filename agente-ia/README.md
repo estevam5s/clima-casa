@@ -21,7 +21,31 @@ clima-ia --modelo rapido             # ultra (padrão) · rapido · mistral · o
 | `editar_arquivo`, `escrever_arquivo` | muda arquivos (mostra a diferença antes) | **sim** |
 | `executar_comando` | comando no terminal na raiz do projeto (build, testes, git) | **sim** |
 
-Comandos dentro da conversa: `/ajuda`, `/status`, `/modelo`, `/limpar`, `/salvar`, `/sair`.
+## Interface (no jeito do Claude Code)
+
+```
+╭──────────────────────────────────────────────────────╮
+│ ✻ Bem-vindo ao clima-ia, o agente do Clima Escritório! │
+╰──────────────────────────────────────────────────────╯
+> desliga o ar do diretor
+⏺ Ar(ar=diretor, ligado=False)
+Permitir? [s]im / [n]ão / [t]odas as edições nesta conversa: s
+  ⎿ Ar do diretor: desligado
+ nemotron-3-ultra · ⏵⏵ perguntar (shift+tab) · 3 ar(es) ligado(s) · agente on · ~4k tokens
+```
+
+| Atalho | O que faz |
+|---|---|
+| `Shift+Tab` (ou `/permissoes`) | troca o modo: **perguntar** tudo · **aceitar edições** de arquivo · **só leitura** |
+| `@caminho` | anexa o arquivo à pergunta (autocompleta com Tab) |
+| `!comando` | roda no terminal na hora (sem IA) e a IA vê a saída |
+| `#texto` | guarda na memória (`agente-ia/MEMORIA.md`), lida em toda conversa nova |
+| `/ares` `/ligar NOME [graus]` `/desligar NOME` `/temp NOME 23` | controla os ares direto, sem passar pela IA |
+| `/cenas` `/cena NOME` `/transmissores` `/agentes` `/falhas` | consultas e cenas, direto |
+| `/status` `/revisar` | resumo do sistema pela IA · revisão do `git diff` (bugs, segurança, o que testar) |
+| `/contexto` `/compactar` `/memoria` `/modelo` `/limpar` `/salvar` `/sair` | sessão |
+
+A barra de baixo mostra o modelo, o modo de permissão, quantos ares estão ligados e se há agente no escritório.
 
 Ele começa já sabendo as seções 0 a 2 do `CLAUDE.md` e o estado registrado na última sessão (`docs/continuar/`), e lê o
 resto quando precisa.
