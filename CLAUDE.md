@@ -26,8 +26,9 @@ caminhos de serviço e o projeto da Vercel).
 7. **Toda publicação que muda o que o usuário vê ou usa ganha entrada nova em `backend/app/novidades.json`** (seção 16):
    versão, novo, melhorias, segurança, correções. Só fatos que entraram; o modal "O que há de novo" mostra isso a cada pessoa.
 8. **Diário de sessão**: toda sessão de trabalho termina com a pasta `docs/continuar/sessao-AAAA-MM-DD/` (00-LEIA-PRIMEIRO,
-   01-historico, 02-estado-atual, 03-pendencias, 04-decisoes, 05-testes, PROMPT.md, continuar.sh). Sessão nova: leia a
-   pasta mais recente antes de mexer (a última é `sessao-2026-11-18`).
+   01-historico, 02-estado-atual, 03-pendencias, 04-decisoes, 05-testes, PROMPT.md, continuar.sh), e atualiza
+   `docs/continuar/INDICE.md` (todas as sessões) e `docs/continuar/ATUAL.md` (a mais recente). O gancho SessionStart do
+   `.claude/settings.json` mostra o `ATUAL.md` no começo de toda sessão nova. A última é `sessao-2026-11-19`.
 9. **Ar só obedece com um agente no escritório.** O agente principal precisa enxergar os transmissores (Infra → Agentes:
    "enxerga N de M"). Mac em casa + PC do escritório desligado = nenhum comando chega ao ar, mesmo com o painel "online".
    Antes de dizer que algo "funciona", confira isso e a Atividade.
@@ -97,6 +98,12 @@ caminhos de serviço e o projeto da Vercel).
 | Mapa multijogador (Realtime, canal privado `mapa-escritorio`) | `components/multijogador.js`, `Mapa3D.jsx` (`sincronizarRemotos`, `E.remotos`, selo "No mapa agora"); política em `realtime.messages` + `public.mapa_usuario_ativo()` (fim do `schema.sql`). Teste local com 2 abas: `localStorage['clima-mp-id']` + depuração do 3D |
 | Modelos da biblioteca no mapa (cafeteira, monitor, teclado, mouse, PC, carros leves do trânsito) | `config.mapa_modelos` (`cafeteira`, `monitor`, `teclado`, `mouse`, `gabinete`, `leves` = trânsito/estacionados 9 mil triângulos, `medios` = carros dirigíveis 25 mil; o completo de 120 mil travava ao separar as rodas), `GET /api/mapa` → `modelos`; `Mapa3D.jsx` (`pecas`, `MODELO_POSTO`, `E.frota`, `tr.vestir`), `cidade3d.js` (`estacionados.trocar`), `copa3d.js` (`trocar`) |
 | Entrar/sair do carro com animação, motorista que foge, batida no trânsito | `Mapa3D.jsx` (`E.transicao`, `passoTransicao`, `fugir`, `E.fugitivos`), `predio3d.js` (`transito.bater`) |
+| Backup completo e restauração (zip no Storage, simular, mesclar, substituir) | `backend/app/backup_sistema.py`, `rotas/backup.py` (`/api/backup-sistema…`, dono/admin + acesso a todos os projetos), `pages/Backup.jsx`, atalhos `components/AcessoRapido.jsx`. Bucket `backups-sistema` (50 MB/arquivo). Nunca restaura sessões, passkeys, OAuth, fila |
+| Treinamento e segurança (1.017 perguntas, prova, e-mail) | `backend/app/treinamento.py` (banco gerado de dados conferíveis: situações/LGPD, Anexo A via `conformidade.CONTROLES`, Estrutura Harmonizada, normas ISO), rotas `/api/treinamento/v2|iniciar|corrigir`, modelo de e-mail `treinamento` (`correio.py`), `pages/Treinamento.jsx` |
+| Baixar apps sem acesso ao GitHub privado | `rotas/api.py` (`/api/apps/baixar/{arquivo}` pede o link temporário à API do GitHub com token só leitura em `config.github_apps`, cifrado; `PUT /api/apps/github` só dono, recusa token que escreve), `pages/Apps.jsx` (`baixarApp`, `TokenDownloads`, `?baixar=android` do QR) |
+| E-mail atrasado ou devolvido | `correio.registrar_evento` notifica no 1º atraso e na devolução (dica do Outlook/Hotmail); `frontend/src/emailAviso.js` no texto depois de enviar |
+| Guia de gravar botões (visor do controle) | `components/GuiaBotoes.jsx` (no `FormAparelho`, na aba Botões e na gravação) |
+| Agenda/Cenas/Automações: modelos prontos e histórico | `pages/Agendamentos.jsx` (`Modelos`, `Timers`, `Historico`), `pages/Cenas.jsx` (`Sugeridas`, `HistoricoCenas`), `pages/Automacoes.jsx` (`MODELOS`, `ComoFunciona`, `HistoricoAutos`); histórico = `/api/atividade?origem=agenda|cena|automacao` |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
@@ -879,6 +886,12 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 ---
 
 ## 14. Estado atual e pendências
+
+- **19/11 (1.18.0 a 1.24.0)**: diário completo em `docs/continuar/sessao-2026-11-19/`. IA (NVIDIA) em chat com conversas
+  salvas; Telegram com 498 comandos; avatares de `new-blenders` (ids 19–72, com versões leves/médias para o mapa); carros
+  com física (ESC, automático, nitro, voo), trânsito com os carros da biblioteca, multijogador; backup e restauração;
+  treinamento com 1.017 perguntas; downloads de apps sem GitHub. Pendências do dono: agente no escritório, Spotify
+  (User Management), token só leitura do GitHub, e-mails Outlook (reputação do domínio).
 
 - **18/11, noite (1.9.1 a 1.13.0)**: diário completo em `docs/continuar/sessao-2026-11-18/` (estado conferido no banco e pendências
   por fase). Transmissores: **Escritório** (ebd5de43, 3.3) com Ar do escritório, analistas, Deison e diretor; **Smart IR · Devs**
