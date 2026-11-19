@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Dog, Library, MapPin, Pencil, PersonStanding, Play, RotateCcw, Search, Trash2, Upload, Users, Wand2 } from 'lucide-react'
+import { Brush, Car, Dog, Library, MapPin, Pencil, PersonStanding, Play, RotateCcw, Search, Trash2, Upload, Users, Wand2 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import AvatarViewer from '../components/avatares/AvatarViewer'
 import Estudio from '../components/avatares/Estudio'
+import EditorAparencia from '../components/avatares/EditorAparencia'
 import { Aviso, Botao, Cabecalho, Carregando, Modal, Selo, Vazio, useDados, useToast } from '../components/ui'
 
 // Biblioteca de avatares 3D (GLB). Só modelos que o dono pode usar: origem e licença ficam registradas.
@@ -80,7 +81,45 @@ function QuemUsa({ avatar, mapa, aoSalvar, pode }) {
   )
 }
 
-const ESPECIES = { pessoa: 'Pessoa', cao: 'Cão', gato: 'Gato', outro: 'Outro' }
+const ESPECIES = { pessoa: 'Pessoa', cao: 'Cão', gato: 'Gato', animal: 'Animal', veiculo: 'Veículo', outro: 'Outro' }
+
+// Veículo nas ruas do mapa 3D: liga/desliga e a física (massa, potência, aderência, freios, câmbio, tração…)
+const FISICA = [['massa', 'Massa', 300, 6000, 10, 'kg', 1400], ['potencia', 'Potência', 20, 1500, 5, 'cv', 320], ['aderencia', 'Aderência dos pneus', 0.4, 1.6, 0.01, '', 1.05],
+  ['freio', 'Força de frenagem', 0.3, 1.5, 0.01, '', 1], ['velmax', 'Velocidade máxima', 40, 380, 5, 'km/h', 290], ['marchas', 'Marchas', 3, 8, 1, '', 6],
+  ['direcao', 'Esterço máximo', 15, 45, 1, '°', 34], ['suspensao', 'Suspensão (macia ↔ firme)', 0.3, 2, 0.05, '', 1], ['cg', 'Altura do centro de massa', 0.25, 1.2, 0.01, 'm', 0.45]]
+function VeiculoNoMapa({ avatar, mapa, aoSalvar, pode }) {
+  const toast = useToast()
+  const lista = mapa?.veiculos || []
+  const atual = lista.find((v) => v.avatar_id === avatar.id)
+  const [f, setF] = useState(() => ({ tracao: 'traseira', ...Object.fromEntries(FISICA.map(([k, , , , , , p]) => [k, p])), ...(atual?.fisica || {}) }))
+  const [salvando, setSalvando] = useState(false)
+  const gravar = async (nova) => {
+    setSalvando(true)
+    try { await api.put('/api/mapa/veiculos', { veiculos: nova }); aoSalvar(); toast('Ruas do mapa atualizadas: vale na próxima abertura do mapa.') } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
+  }
+  const alternar = () => gravar(atual ? lista.filter((v) => v.avatar_id !== avatar.id) : [...lista, { id: `v${avatar.id}`, avatar_id: avatar.id, nome: avatar.nome, rot: 0, fisica: f }])
+  const salvarFisica = () => gravar(lista.map((v) => (v.avatar_id === avatar.id ? { ...v, fisica: f } : v)))
+  return (
+    <section className="cartao p-5">
+      <h2 className="flex items-center gap-2 text-sm font-semibold"><Car className="h-4 w-4 text-muted-foreground" />Nas ruas do mapa 3D</h2>
+      <p className="mt-1 text-xs text-muted-foreground">No mapa, controle uma pessoa, desça pelo elevador, saia do prédio e aperte <b>E</b> perto do carro para dirigir. W/S acelera e freia (ré parado), A/D vira, Espaço é o freio de mão, C troca a câmera, H buzina, E sai.</p>
+      {pode ? (
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-2"><Botao tamanho="sm" variante={atual ? 'primario' : 'secundario'} carregando={salvando} onClick={alternar}>{atual ? 'Está nas ruas: tirar' : 'Colocar nas ruas'}</Botao>
+            {atual && <span className="text-xs text-muted-foreground">{atual.x != null ? 'estacionado onde foi deixado' : 'vaga perto do prédio'}</span>}</div>
+          <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+            {FISICA.map(([k, r, mn, mx, p, u]) => (
+              <label key={k} className="block text-xs"><span className="flex justify-between"><span>{r}</span><span className="tabular text-muted-foreground">{f[k]}{u ? ` ${u}` : ''}</span></span>
+                <input type="range" min={mn} max={mx} step={p} value={f[k]} onChange={(e) => setF({ ...f, [k]: +e.target.value })} className="mt-1 w-full accent-[hsl(var(--primary))]" aria-label={r} /></label>
+            ))}
+            <label className="block text-xs">Tração<select className="campo mt-1 h-8" value={f.tracao} onChange={(e) => setF({ ...f, tracao: e.target.value })}><option value="traseira">Traseira</option><option value="dianteira">Dianteira</option><option value="4x4">Integral (4x4)</option></select></label>
+          </div>
+          {atual && <Botao className="mt-3" tamanho="sm" carregando={salvando} onClick={salvarFisica}>Salvar a física</Botao>}
+        </>
+      ) : <p className="mt-2 text-sm text-muted-foreground">{atual ? 'Este veículo está nas ruas do mapa.' : 'Fora das ruas do mapa.'}</p>}
+    </section>
+  )
+}
 
 function EditarDados({ avatar, aoFechar, aoSalvar }) {
   const toast = useToast()
@@ -165,6 +204,8 @@ export default function Avatares() {
   const [editar, setEditar] = useState(null)
   const [aba, setAba] = useState('biblioteca')
   const [noEstudio, setNoEstudio] = useState(null)
+  const [editando, setEditando] = useState(null)
+  const [versao, setVersao] = useState(0)
   const { dados: projetos } = useDados(() => api.get('/api/projetos').then((r) => r.projetos || r))
   const pode = ['dono', 'admin'].includes(sessao?.papel)
   const abrirNoEstudio = async (a) => { try { const { receita } = await api.get(`/api/avatares/${a.id}/receita`); setNoEstudio({ ...receita, manual: !receita.parametros, parametros: receita.parametros }); setAba('estudio') } catch (e) { toast(e.message, 'erro') } }
@@ -179,7 +220,7 @@ export default function Avatares() {
       <Cabecalho titulo="Avatares 3D" descricao="Personagens 3D (GLB) para a equipe e para o escritório: criar no Estúdio, importar, ver as animações, editar e colocar pets e mascotes nas salas."
         acoes={pode && <Botao icone={Upload} onClick={() => setImportar(true)}>Importar .glb</Botao>} />
       <div className="mb-5 flex flex-wrap gap-1 rounded-lg border border-border p-0.5 sm:w-fit" role="tablist">
-        {[['biblioteca', 'Biblioteca', Library], ['estudio', 'Estúdio', Wand2], ['escritorio', 'No escritório', Dog]].map(([k, r, I]) => (
+        {[['biblioteca', 'Biblioteca', Library], ['editor', 'Editor de aparência', Brush], ['estudio', 'Estúdio', Wand2], ['escritorio', 'No escritório', Dog]].map(([k, r, I]) => (
           <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm ${aba === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}><I className="h-4 w-4" />{r}</button>))}
       </div>
       {aba === 'estudio' && (
@@ -188,6 +229,22 @@ export default function Avatares() {
           <Estudio key={noEstudio ? JSON.stringify(noEstudio).length : 'novo'} inicial={noEstudio} pode={pode} aoSalvar={(a) => { recarregar(); setNoEstudio(null); setAba('biblioteca'); escolher(a) }} />
         </>
       )}
+      {aba === 'editor' && (() => {
+        const alvo = (dados.avatares || []).find((a) => a.id === (editando?.id ?? atual?.id))
+        return (
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Editando</span>
+              <select className="campo h-9 w-auto" value={alvo?.id || ''} onChange={(e) => setEditando((dados.avatares || []).find((a) => a.id === +e.target.value))} aria-label="Avatar para editar">
+                {(dados.avatares || []).filter((a) => a.estado === 'pronto').map((a) => <option key={a.id} value={a.id}>{a.nome} ({ESPECIES[a.especie] || 'Pessoa'})</option>)}
+              </select>
+              {alvo?.editado && <Selo cor="azul">versão editada</Selo>}
+            </div>
+            {!pode ? <Aviso tipo="alerta">Só o dono e os administradores editam a aparência dos avatares.</Aviso>
+              : alvo ? <EditorAparencia key={`${alvo.id}-${versao}`} avatar={alvo} aoFechar={() => setAba('biblioteca')} aoSalvar={(reabrir) => { recarregar(); if (reabrir) setVersao((v) => v + 1) }} /> : <Vazio icone={Brush} titulo="Nenhum avatar" texto="Importe um .glb para editar." />}
+          </>
+        )
+      })()}
       {aba === 'escritorio' && <NoEscritorio avatares={(dados.avatares || []).filter((a) => a.estado === 'pronto')} mapa={mapa} projetos={projetos} aoSalvar={recMapa} pode={pode} />}
       {aba === 'biblioteca' && (!lista.length ? <Vazio icone={PersonStanding} titulo="Nenhum avatar ainda" texto="Importe um .glb com animações (parado, andando, sentado). Sem avatar, o mapa usa o boneco desenhado pelo sistema." /> : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
@@ -218,6 +275,7 @@ export default function Avatares() {
                     {pode && (
                       <div className="flex flex-wrap gap-2">
                         <Botao tamanho="sm" variante="secundario" icone={Pencil} onClick={() => setEditar(atual)}>Editar dados</Botao>
+                        <Botao tamanho="sm" icone={Brush} onClick={() => { setEditando(atual); setAba('editor') }}>Editar aparência</Botao>
                         {atual.editavel && <Botao tamanho="sm" variante="secundario" icone={Wand2} onClick={() => abrirNoEstudio(atual)}>Abrir no Estúdio</Botao>}
                         <Botao tamanho="sm" variante="fantasma" icone={Trash2} onClick={() => setApagar(atual)}>Apagar</Botao>
                       </div>
@@ -251,8 +309,10 @@ export default function Avatares() {
               <section className="cartao p-5">
                 <h2 className="flex items-center gap-2 text-sm font-semibold"><Users className="h-4 w-4 text-muted-foreground" />Quem usa no mapa</h2>
                 <div className="mt-3">{(atual.especie || 'pessoa') === 'pessoa' ? <QuemUsa avatar={atual} mapa={mapa} aoSalvar={recMapa} pode={pode} />
+                  : atual.especie === 'veiculo' ? <p className="text-sm text-muted-foreground">Veículos andam nas ruas: veja abaixo.</p>
                   : <p className="text-sm text-muted-foreground">Pets e mascotes não substituem pessoas da equipe: coloque na aba <button className="font-medium underline" onClick={() => setAba('escritorio')}>No escritório</button>.</p>}</div>
               </section>
+              {atual.especie === 'veiculo' && <VeiculoNoMapa key={atual.id} avatar={atual} mapa={mapa} aoSalvar={recMapa} pode={pode} />}
             </div>
           )}
         </div>

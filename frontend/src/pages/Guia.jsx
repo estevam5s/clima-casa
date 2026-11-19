@@ -313,6 +313,9 @@ const CAPITULOS = [
       { t: 'Criar', d: 'Avatares → Estúdio: pessoa, cão ou gato, com cores, roupa e animações.', link: ['/avatares', 'Abrir Avatares'] },
       { t: 'Abrir no Blender', d: 'Baixe o .glb e use Arquivo → Importar → glTF 2.0. Ele chega como um personagem com esqueleto (armature), uma malha e as animações no esqueleto (Dope Sheet → Action Editor).' },
       { t: 'Trazer do Blender', d: 'Arquivo → Exportar → glTF 2.0 (.glb, texturas embutidas) e Avatares → Importar.' },
+      { t: 'Editar a aparência', d: 'Avatares → Editar aparência: matiz, saturação, brilho, contraste e tingir; Recolorir região (clique na calça, camisa ou carroceria); Pincel; material (fosco, metal, brilho próprio); forma (escala, largura, altura). Salvar guarda uma versão nova e o original fica para Voltar ao original.', link: ['/avatares', 'Abrir Avatares'] },
+      { t: 'Carros nas ruas', d: 'Num avatar do tipo Veículo: Nas ruas do mapa 3D → Colocar nas ruas e ajuste a física (massa, potência, aderência, freios, câmbio, tração).' },
+      { t: 'Dirigir', d: 'No mapa, controle uma pessoa, desça ao térreo, saia do prédio e aperte E perto do carro. W acelera, S freia (parado engata a ré), A/D vira, Espaço é o freio de mão, C troca a câmera, H buzina, R desvira e E sai. Onde você deixar, ele fica estacionado.' },
     ],
   },
   {

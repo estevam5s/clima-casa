@@ -48,11 +48,11 @@ def garantir_bucket():
 
 
 def listar() -> list[dict]:
-    return db.consultar("SELECT id, nome, descricao, origem, licenca, estado, tamanho, info, criado_em, especie, escala_real, parametros IS NOT NULL AS editavel "
-                        "FROM avatares ORDER BY criado_em DESC")
+    return db.consultar("SELECT id, nome, descricao, origem, licenca, estado, tamanho, info, criado_em, especie, escala_real, parametros IS NOT NULL AS editavel, "
+                        "ajustes, arquivo_original IS NOT NULL AS editado FROM avatares ORDER BY criado_em DESC")
 
 
-ESPECIES = ("pessoa", "cao", "gato", "outro")
+ESPECIES = ("pessoa", "cao", "gato", "animal", "veiculo", "outro")
 
 
 def receita(aid: int) -> dict | None:
@@ -166,11 +166,85 @@ def endereco(aid: int) -> str:
 
 
 def apagar(aid: int):
-    a = db.um("SELECT arquivo FROM avatares WHERE id = ?", (aid,))
+    a = db.um("SELECT arquivo, arquivo_original, arquivo_novo FROM avatares WHERE id = ?", (aid,))
     if not a:
         return
     try:
-        httpx.request("DELETE", f"{db.ENV['SUPABASE_URL']}/storage/v1/object/{BUCKET}", headers=_cab(), timeout=10, json={"prefixes": [a["arquivo"]]})
+        httpx.request("DELETE", f"{db.ENV['SUPABASE_URL']}/storage/v1/object/{BUCKET}", headers=_cab(), timeout=10,
+                      json={"prefixes": [x for x in (a["arquivo"], a["arquivo_original"], a["arquivo_novo"]) if x]})
     except httpx.HTTPError:
         pass
     db.executar("DELETE FROM avatares WHERE id = ?", (aid,))
+
+
+# ---------------- versão editada (editor de aparência) ----------------
+def _assinar_envio(caminho: str) -> str:
+    url = db.ENV["SUPABASE_URL"]
+    r = httpx.post(f"{url}/storage/v1/object/upload/sign/{BUCKET}/{caminho}", headers=_cab(), timeout=10, json={})
+    if r.status_code >= 300:
+        raise RuntimeError("O Storage não gerou o endereço de envio. Tente de novo.")
+    return f"{url}/storage/v1{r.json().get('url') or ''}"
+
+
+def _apagar_arquivo(caminho: str | None):
+    if not caminho:
+        return
+    try:
+        httpx.request("DELETE", f"{db.ENV['SUPABASE_URL']}/storage/v1/object/{BUCKET}", headers=_cab(), timeout=10, json={"prefixes": [caminho]})
+    except httpx.HTTPError:
+        pass
+
+
+def preparar_versao(aid: int, tamanho: int, ajustes: dict) -> dict:
+    """O navegador exporta o .glb editado e envia direto ao Storage; o original fica guardado para restaurar."""
+    a = db.um("SELECT id, arquivo_novo FROM avatares WHERE id = ? AND estado = 'pronto'", (aid,))
+    if not a:
+        raise KeyError("Avatar não encontrado.")
+    if tamanho <= 0 or tamanho > LIMITE_BYTES:
+        raise ValueError(f"O arquivo precisa ter até {LIMITE_BYTES // 1024 // 1024} MB.")
+    if len(json.dumps(ajustes)) > 200_000:
+        raise ValueError("Ajustes grandes demais.")
+    _apagar_arquivo(a["arquivo_novo"])   # envio anterior que não foi confirmado
+    caminho = f"{secrets.token_hex(8)}.glb"
+    db.executar("UPDATE avatares SET arquivo_novo = ? WHERE id = ?", (caminho, aid))
+    return {"upload_url": _assinar_envio(caminho)}
+
+
+def confirmar_versao(aid: int, ajustes: dict) -> dict:
+    a = db.um("SELECT * FROM avatares WHERE id = ?", (aid,))
+    if not a or not a["arquivo_novo"]:
+        raise KeyError("Nenhuma versão enviada para confirmar.")
+    try:
+        g, total = _ler_json_glb(a["arquivo_novo"])
+    except Exception as e:
+        _apagar_arquivo(a["arquivo_novo"]); db.executar("UPDATE avatares SET arquivo_novo = NULL WHERE id = ?", (aid,))
+        raise ValueError(f"A versão editada não é um .glb válido: {e}") from e
+    original = a["arquivo_original"] or a["arquivo"]
+    if a["arquivo_original"]:
+        _apagar_arquivo(a["arquivo"])   # versão editada anterior (o original nunca é apagado aqui)
+    info = {**(a["info"] or {}), "malhas": len(g.get("meshes", [])), "materiais": len(g.get("materials", [])), "tamanho_declarado": total}
+    db.executar("UPDATE avatares SET arquivo = ?, arquivo_original = ?, arquivo_novo = NULL, ajustes = CAST(? AS jsonb), tamanho = ?, info = CAST(? AS jsonb) WHERE id = ?",
+                (a["arquivo_novo"], original, json.dumps(ajustes), total, json.dumps(info), aid))
+    db.registrar("painel", f"Avatar 3D editado no editor: {a['nome']}")
+    return {"ok": True}
+
+
+def restaurar(aid: int) -> dict:
+    a = db.um("SELECT * FROM avatares WHERE id = ?", (aid,))
+    if not a or not a["arquivo_original"]:
+        raise KeyError("Este avatar não tem versão editada.")
+    _apagar_arquivo(a["arquivo"])
+    db.executar("UPDATE avatares SET arquivo = arquivo_original, arquivo_original = NULL, ajustes = NULL WHERE id = ?", (aid,))
+    db.registrar("painel", f"Avatar 3D voltou ao original: {a['nome']}")
+    return {"ok": True}
+
+
+def endereco_original(aid: int) -> str:
+    a = db.um("SELECT COALESCE(arquivo_original, arquivo) AS arq FROM avatares WHERE id = ? AND estado = 'pronto'", (aid,))
+    if not a:
+        raise KeyError("Avatar não encontrado.")
+    url = db.ENV["SUPABASE_URL"]
+    r = httpx.post(f"{url}/storage/v1/object/sign/{BUCKET}/{a['arq']}", headers=_cab(), timeout=10, json={"expiresIn": 600})
+    if r.status_code >= 300:
+        raise RuntimeError("Não deu para abrir o arquivo do avatar.")
+    return f"{url}/storage/v1{r.json().get('signedURL') or r.json().get('signedUrl')}"

@@ -559,3 +559,8 @@ create table if not exists public.bugs (
 );
 alter table public.bugs enable row level security;
 create index if not exists bugs_estado_atualizado on public.bugs (estado, atualizado_em desc);
+
+-- 19/11: editor de aparência dos avatares (versão editada + original para restaurar) e veículos/animais
+alter table public.avatares add column if not exists arquivo_original text;
+alter table public.avatares add column if not exists arquivo_novo text;
+alter table public.avatares add column if not exists ajustes jsonb;

@@ -24,6 +24,9 @@ import { api } from '../../api'
 // Não inventa animação: só toca os clips que existem no arquivo.
 const cache = new Map()   // id → Promise<gltf> (cada viewer clona a cena; o arquivo é baixado uma vez)
 
+// depois de editar a aparência: o próximo carregamento busca a versão nova
+export function esquecerAvatar(id) { cache.delete(id) }
+
 export function carregarAvatar(id) {
   if (!cache.has(id)) {
     cache.set(id, api.get(`/api/avatares/${id}/arquivo`).then(({ url, ...meta }) => new Promise((ok, falha) => new GLTFLoader().load(url, (g) => { g.meta = meta; ok(g) }, undefined, falha))).catch((e) => { cache.delete(id); throw e }))

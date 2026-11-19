@@ -24,7 +24,7 @@ export default function MiniMapa({ estado }) {
       if (!c?.av || !E.mini) return
       const P = c.av.getWorldPosition ? c.av.getWorldPosition(c.av.position.clone()) : c.av.position
       const fora = E.nivel === 'terreo'
-      const esc = fora ? 1.15 : 5.5   // px por metro: na rua enxerga ~70 m; no andar ~14 m
+      const esc = fora ? (E.dirigindo ? 0.7 + 0.45 / (1 + Math.abs(E.dirigindo.veh.S.vx) / 15) : 1.15) : 5.5   // px por metro (dirigindo, afasta com a velocidade)
       const yaw = c.yaw || 0
       const fx = Math.sin(yaw), fz = Math.cos(yaw), dx0 = -Math.cos(yaw), dz0 = Math.sin(yaw)   // frente e direita na tela
       const tela = (x, z) => { const dx = x - P.x, dz = z - P.z; return [C + (dx * dx0 + dz * dz0) * esc, C - (dx * fx + dz * fz) * esc] }
@@ -42,6 +42,12 @@ export default function MiniMapa({ estado }) {
       ret(p0, q0, p1, q1); g.fillStyle = fora ? '#0f766a' : '#2a3542'; g.fill(); g.strokeStyle = '#5eead4'; g.lineWidth = 1.2; g.stroke()
       if (!fora) for (const s of E.mini.salas) {
         ret(s.x0, s.z0, s.x1, s.z1); g.globalAlpha = 0.55; g.fillStyle = s.cor; g.fill(); g.globalAlpha = 1; g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1; g.stroke()
+      }
+      // veículos: retângulo azul no rumo do carro
+      if (fora) for (const v of E.veiculos || []) {
+        const S = v.veh.S, { L, W } = v.veh.dims, sp = Math.sin(S.psi), cp = Math.cos(S.psi)
+        const cant = [[L / 2, W / 2], [L / 2, -W / 2], [-L / 2, -W / 2], [-L / 2, W / 2]].map(([u, w]) => tela(S.x + u * sp + w * cp, S.z + u * cp - w * sp))
+        g.beginPath(); g.moveTo(...cant[0]); cant.slice(1).forEach((p) => g.lineTo(...p)); g.closePath(); g.fillStyle = '#60a5fa'; g.fill()
       }
       // pessoas por perto
       g.fillStyle = '#fbbf24'

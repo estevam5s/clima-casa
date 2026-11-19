@@ -1671,7 +1671,7 @@ def ver_mapa(request: Request):
                  "ares": {k: v for k, v in mapa["ares"].items() if k in ids_a},
                  "elementos": mapa["elementos"], "atualizado_em": mapa.get("atualizado_em"),
                  "auto": mapa.get("auto", []), "andar": mapa.get("andar", 9), "andares": mapa.get("andares", 11),
-                 "pessoas": mapa.get("pessoas", []), "escritas": mapa.get("escritas", [])},
+                 "pessoas": mapa.get("pessoas", []), "escritas": mapa.get("escritas", []), "veiculos": db.cfg("mapa_veiculos") or []},
         "projetos": projetos, "ares": ares, "pode_editar": acesso.pode("projetos.gerenciar"),
         "edita_elementos": tudo, "pode_controlar": acesso.pode("aparelhos.controlar"),
         "admin": (acesso.atual.get() or {}).get("papel") in ("dono", "admin"),
@@ -3949,7 +3949,7 @@ class AvatarEnvioIn(BaseModel):
     licenca: str = Field(min_length=3, max_length=200)     # licença ou autorização de uso
     tamanho: int = Field(ge=1, le=30 * 1024 * 1024)
     autorizado: bool                                        # quem importa declara que pode usar o modelo
-    especie: str = Field("pessoa", pattern=r"^(pessoa|cao|gato|outro)$")
+    especie: str = Field("pessoa", pattern=r"^(pessoa|cao|gato|animal|veiculo|outro)$")
     parametros: dict | None = None                          # receita do Estúdio (para editar de novo)
     escala_real: bool = False                               # True: o mapa usa o tamanho do arquivo (pets); False: reescala para 1,72 m
 
@@ -3995,7 +3995,7 @@ class AvatarEdicaoIn(BaseModel):
     descricao: str | None = Field(None, max_length=300)
     origem: str | None = Field(None, min_length=3, max_length=200)
     licenca: str | None = Field(None, min_length=3, max_length=200)
-    especie: str | None = Field(None, pattern=r"^(pessoa|cao|gato|outro)$")
+    especie: str | None = Field(None, pattern=r"^(pessoa|cao|gato|animal|veiculo|outro)$")
 
 
 @api.put("/avatares/{avid}")
@@ -4019,6 +4019,115 @@ def avatar_receita(avid: int):
     if r is None:
         raise HTTPException(404, "Este avatar não foi feito no Estúdio (não tem receita para editar).")
     return {"receita": r}
+
+
+class AvatarVersaoIn(BaseModel):
+    tamanho: int = Field(ge=1, le=30 * 1024 * 1024)
+    ajustes: dict = {}
+
+
+@api.post("/avatares/{avid}/versao")
+def avatar_versao(avid: int, d: AvatarVersaoIn):
+    """Editor de aparência: prepara o envio do .glb editado (o navegador sobe direto para o Storage)."""
+    from .. import avatares
+    _dono_admin()
+    try:
+        return avatares.preparar_versao(avid, d.tamanho, d.ajustes)
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'")) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(502, str(e)) from e
+
+
+class AvatarAjustesIn(BaseModel):
+    ajustes: dict = {}
+
+
+@api.post("/avatares/{avid}/versao/confirmar")
+def avatar_versao_confirmar(avid: int, d: AvatarAjustesIn):
+    from .. import avatares
+    _dono_admin()
+    try:
+        return avatares.confirmar_versao(avid, d.ajustes)
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'")) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@api.post("/avatares/{avid}/restaurar")
+def avatar_restaurar(avid: int):
+    from .. import avatares
+    _dono_admin()
+    try:
+        return avatares.restaurar(avid)
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'")) from e
+
+
+@api.get("/avatares/{avid}/original")
+def avatar_original(avid: int):
+    from .. import avatares
+    try:
+        return {"url": avatares.endereco_original(avid)}
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'")) from e
+
+
+# ---------------- veículos no mapa 3D ----------------
+class VeiculoIn(BaseModel):
+    id: str = Field(min_length=1, max_length=40, pattern=r"^[a-zA-Z0-9_-]+$")
+    avatar_id: int
+    nome: str = Field("", max_length=60)
+    x: float | None = Field(None, ge=-2000, le=2000)
+    z: float | None = Field(None, ge=-2000, le=2000)
+    rot: float = Field(0, ge=-20, le=20)
+    fisica: dict = {}
+
+
+class VeiculosIn(BaseModel):
+    veiculos: list[VeiculoIn] = Field([], max_length=12)
+
+
+@api.put("/mapa/veiculos")
+def mapa_veiculos(d: VeiculosIn):
+    """Quais veículos (avatares da espécie veículo) ficam na cidade do mapa 3D, e a física de cada um."""
+    _dono_admin()
+    ids = {r["id"] for r in db.consultar("SELECT id FROM avatares WHERE especie = 'veiculo' AND estado = 'pronto'")}
+    lista = []
+    for v in d.veiculos:
+        if v.avatar_id not in ids:
+            raise HTTPException(400, "Só avatares da espécie veículo vão para as ruas.")
+        f = {k: float(x) for k, x in (v.fisica or {}).items() if isinstance(x, (int, float)) and k in FISICA_LIMITES}
+        f = {k: max(FISICA_LIMITES[k][0], min(FISICA_LIMITES[k][1], x)) for k, x in f.items()}
+        lista.append({**v.model_dump(), "fisica": f | {k: v.fisica[k] for k in ("tracao", "cambio") if isinstance((v.fisica or {}).get(k), str) and v.fisica[k] in ("traseira", "dianteira", "4x4", "auto", "manual")}})
+    db.set_cfg("mapa_veiculos", lista)
+    db.registrar("painel", "Veículos do mapa atualizados", detalhe=f"{len(lista)} veículo(s)")
+    return {"veiculos": lista}
+
+
+FISICA_LIMITES = {"massa": (300, 6000), "potencia": (20, 1500), "aderencia": (0.4, 1.6), "freio": (0.3, 1.5), "marchas": (3, 8),
+                  "velmax": (40, 380), "direcao": (15, 45), "suspensao": (0.3, 2.0), "cg": (0.25, 1.2)}
+
+
+class VeiculoPosIn(BaseModel):
+    x: float = Field(ge=-2000, le=2000)
+    z: float = Field(ge=-2000, le=2000)
+    rot: float = Field(ge=-20, le=20)
+
+
+@api.post("/mapa/veiculos/{vid}/posicao")
+def mapa_veiculo_posicao(vid: str, d: VeiculoPosIn):
+    """Onde o veículo ficou estacionado (quem dirigiu e saiu do carro). Não muda mais nada."""
+    lista = db.cfg("mapa_veiculos") or []
+    v = next((x for x in lista if x.get("id") == vid), None)
+    if not v:
+        raise HTTPException(404, "Veículo não encontrado.")
+    v.update({"x": round(d.x, 2), "z": round(d.z, 2), "rot": round(d.rot, 3)})
+    db.set_cfg("mapa_veiculos", lista)
+    return {"ok": True}
 
 
 @api.delete("/avatares/{avid}")

@@ -85,6 +85,11 @@ caminhos de serviço e o projeto da Vercel).
 | Agente que não trava (rede caiu/dormiu) | `db.py` (keepalives), `coordenador.py` (`iniciar_cao_de_guarda`, `_girou`), `sinric.py` (`_laco` não morre) |
 | Agente de IA no terminal (NVIDIA) | `agente-ia/clima_ia.py` (ferramentas, mascarar segredos, confirmação), `agente-ia/instalar.sh` (comando `clima-ia`), `NVIDIA_API_KEY` no `.env` |
 | Bot do Telegram | `backend/app/telegram.py` (segurança, comandos), `rotas/telegram.py` (webhook público + painel), `pages/Telegram.jsx`, `config.telegram` cifrado |
+| Assistente de IA (NVIDIA) no painel e no Telegram | `backend/app/ia.py` (ferramentas com as permissões de quem pergunta; lote = confirmação com nonce), `rotas/ia.py`, `pages/Ia.jsx`, `components/MiniMarkdown.jsx`, `telegram.py` (`_ia`, texto livre), chave cifrada em `config.ia` |
+| Bot do Telegram: painel do ar, timer, transmissores, agentes | `backend/app/telegram.py` (`_painel_ar`, `_temporizador`, `_transmissores`, `_agentes`, dedupe `update_id`) |
+| Área de Bugs | `backend/app/bugs.py` (`varrer`, `registrar_auto(ultimo=)`), `rotas/bugs.py`, `pages/Bugs.jsx`, `frontend/src/errosTela.js` |
+| Editor de aparência dos avatares (cores, recolorir, pincel, material, forma) | `components/avatares/EditorAparencia.jsx`, `textura.js` (pipeline sobre o original), `avatares.py` (`preparar_versao`, `confirmar_versao`, `restaurar`, colunas `arquivo_original`/`ajustes`) |
+| Carros dirigíveis no mapa (física, som, painel) | `components/veiculo3d.js` (`criarVeiculo`, `colisorCidade`, `criarSom`, `criarMarcas`), `Mapa3D.jsx` (`E.alternarCarro`, `dirigir`, `E.veiculos`), `PainelCarro.jsx`, `config.mapa_veiculos` (`PUT /api/mapa/veiculos`, `POST /api/mapa/veiculos/{id}/posicao`) |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---

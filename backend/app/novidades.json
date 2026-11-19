@@ -2,6 +2,30 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.19.0",
+      "data": "2026-11-19",
+      "titulo": "Editor de aparência dos avatares e carros dirigíveis no mapa",
+      "resumo": "Os modelos da pasta blender entraram na biblioteca, qualquer avatar ganha um editor completo de cores e pintura, e veículos andam pelas ruas do mapa 3D com física de carro de verdade.",
+      "novo": [
+        "Avatares → Editor de aparência: matiz, saturação, brilho, contraste, tingir, recolorir uma parte com um clique (mantém luz e sombra), pincel, material (fosco, metal, brilho próprio, opacidade), forma (escala, largura, altura, profundidade, girar, espelhar), desfazer e refazer",
+        "Salvar a aparência guarda uma versão nova; Voltar ao original desfaz tudo; Baixar .glb leva a versão editada para o Blender",
+        "Sete modelos novos na biblioteca: três pessoas, lhama, cavalo, panda e um carro esportivo",
+        "Novos tipos de avatar: Animal e Veículo",
+        "Carros nas ruas do mapa 3D: aperte E perto do carro no térreo para dirigir; onde você deixar, ele fica estacionado",
+        "Física do carro: motor com curva de torque, câmbio automático, ré, pneus com aderência e derrapagem, transferência de peso, ABS, controle de tração, freio de mão, suspensão, colisão com os prédios, marcas de pneu e som do motor",
+        "Painel do carro com velocidade, marcha, giro e luzes de ABS, tração e freio de mão; três câmeras; no celular, pedais e volante na tela",
+        "Física de cada veículo ajustável: massa, potência, aderência, freios, velocidade máxima, marchas, esterço, suspensão, centro de massa e tração"
+      ],
+      "melhorias": [
+        "Minimapa mostra os carros e se afasta conforme a velocidade",
+        "Quem anda a pé contorna os carros estacionados"
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "Avatares importados apareciam sem textura: a política de segurança do navegador bloqueava as texturas embutidas no .glb"
+      ]
+    },
+    {
       "versao": "1.18.0",
       "data": "2026-11-19",
       "titulo": "Assistente de IA no painel e no Telegram, e bot mais completo",
