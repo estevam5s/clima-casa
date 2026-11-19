@@ -39,6 +39,9 @@ Feito também:
   sem economia, atualizações de segurança). Falta o dono rodar: `CLIMA_WIFI_SSID=Egov ./scripts/preparar-cartao-raspberry.sh`
   (digita disk4, APAGAR, a senha do Wi-Fi e a do Mac). Depois: Infra → Agentes → Preferir "clima-agente".
 
+- **1.17.0**: relatório de Segurança no modelo da Prefeitura (PDF/Word) e por e-mail (`POST /api/seguranca/relatorio/enviar`,
+  só e-mails de usuários); Guia em PDF oficial (`POST /api/guia/pdf`) e 7 capítulos novos.
+
 A fazer (decisões já tomadas pelo dono):
 3. Apps por link temporário do Storage do Supabase (sem GitHub) + releases novos de Android e desktop (confirmado).
 4. Treinamento com 1.000+ perguntas próprias (ISO e LGPD), nota na tela e por e-mail.
