@@ -51,7 +51,10 @@ def _nova_conexao():
     # O pooler do Supabase usa a própria CA ("Supabase Root 2021 CA"), fixada em backend/supabase-ca.crt
     return psycopg.connect(
         host=ENV.get("SUPABASE_DB_HOST", "aws-1-us-east-2.pooler.supabase.com"),
-        port=int(ENV.get("SUPABASE_DB_PORT", "6543" if os.environ.get("VERCEL") else "5432")),
+        # 6543 (modo transação) em todo lugar: o modo sessão (5432) aceita só 15 clientes somando todos os agentes, scripts e
+        # o painel local, e em 19/11 esgotou ("EMAXCONNSESSION max clients reached", bugs 11 a 16). Nada aqui depende de
+        # estado de sessão (sem LISTEN, advisory lock ou prepared statements: prepare_threshold=None).
+        port=int(ENV.get("SUPABASE_DB_PORT", "6543")),
         user=f"postgres.{REF}", password=ENV["SUPABASE_DB_PASSWORD"], dbname="postgres",
         sslmode="verify-full", sslrootcert=str(Path(__file__).resolve().parents[1] / "supabase-ca.crt"),
         autocommit=True, prepare_threshold=None, row_factory=dict_row, connect_timeout=15,

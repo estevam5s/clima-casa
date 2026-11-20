@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Lightbulb, LightbulbOff, Link2, Moon, Plus, Sunrise, Sunset, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Lightbulb, LightbulbOff, Link2, Moon, Plus, RefreshCw, Sunrise, Sunset, ToggleRight, Trash2 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { Agendas, ConectarAparelho, Estado, Historico, SemAparelho } from '../components/dispositivos/Comum'
@@ -84,7 +84,7 @@ function CartaoLuz({ d0, sol, podeControlar, podeGerenciar, aoRemover }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2"><p className="font-medium">{d.nome}</p><Estado d={d} /></div>
-          <p className="text-xs text-muted-foreground">{d.projeto_nome || 'Escritório todo'}{d.conectado ? ` · ${acesa ? `acesa${r.brilho != null ? `, ${r.brilho}%` : ''}` : r.ligada === false ? 'apagada' : 'estado desconhecido'}` : ''}</p>
+          <p className="text-xs text-muted-foreground">{r.tecla ? `Tecla ${r.tecla.split('_')[1]} · ` : ''}{d.projeto_nome || 'Escritório todo'}{d.conectado ? ` · ${acesa ? `acesa${r.brilho != null ? `, ${r.brilho}%` : ''}` : r.ligada === false ? 'apagada' : 'estado desconhecido'}` : ''}</p>
         </div>
       </div>
       <div className="space-y-3 border-t border-border p-4">
@@ -114,12 +114,124 @@ function CartaoLuz({ d0, sol, podeControlar, podeGerenciar, aoRemover }) {
         {aberto && (
           <div className="space-y-4">
             <Automacoes d={d} sol={sol} aoSalvar={atualizar} podeEditar={podeGerenciar} />
-            <Agendas d={d} acoes={[['ligar', 'Acender'], ['desligar', 'Apagar'], ['brilho', 'Brilho (%)']]} aoSalvar={atualizar} podeEditar={podeGerenciar} />
+            <Agendas d={d} acoes={r.tecla ? [['ligar', 'Acender'], ['desligar', 'Apagar']] : [['ligar', 'Acender'], ['desligar', 'Apagar'], ['brilho', 'Brilho (%)']]} aoSalvar={atualizar} podeEditar={podeGerenciar} />
             <Historico d={d} versao={versao} />
           </div>
         )}
       </Modal>
     </section>
+  )
+}
+
+// interruptor de parede de várias teclas (Novadigital Touch Wi-Fi 4 teclas, Tuya): o painel imita o de vidro preto;
+// cada círculo é uma tecla e acende quando a luz dela está ligada. Tocar no círculo liga/desliga só aquela tecla.
+function PaineisInterruptor({ luzes, podeControlar, aoMudar }) {
+  const toast = useToast()
+  const [ocupado, setOcupado] = useState(null)
+  const grupos = useMemo(() => {
+    const m = new Map()
+    for (const d of luzes) if (d.resumo?.tecla && d.tuya_id) { if (!m.has(d.tuya_id)) m.set(d.tuya_id, []); m.get(d.tuya_id).push(d) }
+    return [...m.values()].map((l) => l.sort((a, b) => +a.resumo.tecla.split('_')[1] - +b.resumo.tecla.split('_')[1]))
+  }, [luzes])
+  if (!grupos.length) return null
+  const alternar = async (d) => {
+    setOcupado(d.id)
+    try { await api.post(`/api/dispositivos/${d.id}/comando`, { acao: d.resumo.ligada ? 'desligar' : 'ligar' }); aoMudar() } catch (e) { toast(e.message, 'erro') } finally { setOcupado(null) }
+  }
+  return (
+    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {grupos.map((g) => (
+        <section key={g[0].tuya_id} className="cartao p-4">
+          <p className="truncate text-sm font-medium">{g[0].produto || 'Interruptor'}</p>
+          <p className="mb-3 text-xs text-muted-foreground">{g.length} tecla(s) · {g[0].online ? 'online' : 'offline'}</p>
+          {/* marca: placa de vidro preto do interruptor (como o aparelho de verdade) */}
+          <div className="mx-auto grid aspect-[3/4] w-full max-w-[13rem] grid-cols-2 place-items-center gap-4 rounded-xl bg-neutral-950 p-6 ring-1 ring-neutral-800">
+            {g.map((d) => {
+              const on = d.resumo.ligada === true
+              return (
+                <button key={d.id} type="button" disabled={!podeControlar || ocupado === d.id} onClick={() => alternar(d)} aria-pressed={on}
+                  title={`${d.nome}: ${on ? 'apagar' : 'acender'}`} aria-label={`${d.nome}: ${on ? 'apagar' : 'acender'}`}
+                  className={`flex aspect-square w-full max-w-[4.5rem] items-center justify-center rounded-full border-2 transition-colors disabled:opacity-60 ${on ? 'border-cyan-300 bg-cyan-300/15 text-cyan-200' : 'border-cyan-900 text-cyan-900 hover:border-cyan-700'}`}>
+                  <span className="text-xs font-semibold">{d.resumo.tecla.split('_')[1]}</span>
+                </button>
+              )
+            })}
+          </div>
+          <ul className="mt-3 space-y-1 text-xs">{g.map((d) => <li key={d.id} className="flex justify-between gap-2"><span className="truncate"><b>{d.resumo.tecla.split('_')[1]}</b> · {d.nome}</span><span className={d.resumo.ligada ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}>{d.resumo.ligada ? 'acesa' : d.resumo.ligada === false ? 'apagada' : '?'}</span></li>)}</ul>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+function AssistenteInterruptor({ aberto, projetos, aoFechar, aoCriar }) {
+  const toast = useToast()
+  const [lista, setLista] = useState(null), [erro, setErro] = useState('')
+  const [info, setInfo] = useState(null), [linhas, setLinhas] = useState([])
+  const [salvando, setSalvando] = useState(false)
+  const procurar = () => { setErro(''); setLista(null); api.get('/api/dispositivos/disponiveis').then((r) => setLista((r.aparelhos || []).filter((a) => (a.tipos || [a.tipo]).includes('luz')))).catch((e) => setErro(e.message)) }
+  useEffect(() => { if (aberto) { setInfo(null); procurar() } }, [aberto])   // eslint-disable-line react-hooks/exhaustive-deps
+  const escolher = async (a) => {
+    try {
+      const t = await api.get(`/api/dispositivos/teclas/${a.id}`)
+      setInfo(t)
+      setLinhas(t.teclas.map((k) => ({ tecla: k, usar: !t.usadas.some((u) => u.tecla === k), nome: `${t.nome || 'Interruptor'} · tecla ${k.split('_')[1]}`, projeto_id: '' })))
+    } catch (e) { toast(e.message, 'erro') }
+  }
+  const salvar = async () => {
+    const teclas = linhas.filter((l) => l.usar && !info.usadas.some((u) => u.tecla === l.tecla)).map((l) => ({ tecla: l.tecla, nome: l.nome.trim(), projeto_id: l.projeto_id ? +l.projeto_id : null }))
+    if (!teclas.length) return toast('Escolha pelo menos uma tecla.', 'erro')
+    setSalvando(true)
+    try { const r = await api.post('/api/dispositivos/interruptor', { tuya_id: info.id, teclas }); toast(`${r.criadas.length} tecla(s) cadastrada(s).`); aoCriar() } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
+  }
+  return (
+    <Modal aberto={aberto} titulo="Adicionar interruptor de parede" onFechar={aoFechar} largura="max-w-2xl">
+      {!info ? (
+        <div className="space-y-3 text-sm">
+          <p className="text-muted-foreground">Interruptores Wi-Fi Tuya (ex.: Novadigital Touch de 1, 2, 3 ou 4 teclas) pareados na conta Smart Life deste sistema.</p>
+          {erro && <Aviso>{erro}</Aviso>}
+          {!lista && !erro && <p className="text-muted-foreground">Procurando na conta Smart Life…</p>}
+          {lista && !lista.length && (
+            <div className="rounded-lg border border-border p-4">
+              <p className="font-medium">Nenhum interruptor na conta ainda. Para parear:</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+                <li>Instale o interruptor com o fio neutro, se o modelo pedir, e ligue o disjuntor.</li>
+                <li>Segure uma tecla por uns 6 s até a luz piscar rápido (modo de pareamento).</li>
+                <li>No app <b className="text-foreground">Smart Life</b> (a mesma conta dos transmissores, não o app Novo Digital): + → Adicionar dispositivo, na rede Wi-Fi 2,4 GHz do escritório.</li>
+                <li>Se ele já estiver no app Novo Digital, remova de lá antes: cada aparelho só fica numa conta.</li>
+                <li>Volte aqui e toque em <b className="text-foreground">Procurar de novo</b>.</li>
+              </ol>
+            </div>
+          )}
+          <ul className="space-y-2">{(lista || []).map((a) => (
+            <li key={a.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
+              <ToggleRight className="h-4 w-4 text-muted-foreground" />
+              <div className="min-w-0 flex-1"><p className="truncate font-medium">{a.nome}</p><p className="truncate text-xs text-muted-foreground">{a.produto || a.categoria} · {a.online ? 'online' : 'offline'}{a.teclas_em_uso ? ' · algumas teclas já cadastradas' : ''}</p></div>
+              {a.ja_cadastrado ? <span className="text-xs text-muted-foreground">Já em uso como luz única</span> : <Botao tamanho="sm" onClick={() => escolher(a)}>Escolher</Botao>}
+            </li>))}
+          </ul>
+          <Botao variante="secundario" icone={RefreshCw} onClick={procurar}>Procurar de novo</Botao>
+        </div>
+      ) : (
+        <div className="space-y-3 text-sm">
+          <p><b>{info.nome}</b> tem {info.teclas.length} tecla(s). Dê um nome e a sala de cada uma (o nome aparece no painel e no mapa).</p>
+          {info.teclas.length === 0 && <Aviso tipo="alerta">Este aparelho não expõe teclas (switch_1, switch_2…) na nuvem. Use Cadastrar luz e Conectar.</Aviso>}
+          <ul className="space-y-2">{linhas.map((l, i) => {
+            const uso = info.usadas.find((u) => u.tecla === l.tecla)
+            return (
+              <li key={l.tecla} className="grid grid-cols-1 items-center gap-2 rounded-md border border-border p-2 sm:grid-cols-[auto_minmax(0,1fr)_12rem]">
+                <label className="flex items-center gap-2 font-medium"><input type="checkbox" disabled={!!uso} checked={l.usar && !uso} onChange={(e) => setLinhas(linhas.map((x, j) => j === i ? { ...x, usar: e.target.checked } : x))} />Tecla {l.tecla.split('_')[1]}</label>
+                {uso ? <span className="text-xs text-muted-foreground sm:col-span-2">Já cadastrada como "{uso.nome}"</span> : <>
+                  <input className="campo h-8" maxLength={60} value={l.nome} onChange={(e) => setLinhas(linhas.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))} aria-label={`Nome da tecla ${l.tecla.split('_')[1]}`} />
+                  <select className="campo h-8" value={l.projeto_id} onChange={(e) => setLinhas(linhas.map((x, j) => j === i ? { ...x, projeto_id: e.target.value } : x))} aria-label={`Sala da tecla ${l.tecla.split('_')[1]}`}>
+                    <option value="">Escritório todo</option>{(projetos || []).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select></>}
+              </li>)
+          })}</ul>
+          <div className="flex justify-between gap-2"><Botao variante="secundario" onClick={() => setInfo(null)}>Voltar</Botao><Botao carregando={salvando} onClick={salvar}>Cadastrar teclas</Botao></div>
+        </div>
+      )}
+    </Modal>
   )
 }
 
@@ -129,6 +241,7 @@ export default function Luzes() {
   const { dados, erro, recarregar } = useDados(() => api.get('/api/dispositivos?tipo=luz'))
   const [nova, setNova] = useState(null)
   const [tudo, setTudo] = useState('')
+  const [assistente, setAssistente] = useState(false)
   const perms = sessao?.permissoes || []
   const dono = ['dono', 'admin'].includes(sessao?.papel)
   const podeGerenciar = dono || perms.includes('transmissores.gerenciar')
@@ -168,6 +281,7 @@ export default function Luzes() {
         acoes={<>
           <Botao variante="secundario" icone={Lightbulb} disabled={!podeControlar || !conta.conectadas} carregando={tudo === 'ligar'} onClick={() => todas('ligar')}>Acender todas</Botao>
           <Botao variante="secundario" icone={LightbulbOff} disabled={!podeControlar || !conta.conectadas} carregando={tudo === 'desligar'} onClick={() => todas('desligar')}>Apagar todas</Botao>
+          {podeGerenciar && <Botao variante="secundario" icone={ToggleRight} onClick={() => setAssistente(true)}>Adicionar interruptor</Botao>}
           {podeGerenciar && <Botao icone={Plus} onClick={() => setNova({ nome: '', projeto_id: '' })}>Cadastrar luz</Botao>}
         </>} />
 
@@ -193,6 +307,7 @@ export default function Luzes() {
           {podeGerenciar && luzes.length < (projetos || []).length && (
             <p className="mb-3 text-sm text-muted-foreground">Faltam salas sem luz cadastrada. <button onClick={umaPorSala} className="font-medium text-primary hover:underline">Cadastrar uma luz para cada sala que falta</button></p>
           )}
+          <PaineisInterruptor luzes={luzes} podeControlar={podeControlar} aoMudar={recarregar} />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {luzes.map((d) => <CartaoLuz key={d.id} d0={d} sol={dados.sol} podeControlar={podeControlar} podeGerenciar={podeGerenciar} aoRemover={recarregar} />)}
           </div>
@@ -203,11 +318,13 @@ export default function Luzes() {
         <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground"><Sunset className="h-4 w-4" />Como funciona</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>Funciona com lâmpadas, painéis, fitas de LED e interruptores de parede da Smart Life (mesma conta dos transmissores), ou com uma placa própria (Arduino/ESP com relé).</li>
+          <li>Interruptor de várias teclas (ex.: Novadigital Touch Wi-Fi de 4 teclas): use <b className="text-foreground">Adicionar interruptor</b>. Cada tecla vira uma luz com nome e sala próprios, e todas aparecem juntas no painel do interruptor.</li>
           <li>Acender e apagar vão pela nuvem da Smart Life: funcionam mesmo sem o computador do escritório ligado. As automações rodam no agente.</li>
           <li>O pôr do sol é calculado para cada dia (<Sunrise className="inline h-3.5 w-3.5" /> {dados.sol?.nascer} · <Sunset className="inline h-3.5 w-3.5" /> {dados.sol?.por} hoje). No mapa 3D, a sala fica iluminada à noite e escura quando a luz dela está apagada.</li>
         </ul>
       </section>
 
+      <AssistenteInterruptor aberto={assistente} projetos={projetos} aoFechar={() => setAssistente(false)} aoCriar={() => { setAssistente(false); recarregar() }} />
       <Modal aberto={!!nova} titulo="Cadastrar luz" onFechar={() => setNova(null)}>
         {nova && (
           <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); if (await criar(nova.nome.trim(), nova.projeto_id ? +nova.projeto_id : null)) { toast('Luz cadastrada. Agora conecte ao aparelho.'); setNova(null) } }}>

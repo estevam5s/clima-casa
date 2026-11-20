@@ -175,9 +175,10 @@ def varrer() -> dict:
     if not cego:
         db.set_cfg("agente_cego_desde", 0)
     if not (cego or (visto and db.agora() - int(visto) > 3 * 3600)):
-        for h in db.consultar("SELECT nome, problema, visto_em FROM hubs WHERE problema IS NOT NULL AND (visto_em IS NULL OR visto_em < ?)", (db.agora() - 6 * 3600,)):
-            registrar_auto(_chave("hub", h["nome"], h["problema"][:40]), f"Transmissor {h['nome']} com problema há horas", h["problema"], pagina="/transmissores",
-                           gravidade="media", categoria="transmissor")
-            achados += 1
+        # transmissor fora da rede é operação (desligado, Wi-Fi, agente longe), não defeito do sistema: notificação, não bug
+        from . import notificacoes
+        for h in db.consultar("SELECT id, nome, problema, visto_em FROM hubs WHERE problema IS NOT NULL AND (visto_em IS NULL OR visto_em < ?)", (db.agora() - 6 * 3600,)):
+            notificacoes.notificar(f"hub:{h['id']}:parado", "transmissor", "media", f"Transmissor {h['nome']} sem responder há horas",
+                                   f"{h['problema']} Confira se ele está ligado e se o computador do agente está no Wi-Fi do escritório.", "/transmissores")
     db.set_cfg("bugs_ultima_varredura", db.agora())
     return {"achados": achados, "em": db.agora()}

@@ -1,3 +1,4 @@
+import { compilarSeguro } from './compilar3d'
 import { useEffect, useRef, useState } from 'react'
 import { Compass, Crosshair, FastForward, Globe2, Info, Maximize2, Minimize2, Minus, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Route, Satellite, SkipForward, X } from 'lucide-react'
 import { criarAurora, criarMeteoros, criarNave } from './nave3d'
@@ -316,8 +317,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       const grupoU = universo.grupo, grupoN = nave.grupo
       compilando = true
       const liberar = () => { compilando = false; if (vivo) { grupoU.visible = true } }
-      if (renderer.compileAsync) renderer.compileAsync(cena, camera).then(liberar, liberar)
-      else liberar()
+      compilarSeguro(renderer, cena, camera).then(liberar, liberar)
       grupoN.visible = false
       // os 200 exoplanetas mais próximos (NASA Exoplanet Archive)
       api.get('/api/exoplanetas').then((d) => {

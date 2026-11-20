@@ -157,3 +157,9 @@ svg.lucide { stroke-width: var(--icone, 2); }
 [data-foco-reforcado] :focus-visible { outline: 3px solid hsl(var(--primary)) !important; outline-offset: 3px !important; box-shadow: 0 0 0 6px hsl(var(--primary) / 0.25) !important; }
 [data-sublinhar-links] main a:not([data-botao]):not([role="tab"]) { text-decoration: underline; text-underline-offset: 3px; }
 [data-sem-transparencia] .backdrop-blur, [data-sem-transparencia] .backdrop-blur-sm, [data-sem-transparencia] header[data-cabecalho-app] { backdrop-filter: none !important; background-color: hsl(var(--background)) !important; }
+
+/* marca: Assistente de IA no visual do Claude (paleta quente: papel claro / grafite quente, destaque terracota) */
+.tela-ia { --ia-fundo: #faf9f5; --ia-lateral: #f5f4ed; --ia-caixa: #ffffff; --ia-borda: #e5e2d6; --ia-texto: #3d3929; --ia-suave: #73726c;
+  --ia-realce: #ecebe3; --ia-bolha: #f0eee6; --ia-acento: #c96442; --ia-acento-texto: #ffffff; }
+.dark .tela-ia { --ia-fundo: #262624; --ia-lateral: #1f1e1d; --ia-caixa: #30302e; --ia-borda: #3e3e3a; --ia-texto: #e5e3da; --ia-suave: #a3a199;
+  --ia-realce: #353532; --ia-bolha: #141413; --ia-acento: #d97757; --ia-acento-texto: #ffffff; }

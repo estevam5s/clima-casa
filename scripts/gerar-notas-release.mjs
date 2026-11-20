@@ -44,29 +44,43 @@ function notas(tag) {
   const nomeProduto = /Casa/.test(r.name || '') ? 'Clima Casa' : 'Clima Escritório'
 
   const L = []
-  L.push('<div align="center">', '', `<img src="https://raw.githubusercontent.com/${REPO}/${shaAlvo}/frontend/public/icone-512.png" alt="${nomeProduto}" width="96" />`, '',
+  L.push('<div align="center">', '', // repositório privado: o GitHub não mostra imagem de raw.githubusercontent dele; o ícone vem do painel (público)
+    `<img src="https://app.zynio.com.br/icone-512.png" alt="${nomeProduto}" width="96" height="96" />`, '',
     `# ${nomeProduto} ${versao}`, '', `**Publicada em ${data}** · commit [\`${shaAlvo.slice(0, 7)}\`](https://github.com/${REPO}/commit/${shaAlvo})` + (anterior ? ` · anterior: [${anterior.tag_name}](https://github.com/${REPO}/releases/tag/${anterior.tag_name})` : ' · primeira versão'), '',
-    `![Versão](https://img.shields.io/badge/vers%C3%A3o-${versao}-0f766a?style=for-the-badge)`,
-    `![Commits](https://img.shields.io/badge/commits-${commits.length}-334155?style=for-the-badge)`,
-    `![Arquivos](https://img.shields.io/badge/arquivos_alterados-${arqs}-334155?style=for-the-badge)`,
-    `![Linhas](https://img.shields.io/badge/linhas-%2B${mais}%20%E2%88%92${menos}-334155?style=for-the-badge)`,
-    '![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)',
-    '![macOS](https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white)',
-    '![Windows](https://img.shields.io/badge/Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)',
-    '![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)', '',
+    [
+      `![Versão](https://img.shields.io/badge/vers%C3%A3o-${versao}-0f766a?style=for-the-badge)`,
+      `![Commits](https://img.shields.io/badge/commits-${commits.length}-334155?style=for-the-badge)`,
+      `![Arquivos](https://img.shields.io/badge/arquivos_alterados-${arqs}-334155?style=for-the-badge)`,
+      `![Linhas](https://img.shields.io/badge/linhas-%2B${mais}%20%E2%88%92${menos}-334155?style=for-the-badge)`,
+      '![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)',
+      '![macOS](https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white)',
+      '![Windows](https://img.shields.io/badge/Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)',
+      '![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)',
+    ].join(' '), '',
     '🔗 **Painel:** [app.zynio.com.br](https://app.zynio.com.br) · 🌐 **Site:** [zynio.com.br](https://zynio.com.br) · 📘 **Manual:** [`docs/MANUAL.md`](https://github.com/' + REPO + '/blob/main/docs/MANUAL.md) · 📄 **README:** [visão geral](https://github.com/' + REPO + '#readme)',
     '', '</div>', '', '---', '')
-  L.push('## 📑 Sumário', '', '1. [Resumo](#-resumo)', '2. [Destaques](#-destaques)', '3. [Downloads](#-downloads)', '4. [Instalação](#-instalação)', '5. [Verificar o download](#-verificar-o-download)', '6. [Requisitos](#-requisitos)', '7. [Commits desta versão](#-commits-desta-versão)', '8. [Estatísticas](#-estatísticas)', '9. [Links](#-links)', '')
+  L.push('## 📑 Sumário', '', '1. [Resumo](#-resumo)', '2. [Destaques](#-destaques)', '3. [Downloads](#-downloads)', '4. [Instalação](#-instalação)', '5. [Como atualizar](#-como-atualizar)', '6. [Problemas comuns](#-problemas-comuns)', '7. [Verificar o download](#-verificar-o-download)', '6. [Requisitos](#-requisitos)', '7. [Commits desta versão](#-commits-desta-versão)', '8. [Estatísticas](#-estatísticas)', '9. [Links](#-links)', '')
   L.push(novidades, '')
   L.push('## 📦 Downloads', '', '| Sistema | Arquivo | Tamanho | Baixar |', '|---|---|---:|---|')
   for (const a of assets) {
     const s = SISTEMA[a.name] || [a.name]
     L.push(`| ${s[0]} | \`${a.name}\` | ${mb(a.size)} | [baixar](${a.browser_download_url}) |`)
   }
-  L.push('', '> O repositório é privado: os links funcionam para quem está logado no GitHub com acesso. No painel, a página **Apps** detecta o seu sistema e oferece o arquivo certo.', '')
+  L.push('', '> **Sem conta no GitHub?** Baixe por [app.zynio.com.br/apps](https://app.zynio.com.br/apps): a página detecta o seu sistema e entrega o arquivo certo, mesmo sem acesso a este repositório (que é privado). Os links da tabela só abrem para quem tem acesso aqui.', '')
   L.push('## 🛠️ Instalação', '')
   for (const a of assets) { const s = SISTEMA[a.name]; if (s) L.push(`- **${s[0]}**: ${s[2]}`) }
   L.push('- **Web/PWA**: abra o painel no navegador e use "Instalar app" (Chrome, Edge) ou "Adicionar à Tela de Início" (Safari).', '', 'Todos usam o mesmo login e controlam os mesmos aparelhos do painel.', '')
+  L.push('## 🔄 Como atualizar', '',
+    '- **Android e desktop**: o app avisa quando sai versão nova. Baixe pelo painel (**Apps**) e instale por cima: login, aparelhos e ajustes continuam (tudo fica na nuvem).',
+    '- **Mudanças só de tela no Android** chegam sozinhas por atualização automática: feche e abra o app duas vezes.',
+    '- **Painel web/PWA**: atualiza sozinho a cada publicação; o aviso "O que há de novo" mostra o que mudou.',
+    '- **Agente do escritório** (o computador que fala com os transmissores): Mac `./instalar-servico.sh`; Windows e Linux, rode o instalador de novo ou use **Infra → Agentes**.', '')
+  L.push('## 🩺 Problemas comuns', '', '| Sintoma | O que fazer |', '|---|---|',
+    '| macOS diz que o app "não pode ser aberto" | O instalador não é assinado pela Apple: botão direito no app → **Abrir** → **Abrir** (só na primeira vez). |',
+    '| Windows mostra o SmartScreen | Clique em **Mais informações** → **Executar assim mesmo**. |',
+    '| Android bloqueia a instalação | Permita "instalar apps desconhecidos" para o navegador ou o gerenciador de arquivos. |',
+    '| O app abre mas o ar não obedece | Precisa de um agente ligado **no escritório** enxergando os transmissores (painel → **Infra → Agentes**). |',
+    '| Login do Android com senha não passa | Use **Entrar com Google** ou **Entrar pelo navegador** (a verificação anti-robô roda no navegador). |', '')
   L.push('## 🔏 Verificar o download', '', 'Compare o SHA-256 do arquivo baixado com a tabela:', '', '| Arquivo | SHA-256 |', '|---|---|')
   for (const a of assets) L.push(`| \`${a.name}\` | \`${(a.digest || '').replace('sha256:', '') || 'n/d'}\` |`)
   L.push('', '```bash', '# macOS', 'shasum -a 256 ~/Downloads/ClimaCasa-mac-apple-silicon.dmg', '# Linux / Android (Termux)', 'sha256sum ClimaCasa-linux-x64.AppImage', '# Windows (PowerShell)', 'Get-FileHash $env:USERPROFILE\\Downloads\\ClimaCasa-windows.exe -Algorithm SHA256', '```', '')

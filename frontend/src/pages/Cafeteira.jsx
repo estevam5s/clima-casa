@@ -12,6 +12,7 @@ import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Vazio, useDados, us
 // a mesma cafeteira do mapa 3D, girando devagar (vapor quando está ligada)
 function Maquina3D({ ligada }) {
   const ref = useRef(null), estado = useRef({ ligada })
+  const [carregando, setCarregando] = useState(true)
   useEffect(() => { estado.current.ligada = ligada }, [ligada])
   useEffect(() => {
     const el = ref.current
@@ -22,8 +23,12 @@ function Maquina3D({ ligada }) {
     cam.position.set(0.55, 0.42, 0.75); cam.lookAt(0, 0.15, 0)
     cena.add(new THREE.HemisphereLight(0xffffff, 0x94a3b8, 1.6)); const sol = new THREE.DirectionalLight(0xffffff, 1.8); sol.position.set(1, 2, 1.5); cena.add(sol)
     const m = cafeteiraVermelha({ ligada }); cena.add(m.g)
-    let vivo = true   // o modelo da biblioteca (Avatares) escolhido para a cafeteira; sem ele fica o desenho vermelho
-    api.get('/api/mapa').then((mp) => { const id = (mp?.mapa || mp)?.modelos?.cafeteira; return id && carregarAvatar(id) }).then((gl) => { if (vivo && gl) m.trocar(clonarComOssos(gl.scene)) }).catch(() => { /* fica o desenho */ })
+    // o desenho vermelho só aparece se não houver modelo da biblioteca: antes ele piscava por ~1,5 s até o modelo chegar
+    m.g.visible = false
+    let vivo = true
+    const mostrar = () => { if (vivo) { m.g.visible = true; setCarregando(false) } }
+    api.get('/api/mapa').then((mp) => { const id = (mp?.mapa || mp)?.modelos?.cafeteira; return id && carregarAvatar(id) })
+      .then((gl) => { if (vivo && gl) m.trocar(clonarComOssos(gl.scene)); mostrar() }).catch(mostrar)
     const medir = () => { const w = el.clientWidth, h = el.clientHeight; r.setSize(w, h); cam.aspect = w / Math.max(1, h); cam.updateProjectionMatrix() }
     medir(); const ro = new ResizeObserver(medir); ro.observe(el)
     let raf = 0; const t0 = performance.now()
@@ -31,7 +36,12 @@ function Maquina3D({ ligada }) {
     q()
     return () => { vivo = false; cancelAnimationFrame(raf); ro.disconnect(); cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() }); r.dispose(); r.domElement.remove() }
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps
-  return <div ref={ref} className="h-56 w-full" role="img" aria-label={`Cafeteira ${ligada ? 'ligada' : 'desligada'}`} />
+  return (
+    <div className="relative">
+      <div ref={ref} className="h-56 w-full" role="img" aria-label={`Cafeteira ${ligada ? 'ligada' : 'desligada'}`} />
+      {carregando && <div className="absolute inset-0 flex items-center justify-center"><Coffee className="h-8 w-8 animate-pulse text-muted-foreground/50" aria-label="Carregando a cafeteira" /></div>}
+    </div>
+  )
 }
 
 function Painel({ d0, aoMudar, podeGerenciar, podeControlar }) {

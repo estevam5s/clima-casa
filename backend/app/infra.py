@@ -276,3 +276,47 @@ def executar(op: str, args: dict):
     if op not in OPS:
         raise ErroInfra("Operação desconhecida.")
     return OPS[op](args or {})
+
+
+def _token_github() -> str:
+    """Token do GitHub SÓ no agente: GITHUB_APPS_TOKEN do .env (de preferência só leitura) ou o `gh` já logado neste
+    computador (lido na hora, nunca gravado em arquivo nem no banco)."""
+    import os
+    import shutil
+    import subprocess
+    t = (db.carregar_env().get("GITHUB_APPS_TOKEN") or os.environ.get("GITHUB_APPS_TOKEN") or "").strip()
+    if t:
+        return t
+    gh = shutil.which("gh") or next((c for c in ("/opt/homebrew/bin/gh", "/usr/local/bin/gh") if os.path.exists(c)), None)
+    if gh:
+        try:
+            r = subprocess.run([gh, "auth", "token"], capture_output=True, text=True, timeout=10)
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.strip()
+        except Exception:  # noqa: BLE001
+            pass
+    raise ErroInfra("Este computador não tem acesso ao GitHub (sem GITHUB_APPS_TOKEN e sem o gh logado).")
+
+
+def op_app_link(a):
+    """Link temporário (minutos) do instalador do último release do repositório privado. Só o link sai do agente."""
+    import httpx
+    repo, arquivo = "estevam5s/clima-casa", str(a.get("arquivo") or "")
+    if not arquivo or "/" in arquivo:
+        raise ErroInfra("Arquivo inválido.")
+    h = {"Authorization": f"Bearer {_token_github()}", "X-GitHub-Api-Version": "2022-11-28"}
+    rel = httpx.get(f"https://api.github.com/repos/{repo}/releases/latest", headers={**h, "Accept": "application/vnd.github+json"}, timeout=15)
+    if rel.status_code != 200:
+        raise ErroInfra(f"O GitHub recusou o acesso ({rel.status_code}).")
+    ativo = next((x for x in rel.json().get("assets", []) if x.get("name") == arquivo), None)
+    if not ativo:
+        raise ErroInfra("Este arquivo não está no último release.")
+    r = httpx.get(f"https://api.github.com/repos/{repo}/releases/assets/{ativo['id']}", headers={**h, "Accept": "application/octet-stream"},
+                  timeout=15, follow_redirects=False)
+    if r.status_code not in (301, 302, 307) or not r.headers.get("location"):
+        raise ErroInfra(f"O GitHub não liberou o arquivo ({r.status_code}).")
+    return {"url": r.headers["location"], "versao": rel.json().get("tag_name"), "tamanho": ativo.get("size")}
+
+
+OPS["app_link"] = op_app_link
+

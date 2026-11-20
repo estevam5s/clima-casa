@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import re
 import logging
 
 from . import db
@@ -168,6 +169,9 @@ def resumo(d: dict) -> dict:
         if t == "luz":
             return {"ligada": st.get("ligada"), "brilho": st.get("brilho")}
     if t == "luz":
+        tecla = (d.get("config") or {}).get("tecla")
+        if tecla:   # uma tecla de um interruptor de várias teclas (Novadigital 4 teclas: switch_1…switch_4)
+            return {"ligada": st.get(tecla), "brilho": None, "tecla": tecla, "luz_fundo": st.get("backlight_switch")}
         lig = next((st[k] for k in ("switch_led", "switch_1", "switch", "led_switch") if k in st), None)
         bruto = next(((k, st[k]) for k in ("bright_value_v2", "bright_value", "bright_value_1") if isinstance(st.get(k), (int, float))), None)
         brilho = None
@@ -198,6 +202,11 @@ def _cmds(d: dict, acao: str, valor) -> list[dict]:
         cod = "switch_1" if "switch_1" in f or not f else "switch"
         if acao in ("ligar", "desligar"):
             return [{"code": cod, "value": acao == "ligar"}]
+    if d["tipo"] == "luz" and (d.get("config") or {}).get("tecla"):
+        tecla = d["config"]["tecla"]
+        if acao in ("ligar", "desligar"):
+            return [{"code": tecla, "value": acao == "ligar"}]
+        raise RuntimeError("Tecla de interruptor só liga e desliga (não tem ajuste de brilho).")
     if d["tipo"] == "luz":
         cod = next((c for c in ("switch_led", "switch_1", "switch", "led_switch") if c in f), "switch_led" if not f else None)
         if acao in ("ligar", "desligar"):
@@ -322,16 +331,37 @@ def sincronizar(token: str, corpo: dict) -> dict | None:
 # ---------------- importar da conta Smart Life ----------------
 def disponiveis() -> list[dict]:
     from . import tuya_nuvem
-    ja = {r["tuya_id"] for r in db.consultar("SELECT tuya_id FROM dispositivos WHERE tuya_id IS NOT NULL")}
+    # interruptor de várias teclas pode ter uma luz por tecla: ele só fica "em uso" quando é usado sem tecla
+    ja = {r["tuya_id"] for r in db.consultar("SELECT tuya_id FROM dispositivos WHERE tuya_id IS NOT NULL AND coalesce(config->>'tecla', '') = ''")}
+    com_tecla = {r["tuya_id"] for r in db.consultar("SELECT tuya_id FROM dispositivos WHERE tuya_id IS NOT NULL AND coalesce(config->>'tecla', '') <> ''")}
     saida = []
     for a in tuya_nuvem.listar_aparelhos():
         tipos = [t for t, cats in CATEGORIAS.items() if a["categoria"] in cats]
         if tipos:
-            saida.append({**a, "tipo": tipos[0], "tipos": tipos, "ja_cadastrado": a["id"] in ja})
+            saida.append({**a, "tipo": tipos[0], "tipos": tipos, "ja_cadastrado": a["id"] in ja, "teclas_em_uso": a["id"] in com_tecla})
     return saida
 
 
-def conectar(did: int, tuya_id: str) -> dict:
+def teclas_de(funcoes: list[str]) -> list[str]:
+    """Teclas de um interruptor (switch_1, switch_2…) na ordem. Uma só = interruptor simples."""
+    return sorted((f for f in funcoes if re.fullmatch(r"switch_\d+", f)), key=lambda x: int(x.split("_")[1]))
+
+
+def teclas(tuya_id: str) -> dict:
+    """Teclas do interruptor na conta Smart Life e quais já viraram luz no sistema."""
+    from . import tuya_nuvem
+    info = next((a for a in tuya_nuvem.listar_aparelhos() if a["id"] == tuya_id), None)
+    if not info:
+        raise KeyError("Aparelho não está na conta Smart Life conectada.")
+    det = tuya_nuvem.detalhes(tuya_id)
+    usadas = [{"tecla": (_j(r["config"], {}) or {}).get("tecla"), "id": r["id"], "nome": r["nome"]}
+              for r in db.consultar("SELECT id, nome, config FROM dispositivos WHERE tuya_id = ? AND tipo = 'luz'", (tuya_id,))]
+    return {"id": tuya_id, "nome": info.get("nome") or det.get("nome"), "produto": info.get("produto"), "categoria": info["categoria"],
+            "online": info.get("online"), "teclas": teclas_de(det.get("funcoes") or []), "usadas": usadas,
+            "luz_fundo": "backlight_switch" in (det.get("funcoes") or [])}
+
+
+def conectar(did: int, tuya_id: str, tecla: str | None = None) -> dict:
     from . import tuya_nuvem
     d = um(did)
     info = next((a for a in tuya_nuvem.listar_aparelhos() if a["id"] == tuya_id), None)
@@ -340,8 +370,19 @@ def conectar(did: int, tuya_id: str) -> dict:
     if info["categoria"] not in CATEGORIAS[d["tipo"]]:
         raise ValueError(f"Esse aparelho ({info['produto'] or info['categoria']}) não é do tipo {d['tipo']}.")
     det = tuya_nuvem.detalhes(tuya_id)
-    db.executar("UPDATE dispositivos SET tuya_id = ?, categoria = ?, produto = ?, funcoes = CAST(? AS jsonb), online = ? WHERE id = ?",
-                (tuya_id, info["categoria"], info.get("produto") or "", json.dumps(det.get("funcoes") or []), 1 if info["online"] else 0, did))
+    cfg = dict(d.get("config") or {})
+    if d["tipo"] == "luz":
+        tks = teclas_de(det.get("funcoes") or [])
+        if tecla and tecla not in tks:
+            raise ValueError(f"Este interruptor não tem a tecla {tecla} (tem: {', '.join(tks) or 'nenhuma'}).")
+        if len(tks) > 1 and not tecla:
+            raise ValueError(f"Este interruptor tem {len(tks)} teclas: escolha qual tecla esta luz usa (ou use Adicionar interruptor).")
+        if tecla:
+            cfg["tecla"] = tecla
+        else:
+            cfg.pop("tecla", None)
+    db.executar("UPDATE dispositivos SET tuya_id = ?, categoria = ?, produto = ?, funcoes = CAST(? AS jsonb), online = ?, config = CAST(? AS jsonb) WHERE id = ?",
+                (tuya_id, info["categoria"], info.get("produto") or "", json.dumps(det.get("funcoes") or []), 1 if info["online"] else 0, json.dumps(cfg), did))
     evento(did, "Aparelho conectado", "painel", True, info.get("produto") or info["categoria"])
     return atualizar(did)
 

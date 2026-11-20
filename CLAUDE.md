@@ -104,6 +104,9 @@ caminhos de serviço e o projeto da Vercel).
 | E-mail atrasado ou devolvido | `correio.registrar_evento` notifica no 1º atraso e na devolução (dica do Outlook/Hotmail); `frontend/src/emailAviso.js` no texto depois de enviar |
 | Guia de gravar botões (visor do controle) | `components/GuiaBotoes.jsx` (no `FormAparelho`, na aba Botões e na gravação) |
 | Agenda/Cenas/Automações: modelos prontos e histórico | `pages/Agendamentos.jsx` (`Modelos`, `Timers`, `Historico`), `pages/Cenas.jsx` (`Sugeridas`, `HistoricoCenas`), `pages/Automacoes.jsx` (`MODELOS`, `ComoFunciona`, `HistoricoAutos`); histórico = `/api/atividade?origem=agenda|cena|automacao` |
+| Interruptor de parede de várias teclas (Novadigital 4 teclas, `switch_1…4`): uma luz por tecla | `dispositivos.py` (`teclas_de`, `teclas`, `config.tecla` em `resumo`/`_cmds`/`conectar`), `rotas/dispositivos.py` (`GET /dispositivos/teclas/{tuya_id}`, `POST /dispositivos/interruptor`), `pages/Luzes.jsx` (`AssistenteInterruptor`, `PaineisInterruptor`), `dispositivos/Comum.jsx` (escolha da tecla) |
+| Download dos apps sem acesso ao GitHub | `infra.op_app_link` (no agente: `GITHUB_APPS_TOKEN` do .env ou `gh auth token` do Mac, nunca gravado), `rotas/api.py` (`/apps/baixar/{arquivo}`: token de leitura em `config.github_apps` → agente → link público). Instaladores > 50 MB não cabem no Storage |
+| Compilar shaders sem quebrar ao descartar material | `components/compilar3d.js` (`compilarSeguro`, no lugar de `renderer.compileAsync`), usado no `Mapa3D` e no `Globo3D` |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
@@ -313,7 +316,7 @@ Scripts de exemplo ficam no scratchpad da sessão; não versionar.
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | projeto e chave pública | agente, Vercel, front (via API) |
 | `SUPABASE_SECRET_KEY` | admin do Auth (contas, links de recuperação/convite, biometria) | agente e Vercel (nunca no front) |
 | `SUPABASE_ACCESS_TOKEN` | Management API (`sbp_…`) | schema/cron |
-| `SUPABASE_DB_PASSWORD` (+ `_HOST`/`_PORT`) | Postgres | agente (5432) e Vercel (6543) |
+| `SUPABASE_DB_PASSWORD` (+ `_HOST`/`_PORT`) | Postgres | agente e Vercel, porta 6543 (modo transação; o 5432 esgota com 15 clientes) |
 | `SINRIC_API_KEY/APP_KEY/APP_SECRET` | Sinric (copiados para `config.sinric`) | agente |
 | `VERCEL_TOKEN` | deploy **e** Infra (escopo amplo: **só** no agente, nunca na Vercel) | agente, `publicar-vercel.sh` |
 | `CLOUDFLARE_API_TOKEN` | Infra → Cloudflare (zona zynio.com.br: DNS edit, e-mail, DNSSEC, analytics, Turnstile read, auditoria). **Só** no agente; o dono cria (lista de permissões em Infra → Cloudflare → Token) | agente |

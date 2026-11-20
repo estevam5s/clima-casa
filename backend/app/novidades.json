@@ -2,6 +2,33 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.25.0",
+      "data": "2026-11-20",
+      "titulo": "Interruptor de 4 teclas, Assistente no visual do Claude e mapa com monitores e PCs",
+      "resumo": "Luzes com interruptores de parede de várias teclas, o Assistente de IA com o visual do Claude, o mapa mais leve e com os modelos certos nas mesas, e downloads dos apps para quem não tem acesso ao GitHub.",
+      "novo": [
+        "Luzes: Adicionar interruptor. Interruptores Wi-Fi de várias teclas (como o Novadigital Touch de 4 teclas) viram uma luz por tecla, cada uma com nome e sala.",
+        "Luzes: painel do interruptor igual ao de vidro preto, com as teclas acendendo quando a luz está ligada; tocar na tecla liga ou desliga.",
+        "Apps: quem não tem acesso ao repositório do GitHub agora baixa os instaladores pelo painel."
+      ],
+      "melhorias": [
+        "Assistente de IA com o visual do Claude: cores quentes, conta embaixo na lateral, título em serifa e escolha do modelo abaixo da caixa.",
+        "Mapa: o trânsito e os carros entram depois do escritório aparecer, e a abertura ficou mais leve.",
+        "Avatares 3D: a lista da Biblioteca rola sozinha e o visualizador fica na tela.",
+        "Notas das versões no GitHub com o logo, seções de como atualizar e de problemas comuns."
+      ],
+      "seguranca": [
+        "O acesso ao GitHub para os downloads fica só no computador do escritório: a nuvem recebe apenas um link que vale poucos minutos."
+      ],
+      "correcoes": [
+        "Mapa: monitores, teclados, mouses e computadores da biblioteca voltaram a aparecer nas mesas.",
+        "Cafeteira: não mostra mais a cafeteira vermelha antiga antes do modelo certo.",
+        "Erro \"isReady\" que aparecia ao sair das telas com 3D (Projetos, Avatares, Mapa).",
+        "Falhas de \"limite de conexões\" com o banco quando vários computadores do escritório ficavam ligados.",
+        "Transmissor sem resposta virou aviso na central de notificações, em vez de bug."
+      ]
+    },
+    {
       "versao": "1.24.1",
       "data": "2026-11-19",
       "titulo": "Apps 1.4.0 e o assistente no terminal",

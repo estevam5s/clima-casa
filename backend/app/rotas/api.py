@@ -2028,7 +2028,17 @@ def baixar_app(arquivo: str):
     publico = f"https://github.com/{REPO_APPS}/releases/latest/download/{arquivo}"
     token = (db.cfg("github_apps") or {}).get("token")
     if not token:
-        return {"url": publico, "origem": "github", "aviso": "Sem token configurado: o link só abre para quem tem acesso ao repositório no GitHub."}
+        # sem token de leitura na nuvem: o agente do escritório pega o link temporário com o acesso ao GitHub que só
+        # ele tem (o token nunca vem para a nuvem; volta só o link, que vale alguns minutos)
+        try:
+            from .infra import _via_agente
+            r = _via_agente("app_link", {"arquivo": arquivo}, espera=25)
+            if r.get("url"):
+                db.registrar("painel", "App baixado", detalhe=f"{arquivo} · versão {r.get('versao')} · pelo agente")
+                return {"url": r["url"], "origem": "agente", "versao": r.get("versao"), "tamanho": r.get("tamanho")}
+        except HTTPException:
+            pass
+        return {"url": publico, "origem": "github", "aviso": "O agente do escritório não conseguiu gerar o link: ele só abre para quem tem acesso ao repositório no GitHub."}
     rel = _gh(token, f"/repos/{REPO_APPS}/releases/latest")
     if rel.status_code != 200:
         raise HTTPException(424, f"O GitHub recusou o token ({rel.status_code}). O dono precisa gerar outro em Apps → Downloads sem acesso ao GitHub.")

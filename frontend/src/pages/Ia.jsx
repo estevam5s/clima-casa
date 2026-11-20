@@ -62,7 +62,8 @@ function Acoes({ m }) {
   )
 }
 
-function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar }) {
+function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar, sessao, executar, recolher }) {
+  const [menuConta, setMenuConta] = useState(false)
   const toast = useToast()
   const [menu, setMenu] = useState(null)
   const [renomear, setRenomear] = useState(null)
@@ -84,7 +85,7 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
       {renomear?.id === c.id ? (
         <form onSubmit={salvarNome} className="px-1"><input autoFocus className="campo h-8 w-full text-sm" value={renomear.titulo} maxLength={120} onChange={(e) => setRenomear({ ...renomear, titulo: e.target.value })} onBlur={() => setRenomear(null)} aria-label="Novo nome da conversa" /></form>
       ) : (
-        <button onClick={() => { abrir(c.id); fechar?.() }} className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm ${atual === c.id ? 'bg-muted font-medium' : 'text-foreground/85 hover:bg-muted/70'}`}>
+        <button onClick={() => { abrir(c.id); fechar?.() }} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm ${atual === c.id ? 'bg-[var(--ia-realce)] font-medium' : 'hover:bg-[var(--ia-realce)]'}`}>
           <span className="min-w-0 flex-1 truncate">{c.titulo}</span>
         </button>
       )}
@@ -100,20 +101,37 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
   )
   return (
     <div className="flex h-full flex-col">
-      <div className="space-y-1 p-2">
-        <button onClick={() => { nova(); fechar?.() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium hover:bg-muted"><Plus className="h-4 w-4" />Nova conversa</button>
-        <label className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground focus-within:bg-muted">
-          <Search className="h-4 w-4 shrink-0" />
-          <input id="ia-busca" type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Procurar conversas" className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground" />
+      <div className="flex items-center justify-between px-4 pb-1 pt-3">
+        <span className="font-serif text-xl">Assistente</span>
+        {recolher && <button onClick={recolher} className="rounded-lg p-1.5 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]" aria-label="Esconder conversas" title="Esconder conversas"><PanelLeftClose className="h-4 w-4" /></button>}
+      </div>
+      <div className="space-y-0.5 p-2">
+        <button onClick={() => { nova(); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium hover:bg-[var(--ia-realce)]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--ia-acento)] text-[var(--ia-acento-texto)]"><Plus className="h-3.5 w-3.5" /></span>Nova conversa</button>
+        <button onClick={() => { executar?.('comandos'); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-[var(--ia-realce)]"><Slash className="ml-1 h-4 w-4 text-[var(--ia-suave)]" /><span className="ml-0.5">Comandos</span></button>
+        <label className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm focus-within:bg-[var(--ia-realce)]">
+          <Search className="ml-1 h-4 w-4 shrink-0 text-[var(--ia-suave)]" />
+          <input id="ia-busca" type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Procurar" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[var(--ia-texto)]" />
         </label>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2" aria-label="Conversas">
-        {fixadas.length > 0 && <><p className="px-2.5 pb-1 pt-3 text-xs font-medium text-muted-foreground">Fixadas</p><ul className="space-y-0.5">{fixadas.map(item)}</ul></>}
-        <p className="px-2.5 pb-1 pt-3 text-xs font-medium text-muted-foreground">Recentes</p>
+        {fixadas.length > 0 && <><p className="px-2.5 pb-1 pt-3 text-xs font-medium text-[var(--ia-suave)]">Fixadas</p><ul className="space-y-0.5">{fixadas.map(item)}</ul></>}
+        <p className="px-2.5 pb-1 pt-3 text-xs font-medium text-[var(--ia-suave)]">Recentes</p>
         {recentes.length ? <ul className="space-y-0.5">{recentes.map(item)}</ul> : <p className="px-2.5 text-xs text-muted-foreground">{busca ? 'Nada com esse texto.' : 'As conversas ficam aqui.'}</p>}
       </nav>
-      <div className="border-t border-border p-2">
-        <button onClick={configurar} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground"><Settings className="h-4 w-4 shrink-0" />Terminal, capacidades e configuração</button>
+      <div className="relative p-2">
+        {menuConta && (
+          <div className="absolute bottom-full left-2 right-2 z-20 mb-1 rounded-xl border border-[var(--ia-borda)] bg-[var(--ia-caixa)] p-1 text-sm shadow-lg">{/* marca: menu da conta flutua */}
+            <p className="truncate px-3 pb-1 pt-2 text-xs text-[var(--ia-suave)]">{sessao?.email}</p>
+            <button onClick={() => { setMenuConta(false); configurar() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Settings className="h-4 w-4" />Configurações e capacidades</button>
+            <button onClick={() => { setMenuConta(false); executar?.('ajuda'); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><MessageSquare className="h-4 w-4" />O que dá para fazer</button>
+            <button onClick={() => { setMenuConta(false); executar?.('exportar') }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Download className="h-4 w-4" />Baixar a conversa</button>
+          </div>
+        )}
+        <button onClick={() => setMenuConta((v) => !v)} aria-expanded={menuConta} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-[var(--ia-realce)]">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--ia-acento)] text-sm font-semibold text-[var(--ia-acento-texto)]">{(sessao?.nome || sessao?.email || '?').slice(0, 1).toUpperCase()}</span>
+          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{(sessao?.nome || '').split(' ')[0] || 'Você'}</span><span className="block truncate text-xs text-[var(--ia-suave)]">{({ dono: 'Dono', admin: 'Administrador' })[sessao?.papel] || sessao?.papel}</span></span>
+          <ChevronDown className="h-4 w-4 text-[var(--ia-suave)]" />
+        </button>
       </div>
     </div>
   )
@@ -165,11 +183,10 @@ function Configuracao({ dados, dono, recarregar, fechar }) {
   )
 }
 
-function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, setModelo, modelos, executar, grande }) {
+function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, setModelo, modelos, executar, grande, escopo }) {
   const toast = useToast()
   const ta = useRef(null), arq = useRef(null)
   const [anexo, setAnexo] = useState(null)
-  const [menuModelo, setMenuModelo] = useState(false)
   const [ouvindo, setOuvindo] = useState(false)
   const [sel, setSel] = useState(0)
   const reconhecer = useRef(null)
@@ -200,6 +217,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
     reconhecer.current = r; setOuvindo(true); r.start()
   }
   const nomeModelo = modelos.find((m) => m.id === modelo)?.nome?.split(' (')[0] || 'Modelo'
+  const seletor = <SeletorModelo modelo={modelo} setModelo={setModelo} modelos={modelos} nomeModelo={nomeModelo} />
   return (
     <div className={`relative w-full ${grande ? '' : ''}`}>
       {barra.length > 0 && (
@@ -211,7 +229,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
           ))}
         </ul>
       )}
-      <div className="rounded-2xl border border-border bg-card shadow-sm focus-within:border-foreground/30">{/* marca: caixa de mensagem */}
+      <div className="rounded-[20px] border border-[var(--ia-borda)] bg-[var(--ia-caixa)] shadow-[0_2px_10px_rgba(0,0,0,0.05)] focus-within:border-[var(--ia-suave)]">{/* marca: caixa de mensagem flutua */}
         {anexo && (
           <div className="flex items-center gap-2 px-4 pt-3 text-xs"><span className="flex items-center gap-1.5 rounded-md bg-muted px-2 py-1"><Paperclip className="h-3.5 w-3.5" />{anexo.nome}</span>
             <button onClick={() => setAnexo(null)} aria-label="Tirar o anexo" className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button></div>
@@ -222,39 +240,52 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); mandar() }
             if (e.key === 'Escape' && pensando) parar()
           }}
-          placeholder={ativo ? 'Como posso ajudar? Digite / para ver os comandos' : 'O assistente está desligado ou sem chave'} aria-label="Mensagem para a IA"
-          className="block w-full resize-none bg-transparent px-4 pt-3.5 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground" />
+          placeholder={ativo ? (grande ? 'Como posso ajudar você hoje?' : 'Responder…') : 'O assistente está desligado ou sem chave'} aria-label="Mensagem para a IA"
+          className="block w-full resize-none bg-transparent px-4 pt-4 text-[15px] leading-relaxed outline-none placeholder:text-[var(--ia-suave)]" />
         <div className="flex items-center gap-1 px-2.5 pb-2.5 pt-1">
           <input ref={arq} type="file" accept=".txt,.md,.csv,.json,.log,.py,.js,.jsx,.ts,.sql,.yml,.yaml,.xml,.html" className="hidden" onChange={anexar} />
           <button onClick={() => arq.current?.click()} disabled={!ativo} title="Anexar arquivo de texto" aria-label="Anexar arquivo de texto" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Plus className="h-4 w-4" /></button>
           <button onClick={() => { setTexto('/'); ta.current?.focus() }} disabled={!ativo} title="Comandos" aria-label="Comandos" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Slash className="h-4 w-4" /></button>
           <div className="flex-1" />
+          {!grande && seletor}
+          <button onClick={ditar} disabled={!ativo} title={ouvindo ? 'Parar o ditado' : 'Ditar por voz'} aria-label="Ditar por voz" className={`rounded-lg p-2 hover:bg-[var(--ia-realce)] ${ouvindo ? 'text-red-500' : 'text-[var(--ia-suave)]'}`}><Mic className="h-4 w-4" /></button>
+          {pensando
+            ? <button onClick={parar} aria-label="Parar" title="Parar (Esc)" className="rounded-xl bg-[var(--ia-texto)] p-2 text-[var(--ia-fundo)]"><Square className="h-4 w-4" /></button>
+            : <button onClick={mandar} disabled={!ativo || (!texto.trim() && !anexo)} aria-label="Enviar" title="Enviar (Enter)" className="rounded-xl bg-[var(--ia-acento)] p-2 text-[var(--ia-acento-texto)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>}
+        </div>
+      </div>
+      {grande && (
+        <div className="mt-2 flex items-center justify-between gap-2 px-2 text-sm text-[var(--ia-suave)]">
+          <span className="truncate">{escopo}</span>
+          {seletor}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SeletorModelo({ modelo, setModelo, modelos, nomeModelo }) {
+  const [menuModelo, setMenuModelo] = useState(false)
+  return (
           <div className="relative">
-            <button onClick={() => setMenuModelo((v) => !v)} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">{nomeModelo}<ChevronDown className="h-3.5 w-3.5" /></button>
+            <button onClick={() => setMenuModelo((v) => !v)} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-[var(--ia-texto)] hover:bg-[var(--ia-realce)]">{nomeModelo}<ChevronDown className="h-3.5 w-3.5 text-[var(--ia-suave)]" /></button>
             {menuModelo && (
-              <div className="absolute bottom-full right-0 z-20 mb-2 w-72 rounded-xl border border-border bg-card p-1 text-sm shadow-lg">{/* marca: escolha do modelo flutua */}
+              <div className="absolute bottom-full right-0 z-20 mb-2 w-72 rounded-xl border border-[var(--ia-borda)] bg-[var(--ia-caixa)] p-1 text-sm shadow-lg">{/* marca: escolha do modelo flutua */}
                 {modelos.map((m) => (
-                  <button key={m.id} onClick={() => { setModelo(m.id); setMenuModelo(false) }} className="flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted">
-                    <span className="min-w-0 flex-1"><span className="block font-medium">{m.nome.split(' (')[0]}</span><span className="block text-xs text-muted-foreground">{m.nome.match(/\((.*)\)/)?.[1] || m.id}</span></span>
-                    {m.id === modelo && <Check className="mt-0.5 h-4 w-4 text-primary" />}
+                  <button key={m.id} onClick={() => { setModelo(m.id); setMenuModelo(false) }} className="flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--ia-realce)]">
+                    <span className="min-w-0 flex-1"><span className="block font-medium">{m.nome.split(' (')[0]}</span><span className="block text-xs text-[var(--ia-suave)]">{m.nome.match(/\((.*)\)/)?.[1] || m.id}</span></span>
+                    {m.id === modelo && <Check className="mt-0.5 h-4 w-4 text-[var(--ia-acento)]" />}
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <button onClick={ditar} disabled={!ativo} title={ouvindo ? 'Parar o ditado' : 'Ditar por voz'} aria-label="Ditar por voz" className={`rounded-lg p-2 hover:bg-muted ${ouvindo ? 'text-red-500' : 'text-muted-foreground hover:text-foreground'}`}><Mic className="h-4 w-4" /></button>
-          {pensando
-            ? <button onClick={parar} aria-label="Parar" title="Parar (Esc)" className="rounded-lg bg-foreground p-2 text-background"><Square className="h-4 w-4" /></button>
-            : <button onClick={mandar} disabled={!ativo || (!texto.trim() && !anexo)} aria-label="Enviar" title="Enviar (Enter)" className="rounded-lg bg-primary p-2 text-primary-foreground disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>}
-        </div>
-      </div>
-    </div>
   )
 }
 
 export default function Ia() {
   const toast = useToast()
-  const { sessao } = useProjeto()
+  const { sessao, projeto } = useProjeto()
   const { dados, erro, recarregar } = useDados(() => api.get('/api/ia/estado'))
   const [busca, setBusca] = useState('')
   const [lista, setLista] = useState([])
@@ -306,6 +337,7 @@ export default function Ia() {
   const executar = (acao) => {
     if (acao === 'nova') return nova()
     if (acao === 'ajuda') return setMsgs((m) => [...m, { role: 'assistant', content: AJUDA, local: true }])
+    if (acao === 'comandos') { setTexto('/'); setTimeout(() => document.querySelector('textarea[aria-label="Mensagem para a IA"]')?.focus(), 30); return }
     if (acao === 'exportar') {
       const md = msgs.map((m) => `### ${m.role === 'user' ? 'Você' : 'Assistente'}\n\n${m.content}\n`).join('\n')
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown' })); a.download = `conversa-ia-${new Date().toISOString().slice(0, 10)}.md`; a.click()
@@ -323,25 +355,26 @@ export default function Ia() {
   const editar = (i) => { setTexto(msgs[i].content); setMsgs(msgs.slice(0, i)) }
   const copiar = (t) => { navigator.clipboard?.writeText(t); toast('Copiado.') }
   const titulo = lista.find((c) => c.id === atual)?.titulo
-  const compositor = (grande) => <Compositor texto={texto} setTexto={setTexto} enviar={(q) => enviar(q)} parar={parar} pensando={pensando} ativo={ativo} modelo={modelo} setModelo={setModelo} modelos={dados.modelos} executar={executar} grande={grande} />
+  const escopo = projeto ? `Contexto: ${projeto.nome}` : 'Contexto: todos os projetos'
+  const compositor = (grande) => <Compositor texto={texto} setTexto={setTexto} enviar={(q) => enviar(q)} parar={parar} pensando={pensando} ativo={ativo} modelo={modelo} setModelo={setModelo} modelos={dados.modelos} executar={executar} grande={grande} escopo={escopo} />
 
   return (
-    <div className="-mx-4 -mb-16 -mt-6 flex h-[calc(100vh-4rem)] min-h-[32rem] overflow-hidden sm:-mx-6 lg:-mx-8 2xl:-mx-10">
+    <div className="tela-ia -mx-4 -mb-16 -mt-6 flex h-[calc(100dvh-4rem)] min-h-[32rem] overflow-hidden bg-[var(--ia-fundo)] text-[var(--ia-texto)] sm:-mx-6 lg:-mx-8 2xl:-mx-10">
       {lateral && (
-        <aside className="hidden w-64 shrink-0 border-r border-border bg-muted/30 md:block">
-          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} />
+        <aside className="hidden w-72 shrink-0 border-r border-[var(--ia-borda)] bg-[var(--ia-lateral)] md:block">
+          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} />
         </aside>
       )}
       {gaveta && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Fechar a lista" onClick={() => setGaveta(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 bg-card shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} /></aside>
+          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} /></aside>
         </div>
       )}
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-2 px-3">
           <button onClick={() => setGaveta(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted md:hidden" aria-label="Conversas"><Menu className="h-4 w-4" /></button>
-          <button onClick={() => setLateral((v) => !v)} className="hidden rounded-md p-1.5 text-muted-foreground hover:bg-muted md:block" aria-label={lateral ? 'Esconder conversas' : 'Mostrar conversas'}>{lateral ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}</button>
+          {!lateral && <button onClick={() => setLateral(true)} className="hidden rounded-md p-1.5 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] md:block" aria-label="Mostrar conversas" title="Mostrar conversas"><PanelLeftOpen className="h-4 w-4" /></button>}
           <p className="min-w-0 flex-1 truncate text-sm font-medium">{titulo || (msgs.length ? 'Nova conversa' : '')}</p>
           {msgs.length > 0 && <button onClick={() => executar('exportar')} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Baixar a conversa" title="Baixar em Markdown"><Download className="h-4 w-4" /></button>}
           {msgs.length > 0 && <button onClick={nova} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Nova conversa" title="Nova conversa"><MessageSquare className="h-4 w-4" /></button>}
@@ -349,11 +382,11 @@ export default function Ia() {
         {!dados.configurada && <div className="px-4"><Aviso tipo="alerta">Falta a chave da NVIDIA. {sessao.papel === 'dono' ? 'Abra Terminal, capacidades e configuração, embaixo à esquerda.' : 'Peça ao dono do sistema.'}</Aviso></div>}
         {msgs.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-16">
-            <h1 className="flex items-center gap-3 font-serif text-3xl text-foreground sm:text-4xl"><Sparkles className="h-8 w-8 text-primary" />{saudacao(nome)}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Pergunte ou peça: ele vê o estado real e só faz o que o seu usuário pode.</p>
+            <h1 className="flex items-center gap-3 text-center font-serif text-[2rem] font-normal leading-tight tracking-tight sm:text-[2.6rem]"><Sparkles className="h-8 w-8 shrink-0 text-[var(--ia-acento)] sm:h-9 sm:w-9" />{saudacao(nome)}</h1>
+            <p className="mt-2 text-center text-sm text-[var(--ia-suave)]">Pergunte ou peça: ele vê o estado real dos ares e só faz o que o seu usuário pode.</p>
             <div className="mt-6 w-full max-w-3xl">{compositor(true)}</div>
             <div className="mt-4 flex max-w-3xl flex-wrap justify-center gap-2">
-              {SUGESTOES.map(([r, s]) => <button key={s} onClick={() => enviar(s)} disabled={!ativo} className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"><b className="font-medium text-foreground">{r}</b> · {s}</button>)}
+              {SUGESTOES.map(([r, s]) => <button key={s} onClick={() => enviar(s)} disabled={!ativo} className="rounded-xl border border-[var(--ia-borda)] px-3 py-1.5 text-xs text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] hover:text-[var(--ia-texto)] disabled:opacity-50"><b className="font-medium text-[var(--ia-texto)]">{r}</b> · {s}</button>)}
             </div>
           </div>
         ) : (
@@ -362,7 +395,7 @@ export default function Ia() {
               <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
                 {msgs.map((m, i) => m.role === 'user' ? (
                   <div key={i} className="group flex flex-col items-end">
-                    <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-muted px-4 py-2.5 text-[15px]">{m.content}</div>
+                    <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-[var(--ia-bolha)] px-4 py-2.5 text-[15px]">{m.content}</div>
                     <div className="mt-1 flex gap-1 opacity-0 transition group-hover:opacity-100">
                       <button onClick={() => copiar(m.content)} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Copiar"><Copy className="h-3.5 w-3.5" /></button>
                       <button onClick={() => editar(i)} disabled={pensando} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Editar e enviar de novo"><Pencil className="h-3.5 w-3.5" /></button>
@@ -389,12 +422,12 @@ export default function Ia() {
                     )}
                   </div>
                 ))}
-                {pensando && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Sparkles className="h-4 w-4 animate-pulse text-primary" />Consultando o sistema…</div>}
+                {pensando && <div className="flex items-center gap-2 text-sm text-[var(--ia-suave)]"><Sparkles className="h-4 w-4 animate-pulse text-[var(--ia-acento)]" />Consultando o sistema…</div>}
                 <div ref={fim} />
               </div>
             </div>
             <div className="mx-auto w-full max-w-3xl px-4 pb-4">{compositor(false)}
-              <p className="mt-1.5 text-center text-[11px] text-muted-foreground">A IA pode errar. Ações em lote pedem Confirmar; o ar não informa o estado de volta.</p></div>
+              <p className="mt-1.5 text-center text-[11px] text-[var(--ia-suave)]">A IA pode errar. Ações em lote pedem Confirmar; o ar não informa o estado de volta.</p></div>
           </>
         )}
       </main>

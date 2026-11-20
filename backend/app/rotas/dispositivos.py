@@ -7,6 +7,8 @@ e configurar) só dono e admin, e destrancar pede a senha de novo (POST com "sen
 from __future__ import annotations
 
 import httpx
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -113,6 +115,57 @@ def apagar(did: int):
 
 class ConectarIn(BaseModel):
     tuya_id: str = Field(min_length=6, max_length=40, pattern=r"^[A-Za-z0-9]+$")
+    tecla: str | None = Field(None, pattern=r"^switch_\d{1,2}$")
+
+
+@rotas_disp.get("/dispositivos/teclas/{tuya_id}")
+def ver_teclas(tuya_id: str):
+    """Teclas de um interruptor da conta Smart Life (Novadigital 4 teclas = switch_1…switch_4) e as já usadas."""
+    if not re.fullmatch(r"[A-Za-z0-9]{6,40}", tuya_id):
+        raise HTTPException(422, "Aparelho inválido.")
+    try:
+        return dispositivos.teclas(tuya_id)
+    except KeyError as e:
+        raise HTTPException(404, str(e).strip("'")) from e
+    except RuntimeError as e:
+        raise HTTPException(409, str(e)) from e
+
+
+class TeclaIn(BaseModel):
+    tecla: str = Field(pattern=r"^switch_\d{1,2}$")
+    nome: str = Field(min_length=1, max_length=60)
+    projeto_id: int | None = None
+
+
+class InterruptorIn(BaseModel):
+    tuya_id: str = Field(min_length=6, max_length=40, pattern=r"^[A-Za-z0-9]+$")
+    teclas: list[TeclaIn] = Field(min_length=1, max_length=8)
+
+
+@rotas_disp.post("/dispositivos/interruptor")
+def criar_interruptor(d: InterruptorIn):
+    """Uma luz para cada tecla escolhida do interruptor (cada uma com nome e sala próprios)."""
+    info = ver_teclas(d.tuya_id)
+    ja = {u["tecla"] for u in info["usadas"]}
+    for t in d.teclas:
+        if t.tecla not in info["teclas"]:
+            raise HTTPException(400, f"O interruptor não tem a tecla {t.tecla}.")
+        if t.tecla in ja:
+            raise HTTPException(409, f"A tecla {t.tecla.split('_')[1]} já está cadastrada.")
+        if t.projeto_id and acesso.projetos_permitidos() is not None:
+            acesso.checar_projeto(t.projeto_id)
+    criadas = []
+    for t in d.teclas:
+        did = db.um("INSERT INTO dispositivos (tipo, nome, projeto_id, mapa_elemento, criado_em) VALUES ('luz',?,?,'',?) RETURNING id",
+                    (t.nome.strip(), t.projeto_id, db.agora()))["id"]
+        dispositivos.evento(did, "Cadastrado", "painel", True, f"tecla {t.tecla.split('_')[1]} de {info['nome']}")
+        try:
+            criadas.append(dispositivos.conectar(did, d.tuya_id, t.tecla))
+        except Exception as e:  # noqa: BLE001
+            db.executar("DELETE FROM dispositivos WHERE id = ?", (did,))
+            raise HTTPException(502, f"Não deu para ligar a tecla {t.tecla.split('_')[1]}: {e}") from e
+    db.registrar("painel", f"Interruptor cadastrado: {info['nome']}", detalhe=f"{len(criadas)} tecla(s)")
+    return {"criadas": criadas}
 
 
 @rotas_disp.post("/dispositivos/{did}/conectar")
@@ -121,7 +174,7 @@ def conectar(did: int, d: ConectarIn):
     if atual["tipo"] == "fechadura":
         _so_dono_admin()
     try:
-        return dispositivos.conectar(did, d.tuya_id)
+        return dispositivos.conectar(did, d.tuya_id, d.tecla)
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e).strip("'")) from e
 

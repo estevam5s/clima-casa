@@ -1,3 +1,4 @@
+import { compilarSeguro } from './compilar3d'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -425,6 +426,9 @@ function etiqueta(texto, cor = '#ffffff', fundo = 'rgba(15,23,42,0.82)') {
   sp.scale.set(w / 76 * 0.26, 0.26, 1); sp.renderOrder = 10
   return sp
 }
+
+// roda depois de um atraso e quando o navegador estiver ocioso (cargas pesadas que não podem segurar o 1º quadro)
+const quandoOcioso = (atraso, fn) => setTimeout(() => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 3000 }) : fn()), atraso)
 
 export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecionado, aoSelecionar, compacto = false, comPredio = !compacto, acoes = null, perm = {}, extra = null }) {
   const { marca } = useMarca()
@@ -1356,9 +1360,12 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         }
         const inv = new THREE.Matrix4().copy(mundoPecas.matrixWorld).invert(), m4 = new THREE.Matrix4(), loc = new THREE.Matrix4()
         lista.forEach((p, i) => {
-          const [x, z, esconder, yy] = p[tipo]
+          // 4ª posição: altura (gabinete no chão = 0) OU a tela do monitor (objeto). Usar a tela como altura dava NaN e
+          // o monitor sumia do mapa (só número vale como altura)
+          const [x, z, esconder, quarto] = p[tipo]
+          const yy = typeof quarto === 'number' ? quarto : p.y
           p.g.updateMatrixWorld(true)
-          loc.makeTranslation(x, yy ?? p.y, z)
+          loc.makeTranslation(x, yy, z)
           m4.multiplyMatrices(inv, p.g.matrixWorld).multiply(loc); im.setMatrixAt(i, m4)
           esconder.forEach((o) => { o.visible = false })
           const tela = p[tipo][3]
@@ -1612,7 +1619,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       const frotaCfg = (mapa.veiculos || []).filter((v) => leves[v.avatar_id])
       if (tr && frotaCfg.length) {
         const mundoF = mundo
-        Promise.all(frotaCfg.map((v) => carregarAvatar(leves[v.avatar_id]).then((gl) => ({ v, gl })).catch(() => null))).then((lst) => {
+        // o trânsito vem depois do escritório aparecer, no ocioso: abrir o mapa baixando e montando 16 carros travava a tela
+        quandoOcioso(2500, () => estado.current?.mundo === mundoF && Promise.all(frotaCfg.map((v) => carregarAvatar(leves[v.avatar_id]).then((gl) => ({ v, gl })).catch(() => null))).then((lst) => {
           if (estado.current?.mundo !== mundoF) return
           const prontos = lst.filter(Boolean).map(({ v, gl }) => {
             // geometria única, frente em +z → normaliza para o comprimento real, base no chão e frente em +x (trânsito)
@@ -1638,7 +1646,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
             return { grupo: m, comp: f.L, W: f.W, frota: f }
           })
           if (carros.length) tr.estacionados?.trocar(carros.map((f) => ({ geo: f.geo, mat: f.mat, f })))
-        })
+        }))
       }
       if (cidC && (mapa.veiculos || []).length) {
         const colide = colisorCidade(cidC)
@@ -1656,7 +1664,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         mapa.veiculos.forEach((vc, i) => {
           // versão média (25 mil triângulos, textura 1024): bonita de perto e rápida de montar; o modelo completo (120 mil)
           // travava a tela ao separar as rodas na hora de entrar
-          carregarAvatar(mediosV[vc.avatar_id] || vc.avatar_id).then((gltf) => {
+          quandoOcioso(4000 + i * 600, () => estado.current?.mundo === mundoAtual && carregarAvatar(mediosV[vc.avatar_id] || vc.avatar_id).then((gltf) => {
             if (estado.current?.mundo !== mundoAtual) return   // a cena foi refeita enquanto baixava
             const veh = criarVeiculo(clonarComOssos(gltf.scene), vc.fisica || {})
             let x = vc.x, z = vc.z, psi = vc.rot || 0
@@ -1669,7 +1677,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
             }
             veh.colocar(x, z, psi); veh.atualizar(0, null, yT); grupoCarros.add(veh.raiz)
             E.veiculos.push({ cfg: vc, veh, colide: E.colideCarro || colide, yT, nome: vc.nome || gltf.meta?.nome || 'Carro' })
-          }).catch(() => { /* veículo apagado da biblioteca: fica fora das ruas */ })
+          }).catch(() => { /* veículo apagado da biblioteca: fica fora das ruas */ }))
         })
       }
       // trocar de nível: o térreo esconde o andar (móveis, pessoas, rótulos) e o andar volta ao subir
@@ -2515,7 +2523,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // compila os shaders em paralelo (extensão KHR_parallel_shader_compile) antes do primeiro quadro: sem isso a
     // primeira renderização trava a página enquanto o WebGL compila dezenas de materiais
     E.compilando = true
-    E.compilacao = renderer.compileAsync(cena, camera).catch(() => {}).finally(() => { E.compilando = false })
+    E.compilacao = compilarSeguro(renderer, cena, camera).catch(() => {}).finally(() => { E.compilando = false })
 
     // clique e cursor
     const ray = new THREE.Raycaster(), mouse = new THREE.Vector2()

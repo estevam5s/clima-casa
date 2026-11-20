@@ -33,9 +33,12 @@ export function ConectarAparelho({ d, aberto, aoFechar, aoConectar }) {
   const [ocupado, setOcupado] = useState('')
   const [aba, setAba] = useState(d.driver === 'placa' ? 'placa' : 'tuya')
   const lista = (dados?.aparelhos || []).filter((a) => (a.tipos || [a.tipo]).includes(d.tipo))
-  const conectar = async (tid) => {
-    setOcupado(tid)
-    try { aoConectar(await api.post(`/api/dispositivos/${d.id}/conectar`, { tuya_id: tid })); toast('Aparelho conectado.'); aoFechar() } catch (e) { toast(e.message, 'erro') } finally { setOcupado('') }
+  const [teclas, setTeclas] = useState(null)   // interruptor de várias teclas: qual tecla esta luz usa
+  const conectar = async (tid, tecla) => {
+    setOcupado(tecla || tid)
+    try { aoConectar(await api.post(`/api/dispositivos/${d.id}/conectar`, { tuya_id: tid, tecla })); toast('Aparelho conectado.'); setTeclas(null); aoFechar() } catch (e) {
+      if (d.tipo === 'luz' && !tecla && /teclas/.test(e.message)) { try { setTeclas(await api.get(`/api/dispositivos/teclas/${tid}`)) } catch (e2) { toast(e2.message, 'erro') } } else toast(e.message, 'erro')
+    } finally { setOcupado('') }
   }
   return (
     <Modal aberto={aberto} titulo={`Conectar aparelho · ${d.nome}`} onFechar={aoFechar} largura="max-w-3xl">
@@ -45,7 +48,14 @@ export function ConectarAparelho({ d, aberto, aoFechar, aoConectar }) {
       </div>
       {aba === 'placa' ? <Placa d={d} aoMudar={aoConectar} /> : (
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">Aparelhos da conta Smart Life conectada que servem para {d.tipo === 'cafeteira' ? 'a cafeteira (tomadas)' : d.tipo === 'persiana' ? 'persianas (motores de cortina)' : 'a porta (fechaduras)'}.</p>
+        <p className="text-sm text-muted-foreground">Aparelhos da conta Smart Life conectada que servem para {d.tipo === 'cafeteira' ? 'a cafeteira (tomadas)' : d.tipo === 'persiana' ? 'persianas (motores de cortina)' : d.tipo === 'luz' ? 'luzes (lâmpadas, painéis, fitas e interruptores de parede)' : 'a porta (fechaduras)'}.</p>
+        {teclas && (
+          <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+            <p className="font-medium">{teclas.nome}: interruptor de {teclas.teclas.length} teclas. Qual tecla acende esta luz?</p>
+            <div className="mt-2 flex flex-wrap gap-2">{teclas.teclas.map((t) => { const uso = teclas.usadas.find((u) => u.tecla === t && u.id !== d.id); return (
+              <Botao key={t} tamanho="sm" variante={uso ? 'secundario' : 'primario'} disabled={!!uso} carregando={ocupado === t} onClick={() => conectar(teclas.id, t)}>Tecla {t.split('_')[1]}{uso ? ` (${uso.nome})` : ''}</Botao>) })}</div>
+          </div>
+        )}
         {erro && <Aviso>{erro}</Aviso>}
         {!dados && !erro && <p className="text-sm text-muted-foreground">Procurando na conta Smart Life…</p>}
         {dados && !lista.length && <Aviso tipo="alerta">Nenhum aparelho desse tipo na conta. Pareie no app Smart Life (Wi-Fi 2,4 GHz) e toque em Procurar de novo.</Aviso>}

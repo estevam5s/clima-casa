@@ -257,9 +257,11 @@ export default function Avatares() {
       {aba === 'escritorio' && <NoEscritorio avatares={(dados.avatares || []).filter((a) => a.estado === 'pronto')} mapa={mapa} projetos={projetos} aoSalvar={recMapa} pode={pode} />}
       {aba === 'biblioteca' && (!lista.length ? <Vazio icone={PersonStanding} titulo="Nenhum avatar ainda" texto="Importe um .glb com animações (parado, andando, sentado). Sem avatar, o mapa usa o boneco desenhado pelo sistema." /> : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
-          <aside className="space-y-3">
+          {/* a lista rola sozinha (a página não): com 70+ modelos, rolar a página tirava o visualizador da tela */}
+          <aside className="space-y-3 xl:sticky xl:top-20 xl:self-start">
             <label className="relative block"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input className="campo pl-9" placeholder="Buscar" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar avatar" /></label>
-            <ul className="space-y-2">{lista.map((a) => (
+            <p className="text-xs text-muted-foreground">{lista.length} modelo(s)</p>
+            <ul className="max-h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100dvh-15rem)]">{lista.map((a) => (
               <li key={a.id}><button onClick={() => escolher(a)} className={`w-full rounded-lg border p-3 text-left ${atual?.id === a.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
                 <p className="truncate text-sm font-medium">{a.nome}</p>
                 <p className="truncate text-xs text-muted-foreground">{a.licenca}</p>
