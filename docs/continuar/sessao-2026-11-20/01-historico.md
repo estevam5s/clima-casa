@@ -42,3 +42,19 @@
   desfeita (`POST /api/bugs/autoteste`), 422 de quem está logado vira bug "Formulário recusado". Tela com radar, filtro por categoria, 14 dias.
 - Cadastros corrigidos: ID de transmissor com espaço (500), IP/protocolo sem validação, ar com nome vazio ou repetido, editar ar sem sala.
 - Editor SQL com CodeMirror 6 (`components/supabase/EditorSql.jsx`), colunas de `GET /api/supabase/catalogo/colunas`.
+
+## Noite (0.4.4 e apps 1.6.0)
+- **Tela preta no /entrar-app** (bug #25): a mudança do login do terminal apagou a linha `const desafio = …`. Corrigido, e criado
+  `components/ProtecaoErro.jsx` em volta de todas as rotas (`main.jsx`, `ComProtecao`): erro de tela vira aviso + bug. Varredura
+  `no-undef` no frontend achou mais um: `manter` em `components/infra/Vercel.jsx` (botão de limpar publicações). Corrigido.
+- **Versões em sequência**: as 44 entradas de `novidades.json` viraram 0.0.0 … 0.4.3 (número antigo em `antes`); `usuarios.novidades_vista`
+  e `notificacoes` `versao:*` migrados. Esta publicação é a 0.4.4.
+- **Telegram**: 252 comandos novos (1.114), famílias em `telegram_cmds.py` "FAMÍLIAS 0.4.4"; `/start` sem vínculo mostra `_apresentacao`
+  (sem contar como tentativa negada, 1 a cada 10 min) e o vínculo mostra `_primeiros_passos`. Prévia em /telegram (`BoasVindas`).
+- **Ilha**: relevo real de `ilhaRelevo.json` (Terrain Tiles da AWS, grade de 150 m, int16 em base64), céu `Sky`, sombras, mar com cor
+  pela profundidade, 19 lugares reais.
+- **Passo a passo vivo**: `components/PassoAPasso.jsx` (cena animada controle → transmissor → ar) em Transmissores (`PassosTransmissor`)
+  e na aba Botões (`PassosDoAr`, usa `/pronto-para-gravar`).
+- **Projetos**: anel de ligados, liga/desliga por ar no cartão, Conforto 23°, duplicar, mapa de calor de 14 dias, atalho "/".
+- **Apps 1.6.0**: Android (`mais/bugs.tsx`, `mais/uso-ia.tsx`), iOS (`Telas/Diagnostico.swift`), desktop (`MAIS_TELAS`). Regra nova no
+  CLAUDE.md §0 item 9: toda atualização do sistema atualiza os apps, o release e o deploy.

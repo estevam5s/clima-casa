@@ -1,20 +1,20 @@
 {
   "notas": [
-    "iPhone e iPad: app nativo novo (iOS 17+), instalado pelo xtool, AltStore ou Sideloadly",
-    "Android: telas novas de dispositivos, notificações, mensagens com Kanban, novidades, segurança e música",
-    "Computador: Mais telas com Mensagens e Kanban, Luzes, Segurança do Telegram, Banco, Avatares e Novidades"
+    "Android e iPhone: telas de Bugs (procurar e autoteste dos cadastros) e Uso da IA (sessão de 5 horas e semana)",
+    "Computador: atalhos para Editor SQL, Projetos, Mapa e Ilha 3D, Uso da IA, Passo a passo e Baixar apps",
+    "Acompanha a versão 0.4.4 do sistema"
   ],
   "publicado_em": "2026-11-20",
   "android": {
-    "versao": "1.5.0",
+    "versao": "1.6.0",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "desktop": {
-    "versao": "1.5.0",
+    "versao": "1.6.0",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "ios": {
-    "versao": "1.5.0",
+    "versao": "1.6.0",
     "pagina": "https://app.zynio.com.br/apps"
   }
 }

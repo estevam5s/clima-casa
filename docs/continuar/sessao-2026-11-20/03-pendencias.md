@@ -23,3 +23,8 @@
 - clima-ia: a tela interativa (seletor com setas, Shift+Tab, régua de baixo) foi vista só em captura renderizada, não num terminal real aberto à mão.
 - Limites da IA: a recusa ao estourar o limite foi testada só pela lógica da janela; ninguém tem limite baixo configurado ainda.
 - Dono sem nome no perfil: a saudação do clima-ia fica "Bem-vindo de volta!" até preencher o nome em Configurações → Perfil.
+
+## Depois da 0.4.4
+- Telegram: o menu "/" do aplicativo do Telegram só é registrado de novo em /telegram → Configurar (os comandos novos já funcionam digitando).
+- Ilha: cores são ilustrativas (não há foto de satélite); relevo e profundidade são reais (grade de 150 m).
+- Apps 1.6.0 não foram instalados em aparelhos reais.
