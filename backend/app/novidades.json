@@ -2,6 +2,24 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.28.0",
+      "data": "2026-11-20",
+      "titulo": "Telegram com 862 comandos e Estúdio de avatares mais completo",
+      "resumo": "O bot do Telegram ganhou 364 comandos novos (modo, temperatura e ventilação num toque, salas e zonas por modo, mais timers e relatórios, atividade por origem) e o Estúdio ganhou modelos prontos, acessórios, sortear, desfazer, vistas da câmera e foto.",
+      "novo": [
+        "Telegram: 364 comandos novos, como /frio23alta, /todosquente25 (pede confirmação), /salafrio22 NOME, /zonaquente24 NOME, /usoar7d NOME, /atividade_alexa, /atividade6h, /seguranca12h e /notif_alta.",
+        "Estúdio de avatares: modelos prontos (Diretor, Analista, Técnico de TI, Recepcionista, Segurança, Estagiário, Desenvolvedora, cão e gato), Sortear e acessórios (boné, fone com microfone, mochila, relógio).",
+        "Estúdio: desfazer e refazer (Ctrl+Z), vistas da câmera (frente, 3/4, lado, costas, cima), giro automático, fundos, grade, foto PNG e números do modelo."
+      ],
+      "melhorias": [
+        "Telegram: relatórios em mais períodos (até 365 dias) e de um ar só; mais timers prontos; mais presets de luzes e persianas."
+      ],
+      "seguranca": [
+        "Comandos novos do Telegram que mexem em vários ares pedem Confirmar, como os anteriores."
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.27.0",
       "data": "2026-11-20",
       "titulo": "Mapa: heróis no céu, motos com piloto, sinaleiras e cidade maior",

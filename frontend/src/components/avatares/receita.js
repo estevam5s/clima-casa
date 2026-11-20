@@ -167,6 +167,8 @@ export async function exportarGLB(r) {
 export const PADRAO_PESSOA = {
   especie: 'pessoa', nome: 'Pessoa', sexo: 'masculino', altura: 1.75, corpo: 'medio', pele: '#c68a5e', cabelo: 'curto', cor_cabelo: '#2b1d14',
   barba: 'nenhuma', oculos: false, roupa: 'social', cor_roupa: '#2f5d8a', inferior: 'calca', cor_inferior: '#2b2f38', sapato: '#1c1917', cracha: true, olhos: '#3b2a1e',
+  // acessórios (Estúdio): desligados por padrão, então os modelos que já existem não mudam
+  bone: false, cor_bone: '#1f2937', fone: false, mochila: false, cor_mochila: '#334155', relogio: false,
 }
 export const PADRAO_MULHER = { ...PADRAO_PESSOA, nome: 'Mulher', sexo: 'feminino', altura: 1.65, pele: '#d9a47c', cabelo: 'longo', cor_cabelo: '#4a2c1a', roupa: 'blusa', cor_roupa: '#b04a5a', inferior: 'calca', cor_inferior: '#24324a', sapato: '#3a2a22' }
 export const PADRAO_HOMEM = { ...PADRAO_PESSOA, nome: 'Homem' }
@@ -232,12 +234,28 @@ export function gerarPessoa(pp) {
     for (const x of [1, -1]) add({ id: `lente_${x > 0 ? 'e' : 'd'}`, pai: 'cabeca', forma: 'toro', tam: [0.024 * s, 0.0035 * s], pos: [x * 0.037 * s, 0.115 * s, 0.108 * s], cor: '#1f2937', metal: 0.3, rug: 0.4 })
     add({ id: 'ponte', pai: 'cabeca', forma: 'caixa', tam: [0.026 * s, 0.004 * s, 0.004 * s], pos: [0, 0.118 * s, 0.11 * s], cor: '#1f2937' })
   }
+  // acessórios
+  if (p.bone) {
+    add({ id: 'bone', pai: 'cabeca', forma: 'calota', tam: [0.112 * s, 0.5], esc: [0.95, 0.8, 1.02], pos: [0, 0.155 * s, -0.005 * s], cor: p.cor_bone, rug: 0.85 })
+    add({ id: 'bone_aba', pai: 'bone', forma: 'cilindro', tam: [0.075 * s, 0.075 * s, 0.006 * s], esc: [1, 1, 0.75], pos: [0, 0.002 * s, 0.09 * s], rot: [-8, 0, 0], cor: p.cor_bone, rug: 0.85 })
+  }
+  if (p.fone) {
+    add({ id: 'fone_arco', pai: 'cabeca', forma: 'toro', tam: [0.112 * s, 0.008 * s], pos: [0, 0.1 * s, 0], rot: [0, 90, 0], esc: [1, 1.05, 1], cor: '#111827', rug: 0.4 })
+    for (const x of [1, -1]) add({ id: `fone_${x > 0 ? 'e' : 'd'}`, pai: 'cabeca', forma: 'cilindro', tam: [0.035 * s, 0.035 * s, 0.03 * s], pos: [x * 0.108 * s, 0.09 * s, 0], rot: [0, 0, 90], cor: '#111827', rug: 0.4 })
+    add({ id: 'fone_mic', pai: 'fone_e', forma: 'capsula', tam: [0.005 * s, 0.09 * s], pos: [0, -0.02 * s, 0.05 * s], rot: [70, 0, 0], cor: '#111827' })
+  }
+  if (p.mochila) {
+    add({ id: 'mochila', pai: 'tronco', forma: 'caixa', tam: [0.26 * s * larg, 0.34 * s, 0.12 * s], pos: [0, 0.27 * s, -0.16 * s], cor: p.cor_mochila, rug: 0.85 })
+    add({ id: 'mochila_bolso', pai: 'mochila', forma: 'caixa', tam: [0.18 * s * larg, 0.12 * s, 0.04 * s], pos: [0, -0.08 * s, -0.075 * s], cor: p.cor_mochila, rug: 0.9 })
+    for (const x of [1, -1]) add({ id: `alca_${x > 0 ? 'e' : 'd'}`, pai: 'tronco', forma: 'caixa', tam: [0.03 * s, 0.32 * s, 0.012 * s], pos: [x * 0.08 * s * larg, 0.28 * s, 0.108 * s], cor: p.cor_mochila })
+  }
   // braços (articulação no ombro; a malha fica para baixo)
   for (const [lado, x] of [['e', 1], ['d', -1]]) {
     add({ id: `ombro_${lado}`, pai: 'tronco', forma: 'capsula', tam: [0.046 * s * larg, braco - 0.03 * s], pos: [x * ombro, 0.4 * s, 0], rot: [0, 0, x * 6], desloc: [0, -braco / 2, 0], cor: p.cor_roupa })
     add({ id: `cotovelo_${lado}`, pai: `ombro_${lado}`, forma: 'capsula', tam: [0.04 * s * larg, ante - 0.02 * s], pos: [0, -braco, 0], desloc: [0, -ante / 2, 0], cor: corBraco })
     add({ id: `mao_${lado}`, pai: `cotovelo_${lado}`, forma: 'esfera', tam: [0.045 * s], esc: [0.75, 1.1, 0.5], pos: [0, -ante, 0], desloc: [0, -0.045 * s, 0], cor: p.pele })
   }
+  if (p.relogio) add({ id: 'relogio', pai: 'cotovelo_e', forma: 'cilindro', tam: [0.035 * s, 0.035 * s, 0.03 * s], pos: [0, -ante * 0.88, 0], cor: '#111827', metal: 0.6, rug: 0.3 })
   add({ id: 'xicara', pai: 'mao_d', forma: 'cilindro', tam: [0.03 * s, 0.026 * s, 0.07 * s], pos: [0, -0.06 * s, 0.035 * s], cor: '#f8fafc', rug: 0.3, oculta: true })
   // pernas
   for (const [lado, x] of [['e', 1], ['d', -1]]) {

@@ -1,4 +1,4 @@
-"""Catálogo de comandos do bot do Telegram (254 comandos em 16 categorias) e o menu navegável.
+"""Catálogo de comandos do bot do Telegram (862 comandos em 26 categorias) e o menu navegável.
 
 Cada comando é registrado com @cmd(nome, categoria, descrição, uso, arg, perm, papel, confirmar):
 - `arg` diz o que o comando precisa: "ar" (um ar; sem nome usa o "ar atual" da conversa ou mostra a lista para escolher),
@@ -2462,3 +2462,196 @@ for _t, _r in (("seguranca", "segurança"), ("agente", "agente"), ("transmissor"
         lst = [n for n in _notifs("todas", 60) if n.get("tipo") == _t][:8]
         ctx.enviar(f"<b>Notificações de {_r}</b>\n" + ("\n\n".join(f"<b>{_e(n['titulo'])}</b>\n{_e((n.get('detalhe') or '')[:160])}" for n in lst) or "Nenhuma."))
     cmd(f"notif{_t}", "avisos", f"Só as notificações de {_r}")(_fnt)
+
+
+# =====================================================================================================================
+# FAMÍLIAS 1.28.0 (+340): modo + temperatura + ventilação num toque, lotes por modo, salas e zonas por modo, mais
+# timers, relatórios em mais períodos (inclusive de um ar), atividade por origem e por janela, notificações por
+# gravidade, segurança por janela e mais presets. Mesmo padrão das famílias acima: comandos de verdade, mesmas
+# permissões, e o que mexe em vários ares pede Confirmar.
+# =====================================================================================================================
+_ANTES_128 = len(C)
+CATS += [
+    ("completos", "Modo, temperatura e ventilação", "Um toque com tudo: /frio23alta, /quente25baixa, /seco24media…"),
+    ("lotemodo", "Todos por modo", "Todos os ligados num modo e temperatura: /todosfrio23, /todosquente26…"),
+    ("salamodo", "Salas e zonas por modo", "Uma sala ou zona inteira num modo e temperatura"),
+    ("historico", "Atividade filtrada", "O que aconteceu por origem (Alexa, painel, agenda…) e por janela de horas"),
+]
+NOME_CAT.update({k: r for k, r, _ in CATS})
+_VENT = (("baixa", "baixa"), ("media", "média"), ("alta", "alta"))
+_FAIXA = range(18, 27)   # 18° a 26°: a faixa que se usa no dia a dia
+
+# 1) modo + temperatura + ventilação no ar atual (ou no nome): /frio23alta
+for _m in _NM:
+    for _g in _FAIXA:
+        for _v, _vn in _VENT:
+            if f"{_m}{_g}{_v}" in C:
+                continue
+            def _fcomp(ctx, a, _m=_m, _g=_g, _v=_v):
+                _aplicar(ctx, a, ligado=True, modo=_MD[_m], temperatura=max(a["temp_min"], min(a["temp_max"], _g)), ventilador=_v)
+            cmd(f"{_m}{_g}{_v}", "completos", f"{_NM[_m]} {_g}° com ventilação {_vn} (ar atual ou /{_m}{_g}{_v} NOME)", f"/{_m}{_g}{_v} NOME",
+                arg="ar?", perm="aparelhos.controlar")(_fcomp)
+
+# 2) todos os ligados num modo e temperatura: /todosfrio23 (confirmação)
+for _m in ("frio", "quente", "seco", "auto"):
+    for _g in _FAIXA:
+        def _ftmg(ctx, a, _m=_m, _g=_g):
+            _lote_ares(ctx, [x for x in ares() if x["ligado"]], f"Todos em {_NM[_m].lower()} {_g}°", modo=_MD[_m], temperatura=_g)
+        cmd(f"todos{_m}{_g}", "lotemodo", f"Todos os ligados em {_NM[_m].lower()} {_g}° (pede confirmação)", perm="aparelhos.controlar", confirmar=True)(_ftmg)
+
+# 3) ligar todos (até os desligados) numa temperatura no frio: /ligartodos23 (confirmação)
+for _g in _FAIXA:
+    def _flt(ctx, a, _g=_g):
+        _lote_ares(ctx, ares(), f"Ligar todos em {_g}°", ligado=True, modo="frio", temperatura=_g)
+    cmd(f"ligartodos{_g}", "lotemodo", f"Liga todos os ares no frio a {_g}° (pede confirmação)", perm="aparelhos.controlar", confirmar=True)(_flt)
+
+# 4) uma sala inteira num modo e temperatura (liga quem estiver desligado): /salafrio23 NOME
+for _m in ("frio", "quente", "seco", "auto"):
+    for _g in _FAIXA:
+        def _fsmg(ctx, s, _m=_m, _g=_g):
+            _lote_ares(ctx, [x for x in ares() if x["projeto_id"] == s["id"]], f"{s['nome']}: {_NM[_m].lower()} {_g}°", ligado=True, modo=_MD[_m], temperatura=_g)
+        cmd(f"sala{_m}{_g}", "salamodo", f"Uma sala inteira em {_NM[_m].lower()} {_g}° (liga quem estiver desligado)", f"/sala{_m}{_g} NOME", arg="sala", perm="aparelhos.controlar")(_fsmg)
+
+# 5) uma zona (ares que obedecem juntos) num modo e temperatura: /zonafrio23 NOME
+for _m in ("frio", "quente"):
+    for _g in _FAIXA:
+        def _fzmg(ctx, z, _m=_m, _g=_g):
+            _estado_zona(ctx, z, ligado=True, modo=_MD[_m], temperatura=_g)
+        cmd(f"zona{_m}{_g}", "salamodo", f"Uma zona inteira em {_NM[_m].lower()} {_g}° (um sinal)", f"/zona{_m}{_g} NOME", arg="zona", perm="aparelhos.controlar")(_fzmg)
+
+# 6) mais timers prontos
+for _min in (25, 35, 40, 50, 75, 100, 150, 200, 270):
+    if f"desligarem{_min}" in C:
+        continue
+    def _fdt2(ctx, a, _min=_min):
+        from . import telegram
+        telegram._temporizador(ctx.cid, a["id"], _min, ctx.mid)
+    cmd(f"desligarem{_min}", "timers", f"Desliga daqui a {tempo(_min * 60)}", f"/desligarem{_min} NOME", arg="ar?", perm="aparelhos.controlar")(_fdt2)
+for _min in (5, 10, 20, 300, 360, 480):
+    if f"ligarpor{_min}" in C:
+        continue
+    def _flp2(ctx, a, _min=_min):
+        from . import automacao
+        automacao.criar_temporizador(a["id"], _min, {"ligado": False}, "telegram")
+        _aplicar(ctx, a, ligado=True)
+    cmd(f"ligarpor{_min}", "timers", f"Liga agora e desliga sozinho em {tempo(_min * 60)}", f"/ligarpor{_min} NOME", arg="ar?", perm="aparelhos.controlar")(_flp2)
+for _min in (20, 45, 90, 180, 240):
+    if f"ligarem{_min}" in C:
+        continue
+    def _fle2(ctx, a, _min=_min):
+        from . import automacao
+        automacao.criar_temporizador(a["id"], _min, {"ligado": True}, "telegram")
+        _painel(ctx, a["id"], aviso=f"<b>Timer:</b> liga em {tempo(_min * 60)}.")
+    cmd(f"ligarem{_min}", "timers", f"Liga daqui a {tempo(_min * 60)}", f"/ligarem{_min} NOME", arg="ar?", perm="aparelhos.controlar")(_fle2)
+for _min in (5, 10, 20, 45, 90, 180, 240):
+    if f"desligartodosem{_min}" in C:
+        continue
+    def _ftt2(ctx, a, _min=_min):
+        from . import automacao
+        lig = [x for x in ares() if x["ligado"]]
+        for x in lig:
+            automacao.criar_temporizador(x["id"], _min, {"ligado": False}, "telegram")
+        ctx.enviar(f"{len(lig)} ar(es) desligam em {tempo(_min * 60)}." if lig else "Nenhum ar ligado.")
+    cmd(f"desligartodosem{_min}", "lote", f"Todos os ligados desligam daqui a {tempo(_min * 60)} (pede confirmação)", perm="aparelhos.controlar", confirmar=True)(_ftt2)
+
+# 7) relatórios em mais períodos
+_DIAS = (2, 4, 5, 6, 7, 10, 14, 21, 30, 45, 120, 180, 365)
+for _d in _DIAS:
+    if f"gasto{_d}d" not in C:
+        def _fgd2(ctx, a, _d=_d):
+            r = _relatorio(_d)["resumo"]; ctx.enviar(f"<b>Gasto em {_d} dia(s)</b> (estimativa): {brl(r['custo'])} · {num(r['kwh'])} kWh · {num(r['horas_ligado'])} h ligado")
+        cmd(f"gasto{_d}d", "periodos", f"Custo estimado em {_d} dia(s)", perm="relatorios.ver")(_fgd2)
+    if f"kwh{_d}d" not in C:
+        def _fkd2(ctx, a, _d=_d):
+            r = _relatorio(_d)["resumo"]; ctx.enviar(f"<b>Consumo em {_d} dia(s)</b>: {num(r['kwh'])} kWh ({num(r['horas_ligado'])} h ligado)")
+        cmd(f"kwh{_d}d", "periodos", f"Consumo em kWh em {_d} dia(s)", perm="relatorios.ver")(_fkd2)
+for _d in (2, 4, 5, 7, 10, 14, 21, 45, 90):
+    if f"horas{_d}d" not in C:
+        def _fhd2(ctx, a, _d=_d):
+            d = _relatorio(_d)
+            ctx.enviar(f"<b>Horas ligado ({_d} dia(s))</b>\n" + ("\n".join(f"• {_e(p['nome'])}: {num(p.get('horas_ligado', 0))} h" for p in sorted(d["por_aparelho"], key=lambda x: -x.get("horas_ligado", 0))[:12]) or "Sem dados."))
+        cmd(f"horas{_d}d", "periodos", f"Horas ligado por ar em {_d} dia(s)", perm="relatorios.ver")(_fhd2)
+for _d in (2, 4, 5, 7, 10, 14, 21, 45, 60):
+    if f"ranking{_d}d" not in C:
+        def _frd2(ctx, a, _d=_d):
+            d = _relatorio(_d)
+            ctx.enviar(f"<b>Mais usados ({_d} dia(s))</b>\n" + ("\n".join(f"{i + 1}. {_e(p['nome'])}: {p['comandos']} comando(s)" for i, p in enumerate(d["por_aparelho"][:10])) or "Sem dados."))
+        cmd(f"ranking{_d}d", "periodos", f"Ares mais usados em {_d} dia(s)", perm="relatorios.ver")(_frd2)
+for _d in (1, 2, 5, 10, 14, 21, 60, 90):
+    if f"falhas{_d}d" not in C:
+        def _ffd2(ctx, a, _d=_d):
+            n = db.um("SELECT count(*) n FROM atividade WHERE ok = 0 AND quando > ?", (db.agora() - _d * 86400,))["n"]
+            ctx.enviar(f"{n} comando(s) falharam em {_d} dia(s)." + (" Use /falhas para ver as últimas." if n else ""))
+        cmd(f"falhas{_d}d", "periodos", f"Quantos comandos falharam em {_d} dia(s)", perm="atividade.ver")(_ffd2)
+for _d in (2, 4, 5, 7, 10, 21, 45, 120):
+    if f"relatorio{_d}d" not in C:
+        def _fpd2(ctx, a, _d=_d):
+            ctx.enviar(_resumo_txt(f"Últimos {_d} dia(s)", _relatorio(_d)))
+        cmd(f"relatorio{_d}d", "periodos", f"Resumo completo dos últimos {_d} dia(s)", perm="relatorios.ver")(_fpd2)
+
+# 8) relatório de UM ar (ar atual ou pelo nome)
+for _d in (1, 7, 30):
+    def _fga(ctx, a, _d=_d):
+        p = next((x for x in _relatorio(_d)["por_aparelho"] if x["id"] == a["id"]), None)
+        ctx.enviar(f"<b>{_e(a['nome'])} · {_d} dia(s)</b>\n" + (f"Gasto: {brl(p['custo'])} · {num(p['kwh'])} kWh\nLigado: {num(p['horas_ligado'])} h em {p['sessoes']} sessão(ões)\n"
+                                                                f"Comandos: {p['comandos']} ({p['falhas']} falha(s))" if p else "Sem uso no período."))
+    cmd(f"usoar{_d}d", "periodos", f"Gasto, horas e comandos de um ar em {_d} dia(s)", f"/usoar{_d}d NOME", arg="ar?", perm="relatorios.ver")(_fga)
+
+# 9) atividade por origem e por janela de horas
+_ORIG = (("alexa", "Alexa (voz)", ("sinric", "alexa")), ("painel", "Painel e app", ("painel",)), ("agenda", "Agenda e cenas", ("agenda", "cena")),
+         ("automacao", "Automações", ("automacao",)), ("telegram", "Telegram", ("telegram",)), ("ia", "Assistente de IA", ("ia",)),
+         ("musica", "Música", ("musica",)), ("agente", "Agente do escritório", ("agente",)), ("sistema", "Sistema", ("sistema",)), ("mapa", "Mapa 3D", ("mapa",)))
+for _k, _r, _pref in _ORIG:
+    def _fori(ctx, a, _r=_r, _pref=_pref):
+        cond = " OR ".join("origem LIKE ?" for _ in _pref)
+        lst = db.consultar(f"SELECT quando, acao, ok FROM atividade WHERE ({cond}) ORDER BY quando DESC LIMIT 15", tuple(f"{p}%" for p in _pref))
+        ctx.enviar(f"<b>Atividade · {_e(_r)}</b>\n" + ("\n".join(f"{quando(e['quando'])} · {_e(e['acao'][:52])}{'' if e['ok'] else ' · falhou'}" for e in lst) or "Nada registrado."))
+    cmd(f"atividade_{_k}", "historico", f"Últimos eventos vindos de: {_r}", perm="atividade.ver")(_fori)
+for _h in (1, 3, 6, 12, 24, 48):
+    def _fjan(ctx, a, _h=_h):
+        r = db.um("SELECT count(*) n, count(*) FILTER (WHERE ok = 0) f FROM atividade WHERE quando > ?", (db.agora() - _h * 3600,))
+        lst = db.consultar("SELECT quando, origem, acao, ok FROM atividade WHERE quando > ? ORDER BY quando DESC LIMIT 12", (db.agora() - _h * 3600,))
+        ctx.enviar(f"<b>Últimas {_h} h</b>: {r['n']} evento(s), {r['f']} falha(s)\n" + "\n".join(f"{quando(e['quando'])} · {_e(e['acao'][:44])} · {_e(e['origem'])}{'' if e['ok'] else ' · falhou'}" for e in lst))
+    cmd(f"atividade{_h}h", "historico", f"Tudo o que aconteceu nas últimas {_h} h", perm="atividade.ver")(_fjan)
+for _h in (1, 6, 12, 48):
+    def _fseg(ctx, a, _h=_h):
+        lst = db.consultar("SELECT tipo, count(*) n FROM seguranca_eventos WHERE quando > ? GROUP BY tipo ORDER BY n DESC LIMIT 12", (db.agora() - _h * 3600,))
+        ctx.enviar(f"<b>Segurança · últimas {_h} h</b>\n" + ("\n".join(f"• {_e(e['tipo'])}: {e['n']}" for e in lst) or "Nenhum evento."))
+    cmd(f"seguranca{_h}h", "seg", f"Eventos de segurança por tipo nas últimas {_h} h", perm="seguranca.gerenciar")(_fseg)
+
+# 10) notificações por gravidade
+for _gr, _gn in (("alta", "alta"), ("media", "média"), ("baixa", "baixa"), ("critica", "crítica")):
+    def _fgr(ctx, a, _gr=_gr, _gn=_gn):
+        lst = [n for n in _notifs("todas", 60) if n.get("gravidade") == _gr][:8]
+        ctx.enviar(f"<b>Notificações de gravidade {_gn}</b>\n" + ("\n\n".join(f"<b>{_e(n['titulo'])}</b>\n{_e((n.get('detalhe') or '')[:160])}" for n in lst) or "Nenhuma."))
+    cmd(f"notif_{_gr}", "avisos", f"Só as notificações de gravidade {_gn}")(_fgr)
+
+# 11) mais presets de luzes e persianas
+for _p in (10, 20, 30, 40, 60, 70, 80, 90):
+    if f"persianas{_p}" not in C:
+        def _fpp2(ctx, a, _p=_p):
+            from . import acesso, dispositivos
+            if not acesso.pode("aparelhos.controlar"):
+                raise RuntimeError("seu usuário não tem permissão para isto.")
+            ok = 0
+            for d in [d for d in _disp("persiana") if d["conectado"]]:
+                try:
+                    dispositivos.comando(int(d["id"]), "posicao", _p, "telegram"); ok += 1
+                except Exception:  # noqa: BLE001
+                    pass
+            ctx.enviar(f"{ok} persiana(s) em {_p}%." if ok else "Nenhuma persiana com motor conectado.")
+        cmd(f"persianas{_p}", "presets", f"Todas as persianas em {_p}%", perm="aparelhos.controlar")(_fpp2)
+    if f"luzes{_p}" not in C:
+        def _flb2(ctx, a, _p=_p):
+            from . import acesso, dispositivos
+            if not acesso.pode("aparelhos.controlar"):
+                raise RuntimeError("seu usuário não tem permissão para isto.")
+            ok = 0
+            for d in [d for d in _disp("luz") if d["conectado"]]:
+                try:
+                    dispositivos.comando(int(d["id"]), "brilho", _p, "telegram"); ok += 1
+                except Exception:  # noqa: BLE001
+                    pass
+            ctx.enviar(f"{ok} luz(es) em {_p}%." if ok else "Nenhuma luz com brilho conectada.")
+        cmd(f"luzes{_p}", "presets", f"Todas as luzes acesas em {_p}% de brilho", perm="aparelhos.controlar")(_flb2)
+NOVOS_128 = len(C) - _ANTES_128
