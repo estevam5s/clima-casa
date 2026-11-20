@@ -88,6 +88,13 @@ export default function Mais() {
               <Texto suave tam={12}>Versão {versaoApp()}{Updates.updateId ? ` · pacote ${Updates.updateId.slice(0, 8)}` : ''} · as melhorias chegam sozinhas pela internet</Texto>
             </View>
           </Linha>
+          <Linha onPress={() => Linking.openURL('https://github.com/estevam5s/clima-casa')}>
+            <View style={{ flex: 1 }}>
+              <Texto peso="500">Código no GitHub</Texto>
+              <Texto suave tam={12}>github.com/estevam5s/clima-casa · versões e instaladores</Texto>
+            </View>
+            <Texto suave>›</Texto>
+          </Linha>
         </Cartao>
         <Cartao>
           <Texto suave tam={12}>Conectado como</Texto>

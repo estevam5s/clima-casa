@@ -147,6 +147,7 @@ function montarBandeja() {
     ...ROTAS.slice(0, 5).map(([r, rota]) => ({ label: r, click: () => mostrar(rota) })),
     { label: 'Assistente de IA', click: () => mostrar('/ia') },
     { label: 'Mais telas', submenu: MAIS_TELAS.map(([r, rota]) => ({ label: r, click: () => mostrar(rota) })) },
+    { label: 'Código no GitHub', click: () => shell.openExternal('https://github.com/estevam5s/clima-casa') },
     { type: 'separator' },
     { label: 'Iniciar com o sistema', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
       click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked, openAsHidden: true }) },

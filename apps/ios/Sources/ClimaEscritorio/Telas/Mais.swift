@@ -25,6 +25,7 @@ struct MaisView: View {
                 NavigationLink { NovidadesView() } label: { Label("Novidades", systemImage: "sparkle") }
                 NavigationLink { UsoIAView() } label: { Label("Uso da IA", systemImage: "gauge.with.dots.needle.50percent") }
                 NavigationLink { BugsView() } label: { Label("Bugs", systemImage: "ladybug") }
+                Link(destination: URL(string: "https://github.com/estevam5s/clima-casa")!) { Label("Código no GitHub", systemImage: "chevron.left.forwardslash.chevron.right") }
             }
             if ["dono", "admin"].contains(sessao.papel) || sessao.pode("seguranca.gerenciar") {
                 Section("Administração") {

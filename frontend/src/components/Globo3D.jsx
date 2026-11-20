@@ -1,6 +1,7 @@
 import { compilarSeguro } from './compilar3d'
 import { useEffect, useRef, useState } from 'react'
-import { Compass, Crosshair, FastForward, Globe2, Info, Maximize2, Minimize2, Minus, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Route, Satellite, SkipForward, X } from 'lucide-react'
+import { Compass, Crosshair, FastForward, Globe2, Info, Maximize2, Minimize2, Minus, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Route, Satellite, SkipForward, Volume2, VolumeX, X, Zap } from 'lucide-react'
+import { criarSom } from './somNave'
 import { criarAurora, criarMeteoros, criarNave } from './nave3d'
 import { api } from '../api'
 import { criarSatelites, GRUPOS_SAT } from './satelites3d'
@@ -253,6 +254,10 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   const [aba, setAba] = useState('dados')
   const [tour, setTour] = useState(false)
   const [nave, setNave] = useState(false)         // pilotar a nave (voo livre pelo teclado)
+  const [hiper, setHiper] = useState(null)        // salto hipersônico: { n (contagem), prog (% da dimensão pronta), fase }
+  const [dentro, setDentro] = useState(false)     // na outra dimensão
+  const [mudo, setMudo] = useState(() => { try { return localStorage.getItem('clima-nave-mudo') === '1' } catch { return false } })
+  const hiperTimer = useRef(null)
   const [hud, setHud] = useState(null)
   const [seguirIss, setSeguirIss] = useState(false)
   const [tempo, setTempo] = useState(1)
@@ -597,8 +602,21 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     // voo livre: W/S ou ↑/↓ avançam e recuam, A/D ou ←/→ de lado, Q/E sobem e descem, Shift acelera
     const teclas = new Set()
     let dobraNave = 0
+    // som da nave e a outra dimensão (montada só quando pedem o salto; descartada ao voltar)
+    const som = criarSom(); acoesRef.current.som = som
+    const dim = { estado: null, obj: null, preparo: null, carga: 0 }; acoesRef.current.dim = dim
+    acoesRef.current.prepararDimensao = (prog) => {
+      if (!dim.preparo) dim.preparo = import('./dimensao3d').then((m) => m.prepararDimensao(renderer, prog || (() => {}))).then((o) => { dim.obj = o; return o })
+      return dim.preparo
+    }
+    acoesRef.current.sairDimensao = () => {
+      dim.estado = null; dim.obj?.descartar(); dim.obj = null; dim.preparo = null; dim.carga = 0
+      universo.dobra = 0; camera.fov = 38; camera.updateProjectionMatrix(); relogio.getDelta()
+    }
+    let ultimoSom = 0, somPausado = false
     const tecla = (e) => {
       if (!acoesRef.current.naveLigada || /input|textarea|select/i.test(e.target.tagName)) return
+      if (e.type === 'keydown') som.iniciar()
       const k = e.key.toLowerCase()
       if (!['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift', ' ', 'x', 'c'].includes(k)) return
       if (e.type === 'keydown') { teclas.add(k); if (k.startsWith('arrow') || k === ' ') e.preventDefault(); if (k === 'x') voo.acel = 0; if (k === 'c') voo.camLivre = !voo.camLivre } else teclas.delete(k)
@@ -629,8 +647,15 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
     let quadro, ultimoSol = 0
     const laco = () => {
       quadro = requestAnimationFrame(laco)
-      if (document.hidden || !naTela) { relogio.getDelta(); return }
+      if (document.hidden || !naTela) { relogio.getDelta(); if (!somPausado) { som.pausar(true); somPausado = true } return }
+      if (somPausado) { som.pausar(false); somPausado = false }
       const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime
+      // na outra dimensão só ela é desenhada (o globo e o universo param: nada pesa a mais)
+      if (dim.estado === 'dentro' && dim.obj) {
+        const r = dim.obj.quadro(dt, t, teclas)
+        if (t - ultimoSom > 0.1) { ultimoSom = t; som.atualizar({ ligado: true, empuxo: r.empuxo, boost: r.boost, dobra: 0 }) }
+        return
+      }
       if (t - ultimoSol > 60) { // o Sol anda 0,25° por minuto
         ultimoSol = t
         const s = pontoSubsolar(); uniforms.sol.value.copy(vetor(s.lat, s.lon, 1).normalize())
@@ -760,6 +785,13 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
         }
       }
       if (!(voo.ativo && !viagem.ativa)) controles.update()   // no voo, quem posiciona a câmera é a perseguição
+      // contagem do salto: as linhas de luz crescem; no salto, dobra máxima e a lente abre
+      if (dim.estado === 'contagem' || dim.estado === 'dobra') {
+        universo.dobra = dim.estado === 'dobra' ? 1 : dim.carga
+        const fov = 38 + universo.dobra * (dim.estado === 'dobra' ? 55 : 25)
+        if (Math.abs(camera.fov - fov) > 0.3) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix() }
+      }
+      if (t - ultimoSom > 0.1) { ultimoSom = t; som.atualizar({ ligado: voo.ativo, empuxo: viagem.ativa ? 0.9 : voo.acel, boost: teclas.has('shift'), dobra: Math.max(dobraNave, dim.estado ? universo.dobra : 0) }) }
       renderer.render(cena, camera)
       // rótulos dos astros (no modo explorar)
       const caixaAstros = astrosRef.current
@@ -811,6 +843,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
       el.removeEventListener('pointerdown', arrastoIni); window.removeEventListener('pointermove', arrastoMove); window.removeEventListener('pointerup', arrastoFim)
       vivo = false; marcos.descartar(); exo?.descartar()
       universo.descartar(); sats.descartar(); nave?.descartar?.()
+      som.descartar(); dim.obj?.descartar()
       controles.dispose()
       cena.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.() })
       tex.dispose(); texNuvens.dispose(); if (texturas) Object.values(texturas).forEach((x) => x.dispose())
@@ -837,6 +870,38 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
   useEffect(() => { acoesRef.current.seguirIss = seguirIss && !explorar; if (seguirIss) acoesRef.current.girar?.(false) }, [seguirIss, explorar])
   useEffect(() => { acoesRef.current.tempo?.(explorar ? tempo : 1) }, [tempo, explorar])
   useEffect(() => { if (!explorar) { setInfo(null); setTour(false); setNave(false); setTempo(1) } }, [explorar])
+  // salto hipersônico: 10 s de contagem (a dimensão é montada nesse tempo), dobra máxima e chegada
+  const abortarSalto = () => {
+    clearInterval(hiperTimer.current); hiperTimer.current = null
+    const a = acoesRef.current
+    if (a.dim) { a.dim.estado = null; a.dim.carga = 0 }
+    setHiper(null)
+  }
+  const iniciarSalto = () => {
+    const a = acoesRef.current
+    if (hiperTimer.current || dentro || !a.dim) return
+    a.som?.iniciar(); a.som?.bipe()
+    let n = 10
+    a.dim.estado = 'contagem'; a.dim.carga = 0
+    setHiper({ n, prog: 0, fase: 'contagem' })
+    let pronta = false, erro = ''
+    a.prepararDimensao((p) => setHiper((h) => (h ? { ...h, prog: p } : h))).then(() => { pronta = true }).catch((e) => { erro = e?.message || 'falha ao montar' })
+    hiperTimer.current = setInterval(() => {
+      n -= 1
+      if (erro) { abortarSalto(); return }
+      a.dim.carga = ((10 - n) / 10) * 0.7
+      if (n > 0) { setHiper((h) => (h ? { ...h, n } : h)); a.som?.bipe(n <= 3); return }
+      clearInterval(hiperTimer.current); hiperTimer.current = null
+      a.dim.estado = 'dobra'; a.som?.salto()
+      setHiper((h) => (h ? { ...h, n: 0, fase: 'dobra' } : h))
+      const chegar = () => { if (!pronta) { setTimeout(chegar, 200); return } a.dim.estado = 'dentro'; setHiper(null); setDentro(true); a.som?.dimensao(true) }
+      setTimeout(chegar, 1500)
+    }, 1000)
+  }
+  const voltarDimensao = () => { acoesRef.current.som?.dimensao(false); acoesRef.current.sairDimensao?.(); setDentro(false) }
+  useEffect(() => { if (!(explorar && nave)) { if (hiperTimer.current) abortarSalto(); if (dentro) voltarDimensao() } }, [explorar, nave]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => clearInterval(hiperTimer.current), [])
+  const alternarMudo = () => { const v = !mudo; setMudo(v); acoesRef.current.som?.iniciar(); acoesRef.current.som?.definirMudo(v) }
   // tour guiado: visita cada astro com a ficha aberta
   const ROTEIRO = ['terra', 'lua', 'sol', 'mercurio', 'venus', 'marte', 'cinturao', 'ceres', 'jupiter', 'europa', 'saturno', 'tita', 'urano', 'netuno', 'plutao', 'cometa', 'pleiades', 'orion', 'andromeda', 'magalhaes']
   const passoTour = useRef(0)
@@ -892,7 +957,7 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
           <p className="mt-1.5 text-[10px] text-white/45">Órbitas da {resumoSats.fonte?.fonte || 'CelesTrak'}, posição calculada aqui (SGP4). Apagados = na sombra da Terra.</p>
         </div>
       )}
-      {explorar && nave && hud && (
+      {explorar && nave && hud && !dentro && !hiper && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-4 rounded-lg border border-sky-300/20 bg-black/60 px-4 py-2 font-mono text-[11px] text-sky-100 backdrop-blur"> {/* marca: painel de voo da nave */}
           <span>ACELERADOR <b className="tabular-nums">{Math.round(hud.empuxo * 100)}%</b></span>
           <span>VEL <b className="tabular-nums">{Math.round(hud.vel / Math.max(1e-6, hud.escala || 1) * 50).toLocaleString('pt-BR')}</b> m/s</span>
@@ -929,8 +994,14 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
           <div className="space-y-2 border-t border-white/15 px-3 py-2">
             <div className="grid grid-cols-2 gap-1.5">
               <button onClick={() => setTour((v) => !v)} className={`flex items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] ${tour ? 'bg-white/20' : 'hover:bg-white/10'}`}><Route className="h-3 w-3" />{tour ? 'Parar tour' : 'Tour'}</button>
-              <button onClick={() => setNave((v) => !v)} className={`flex items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] ${nave ? 'bg-white/20' : 'hover:bg-white/10'}`} title="Pilotar a nave pelo teclado"><Rocket className="h-3 w-3" />{nave ? 'Sair da nave' : 'Pilotar nave'}</button>
+              <button onClick={() => { acoesRef.current.som?.iniciar(); setNave((v) => !v) }} className={`flex items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] ${nave ? 'bg-white/20' : 'hover:bg-white/10'}`} title="Pilotar a nave pelo teclado"><Rocket className="h-3 w-3" />{nave ? 'Sair da nave' : 'Pilotar nave'}</button>
             </div>
+            {nave && (
+              <div className="grid grid-cols-[1fr_auto] gap-1.5">
+                <button onClick={hiper ? abortarSalto : iniciarSalto} disabled={dentro} className={`flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-[11px] disabled:opacity-40 ${hiper ? 'border-red-300/40 bg-red-500/20' : 'border-fuchsia-300/40 bg-fuchsia-500/15 hover:bg-fuchsia-500/25'}`} title="Contagem de 10 s e salto para outra dimensão"><Zap className="h-3 w-3" />{hiper ? 'Abortar salto' : 'Velocidade hipersônica'}</button>
+                <button onClick={alternarMudo} className="rounded-md border border-white/15 px-2 py-1 hover:bg-white/10" aria-label={mudo ? 'Ligar o som da nave' : 'Desligar o som da nave'} title={mudo ? 'Ligar o som' : 'Desligar o som'}>{mudo ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}</button>
+              </div>
+            )}
             {tour && <button onClick={() => { acoesRef.current.irPara?.(ROTEIRO[passoTour.current % ROTEIRO.length]); passoTour.current += 1 }} className="flex w-full items-center justify-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] hover:bg-white/10"><SkipForward className="h-3 w-3" />Próximo destino</button>}
             <label className="block text-[10px] text-white/70"><span className="flex items-center justify-between"><span className="flex items-center gap-1"><FastForward className="h-3 w-3" />Tempo</span><span className="tabular-nums">{tempo}×</span></span>
               <input type="range" min={0} max={6} step={1} value={[0, 1, 5, 20, 100, 500, 2000].indexOf(tempo)} onChange={(e) => setTempo([0, 1, 5, 20, 100, 500, 2000][Number(e.target.value)])} className="w-full accent-sky-400" aria-label="Velocidade do tempo" /></label>
@@ -956,6 +1027,32 @@ export default function Globo3D({ pontos = [], servidor, aoSelecionar, className
         )}
       </AnimatePresenceLite>
       {!pronto && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/60">Desenhando o mapa…</div>}
+      {hiper && hiper.fase === 'contagem' && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center text-white">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-fuchsia-200">Velocidade hipersônica em</p>
+          <p key={hiper.n} className="mt-1 font-mono text-[96px] font-bold leading-none tabular-nums text-white [animation:pulso-contagem_1s_ease-out] motion-reduce:animate-none">{hiper.n}</p>
+          <div className="mt-4 h-1 w-56 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-fuchsia-400 transition-[width] duration-300" style={{ width: `${hiper.prog || 0}%` }} /></div>
+          <p className="mt-1.5 text-[11px] text-white/70">{(hiper.prog || 0) < 100 ? `Abrindo o portal da outra dimensão… ${hiper.prog || 0}%` : 'Portal pronto'}</p>
+        </div>
+      )}
+      {hiper && hiper.fase === 'dobra' && <div className="pointer-events-none absolute inset-0 z-20 bg-white [animation:clarao-salto_1.5s_ease-in_forwards] motion-reduce:hidden" />}
+      {dentro && (
+        <div className="absolute right-3 top-3 z-20 w-72 rounded-lg border border-fuchsia-300/25 bg-black/65 p-3 text-white backdrop-blur max-sm:left-3 max-sm:w-auto"> {/* marca: painel da outra dimensão */}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-fuchsia-200">Outra dimensão · Ômega-7</p>
+          <p className="mt-1 text-sm font-semibold">Civilização Arkan (ficção)</p>
+          <ul className="mt-2 space-y-0.5 text-[11px] text-white/80">
+            <li>Megacidade flutuante com elevador espacial até o anel orbital</li>
+            <li>Frota de discos e naves-flecha, e a nave-mãe com raio de tração</li>
+            <li>Portal de energia, cristais flutuantes e planeta anelado com cidades no lado noturno</li>
+            <li>Dois sóis e céu de nebulosa</li>
+          </ul>
+          <p className="mt-2 text-[10px] text-white/55">W/S acelerador · A/D guinada · ↑/↓ nariz · Q/E rolagem · Shift turbo · Espaço freia</p>
+          <div className="mt-2.5 flex gap-1.5">
+            <button onClick={voltarDimensao} className="flex-1 rounded-md bg-white/90 px-2 py-1.5 text-[11px] font-medium text-slate-900 hover:bg-white">Voltar à nossa dimensão</button>
+            <button onClick={alternarMudo} className="rounded-md border border-white/20 px-2 hover:bg-white/10" aria-label={mudo ? 'Ligar o som' : 'Desligar o som'}>{mudo ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}</button>
+          </div>
+        </div>
+      )}
       <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border border-white/15 bg-black/50 text-white backdrop-blur">
         <button onClick={alternarTelaCheia} className={botao} aria-label={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'} title={telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}>{telaCheia ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
         <button onClick={() => setMostrarSats((v) => !v)} className={`${botao} border-b border-white/15 ${mostrarSats ? 'bg-white/15' : ''}`} aria-label={mostrarSats ? 'Esconder satélites' : 'Mostrar satélites'} title={mostrarSats ? 'Esconder satélites' : 'Mostrar satélites ao vivo'}><Satellite className="h-3.5 w-3.5" /></button>

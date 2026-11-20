@@ -184,3 +184,7 @@ svg.lucide { stroke-width: var(--icone, 2); }
 .dark .tela-supa { --background: 0 0% 7%; --card: 0 0% 9%; --muted: 0 0% 12%; --muted-foreground: 0 0% 63%; --border: 0 0% 18%;
   --foreground: 0 0% 93%; --primary: 153 60% 53%; --primary-foreground: 0 0% 7%; --accent: 0 0% 14%; --sidebar: 0 0% 9%; }
 .tela-supa { font-size: 14px; }
+
+/* salto hipersônico (/seguranca, nave): número da contagem que pulsa e o clarão da chegada */
+@keyframes pulso-contagem { 0% { transform: scale(1.35); opacity: 0.2 } 30% { opacity: 1 } 100% { transform: scale(1); opacity: 0.85 } }
+@keyframes clarao-salto { 0% { opacity: 0 } 70% { opacity: 0.15 } 90% { opacity: 1 } 100% { opacity: 1 } }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import IconeMarca from './IconeMarca'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Activity, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
@@ -537,6 +538,9 @@ export default function Layout() {
             {marca.mostrar_link_site !== false && <a href={siteComSessao(true)} className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:flex" title="Voltar ao site">
               <Globe className="h-4 w-4" /> Site
             </a>}
+            <a href="https://github.com/estevam5s/clima-casa" target="_blank" rel="noreferrer" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:flex" title="Código-fonte no GitHub" aria-label="Repositório no GitHub">
+              <IconeMarca nome="github" className="h-4 w-4" /> GitHub
+            </a>
             <Link to="/apps" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground lg:flex" title="Baixar os apps">
               <Download className="h-4 w-4" /> Apps
             </Link>

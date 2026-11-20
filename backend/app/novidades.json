@@ -2,6 +2,23 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "0.4.5",
+      "data": "2026-11-20",
+      "titulo": "Som da nave, salto hipersônico e botão do GitHub",
+      "resumo": "A nave da tela Segurança ganhou som de motor e um salto hipersônico com contagem regressiva para outra dimensão; o painel e os apps ganharam o atalho para o código no GitHub.",
+      "novo": [
+        "Som da nave: ronco do motor que acompanha o acelerador e o turbo, com botão para desligar",
+        "Velocidade hipersônica: contagem regressiva de 10 segundos e salto para outra dimensão (ficção) com megacidade flutuante, frota alienígena, nave-mãe, portal, cristais e planeta anelado, onde dá para pilotar",
+        "Botão GitHub no topo do painel, ao lado de Site, com o repositório do sistema",
+        "Apps 1.6.1: atalho Código no GitHub no Android, no iPhone e no computador"
+      ],
+      "melhorias": [
+        "A outra dimensão é montada durante a contagem e descartada ao voltar: o globo e o universo param de desenhar enquanto você está lá"
+      ],
+      "seguranca": [],
+      "correcoes": []
+    },
+    {
       "versao": "0.4.4",
       "data": "2026-11-20",
       "titulo": "Passo a passo vivo, Ilha com relevo real, Telegram com 1.114 comandos e apps 1.6.0",
