@@ -44,18 +44,52 @@ const PROBLEMAS = [
   ['O app abre numa tela "Sem conexão"', 'Os apps precisam de internet para falar com o servidor. Quando a conexão voltar, toque em Tentar de novo.'],
 ]
 
+// Notas do release (markdown do GitHub) mostradas sem o "código": tira HTML, selos, sumário e as seções técnicas;
+// mantém resumo, destaques (tabela vira lista), instalação e como atualizar. Links e **negrito** viram texto formatado.
+const SECOES_FORA = /^(sumário|downloads|commits|estatísticas|links|verificar o download|requisitos)/i
+function inline(texto, k) {
+  const partes = []
+  const rx = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/g
+  let ult = 0, m, i = 0
+  while ((m = rx.exec(texto))) {
+    if (m.index > ult) partes.push(texto.slice(ult, m.index))
+    if (m[1]) partes.push(<b key={`${k}b${i++}`} className="font-medium text-foreground">{m[1]}</b>)
+    else if (m[2]) partes.push(<code key={`${k}c${i++}`} className="rounded bg-muted px-1 font-mono text-[12px]">{m[2]}</code>)
+    else partes.push(/^https?:\/\//.test(m[4]) ? <a key={`${k}a${i++}`} href={m[4]} target="_blank" rel="noreferrer" className="text-primary underline-offset-2 hover:underline">{m[3].replace(/`/g, '')}</a> : m[3])
+    ult = rx.lastIndex
+  }
+  if (ult < texto.length) partes.push(texto.slice(ult))
+  return partes
+}
 function NovidadesVersao({ notas }) {
-  const linhas = (notas || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  const blocos = []
+  let fora = false, cab = null
+  for (const bruta of (notas || '').split('\n')) {
+    const l = bruta.trim()
+    if (/^#{2,3}\s/.test(l)) {
+      const t = l.replace(/^#+\s*/, '').replace(/^[^\p{L}\p{N}]+/u, '').trim()
+      fora = SECOES_FORA.test(t)
+      if (!fora) blocos.push({ tipo: 'titulo', t })
+      cab = null; continue
+    }
+    if (fora || !l || /^<|^---$|^#\s|!\[/.test(l)) continue
+    if (/^\|/.test(l)) {
+      const cel = l.split('|').slice(1, -1).map((c) => c.trim())
+      if (cel.every((c) => /^:?-+:?$/.test(c))) continue
+      if (!cab) { cab = cel; continue }
+      blocos.push({ tipo: 'linha', t: `**${cel[0]}**: ${cel.slice(1).join(' · ')}` }); continue
+    }
+    cab = null
+    blocos.push({ tipo: /^[-*]\s|^\d+\.\s/.test(l) ? 'linha' : 'texto', t: l.replace(/^[-*]\s|^\d+\.\s/, '') })
+  }
   return (
-    <ul className="space-y-1.5 text-sm">
-      {linhas.map((l, i) => {
-        const titulo = /^#+\s/.test(l)
-        const texto = l.replace(/^#+\s|^[-*]\s/g, '')
-        const partes = texto.split(/\*\*(.+?)\*\*/g)
-        return titulo ? <li key={i} className="pt-2 font-medium">{texto}</li>
-          : <li key={i} className="flex gap-2 text-muted-foreground"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" /><span>{partes.map((p, j) => (j % 2 ? <b key={j} className="font-medium text-foreground">{p}</b> : p))}</span></li>
-      })}
-    </ul>
+    <div className="max-h-[26rem] overflow-y-auto overscroll-contain pr-1 text-sm" tabIndex={0} aria-label="Novidades da versão">
+      {blocos.map((b, i) => b.tipo === 'titulo'
+        ? <p key={i} className="pb-1 pt-3 font-medium first:pt-0">{b.t}</p>
+        : b.tipo === 'linha'
+          ? <p key={i} className="flex gap-2 py-0.5 text-muted-foreground"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" /><span>{inline(b.t, i)}</span></p>
+          : <p key={i} className="py-0.5 text-muted-foreground">{inline(b.t, i)}</p>)}
+    </div>
   )
 }
 

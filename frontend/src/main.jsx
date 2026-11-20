@@ -23,6 +23,7 @@ import Alexa from './pages/Alexa'
 import Configuracoes from './pages/Configuracoes'
 import Autorizar from './pages/Autorizar'
 import EntrarApp from './pages/EntrarApp'
+import ProtecaoErro from './components/ProtecaoErro'
 import Supabase from './pages/Supabase'
 import RedefinirSenha from './pages/RedefinirSenha'
 import Projetos from './pages/Projetos'
@@ -50,6 +51,11 @@ import Fechadura from './pages/Fechadura'
 import Avatares from './pages/Avatares'
 import Treinamento from './pages/Treinamento'
 import Emails from './pages/Emails'
+
+function ComProtecao({ children }) {   // erro numa tela não deixa a página preta; trocar de tela tenta de novo
+  const local = useLocation()
+  return <ProtecaoErro chave={local.pathname}>{children}</ProtecaoErro>
+}
 
 function Protegido({ children }) {
   const [estado, setEstado] = useState(null)
@@ -103,6 +109,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ToastProvider>
       <Cursor />
       <BrowserRouter>
+        <ComProtecao>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
@@ -148,6 +155,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="*" element={<NaoEncontrado />} />
           </Route>
         </Routes>
+        </ComProtecao>
       </BrowserRouter>
     </ToastProvider>
     </MarcaProvider>

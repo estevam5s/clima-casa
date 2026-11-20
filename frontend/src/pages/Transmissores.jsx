@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, Check, ChevronDown, CloudDownload, Pencil, Plus, Power, Radio, RefreshCw, Search, Trash2, Truck, Wand2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
+import PassoAPasso from '../components/PassoAPasso'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Ponto, Selo, Vazio, useDados, useToast } from '../components/ui'
 import { motion } from 'framer-motion'
 
@@ -543,6 +544,36 @@ function AresDoTransmissor({ hub, aoMudar, abrir }) {
   )
 }
 
+// Passo a passo: do transmissor na caixa até ele mandar comandos para os ares (cada passo confere o estado real)
+function PassosTransmissor({ hubs, abrir }) {
+  const temChave = hubs.some((h) => h.tem_chave)
+  const algumOnline = hubs.some((h) => h.online)
+  const comAres = hubs.some((h) => (h.aparelhos || 0) > 0)
+  const iguais = hubs.filter((h) => (h.juntos || []).some((g) => g.length > 1))
+  const passos = [
+    { titulo: 'Parear o transmissor no app Smart Life', feito: hubs.length > 0, cena: 'rede',
+      texto: <>Ligue o Smart IR na tomada (USB), abra o <b>Smart Life</b> no celular e adicione o aparelho. Use o <b>Wi-Fi de 2,4 GHz</b> do escritório (5 GHz não funciona). Dê um nome que diga onde ele fica.</>,
+      acao: { rotulo: 'Ver no passo a passo', para: '/guia#smart-life' } },
+    { titulo: 'Ligar a conta Smart Life ao sistema', feito: temChave, cena: 'rede',
+      texto: <>Em <b>Configurações → Contas</b>, conecte a conta Smart Life pelo QR Code. É dela que vem a <b>Local Key</b>, a chave que o agente usa para falar com o transmissor pela rede local.</>,
+      acao: { rotulo: 'Abrir Contas', para: '/configuracoes?aba=contas' } },
+    { titulo: 'Trazer o transmissor para cá', feito: hubs.length > 0, cena: 'rede',
+      texto: <>Use <b>Importar todos</b> (ou Importar um) e escolha a sala onde ele vai ficar. Sem a conta Smart Life, <b>Procurar na rede</b> acha o ID e o IP pelo Wi-Fi.</>,
+      acao: { rotulo: 'Importar um', onClick: () => abrir({ tipo: 'importar' }) } },
+    { titulo: 'Agente do escritório enxergando o transmissor', feito: algumOnline, cena: 'rede',
+      texto: <>Um computador ligado <b>na mesma rede</b> (o agente) conversa com o transmissor. Em casa, com o Mac, ele fica offline: isso é normal. <b>Verificar</b> testa agora.</>,
+      acao: { rotulo: 'Ver agentes', para: '/infra?aba=agentes' } },
+    { titulo: 'Posicionar no teto, à vista dos ares', feito: null, cena: 'ar',
+      texto: <>O sinal é infravermelho: <b>não atravessa parede, porta nem divisória</b>. No teto, alcança bem até 8–10 m e até 6 ares à vista. Sala fechada precisa de um transmissor próprio.</> },
+    { titulo: 'Vincular os ares e gravar os botões', feito: comAres, cena: 'controle',
+      texto: <>No cartão do transmissor, <b>Adicionar ar a este transmissor</b>. Depois, em cada ar, aba <b>Botões gravados</b>: grave o Desligar com o controle apontado para o transmissor (10–30 cm). Ar Gree gera os outros 300 botões sozinho.</>,
+      acao: { rotulo: 'Cadastrar um ar', para: '/aparelhos?novo=1' } },
+    { titulo: 'Vários ares iguais? Teste de interferência', feito: iguais.length ? iguais.every((h) => h.testado) : null, cena: 'ar',
+      texto: <>Ares do mesmo modelo à vista do mesmo transmissor obedecem juntos (o infravermelho não tem endereço). O <b>teste de interferência</b> manda um sinal por vez; quem estiver no salão marca quem apitou, e o sistema grava as zonas reais.</> },
+  ]
+  return <PassoAPasso chave="transmissores" titulo="Passo a passo: instalar um transmissor" descricao="Do Smart IR na caixa até ele comandar os ares do escritório" passos={passos} />
+}
+
 export default function Transmissores() {
   const { filtro } = useProjeto()
   const { dados: hubs, erro, recarregar, setDados } = useDados(() => api.get(comFiltro('/api/hubs', filtro)), [filtro])
@@ -604,6 +635,7 @@ export default function Transmissores() {
         </>}
       />
 
+      <div className="mb-6"><PassosTransmissor hubs={hubs} abrir={setModal} /></div>
       {hubs.length > 0 && <GuiaRede />}
       {hubs.length > 0 && <SalasResumo hubs={hubs} />}
       {hubs.length > 0 && (

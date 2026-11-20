@@ -28,6 +28,8 @@ const ITENS: [string, string, string][] = [
   ['Mensagens e Kanban', 'Quem escreveu pelo site, por etapa', '/mais/mensagens'],
   ['Segurança', 'Firewall e o bot do Telegram', '/mais/seguranca'],
   ['Novidades', 'O que mudou em cada versão', '/mais/novidades'],
+  ['Bugs', 'Problemas encontrados, procurar e autoteste dos cadastros', '/mais/bugs'],
+  ['Uso da IA', 'Limite da sessão de 5 horas e da semana', '/mais/uso-ia'],
 ];
 
 export default function Mais() {

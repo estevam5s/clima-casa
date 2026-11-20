@@ -5,7 +5,7 @@ import { ChevronDown, Power } from 'lucide-react'
 // não se o ar está ligado ou desligado.
 function Visor({ ligado = true, modo = 'FRIO', temp, vent = 'AUTO', destaque }) {
   return (
-    <div className="w-36 shrink-0 rounded-[1.4rem] border border-border bg-gradient-to-b from-zinc-100 to-zinc-200 p-2.5 shadow-inner dark:from-zinc-800 dark:to-zinc-900">
+    <div className="w-36 shrink-0 rounded-[1.4rem] border border-border bg-zinc-200 p-2.5 shadow-inner dark:bg-zinc-800">
       <div className={`rounded-lg px-2 py-1.5 font-mono text-[11px] leading-tight ${ligado ? 'bg-emerald-100 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-zinc-300 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400'}`}>
         <div className="flex justify-between"><span>{ligado ? modo : 'DESLIG.'}</span><span>{ligado ? vent : ''}</span></div>
         <div className="text-center text-2xl font-bold tabular-nums">{ligado ? `${temp}°` : '--'}</div>

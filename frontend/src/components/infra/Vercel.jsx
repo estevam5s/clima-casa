@@ -153,6 +153,7 @@ export function Config({ resumo, dono, recarregar }) {
   const [projeto, setProjeto] = useState('clima-casa')
   const p = resumo?.projetos?.find((x) => x.nome === projeto)
   const [vars, setVars] = useState(null), [ocupado, setOcupado] = useState(false)
+  const manter = Math.min(100, Math.max(3, p?.retencao?.deploymentsToKeep || 10))   // as mais novas que ficam (mesma regra da retenção)
   useEffect(() => { setVars(null); api.get(`/api/infra/variaveis?projeto=${projeto}`).then(setVars).catch(() => setVars({ itens: [] })) }, [projeto])
   const limpar = async () => {
     setOcupado(true)

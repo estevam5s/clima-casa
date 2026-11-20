@@ -1,8 +1,33 @@
 {
-  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
+  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
-      "versao": "1.31.0",
+      "versao": "0.4.4",
+      "data": "2026-11-20",
+      "titulo": "Passo a passo vivo, Ilha com relevo real, Telegram com 1.114 comandos e apps 1.6.0",
+      "resumo": "Os transmissores e os ares ganharam um passo a passo que confere o estado real, a vista da Ilha passou a usar o relevo de verdade, o bot do Telegram recebe quem chega e ganhou 252 comandos, e os apps foram atualizados.",
+      "novo": [
+        "Passo a passo em Transmissores (do Smart Life ao teste de interferência) e na aba Botões de cada ar (como vincular o controle ao transmissor), com cada etapa marcada pelo estado real",
+        "Vista da Ilha com o relevo e a profundidade do mar de verdade, céu com sol e sombras, e 19 lugares marcados",
+        "Telegram: 252 comandos novos (1.114 no total), como desligar ou ligar o ar num horário (/desligar_1800), previsão hora a hora, ataques por período, bugs, uso da IA, guia, glossário e telas do painel",
+        "Telegram: quem inicia o bot sem vínculo recebe uma apresentação completa (o que faz, como vincular, segurança) e quem vincula recebe os primeiros passos; menu principal com mais atalhos",
+        "Projetos: anel de ares ligados, ligar e desligar cada ar no próprio cartão, Conforto (23° no frio), duplicar projeto, mapa de calor de 14 dias e atalho / para buscar",
+        "Apps 1.6.0: Android, computador e iPhone com Bugs (procurar e autoteste) e Uso da IA"
+      ],
+      "melhorias": [
+        "Versões numeradas em sequência a partir de 0.0.0 (o número antigo aparece ao lado de cada versão)",
+        "Notas das versões em Apps sem código aparente e com rolagem própria, sem rolar a página"
+      ],
+      "seguranca": [
+        "Uma tela com erro não fica mais preta: aparece o aviso para recarregar e o erro vai para Bugs"
+      ],
+      "correcoes": [
+        "A página de entrar no clima-ia (terminal) ficava preta",
+        "O botão Apagar publicações antigas da Vercel (Infra) quebrava ao clicar"
+      ]
+    },
+    {
+      "versao": "0.4.3",
       "data": "2026-11-20",
       "titulo": "clima-ia com o logo do sistema, limites de uso da IA e Bugs mais completo",
       "resumo": "O terminal ganhou a cara do sistema e ferramentas de segurança, a IA passa a ter limite de sessão (5 horas) e semanal definidos pelo dono, a área de Bugs encontra problemas de cadastro e o editor SQL ganhou cores e sugestões.",
@@ -29,10 +54,11 @@
         "Ar com nome só de espaços era salvo sem nome",
         "Editar um ar sem escolher a sala tirava o ar da sala dele",
         "Bloqueio de IP pelo firewall aparecia como bug (agora fica só em Segurança)"
-      ]
+      ],
+      "antes": "1.31.0"
     },
     {
-      "versao": "1.30.0",
+      "versao": "0.4.2",
       "data": "2026-11-20",
       "titulo": "App de iPhone, Assistente no terminal e Supabase completo",
       "resumo": "O app nativo de iPhone chega junto com os apps 1.5.0, o Assistente ganha um terminal no jeito do Claude Code e o painel do banco ganha ferramentas avançadas.",
@@ -51,10 +77,11 @@
         "Login do terminal por código de uso único (2 minutos) com PKCE: o código não vale nada sem o verificador que só o terminal tem",
         "Painel do banco segue só leitura, com consultas fechadas; textos longos dentro das consultas das conexões saem ocultos"
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.30.0"
     },
     {
-      "versao": "1.29.0",
+      "versao": "0.4.1",
       "data": "2026-11-20",
       "titulo": "Segurança reforçada no sistema e no bot do Telegram",
       "resumo": "O firewall passou a examinar o conteúdo das requisições contra injeções, bloqueia robôs e ferramentas de ataque, pega senhas testadas em várias contas e protege o Assistente de IA; o bot do Telegram ganhou auditoria completa, PIN para comandos críticos e uma aba própria em Segurança.",
@@ -73,10 +100,11 @@
         "O Assistente de IA recusa pedidos que tentam mudar as regras dele ou pedir chaves e tokens, e a tentativa vira evento de segurança.",
         "Requisições maiores que 4 MB são recusadas."
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.29.0"
     },
     {
-      "versao": "1.28.0",
+      "versao": "0.4.0",
       "data": "2026-11-20",
       "titulo": "Telegram com 862 comandos e Estúdio de avatares mais completo",
       "resumo": "O bot do Telegram ganhou 364 comandos novos (modo, temperatura e ventilação num toque, salas e zonas por modo, mais timers e relatórios, atividade por origem) e o Estúdio ganhou modelos prontos, acessórios, sortear, desfazer, vistas da câmera e foto.",
@@ -91,10 +119,11 @@
       "seguranca": [
         "Comandos novos do Telegram que mexem em vários ares pedem Confirmar, como os anteriores."
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.28.0"
     },
     {
-      "versao": "1.27.0",
+      "versao": "0.3.9",
       "data": "2026-11-20",
       "titulo": "Mapa: heróis no céu, motos com piloto, sinaleiras e cidade maior",
       "resumo": "O Homem de Ferro e o Goku sobrevoam a cidade e o Naruto corre pelo quarteirão; as motos do trânsito ganharam piloto e andam de frente; mais sinaleiras, pedestres e prédios; direção mais fácil de virar e a abertura do mapa mais leve.",
@@ -111,10 +140,11 @@
       "seguranca": [],
       "correcoes": [
         "Moto andava de ré: agora anda de frente, no trânsito e quando você pilota."
-      ]
+      ],
+      "antes": "1.27.0"
     },
     {
-      "versao": "1.26.0",
+      "versao": "0.3.8",
       "data": "2026-11-20",
       "titulo": "Kanban das mensagens, visual do WhatsApp e do Supabase, todos os modelos da NVIDIA",
       "resumo": "Mensagens com o visual do WhatsApp Web e um Kanban para acompanhar cada pessoa, o painel do banco no design do Supabase, o Assistente com todos os modelos gratuitos da NVIDIA e uma linha do tempo nova em Novidades.",
@@ -131,10 +161,11 @@
       "seguranca": [],
       "correcoes": [
         "Linha do tempo de Novidades com rótulos que não se sobrepõem."
-      ]
+      ],
+      "antes": "1.26.0"
     },
     {
-      "versao": "1.25.0",
+      "versao": "0.3.7",
       "data": "2026-11-20",
       "titulo": "Interruptor de 4 teclas, Assistente no visual do Claude e mapa com monitores e PCs",
       "resumo": "Luzes com interruptores de parede de várias teclas, o Assistente de IA com o visual do Claude, o mapa mais leve e com os modelos certos nas mesas, e downloads dos apps para quem não tem acesso ao GitHub.",
@@ -158,10 +189,11 @@
         "Erro \"isReady\" que aparecia ao sair das telas com 3D (Projetos, Avatares, Mapa).",
         "Falhas de \"limite de conexões\" com o banco quando vários computadores do escritório ficavam ligados.",
         "Transmissor sem resposta virou aviso na central de notificações, em vez de bug."
-      ]
+      ],
+      "antes": "1.25.0"
     },
     {
-      "versao": "1.24.1",
+      "versao": "0.3.6",
       "data": "2026-11-19",
       "titulo": "Apps 1.4.0 e o assistente no terminal",
       "resumo": "O app do computador ganha o Assistente de IA no menu, o Android ganha a tela do Assistente e o clima-ia fica no jeito do Claude Code.",
@@ -175,10 +207,11 @@
         "Documentação dos apps e do sistema atualizada"
       ],
       "seguranca": [],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.24.1"
     },
     {
-      "versao": "1.24.0",
+      "versao": "0.3.5",
       "data": "2026-11-19",
       "titulo": "Backup completo, treinamento com mais de mil perguntas e páginas de rotina mais completas",
       "resumo": "Backup e restauração do sistema inteiro, prova de segurança e ISO com resultado na hora e por e-mail, apps baixados sem conta no GitHub e Agenda, Cenas e Automações com modelos prontos.",
@@ -203,10 +236,11 @@
       ],
       "correcoes": [
         "Comandos de agenda do Telegram mostravam os dias da semana trocados"
-      ]
+      ],
+      "antes": "1.24.0"
     },
     {
-      "versao": "1.23.0",
+      "versao": "0.3.4",
       "data": "2026-11-19",
       "titulo": "Assistente de IA com histórico, bot com 498 comandos e carros mais leves",
       "resumo": "A tela da IA virou um chat com conversas salvas, o bot do Telegram ganhou 234 comandos novos e o mapa ficou mais leve e mais fácil de controlar.",
@@ -229,10 +263,11 @@
       "correcoes": [
         "Monitores, teclados, mouses e PCs da biblioteca não apareciam nas mesas",
         "A página Cafeteira mostrava a cafeteira antiga"
-      ]
+      ],
+      "antes": "1.23.0"
     },
     {
-      "versao": "1.22.0",
+      "versao": "0.3.3",
       "data": "2026-11-19",
       "titulo": "Música com a cara do Spotify, tocando no próprio painel e reagindo à Alexa",
       "resumo": "A tela de Música foi refeita no estilo do Spotify, o painel virou um aparelho do Spotify e as rotinas podem disparar só quando a Alexa liga ou desliga um ar.",
@@ -253,10 +288,11 @@
       ],
       "correcoes": [
         "Música não tocava quando nenhum aparelho do Spotify estava aberto: agora o painel toca sozinho."
-      ]
+      ],
+      "antes": "1.22.0"
     },
     {
-      "versao": "1.21.0",
+      "versao": "0.3.2",
       "data": "2026-11-19",
       "titulo": "Mapa multijogador, carros da biblioteca nas ruas e escritório com os modelos novos",
       "resumo": "Quem está no mapa ao mesmo tempo aparece para os outros, o trânsito e os estacionamentos usam os carros da biblioteca, e as mesas ganharam monitor, teclado, mouse e PC 3D.",
@@ -279,10 +315,11 @@
         "Erro na tela do mapa quando ninguém estava no térreo",
         "Tela do Telegram antiga no cache do navegador quebrava com a lista nova de comandos",
         "Agente fora do escritório deixou de virar bug: agora é uma notificação"
-      ]
+      ],
+      "antes": "1.21.0"
     },
     {
-      "versao": "1.20.0",
+      "versao": "0.3.1",
       "data": "2026-11-19",
       "titulo": "Bot do Telegram com 264 comandos, carros mais estáveis e cidade mais viva",
       "resumo": "O bot ganhou um menu por categorias com o estado no topo, os carros pararam de rodar nas curvas e a cidade ganhou trânsito, estacionamentos e mais detalhes.",
@@ -305,10 +342,11 @@
       "seguranca": [
         "Cada comando do Telegram confere as permissões de quem vinculou; ações em lote e sensíveis pedem confirmação"
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.20.0"
     },
     {
-      "versao": "1.19.0",
+      "versao": "0.3.0",
       "data": "2026-11-19",
       "titulo": "Editor de aparência dos avatares e carros dirigíveis no mapa",
       "resumo": "Os modelos da pasta blender entraram na biblioteca, qualquer avatar ganha um editor completo de cores e pintura, e veículos andam pelas ruas do mapa 3D com física de carro de verdade.",
@@ -329,10 +367,11 @@
       "seguranca": [],
       "correcoes": [
         "Avatares importados apareciam sem textura: a política de segurança do navegador bloqueava as texturas embutidas no .glb"
-      ]
+      ],
+      "antes": "1.19.0"
     },
     {
-      "versao": "1.18.0",
+      "versao": "0.2.9",
       "data": "2026-11-19",
       "titulo": "Assistente de IA no painel e no Telegram, e bot mais completo",
       "resumo": "Converse com o sistema em português pelo painel ou pelo Telegram: ele vê os ares, transmissores e o agente, e comanda com as suas permissões.",
@@ -356,10 +395,11 @@
         "Transmissor importado de novo ficava sem formato de comando e recusava os envios até gravar um botão",
         "Gravação de botão quebrava quando o transmissor respondia pela metade",
         "Bugs falsos de transmissor quando só faltava um computador no escritório"
-      ]
+      ],
+      "antes": "1.18.0"
     },
     {
-      "versao": "1.17.0",
+      "versao": "0.2.8",
       "data": "2026-11-18",
       "titulo": "Relatórios oficiais por e-mail e Guia em PDF",
       "resumo": "Relatório de segurança no modelo da Prefeitura, enviado por e-mail, e o Passo a passo em PDF oficial com capítulos novos.",
@@ -374,10 +414,11 @@
       "seguranca": [
         "O relatório de segurança só pode ser enviado para e-mails de usuários do sistema, com limite por hora"
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.17.0"
     },
     {
-      "versao": "1.16.0",
+      "versao": "0.2.7",
       "data": "2026-11-18",
       "titulo": "Bugs, minimapa no mapa 3D e personagens que abrem certo no Blender",
       "resumo": "Área de Bugs que também encontra problemas sozinha e gera o prompt para a IA corrigir, minimapa estilo jogo ao controlar uma pessoa e exportação de personagens com esqueleto.",
@@ -391,10 +432,11 @@
       "seguranca": [],
       "correcoes": [
         "Personagem exportado chegava no Blender como dezenas de peças soltas, com partes ocultas encolhidas e animações espalhadas"
-      ]
+      ],
+      "antes": "1.16.0"
     },
     {
-      "versao": "1.15.0",
+      "versao": "0.2.6",
       "data": "2026-11-18",
       "titulo": "Transferir o posto de dono e agente de IA no terminal",
       "resumo": "O dono pode passar o posto para outra pessoa, e há um agente de IA no terminal que conhece o sistema e controla os ares com confirmação.",
@@ -407,10 +449,11 @@
         "Transferir o dono exige a senha do dono, verificação anti-robô e o e-mail do novo dono digitado; os dois recebem e-mail",
         "O agente de IA nunca envia segredos para fora (mascara antes) e não lê o .env nem as credenciais"
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.15.0"
     },
     {
-      "versao": "1.14.0",
+      "versao": "0.2.5",
       "data": "2026-11-18",
       "titulo": "Bot do Telegram",
       "resumo": "O @zynio_bot controla os ares, cenas e luzes pelo Telegram, com as mesmas permissões de cada pessoa no painel.",
@@ -425,10 +468,11 @@
       ],
       "correcoes": [
         "Segurança → Testes: o lote era cancelado com \"a nuvem não aceitou a assinatura\" quando o agente era um PC instalado antes da chave existir (ou com o escudo ligado, agora explicado)"
-      ]
+      ],
+      "antes": "1.14.0"
     },
     {
-      "versao": "1.13.1",
+      "versao": "0.2.4",
       "data": "2026-11-18",
       "titulo": "Confirmações no próprio sistema e passo a passo atualizado",
       "resumo": "Toda pergunta de \"tem certeza?\" agora aparece no visual do sistema, e o Passo a passo e o manual explicam as novidades.",
@@ -443,10 +487,11 @@
       "seguranca": [
         "Auditoria: dependências do Python e do site sem vulnerabilidades, nenhum segredo no código, no histórico ou no app publicado, e todas as rotas com regra de permissão"
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.13.1"
     },
     {
-      "versao": "1.13.0",
+      "versao": "0.2.3",
       "data": "2026-11-18",
       "titulo": "Projetos, Cenas, Automações e Agenda mais completos",
       "resumo": "Cada sala mostra se tem transmissor próprio, as telas de Cenas, Automações e Agenda ganharam métricas, busca, filtros e duplicar, e nada mais é apagado sem confirmação.",
@@ -465,10 +510,11 @@
       "correcoes": [
         "Ligar/pausar, rodar e apagar automações e agendamentos falhavam sem mostrar o erro",
         "Executar uma cena que falhava não mostrava o motivo"
-      ]
+      ],
+      "antes": "1.13.0"
     },
     {
-      "versao": "1.12.0",
+      "versao": "0.2.2",
       "data": "2026-11-18",
       "titulo": "Andar pela cidade e atalhos no topo",
       "resumo": "No mapa 3D, a pessoa sai do prédio e anda pelas ruas, calçadas, praças e pelo terminal. No topo do painel, um menu de atalhos com backup em um clique.",
@@ -480,10 +526,11 @@
       "seguranca": [],
       "correcoes": [
         "Mapa 3D: do lado de fora do prédio a rua ficava preta (o sol e o chão sumiam ao descer ao térreo)"
-      ]
+      ],
+      "antes": "1.12.0"
     },
     {
-      "versao": "1.11.0",
+      "versao": "0.2.1",
       "data": "2026-11-18",
       "titulo": "Iluminação, central de notificações, relatório por e-mail e café no mapa",
       "resumo": "Nova tela de Iluminação com acender ao anoitecer, página de Notificações com histórico e filtros, relatório enviado por e-mail ao gerar e o avatar tomando café na copa.",
@@ -503,10 +550,11 @@
       "correcoes": [
         "Mapa 3D: a barra de controle da pessoa às vezes não aparecia (e as teclas F e R não respondiam)",
         "Mapa 3D: avisos da barra de controle não apareciam com a pessoa sentada"
-      ]
+      ],
+      "antes": "1.11.0"
     },
     {
-      "versao": "1.10.1",
+      "versao": "0.2.0",
       "data": "2026-11-18",
       "titulo": "Agente que não trava, passo a passo para gravar botões e correções",
       "resumo": "O agente se recupera sozinho quando o computador troca de rede, a tela de gravar explica o passo a passo e a busca do menu não é mais preenchida com o seu e-mail.",
@@ -522,10 +570,11 @@
         "O agente ficava horas parado depois que o computador trocava de rede ou dormia; agora se recupera sozinho",
         "A conexão com a Alexa caía de vez quando a internet do computador do agente piscava",
         "Na tela de E-mails o navegador colocava o seu e-mail na busca do menu"
-      ]
+      ],
+      "antes": "1.10.1"
     },
     {
-      "versao": "1.10.0",
+      "versao": "0.1.9",
       "data": "2026-11-18",
       "titulo": "Um transmissor por sala",
       "resumo": "A tela de Transmissores mostra quais salas têm transmissor próprio, o cadastro de ar sugere o transmissor da sala e um transmissor removido por engano volta como estava.",
@@ -544,10 +593,11 @@
       "correcoes": [
         "Transmissor cadastrado com o protocolo errado: o sistema descobre o certo sozinho ao reconectar e antes de gravar (antes a gravação dizia só \"Nenhum sinal recebido\")",
         "Ações num transmissor que acabou de ser removido por outra pessoa davam erro interno"
-      ]
+      ],
+      "antes": "1.10.0"
     },
     {
-      "versao": "1.9.3",
+      "versao": "0.1.8",
       "data": "2026-11-18",
       "titulo": "Diagnóstico da Alexa mais completo",
       "resumo": "O diagnóstico da Alexa avisa quando um ar está nela sem transmissor, e os comandos de voz que não deram certo aparecem na Atividade.",
@@ -557,10 +607,11 @@
         "Comando de voz que não pôde ser executado fica registrado na Atividade, no filtro de falhas"
       ],
       "seguranca": [],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.9.3"
     },
     {
-      "versao": "1.9.2",
+      "versao": "0.1.7",
       "data": "2026-11-18",
       "titulo": "Música não bloqueia mais o seu acesso",
       "resumo": "Quando o Spotify recusa a conta, a tela de Música avisa o que fazer e não faz o firewall bloquear quem está usando.",
@@ -574,10 +625,11 @@
       ],
       "correcoes": [
         "Tela de Música aberta com o Spotify recusando a conta bloqueava o próprio IP por 15 minutos"
-      ]
+      ],
+      "antes": "1.9.2"
     },
     {
-      "versao": "1.9.1",
+      "versao": "0.1.6",
       "data": "2026-11-18",
       "titulo": "Tela de Segurança mais leve",
       "resumo": "O globo da tela de Segurança não trava mais o navegador ao abrir.",
@@ -591,10 +643,11 @@
       "seguranca": [],
       "correcoes": [
         "Tela de Segurança que travava ou fechava a aba em computadores mais fracos"
-      ]
+      ],
+      "antes": "1.9.1"
     },
     {
-      "versao": "1.9.0",
+      "versao": "0.1.5",
       "data": "2026-11-18",
       "titulo": "Placas Arduino e ESP, Estúdio de avatares e pets, rede avançada, universo e conformidade",
       "resumo": "Cafeteira e outros aparelhos também por placa própria (Arduino e ESP), Estúdio para criar e editar avatares e pets que andam pelo escritório, diagnóstico avançado da rede, globo mais realista com lugares da Terra e exoplanetas, e a conformidade com termo de uso e treinamento dentro do sistema.",
@@ -617,10 +670,11 @@
         "Cada placa usa um código de acesso próprio; o sistema guarda só a impressão dele",
         "Os testes conferem se as rotas do sistema pedem login"
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.9.0"
     },
     {
-      "versao": "1.8.0",
+      "versao": "0.1.4",
       "data": "2026-11-18",
       "titulo": "Cafeteira, persianas e fechadura, teste de velocidade da rede, avatares 3D e copa no mapa",
       "resumo": "Automações do escritório prontas para aparelhos Smart Life, teste de velocidade completo do computador e da rede do escritório, biblioteca de avatares 3D e um andar com copa, banheiro, portas de vidro e gente tomando café.",
@@ -644,10 +698,11 @@
       ],
       "correcoes": [
         "Mapa: o cartão do 3D não estica mais com uma área vazia embaixo"
-      ]
+      ],
+      "antes": "1.8.0"
     },
     {
-      "versao": "1.7.1",
+      "versao": "0.1.3",
       "data": "2026-11-17",
       "titulo": "Menu recolhido com o seletor de projeto ajustado",
       "resumo": "Com o menu lateral recolhido, o seletor de projeto ficou centralizado, com espaço igual em volta da sigla.",
@@ -656,10 +711,11 @@
         "Menu lateral recolhido: seletor de projeto centralizado, sem a borda encostando na sigla"
       ],
       "seguranca": [],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.7.1"
     },
     {
-      "versao": "1.7.0",
+      "versao": "0.1.2",
       "data": "2026-11-17",
       "titulo": "Térreo com saída para a rua, Ilha de Florianópolis, relatórios no modelo da Prefeitura e Raspberry Pi",
       "resumo": "O avatar sai do prédio pela porta automática, a cidade ganhou casas, mais pessoas e aviões, e dá para ver a ilha de cima. Relatórios e documentos de segurança saem no modelo oficial da Prefeitura. Aparelhos e Transmissores ficaram mais completos.",
@@ -688,10 +744,11 @@
         "Térreo: o avatar não ficava mais preso na recepção e o térreo deixou de engasgar",
         "Novidades: a linha do tempo 3D não passa mais por cima do cartão da versão",
         "Relatórios: sem rolagem lateral no celular"
-      ]
+      ],
+      "antes": "1.7.0"
     },
     {
-      "versao": "1.6.0",
+      "versao": "0.1.1",
       "data": "2026-11-17",
       "titulo": "Responsável por ar, ares do Fabio, dos Devs e da Reunião, e agente no Raspberry Pi",
       "resumo": "Cada pessoa pode cuidar só dos ares que você escolher. Os ares que faltavam foram cadastrados e o agente agora instala num Raspberry Pi ou Linux com o mesmo código de instalação.",
@@ -711,10 +768,11 @@
       ],
       "correcoes": [
         "Exportar em Word não quebra mais em computadores com Python 3.11"
-      ]
+      ],
+      "antes": "1.6.0"
     },
     {
-      "versao": "1.5.4",
+      "versao": "0.1.0",
       "data": "2026-11-17",
       "titulo": "Procurar na rede de volta, estado pelo controle remoto e zonas por sala",
       "resumo": "A busca de transmissores voltou a funcionar, o painel se atualiza sozinho e dá para corrigir o estado quando alguém usa o controle remoto.",
@@ -731,10 +789,11 @@
       "correcoes": [
         "“Procurar na rede” em Transmissores dava erro (name 'tinytuya' is not defined)",
         "Placa com o nome no pódio do prédio piscava ao mexer a câmera no mapa 3D"
-      ]
+      ],
+      "antes": "1.5.4"
     },
     {
-      "versao": "1.5.3",
+      "versao": "0.0.9",
       "data": "2026-11-17",
       "titulo": "Painel mostra todos os ares da sala",
       "resumo": "Com uma sala escolhida que tem mais de um ar, o painel mostra todos lado a lado, cada um com o 3D e os próprios controles.",
@@ -747,10 +806,11 @@
         "Ares da Sala Bancada renomeados: Ar servidor e Ar Guilherme (também na Alexa)"
       ],
       "seguranca": [],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.5.3"
     },
     {
-      "versao": "1.5.2",
+      "versao": "0.0.8",
       "data": "2026-11-17",
       "titulo": "Alexa por sala e troca de conta guiada",
       "resumo": "Cada ar do escritório está na Alexa com o nome da sala, e a tela de Integrações guia a troca da conta Amazon do Echo, com um teste ao vivo no fim.",
@@ -763,10 +823,11 @@
         "Ar novo, renomeado ou que muda de projeto vai sozinho para a sala certa no Sinric"
       ],
       "seguranca": [],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.5.2"
     },
     {
-      "versao": "1.5.1",
+      "versao": "0.0.7",
       "data": "2026-11-17",
       "titulo": "Instalar ar por ar com um transmissor só",
       "resumo": "Para instalar sala por sala usando o mesmo transmissor: ele passa a atender só o ar da sala onde está, e o ar anterior não recebe mais nenhum comando por engano.",
@@ -779,10 +840,11 @@
         "A Alexa (Sinric) agora comporta 9 aparelhos, um para cada ar"
       ],
       "seguranca": [],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.5.1"
     },
     {
-      "versao": "1.5.0",
+      "versao": "0.0.6",
       "data": "2026-11-17",
       "titulo": "Elevador até o térreo, salas personalizáveis e Novidades nova",
       "resumo": "No mapa 3D dá para pegar o elevador ao lado da porta e descer até a recepção do prédio. As salas ganharam cores próprias e portas que abrem e fecham, o corredor ficou mais largo e as pessoas andam de um jeito mais natural.",
@@ -805,10 +867,11 @@
         "Trocar e-mail ou senha confere a senha atual no servidor, sem abrir outra sessão no navegador",
         "Preparado para o CAPTCHA também no login do Supabase (proteção contra robôs que tentam senhas direto lá)"
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.5.0"
     },
     {
-      "versao": "1.4.2",
+      "versao": "0.0.5",
       "data": "2026-11-17",
       "titulo": "Segurança reforçada depois da auditoria completa",
       "resumo": "O sistema passou por uma auditoria de segurança completa. As correções valem principalmente para contas com acesso a só alguns projetos, e a Alexa agora conhece os 8 aparelhos do plano do Sinric.",
@@ -831,10 +894,11 @@
       ],
       "correcoes": [
         "Configurações → Contas sem rolagem lateral no celular"
-      ]
+      ],
+      "antes": "1.4.2"
     },
     {
-      "versao": "1.4.1",
+      "versao": "0.0.4",
       "data": "2026-11-17",
       "titulo": "Verificação de segurança não trava mais",
       "resumo": "Quando a verificação da Cloudflare emperra em \"Verificando…\" (alguns navegadores e bloqueadores causam isso), o sistema faz sozinho uma verificação alternativa e libera a entrada em poucos segundos.",
@@ -847,10 +911,11 @@
       ],
       "correcoes": [
         "Portão parado em \"Verificando…\" no navegador Brave e com bloqueadores de rastreio"
-      ]
+      ],
+      "antes": "1.4.1"
     },
     {
-      "versao": "1.4.0",
+      "versao": "0.0.3",
       "data": "2026-11-16",
       "titulo": "Zonas de ar no salão aberto, Alexa por zona e cidade viva no mapa",
       "resumo": "Ares iguais no mesmo transmissor agora são tratados como uma zona, do painel à Alexa. O mapa ganhou a previsão do tempo real, chuva, semáforos, pedestres, animais e um terminal de ônibus, e os avatares sentam e trabalham.",
@@ -880,10 +945,11 @@
         "Duas buscas de transmissores ao mesmo tempo não derrubam mais o agente no Windows (erro 10048)",
         "Trocar de câmera com o avatar sentado mantém o botão Levantar",
         "O globo da Segurança não tenta girar depois de fechar a tela"
-      ]
+      ],
+      "antes": "1.4.0"
     },
     {
-      "versao": "1.3.1",
+      "versao": "0.0.2",
       "data": "2026-11-16",
       "titulo": "Mapa 3D: prédio de 11 andares e a cidade em volta",
       "resumo": "O prédio do mapa agora tem 11 andares, com o escritório no 9º, fachada de vidro mais realista e uma cidade inteira em volta. O andar ganhou corredor e hall dos elevadores.",
@@ -900,10 +966,11 @@
       "seguranca": [],
       "correcoes": [
         "Erro do 3D ao sair da página antes de terminar de carregar (\"isReady\")"
-      ]
+      ],
+      "antes": "1.3.1"
     },
     {
-      "versao": "1.3.0",
+      "versao": "0.0.1",
       "data": "2026-11-16",
       "titulo": "Vários ares por transmissor, e-mails do domínio e o agente no Windows",
       "resumo": "Um transmissor agora atende 3 ou 4 ares do mesmo ambiente, os e-mails saem do zynio.com.br, a tela Infra cuida também da Cloudflare e o agente pode ser instalado num PC Windows com um código de uso único.",
@@ -937,10 +1004,11 @@
         "Instalador do Windows não falha mais com acentos (UTF-8)",
         "Gravação de botão recusa ruído em vez de salvar um sinal vazio",
         "Botões do Painel não ficam mais desativados sem explicação"
-      ]
+      ],
+      "antes": "1.3.0"
     },
     {
-      "versao": "1.2.0",
+      "versao": "0.0.0",
       "data": "2026-11-15",
       "titulo": "Biometria, Google e atualizações nos apps",
       "resumo": "Entrar com biometria e com Google nos apps, atualizações automáticas no Android e atalhos no computador. Detalhes em docs/releases/v1.2.0.md.",
@@ -960,7 +1028,8 @@
         "Senha mínima de 10 caracteres conferida contra vazamentos conhecidos",
         "Política de segundo fator para administradores (opcional)"
       ],
-      "correcoes": []
+      "correcoes": [],
+      "antes": "1.2.0"
     }
   ]
 }

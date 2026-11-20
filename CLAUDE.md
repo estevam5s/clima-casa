@@ -29,7 +29,13 @@ caminhos de serviço e o projeto da Vercel).
    01-historico, 02-estado-atual, 03-pendencias, 04-decisoes, 05-testes, PROMPT.md, continuar.sh), e atualiza
    `docs/continuar/INDICE.md` (todas as sessões) e `docs/continuar/ATUAL.md` (a mais recente). O gancho SessionStart do
    `.claude/settings.json` mostra o `ATUAL.md` no começo de toda sessão nova. A última é `sessao-2026-11-19`.
-9. **Ar só obedece com um agente no escritório.** O agente principal precisa enxergar os transmissores (Infra → Agentes:
+9. **Toda atualização do sistema atualiza também os apps** (pedido do dono, 20/11/2026): o que entrou no painel ganha a tela ou o
+   atalho correspondente no **Android** (`apps/android`, telas em `src/app/(abas)/mais/`), no **computador** (`apps/desktop/src/main.js`,
+   `MAIS_TELAS`) e no **iPhone** (`apps/ios`, `Telas/` + `Mais.swift`). Na mesma entrega: versão nova dos três (Android `app.json`/
+   `package.json`, desktop `package.json`, iOS `Info.plist`), build (EAS, electron-builder, `xtool dev build --ipa -c release`),
+   **release no GitHub** com os 7 arquivos de nome fixo (seção 10), `scripts/gerar-release-json.sh`, `versao_apps.json`, commit, push e
+   **deploy** (`./publicar-vercel.sh` + `./instalar-servico.sh`). Não entregar o sistema sem os apps (diga se algum build falhou).
+10. **Ar só obedece com um agente no escritório.** O agente principal precisa enxergar os transmissores (Infra → Agentes:
    "enxerga N de M"). Mac em casa + PC do escritório desligado = nenhum comando chega ao ar, mesmo com o painel "online".
    Antes de dizer que algo "funciona", confira isso e a Atividade.
 
@@ -766,7 +772,10 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 
 ### Checklist antes de entregar
 1. `cd frontend && npx vite build` sem erro; auditor ≥ 98.
-2. `cd backend && ../.venv/bin/python -c "import app.main"`.
+2. `cd backend && ../.venv/bin/python -c "import app.main"` e `uvx ruff check --select F821 backend/app`.
+   **Frontend sem variável indefinida** (deixou o /entrar-app em tela preta em 20/11): eslint com só a regra `no-undef` e os globais
+   de navegador + node em `frontend/src` (config temporária fora do repo; ver o diário de 20/11). Toda tela está dentro de
+   `components/ProtecaoErro.jsx` (erro vira aviso + bug, não tela preta), mas isso não substitui a checagem.
 3. Navegador (Playwright) com sessão temporária: telas tocadas em 1440 e 375, sem erro de JS, sem 4xx/5xx, sem rolagem lateral.
 4. Entrada nova em `novidades.json` se o usuário vai notar a mudança (o `publicar-vercel.sh` avisa quando falta).
 5. Commit (sem segredos) + push; `./publicar-vercel.sh`; `./instalar-servico.sh`; `/saude` 200; rotas novas 401 sem login
@@ -987,7 +996,12 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 
 ## 16. Versões e novidades (o que o usuário vê a cada atualização)
 
-- **Fonte única**: `backend/app/novidades.json` → `versoes` (mais nova primeiro): `versao` (semver), `data` (AAAA-MM-DD), `titulo`,
+- **Numeração em sequência (desde 20/11/2026)**: as versões contam de 0.0.0 em diante, uma por publicação: 0.0.0, 0.0.1 … 0.0.9,
+  0.1.0 … 0.9.9, 1.0.0 (o último dígito vai de 0 a 9 e "vira" o do meio). A próxima é sempre a seguinte da última (a de 20/11 fim do
+  dia foi 0.4.4). As 44 antigas foram renumeradas; o número antigo (1.x) ficou no campo `antes`, e `usuarios.novidades_vista` e as
+  notificações `versao:*` foram migrados. O histórico deste arquivo (seções 14 e 15) ainda cita os números antigos (1.x).
+  Apps (Android/desktop/iPhone) têm numeração própria (1.6.0…), separada.
+- **Fonte única**: `backend/app/novidades.json` → `versoes` (mais nova primeiro): `versao` (sequência acima), `data` (AAAA-MM-DD), `titulo`,
   `resumo`, `novo[]`, `melhorias[]`, `seguranca[]`, `correcoes[]`. Seção vazia = `[]` (some da tela).
 - **Quando criar entrada**: qualquer publicação que muda o que alguém vê ou usa. Ajuste interno sem efeito visível pode ir junto na
   próxima. Correção pequena no mesmo dia: versão de patch (1.3.1); recurso novo: menor (1.4.0); quebra de uso: maior.

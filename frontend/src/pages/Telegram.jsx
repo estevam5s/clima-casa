@@ -29,6 +29,30 @@ function PinCriticos() {
   )
 }
 
+// O que uma pessoa vê ao iniciar o bot: a apresentação (antes de vincular) e os primeiros passos (logo depois)
+function BoasVindas({ total }) {
+  const [aba, setAba] = useState('novo')
+  const textos = {
+    novo: ['Olá! Este é o bot do Clima Escritório: controla os ar-condicionados pelo Telegram, com as mesmas permissões do painel.',
+      'O que dá para fazer: ligar, desligar, temperatura, modo e ventilação; timers (desligar às 18:00); cenas e agenda; relatórios e previsão do tempo; luzes, cafeteira, persianas e música; avisos; conversar com a IA.',
+      `São ${total || 'mais de mil'} comandos em categorias.`,
+      'Como começar: 1. entre no painel · 2. Telegram → Vincular meu Telegram · 3. toque no link ou mande /vincular CÓDIGO.',
+      'Segurança: só quem vinculou usa; ações em lote pedem confirmação e as críticas, o PIN; perdeu o celular? Desvincule no painel.'],
+    vinculado: ['Pronto! Este Telegram está ligado à sua conta.', '1. /ares mostra os seus ares · 2. /usar NOME escolhe o ar atual · 3. /desligar_1800 desliga às 18:00 · 4. /avisos sim recebe avisos · 5. crie o PIN no painel.',
+      'Dicas: escreva do seu jeito; /buscar palavra; /menu por categoria; /oque_zona explica cada termo; /uso_ia mostra o seu limite.'],
+  }
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao">Boas-vindas do bot</h2>
+      <p className="mt-1 text-sm text-muted-foreground">O que cada pessoa vê ao mandar /start: antes de vincular, uma apresentação; logo depois de vincular, os primeiros passos.</p>
+      <div className="mt-3 flex w-fit rounded-lg bg-muted p-0.5 text-xs" role="tablist">
+        {[['novo', 'Pessoa nova'], ['vinculado', 'Recém-vinculada']].map(([k, r]) => <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)} className={`rounded-md px-3 py-1 ${aba === k ? 'bg-background font-medium' : 'text-muted-foreground'}`}>{r}</button>)}
+      </div>
+      <div className="mt-3 space-y-2 rounded-xl bg-muted/60 p-3 text-sm">{textos[aba].map((t, i) => <p key={i}>{t}</p>)}</div>
+    </section>
+  )
+}
+
 export default function Telegram() {
   const toast = useToast()
   const { sessao } = useProjeto()
@@ -102,6 +126,7 @@ export default function Telegram() {
         </div>
         <div className="space-y-6">
           <CatalogoComandos comandos={dados.comandos || []} categorias={dados.categorias || []} />
+          <BoasVindas total={(dados.comandos || []).length} />
           <PinCriticos />
           <section className="cartao p-5">
             <h2 className="titulo-secao flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />Segurança do bot</h2>

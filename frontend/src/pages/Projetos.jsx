@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Area, AreaChart, ResponsiveContainer } from 'recharts'
 import {
-  AirVent, BarChart3, Building2, CalendarClock, Check, Download, FolderKanban, Home, LayoutGrid, List, Map as MapaIcone, MapPin, MoreHorizontal,
+  AirVent, BarChart3, Building2, CalendarClock, Check, ChevronDown, Copy, Download, Snowflake, FolderKanban, Home, LayoutGrid, List, Map as MapaIcone, MapPin, MoreHorizontal,
   Pencil, Plus, Power, Radio, Search, Sparkles, Stethoscope, Store, Trash2, User, Users, Workflow, WifiOff,
 } from 'lucide-react'
 import { api, haQuanto } from '../api'
@@ -108,8 +108,82 @@ function Meta({ p }) {
   )
 }
 
+// anel de ares ligados (anima ao mudar)
+function Anel({ ligados, total, cor }) {
+  const r = 17, c = 2 * Math.PI * r, frac = total ? ligados / total : 0
+  return (
+    <svg viewBox="0 0 44 44" className="h-11 w-11 shrink-0 -rotate-90" role="img" aria-label={`${ligados} de ${total} ares ligados`}>
+      <circle cx="22" cy="22" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="5" />
+      <motion.circle cx="22" cy="22" r={r} fill="none" stroke={cor} strokeWidth="5" strokeLinecap="round" strokeDasharray={c}
+        initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c * (1 - frac) }} transition={{ duration: 0.9, ease: 'easeOut' }} />
+      <text x="22" y="22" transform="rotate(90 22 22)" textAnchor="middle" dominantBaseline="central" className="fill-foreground text-[11px] font-semibold">{ligados}/{total}</text>
+    </svg>
+  )
+}
+
+// todos os ares do projeto, com liga/desliga direto (abre ao tocar em "Ver todos")
+function AresDoProjeto({ p, aoMudar }) {
+  const toast = useToast()
+  const [ocupado, setOcupado] = useState(null)
+  const alternar = async (a) => {
+    setOcupado(a.id)
+    try { await api.post(`/api/aparelhos/${a.id}/estado`, { ligado: !a.ligado }); aoMudar() } catch (e) { toast(e.message, 'erro') } finally { setOcupado(null) }
+  }
+  return (
+    <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+      {p.aparelhos.map((a, i) => (
+        <motion.li key={a.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }} className="flex items-center gap-2 py-1.5 text-sm">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${a.ligado ? 'bg-sky-500' : 'bg-muted-foreground/30'}`} />
+          <span className="min-w-0 flex-1 truncate">{a.nome}</span>
+          <span className="text-xs tabular text-muted-foreground">{a.ligado ? `${a.temperatura}°` : 'desligado'}</span>
+          <button onClick={() => alternar(a)} disabled={ocupado === a.id || !a.hub_online && !a.ligado} title={!a.hub_online ? 'Transmissor offline' : undefined}
+            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-40 ${a.ligado ? 'bg-sky-500' : 'bg-muted'}`} aria-label={`${a.ligado ? 'Desligar' : 'Ligar'} ${a.nome}`}>
+            <motion.span layout className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow ${a.ligado ? 'left-[18px]' : 'left-0.5'}`} /> {/* marca: botão de liga flutua */}
+          </button>
+        </motion.li>
+      ))}
+    </motion.ul>
+  )
+}
+
+// mapa de calor: comandos por dia (14 dias) em cada sala
+function MapaCalor({ dados, aoAbrir }) {
+  const reduzir = useReducedMotion()
+  const max = Math.max(1, ...dados.flatMap((p) => p.serie.map((s) => s.comandos)))
+  const hoje = new Date()
+  const dias = Array.from({ length: 14 }, (_, i) => { const d = new Date(hoje); d.setDate(d.getDate() - 13 + i); return d })
+  return (
+    <section className="cartao mb-5 p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="titulo-secao">Uso nos últimos 14 dias</h2>
+        <p className="text-xs text-muted-foreground">Cada quadrado é um dia; quanto mais forte, mais comandos naquela sala</p>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[560px] table-fixed border-separate border-spacing-1 text-xs">
+          <thead><tr><th className="w-36" />{dias.map((d, i) => <th key={i} className="font-normal text-muted-foreground">{i % 2 === 0 ? d.getDate() : ''}</th>)}<th className="w-12 text-right font-normal text-muted-foreground">total</th></tr></thead>
+          <tbody>{dados.map((p, li) => (
+            <tr key={p.id}>
+              <td><button onClick={() => aoAbrir(p)} className="max-w-36 truncate text-left font-medium hover:text-primary">{p.nome}</button></td>
+              {p.serie.map((s, i) => (
+                <td key={i} className="p-0">
+                  <motion.div initial={{ opacity: 0, scale: 0.4 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: reduzir ? 0 : li * 0.04 + i * 0.015 }}
+                    className="h-5 rounded-[4px]" title={`${dias[i].toLocaleDateString('pt-BR')}: ${s.comandos} comando(s)${s.falhas ? `, ${s.falhas} falha(s)` : ''}`}
+                    style={{ background: s.comandos ? p.cor : 'hsl(var(--muted))', opacity: s.comandos ? 0.25 + 0.75 * (s.comandos / max) : 1, outline: s.falhas ? '1.5px solid rgb(239 68 68)' : undefined }} />
+                </td>
+              ))}
+              <td className="text-right tabular-nums text-muted-foreground">{p.comandos_14d}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">Contorno vermelho = dia com falha de comando.</p>
+    </section>
+  )
+}
+
 function Cartao({ p, i, atual, acoes }) {
   const [menu, setMenu] = useState(false)
+  const [todos, setTodos] = useState(false)
   const ligados = p.aparelhos.filter((a) => a.ligado).length
   const offline = p.transmissores.filter((h) => !h.online)
   const [tipoRot, TipoI] = TIPOS[p.tipo] || TIPOS.outro
@@ -125,11 +199,14 @@ function Cartao({ p, i, atual, acoes }) {
             <p className="flex items-center gap-2 truncate text-base font-semibold">{p.nome}{atual && <span className="rounded bg-primary/15 px-1.5 py-px text-[10px] font-semibold text-primary">ATUAL</span>}</p>
             <p className="truncate text-xs text-muted-foreground">{tipoRot}{p.responsavel ? ` · ${p.responsavel}` : ''}{p.endereco ? ` · ${p.endereco}` : ''}</p>
           </div>
+          {p.aparelhos.length > 0 && <Anel ligados={ligados} total={p.aparelhos.length} cor={p.cor} />}
           <div className="relative">
             <button onClick={() => setMenu((v) => !v)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Mais ações"><MoreHorizontal className="h-4 w-4" /></button>
             {menu && <Menu aoFechar={() => setMenu(false)} itens={[
               { r: 'Editar', I: Pencil, fn: () => acoes.editar(p) },
               ligados > 0 && { r: `Desligar ${ligados} ar(es)`, I: Power, fn: () => acoes.desligar(p) },
+              p.aparelhos.length > 0 && { r: 'Conforto: todos em 23° no frio', I: Snowflake, fn: () => acoes.conforto(p) },
+              { r: 'Duplicar projeto', I: Copy, fn: () => acoes.duplicar(p) },
               { r: 'Ver no mapa', I: MapaIcone, fn: () => acoes.mapa(p) },
               { r: 'Relatório do projeto', I: BarChart3, fn: () => acoes.relatorio(p) },
               { r: 'Exportar (JSON)', I: Download, fn: () => acoes.exportar(p) },
@@ -144,7 +221,7 @@ function Cartao({ p, i, atual, acoes }) {
       <div className="border-t border-border px-5 py-3">
         {p.aparelhos.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum aparelho neste projeto.</p> : (
           <ul className="space-y-1.5">
-            {p.aparelhos.slice(0, 4).map((a) => (
+            {(todos ? [] : p.aparelhos.slice(0, 4)).map((a) => (
               <li key={a.id} className="flex items-center gap-2 text-sm">
                 <span className="relative flex h-2 w-2">{a.ligado && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-60" />}<span className={`relative inline-flex h-2 w-2 rounded-full ${a.ligado ? 'bg-sky-500' : 'bg-muted-foreground/30'}`} /></span> {/* marca: ar ligado pulsa */}
                 <button onClick={() => acoes.aparelho(a)} className="min-w-0 flex-1 truncate text-left hover:underline">{a.nome}</button>
@@ -152,8 +229,16 @@ function Cartao({ p, i, atual, acoes }) {
                 {!a.hub_online && <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Transmissor offline" />}
               </li>
             ))}
-            {p.aparelhos.length > 4 && <li className="text-xs text-muted-foreground">e mais {p.aparelhos.length - 4}</li>}
           </ul>
+        )}
+        {p.aparelhos.length > 0 && (
+          <>
+            <button onClick={() => setTodos((v) => !v)} className="mt-2 flex items-center gap-1 text-xs font-medium text-primary hover:underline" aria-expanded={todos}>
+              {todos ? 'Fechar' : p.aparelhos.length > 4 ? `Ver todos os ${p.aparelhos.length} e ligar/desligar` : 'Ligar ou desligar aqui'}
+              <motion.span animate={{ rotate: todos ? 180 : 0 }}><ChevronDown className="h-3.5 w-3.5" /></motion.span>
+            </button>
+            <AnimatePresence>{todos && <AresDoProjeto p={p} aoMudar={acoes.recarregar} />}</AnimatePresence>
+          </>
         )}
       </div>
 
@@ -201,7 +286,13 @@ export default function Projetos() {
   const [vista, setVista] = useState(() => ler('clima-projetos-vista', 'grade'))
   const [soTx, setSoTx] = useState(false)   // só as salas que precisam de atenção no transmissor
   const [desligando, setDesligando] = useState(null)
+  const [conforto, setConforto] = useState(null)
+  const buscaRef = useRef(null)
   const toast = useToast()
+  useEffect(() => {   // "/" vai para a busca
+    const f = (e) => { if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { e.preventDefault(); buscaRef.current?.focus() } }
+    window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f)
+  }, [])
   const navegar = useNavigate()
   useEffect(() => { const t = setInterval(() => { if (!document.hidden) recarregar() }, 30000); return () => clearInterval(t) }, [recarregar])
   useEffect(() => { try { localStorage.setItem('clima-projetos-vista', vista) } catch { /* */ } }, [vista])
@@ -222,6 +313,15 @@ export default function Projetos() {
     aparelho: (a) => navegar(`/aparelhos/${a.id}`),
     exportar: async (p) => { try { toast(`Arquivo salvo: ${await api.baixar(`/api/projetos/${p.id}/exportar`)}`) } catch (e) { toast(e.message, 'erro') } },
     desligar: (p) => setDesligando(p),   // confirma no próprio sistema (a caixa nativa do navegador travava a tela)
+    conforto: (p) => setConforto(p),
+    recarregar: () => recarregar(),
+    duplicar: async (p) => {
+      try {
+        await api.post('/api/projetos', { nome: `${p.nome} (cópia)`.slice(0, 60), descricao: p.descricao || '', endereco: p.endereco || '', cor: p.cor, tipo: p.tipo,
+          responsavel: p.responsavel || '', meta_custo_mes: Number(p.meta_custo_mes) || 0 })
+        toast('Projeto duplicado (sem os aparelhos: cada ar fica em uma sala só).'); atualizar()
+      } catch (e) { toast(e.message, 'erro') }
+    },
   }
   const tot = (f) => (dados || []).reduce((s, p) => s + f(p), 0)
   const ligadosTotal = tot((p) => p.aparelhos.filter((a) => a.ligado).length)
@@ -261,7 +361,7 @@ export default function Projetos() {
                       <li key={p.id} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5.5rem_3rem] items-center gap-3 text-xs sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_6rem_4rem]">
                         <button onClick={() => acoes.relatorio(p)} className="truncate text-left font-medium hover:text-primary" title={`Relatório de ${p.nome}`}>{p.nome}</button>
                         <div className="relative h-3 rounded-full bg-muted">
-                          <div className={`h-full rounded-full ${acima ? 'bg-red-500' : 'bg-primary'}`} style={{ width: `${((p.projecao_mes || 0) / max) * 100}%` }} />
+                          <motion.div className={`h-full rounded-full ${acima ? 'bg-red-500' : 'bg-primary'}`} initial={{ width: 0 }} animate={{ width: `${((p.projecao_mes || 0) / max) * 100}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} />
                           {p.meta_custo_mes > 0 && <span className="absolute -top-0.5 h-4 w-0.5 rounded bg-foreground/70" style={{ left: `${(p.meta_custo_mes / max) * 100}%` }} title={`Meta ${brl(p.meta_custo_mes)}`} />}
                         </div>
                         <span className={`text-right tabular-nums ${acima ? 'font-medium text-red-600' : ''}`}>{brl(p.projecao_mes || 0)}</span>
@@ -273,11 +373,12 @@ export default function Projetos() {
               </section>
             )
           })()}
+          {dados.length > 0 && dados.some((p) => p.comandos_14d) && <MapaCalor dados={dados} aoAbrir={acoes.relatorio} />}
 
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <label className="relative min-w-[220px] flex-1 sm:max-w-xs">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar projeto, endereço ou aparelho" className="campo h-9 pl-9" />
+              <input ref={buscaRef} type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar projeto, endereço ou aparelho  ( / )" aria-label="Buscar projeto" className="campo h-9 pl-9" />
             </label>
             <div className="flex gap-1 overflow-x-auto sem-barra">
               <button onClick={() => setTipo('')} className={`rounded-full px-3 py-1.5 text-[13px] ${!tipo ? 'bg-primary/15 font-medium text-primary' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>Todos</button>
@@ -355,6 +456,20 @@ export default function Projetos() {
             const p = desligando; setDesligando(null)
             try { const r = await api.post(`/api/projetos/${p.id}/desligar`); toast(r.falhas.length ? `${r.desligados} desligado(s); ${r.falhas.length} falharam.` : `${r.desligados} ar(es) desligado(s).`, r.falhas.length ? 'erro' : undefined); recarregar() } catch (e) { toast(e.message, 'erro') }
           }}>Desligar</Botao>
+        </div>
+      </Modal>
+      <Modal aberto={!!conforto} titulo={`Conforto em ${conforto?.nome || ''}?`} onFechar={() => setConforto(null)}>
+        <p className="text-sm text-muted-foreground">Liga os {conforto?.aparelhos?.length} ar(es) deste projeto em 23° no frio, um por vez. Ares iguais à vista do mesmo transmissor mudam juntos.</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Botao variante="secundario" onClick={() => setConforto(null)}>Cancelar</Botao>
+          <Botao icone={Snowflake} onClick={async () => {
+            const p = conforto; setConforto(null)
+            let ok = 0; const falhas = []
+            for (const a of p.aparelhos) {
+              try { await api.post(`/api/aparelhos/${a.id}/estado`, { ligado: true, modo: 'frio', temperatura: 23 }); ok++ } catch (e) { falhas.push(`${a.nome}: ${e.message}`) }
+            }
+            toast(falhas.length ? `${ok} em conforto; ${falhas.length} falharam (${falhas[0]}).` : `${ok} ar(es) em 23° no frio.`, falhas.length ? 'erro' : undefined); recarregar()
+          }}>Ligar em 23°</Botao>
         </div>
       </Modal>
       <Modal aberto={!!modal?.apagar} titulo={`Remover ${modal?.nome}?`} onFechar={() => setModal(null)}>

@@ -143,7 +143,7 @@ export default function Novidades() {
                     <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                       <h2 className="text-lg font-semibold tabular">Versão {v.versao}</h2>
                       {v === atual && <Selo cor="verde">Atual</Selo>}
-                      <span className="text-xs text-muted-foreground">{dataBR(v.data)} · {haQuanto(v.data)}</span>
+                      <span className="text-xs text-muted-foreground">{dataBR(v.data)} · {haQuanto(v.data)}{v.antes ? ` · antes ${v.antes}` : ''}</span>
                       {novas.has(v.versao) && <Selo cor="azul">Nova para você</Selo>}
                       <span className="ml-auto flex items-center gap-1 text-xs tabular text-muted-foreground">{n} de {total(v)} mudança(s)
                         <button onClick={() => copiarLink(v.versao)} className="rounded p-1 hover:bg-muted hover:text-foreground" aria-label={`Copiar link da versão ${v.versao}`} title="Copiar link"><Link2 className="h-3.5 w-3.5" /></button>

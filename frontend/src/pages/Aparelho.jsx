@@ -1,4 +1,5 @@
 import GuiaBotoes from '../components/GuiaBotoes'
+import PassoAPasso from '../components/PassoAPasso'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -283,6 +284,34 @@ function Temporizador({ ar }) {
 }
 
 // ---------- página ----------
+// Passo a passo de vincular o controle ao transmissor e deixar este ar pronto (cada passo confere o estado real)
+function PassosDoAr({ ar, irAba, gravarDesligar }) {
+  const [pronto, setPronto] = useState(null)
+  useEffect(() => { api.get(`/api/aparelhos/${ar.id}/pronto-para-gravar`).then(setPronto).catch(() => setPronto(null)) }, [ar.id, ar.codigos.length])
+  const item = (k) => pronto?.itens?.find((i) => i.chave === k)
+  const temDesligar = ar.codigos.some((c) => c.chave === 'desligar')
+  const passos = [
+    { titulo: 'Escolher o transmissor deste ar', feito: !!ar.hub_id, cena: 'rede',
+      texto: <>O transmissor (Smart IR) fica no teto, <b>à vista do ar</b> (até 8–10 m, sem parede ou porta no caminho). Em <b>Ajustes</b>, escolha qual transmissor atende este ar.</>,
+      acao: !ar.hub_id ? { rotulo: 'Escolher em Ajustes', onClick: () => irAba('ajustes') } : null },
+    { titulo: 'Transmissor online e agente no escritório', feito: pronto ? !!(item('online')?.ok ?? true) && !!item('agente')?.ok : false, cena: 'rede',
+      texto: <>Um computador do escritório (o <b>agente</b>) precisa estar ligado na mesma rede do transmissor: é ele que manda e grava os sinais. {item('agente') && !item('agente').ok && <span className="text-amber-600">{item('agente').detalhe || 'Agora nenhum agente enxerga o transmissor.'}</span>}</>,
+      acao: { rotulo: 'Ver agentes', para: '/infra?aba=agentes' } },
+    { titulo: 'Gravar o botão Desligar do controle', feito: temDesligar, cena: 'controle',
+      texto: <>Deixe o <b>visor do controle aceso</b>. Clique em Gravar, e em até 30 segundos aponte o controle para o transmissor, a <b>10–30 cm</b>, e aperte <b>uma vez</b> o liga/desliga. O transmissor aprende o sinal; o ar não precisa reagir.</>,
+      acao: !temDesligar && ar.hub_id ? { rotulo: 'Gravar o Desligar agora', onClick: gravarDesligar } : null },
+    { titulo: 'Criar os outros botões (temperaturas e modos)', feito: ar.codigos.length > 1, cena: 'controle',
+      texto: <>Ar <b>Gree</b>: use <b>Controle Gree → Conferir → Testar → Gerar</b> (300 ajustes a partir do Desligar). Outro ar igual já gravado: <b>Copiar de outro ar</b>. Senão, grave cada ajuste: deixe o controle 1° acima e aperte a seta de baixar.</> },
+    { titulo: 'Testar: ligar e desligar pelo painel', feito: null, cena: 'ar',
+      texto: <>Na aba <b>Controle</b>, ligue em 23° e depois desligue. O ar deve <b>apitar</b> a cada comando. Não apitou: confira a posição do transmissor (visada) ou grave o Desligar de novo.</>,
+      acao: { rotulo: 'Ir para o Controle', onClick: () => irAba('controle') } },
+    { titulo: 'Na Alexa (opcional)', feito: ar.alexa ? !!ar.sinric_device_id : null, cena: 'ar',
+      texto: <>Com os botões gravados, o ar pode entrar na Alexa pelo Sinric Pro. Depois, na Alexa, peça para <b>descobrir dispositivos</b>.</>,
+      acao: { rotulo: 'Abrir Integrações', para: '/integracoes' } },
+  ]
+  return <PassoAPasso chave={`ar-${ar.id}`} titulo="Passo a passo: vincular o controle a este ar" descricao="Do transmissor no teto ao ar obedecendo pelo painel, pela Alexa e pelo Telegram" passos={passos} />
+}
+
 export default function Aparelho() {
   const { id } = useParams()
   const [params, setParams] = useSearchParams()
@@ -464,6 +493,7 @@ export default function Aparelho() {
             <Botao icone={CircleDot} disabled={semTransmissor} onClick={() => setGravar({})}>Gravar botão</Botao>
           </div>
 
+          <PassosDoAr ar={ar} irAba={(a) => setParams({ aba: a })} gravarDesligar={() => setGravar({ tipo: 'desligar' })} />
           {ar.codigos.length < 2 && <GuiaBotoes />}
           <AtalhosBotoes ar={ar} aoMudar={recarregar} />
 

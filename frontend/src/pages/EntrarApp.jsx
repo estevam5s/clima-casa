@@ -19,6 +19,7 @@ export default function EntrarApp() {
   // cli=1: o pedido veio do clima-ia no terminal. Em vez de abrir climacasa://, mostra o código para colar lá
   // (de uso único, 2 min, e inútil sem o verificador que só o terminal tem).
   const cli = params.get('cli') === '1'
+  const desafio = params.get('desafio') || ''
   const valido = /^[0-9a-f]{64}$/.test(desafio)
   const continuar = async () => {
     setErro(''); setEstado('enviando')
@@ -39,7 +40,7 @@ export default function EntrarApp() {
         ) : estado === 'pronto' && cli ? (
           <>
             <p className="mt-2 text-sm text-muted-foreground">Cole este código no terminal (vale 2 minutos, uma vez):</p>
-            <button onClick={() => navigator.clipboard?.writeText(codigoCli)} className="mx-auto mt-4 flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-3 font-mono text-lg tracking-wider hover:bg-muted/70" aria-label="Copiar código">{codigoCli}<Copy className="h-4 w-4 text-muted-foreground" /></button>
+            <button onClick={() => navigator.clipboard?.writeText(codigoCli)} className="mt-4 flex w-full items-center justify-center gap-2 break-all rounded-lg border border-border bg-muted px-3 py-3 font-mono text-base hover:bg-muted/70" aria-label="Copiar código">{codigoCli}<Copy className="h-4 w-4 text-muted-foreground" /></button>
           </>
         ) : estado === 'pronto' ? (
           <p className="mt-2 text-sm text-muted-foreground">Pronto. Se o app não abriu sozinho, volte para ele: a entrada é concluída lá.</p>

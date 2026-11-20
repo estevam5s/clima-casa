@@ -23,6 +23,8 @@ struct MaisView: View {
                 NavigationLink { AlertasView() } label: { Label("Alertas", systemImage: "exclamationmark.triangle") }
                 if sessao.pode("mensagens.ver") { NavigationLink { MensagensView() } label: { Label("Mensagens e Kanban", systemImage: "bubble.left.and.bubble.right") } }
                 NavigationLink { NovidadesView() } label: { Label("Novidades", systemImage: "sparkle") }
+                NavigationLink { UsoIAView() } label: { Label("Uso da IA", systemImage: "gauge.with.dots.needle.50percent") }
+                NavigationLink { BugsView() } label: { Label("Bugs", systemImage: "ladybug") }
             }
             if ["dono", "admin"].contains(sessao.papel) || sessao.pode("seguranca.gerenciar") {
                 Section("Administração") {

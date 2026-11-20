@@ -2111,7 +2111,10 @@ def menu_principal(ctx):
            [{"text": "Salas", "callback_data": "x:salas"}, {"text": "Cenas", "callback_data": "m:cenas"}, {"text": "Timers", "callback_data": "x:timers"}],
            [{"text": "Status", "callback_data": "m:status"}, {"text": "Transmissores", "callback_data": "m:tx"}, {"text": "Agentes", "callback_data": "m:agentes"}],
            [{"text": "Hoje", "callback_data": "x:hoje"}, {"text": "Gasto", "callback_data": "x:gasto"}, {"text": "Tempo lá fora", "callback_data": "x:tempo"}],
-           [{"text": "Conversar com a IA", "callback_data": "m:ia"}, {"text": f"Todos os comandos ({len(C)})", "callback_data": "x:comandos"}]]
+           [{"text": "Horários", "callback_data": "k:horarios:0"}, {"text": "Relatórios", "callback_data": "k:dados:0"}, {"text": "Luzes e aparelhos", "callback_data": "k:disp:0"}],
+           [{"text": "Avisos e bugs", "callback_data": "k:avisos:0"}, {"text": "Segurança", "callback_data": "k:seg:0"}, {"text": "Uso da IA", "callback_data": "x:uso_ia"}],
+           [{"text": "Guia e glossário", "callback_data": "k:guia:0"}, {"text": "Conversar com a IA", "callback_data": "m:ia"}],
+           [{"text": f"Todos os comandos ({len(C)})", "callback_data": "x:comandos"}]]
     rec = [n for n in (p.get("recentes") or []) if n in C][:3]
     if rec:
         bt.append([{"text": f"/{n}", "callback_data": f"x:{n}"} for n in rec])
@@ -2661,3 +2664,236 @@ for _p in (10, 20, 30, 40, 60, 70, 80, 90):
             ctx.enviar(f"{ok} luz(es) em {_p}%." if ok else "Nenhuma luz com brilho conectada.")
         cmd(f"luzes{_p}", "presets", f"Todas as luzes acesas em {_p}% de brilho", perm="aparelhos.controlar")(_flb2)
 NOVOS_128 = len(C) - _ANTES_128
+
+
+# =====================================================================================================================
+# FAMÍLIAS 0.4.4 (20/11): horários fixos, previsão por hora, segurança por tipo, bugs, uso da IA, atividade por origem,
+# todos os ligados em modo+ventilação, guia, glossário, telas e roteiros de problema. Tudo usa funções reais do sistema.
+# =====================================================================================================================
+_ANTES_044 = len(C)
+CATS += [
+    ("horarios", "Horários", "Desligar ou ligar o ar atual num horário: /desligar_1800, /ligar_0730"),
+    ("guia", "Guia e glossário", "Passo a passo, o que é cada coisa, telas do painel e o que fazer quando algo falha"),
+]
+NOME_CAT.update({k: r for k, r, _ in CATS})
+_BR = datetime.timezone(datetime.timedelta(hours=-3))
+APP = "https://app.zynio.com.br"
+
+
+def _minutos_ate(h: int, m: int) -> int:
+    agora = datetime.datetime.now(_BR)
+    alvo = agora.replace(hour=h, minute=m, second=0, microsecond=0)
+    if alvo <= agora:
+        alvo += datetime.timedelta(days=1)
+    return max(1, round((alvo - agora).total_seconds() / 60))
+
+
+# 1) horários: 06:00 a 23:30, de meia em meia hora (72 comandos)
+for _h in range(6, 24):
+    for _mm in (0, 30):
+        _hm = f"{_h:02d}{_mm:02d}"
+
+        def _fdh(ctx, a, _h=_h, _mm=_mm):
+            from . import automacao
+            mins = _minutos_ate(_h, _mm)
+            automacao.criar_temporizador(a["id"], mins, {"ligado": False}, "telegram")
+            _painel(ctx, a["id"], aviso=f"<b>Timer:</b> desliga às {_h:02d}:{_mm:02d} (em {tempo(mins * 60)}).")
+        cmd(f"desligar_{_hm}", "horarios", f"Desliga o ar às {_h:02d}:{_mm:02d} (hoje ou amanhã)", f"/desligar_{_hm} NOME", arg="ar?", perm="aparelhos.controlar")(_fdh)
+
+        def _flh(ctx, a, _h=_h, _mm=_mm):
+            from . import automacao
+            mins = _minutos_ate(_h, _mm)
+            automacao.criar_temporizador(a["id"], mins, {"ligado": True}, "telegram")
+            _painel(ctx, a["id"], aviso=f"<b>Timer:</b> liga às {_h:02d}:{_mm:02d} (em {tempo(mins * 60)}).")
+        cmd(f"ligar_{_hm}", "horarios", f"Liga o ar às {_h:02d}:{_mm:02d} (hoje ou amanhã)", f"/ligar_{_hm} NOME", arg="ar?", perm="aparelhos.controlar")(_flh)
+
+# 2) previsão hora a hora (12) e por dia (3)
+for _n in range(1, 13):
+    def _fph(ctx, a, _n=_n):
+        d = _clima()
+        x = (d.get("proximas") or [])[_n - 1:_n]
+        if not x:
+            return ctx.enviar("Previsão indisponível agora.")
+        x = x[0]
+        ctx.enviar(f"<b>Daqui a {_n} h ({_e(x['hora'])})</b>: {num(x['temperatura'])}°C, {_e(x['condicao'])}, chance de chuva {x['chuva']}%, nuvens {x['nuvens']}%")
+    cmd(f"previsao_{_n}h", "clima", f"Tempo daqui a {_n} hora(s)")(_fph)
+for _n in range(1, 4):
+    def _fpd2(ctx, a, _n=_n):
+        dias = _clima().get("dias") or []
+        if len(dias) < _n:
+            return ctx.enviar("Previsão indisponível agora.")
+        x = dias[_n - 1]
+        ctx.enviar(f"<b>{_e(x['data'][8:10])}/{_e(x['data'][5:7])}</b>: {num(x['min'])}° a {num(x['max'])}°, {_e(x['condicao'])}, chance de chuva {x['chuva']}%")
+    cmd(f"dia_{_n}", "clima", "Previsão de hoje" if _n == 1 else ("Previsão de amanhã" if _n == 2 else "Previsão de depois de amanhã"))(_fpd2)
+
+
+# 3) segurança: ataques por janela (5) e eventos por tipo (um comando por tipo)
+def _eventos(horas: int, tipo: str | None = None) -> list[dict]:
+    sql, p = "SELECT tipo, ip, pais, rota, quando FROM seguranca_eventos WHERE quando > ?", [db.agora() - horas * 3600]
+    if tipo:
+        sql += " AND tipo = ?"; p.append(tipo)
+    return db.consultar(sql + " ORDER BY id DESC LIMIT 500", p)
+
+
+for _h, _rot in ((1, "1 hora"), (6, "6 horas"), (24, "24 horas"), (72, "3 dias"), (168, "7 dias")):
+    def _fat(ctx, a, _h=_h, _rot=_rot):
+        ev = [e for e in _eventos(_h) if e["tipo"] not in ("acesso", "login_ok", "consentimento", "site_contato")]
+        if not ev:
+            return ctx.enviar(f"Nenhum ataque ou bloqueio nas últimas {_rot}.")
+        por = {}
+        for e in ev:
+            por[e["tipo"]] = por.get(e["tipo"], 0) + 1
+        ips = {}
+        for e in ev:
+            ips[e["ip"]] = ips.get(e["ip"], 0) + 1
+        ctx.enviar(f"<b>Últimas {_rot}: {len(ev)} evento(s)</b>\n" + "\n".join(f"• {_e(t)}: {n}" for t, n in sorted(por.items(), key=lambda x: -x[1])[:12])
+                   + "\n\n<b>IPs mais ativos</b>\n" + "\n".join(f"• <code>{_e(i)}</code>: {n}" for i, n in sorted(ips.items(), key=lambda x: -x[1])[:6]))
+    cmd(f"ataques_{_h}h" if _h < 72 else f"ataques_{_h // 24}d", "seg", f"Ataques e bloqueios nas últimas {_rot}", perm="seguranca.gerenciar")(_fat)
+try:
+    from . import seguranca_relatorio as _sr
+    _TIPOS = sorted(getattr(_sr, "ROTULOS", {}).items())
+except Exception:  # noqa: BLE001
+    _TIPOS = []
+for _t, _r in _TIPOS:
+    def _fet(ctx, a, _t=_t, _r=_r):
+        ev = _eventos(168, _t)
+        if not ev:
+            return ctx.enviar(f"Nenhum evento \"{_e(_r)}\" nos últimos 7 dias.")
+        ctx.enviar(f"<b>{_e(_r)} · 7 dias: {len(ev)}</b>\n" + "\n".join(f"• {quando(e['quando'])} · <code>{_e(e['ip'])}</code> {_e(e.get('pais') or '')} · {_e((e.get('rota') or '')[:40])}" for e in ev[:12]))
+    cmd(f"ev_{_t}"[:32], "seg", f"Eventos de segurança: {_r} (7 dias)", perm="seguranca.gerenciar")(_fet)
+
+
+# 4) bugs (7)
+def _lista_bugs(ctx, filtro_sql="", params=(), titulo="Bugs abertos"):
+    bs = db.consultar(f"SELECT id, titulo, gravidade, categoria, ocorrencias FROM bugs WHERE estado IN ('aberto','analisando'){filtro_sql} ORDER BY atualizado_em DESC LIMIT 15", params)
+    ctx.enviar(f"<b>{titulo}: {len(bs)}</b>\n" + ("\n".join(f"• #{b['id']} [{_e(b['gravidade'])}] {_e(b['titulo'][:90])} ({b['ocorrencias']}×)" for b in bs) or "Nada aberto.")
+               + f"\n\nDetalhes e prompt para a IA corrigir: {APP}/bugs")
+
+
+cmd("bugs_abertos", "avisos", "Bugs abertos agora", perm="configuracoes.gerenciar")(lambda ctx, a: _lista_bugs(ctx))
+for _c, _rot in (("cadastro", "de cadastro (ares, transmissores)"), ("tela", "de tela"), ("servidor", "do servidor"), ("atividade", "de comandos")):
+    cmd(f"bugs_{_c}", "avisos", f"Bugs abertos {_rot}", perm="configuracoes.gerenciar")(
+        lambda ctx, a, _c=_c, _rot=_rot: _lista_bugs(ctx, " AND categoria = ?", (_c,), f"Bugs {_rot}"))
+cmd("bugs_criticos", "avisos", "Bugs abertos de gravidade alta ou crítica", perm="configuracoes.gerenciar")(
+    lambda ctx, a: _lista_bugs(ctx, " AND gravidade IN ('alta','critica')", (), "Bugs graves"))
+
+
+@cmd("autoteste", "avisos", "Testa os cadastros (sala, transmissor, ar, botão) sem gravar nada", perm="configuracoes.gerenciar")
+def c_autoteste(ctx, a):
+    from . import bugs
+    ps = bugs.autoteste()
+    ctx.enviar(f"<b>Autoteste: {sum(p['ok'] for p in ps)} de {len(ps)} ok</b>\n" + "\n".join(f"{'✔' if p['ok'] else '✘'} {_e(p['nome'])}" for p in ps))
+
+
+@cmd("procurar_bugs", "avisos", "Procura problemas no sistema agora", perm="configuracoes.gerenciar")
+def c_procurar_bugs(ctx, a):
+    from . import bugs
+    r = bugs.varrer()
+    ctx.enviar(f"Procura concluída: {r['achados']} ponto(s) encontrados ou atualizados." if r["achados"] else "Procura concluída: nada novo.")
+
+
+# 5) uso da IA (2)
+@cmd("uso_ia", "ia", "Seu uso do Assistente: sessão de 5 horas e semana")
+def c_uso_ia(ctx, a):
+    from . import ia_uso
+    s = ia_uso.status(ctx.u)
+    if s["ilimitado"]:
+        return ctx.enviar(f"Sua conta não tem limite. Usado: {s['sessao']['usado']:,} tokens na sessão e {s['semana']['usado']:,} na semana.".replace(",", "."))
+    linhas = []
+    for k, r in (("sessao", "Sessão (5 h)"), ("semana", "Semana (7 dias)")):
+        j = s[k]
+        barra = "█" * round(j["pct"] / 10) + "░" * (10 - round(j["pct"] / 10))
+        linhas.append(f"<b>{r}</b> {barra} {j['pct']}%" + (f" · libera {ia_uso.hora_br(j['reinicia_em'])}" if j.get("reinicia_em") else ""))
+    ctx.enviar("\n".join(linhas))
+
+
+@cmd("limites_ia", "ia", "Limites de uso da IA definidos pelo dono", papel="dono")
+def c_limites_ia(ctx, a):
+    from . import ia_uso
+    c = ia_uso.config()
+    ctx.enviar(f"<b>Limites da IA</b>\nSessão de 5 h: {c['sessao']:,} tokens\nSemana: {c['semana']:,} tokens\nDono sem limite: {'sim' if c['dono_ilimitado'] else 'não'}\n"
+               f"Exceções por pessoa: {len(c['usuarios'])}\nMude em {APP}/ia → Configurações.".replace(",", "."))
+
+
+# 6) atividade por origem (10) e falhas por janela (3)
+for _o, _r in (("painel", "pelo painel"), ("alexa", "pela Alexa"), ("agenda", "pela agenda"), ("automacao", "pelas automações"), ("cena", "pelas cenas"),
+               ("telegram", "pelo Telegram"), ("ia", "pela IA"), ("musica", "da música"), ("sistema", "do sistema"), ("app", "pelos apps")):
+    def _fori(ctx, a, _o=_o, _r=_r):
+        rs = db.consultar("SELECT quando, acao, ok FROM atividade WHERE origem = ? ORDER BY id DESC LIMIT 12", (_o,))
+        ctx.enviar(f"<b>Últimos comandos {_r}</b>\n" + ("\n".join(f"{'✔' if r['ok'] else '✘'} {quando(r['quando'])} · {_e(r['acao'][:70])}" for r in rs) or "Nada registrado."))
+    cmd(f"origem_{_o}", "dados", f"Últimos comandos {_r}", perm="atividade.ver")(_fori)
+for _h in (1, 6, 24):
+    def _ffh(ctx, a, _h=_h):
+        rs = db.consultar("SELECT quando, acao, detalhe FROM atividade WHERE ok = 0 AND quando > ? ORDER BY id DESC LIMIT 12", (db.agora() - _h * 3600,))
+        ctx.enviar(f"<b>Falhas na última(s) {_h} h: {len(rs)}</b>\n" + ("\n".join(f"• {quando(r['quando'])} · {_e(r['acao'][:50])}: {_e((r['detalhe'] or '')[:60])}" for r in rs) or "Nenhuma."))
+    cmd(f"falhas_{_h}h", "dados", f"Comandos que falharam na(s) última(s) {_h} h", perm="atividade.ver")(_ffh)
+
+# 7) todos os ligados em modo + ventilação (20)
+for _m in _NM:
+    for _v, _vn in (("baixa", "baixa"), ("media", "média"), ("alta", "alta"), ("auto", "automática")):
+        def _ftmv(ctx, a, _m=_m, _v=_v):
+            _lote_ares(ctx, [x for x in ares() if x["ligado"]], f"Todos em {_NM[_m].lower()} com ventilação {_v}", modo=_MD[_m], ventilador=_v)
+        cmd(f"todos_{_m}_{_v}", "lote", f"Todos os ligados em {_NM[_m].lower()} com ventilação {_vn} (pede confirmação)", perm="aparelhos.controlar", confirmar=True)(_ftmv)
+
+# 8) guia: um comando por capítulo do passo a passo do painel (29)
+_GUIA = [("como_funciona", "como-funciona", "Como o sistema funciona"), ("antes", "antes", "Antes de começar"), ("smart_life", "smart-life", "App Smart Life: transmissor no Wi-Fi"),
+         ("conta_tuya", "conta-tuya", "Ligar a conta Smart Life ao sistema"), ("transmissores", "transmissores", "Trazer os transmissores"),
+         ("aparelhos", "aparelhos", "Cadastrar o ar-condicionado"), ("botoes", "botoes", "Gravar os botões do controle"), ("remoto", "remoto", "Usar no dia a dia e desligar de longe"),
+         ("windows", "windows", "Agente no PC Windows"), ("varios_ares", "varios-ares", "Um transmissor para vários ares (zonas)"),
+         ("sala_transmissor", "sala-transmissor", "Um transmissor por sala"), ("sinric", "sinric", "Sinric Pro: a ponte para a Alexa"), ("alexa", "alexa", "Colocar na Alexa"),
+         ("outra_alexa", "outra-alexa", "Integrar outra Alexa"), ("voz", "voz", "Comandos de voz e rotinas da Alexa"), ("google", "google", "Google Home"),
+         ("mapa", "mapa", "Mapa do escritório"), ("musica", "musica", "Música com Spotify"), ("dominio", "dominio", "Domínio e e-mails"), ("luzes", "luzes", "Iluminação"),
+         ("notificacoes", "notificacoes", "Notificações e relatórios por e-mail"), ("raspberry", "raspberry", "Raspberry Pi: agente 24 horas"), ("telegram", "telegram", "Bot do Telegram"),
+         ("bugs", "bugs", "Bugs: relatar e corrigir com IA"), ("ia", "ia", "IA no terminal (clima-ia)"), ("relatorios", "seg-relatorio", "Relatórios oficiais e por e-mail"),
+         ("dono", "dono", "Transferir o posto de dono"), ("avatares", "avatares", "Avatares 3D"), ("problemas", "problemas", "Quando algo não funciona")]
+for _k, _id, _t in _GUIA:
+    cmd(f"guia_{_k}", "guia", f"Passo a passo: {_t}")(
+        lambda ctx, a, _id=_id, _t=_t: ctx.enviar(f"<b>{_e(_t)}</b>\nO passo a passo completo, com figuras, está no painel:", [[{"text": "Abrir o passo a passo", "url": f"{APP}/guia#{_id}"}], [{"text": "Menu", "callback_data": "m:menu"}]]))
+
+# 9) glossário (16)
+_GLOSS = [("agente", "Agente", "O programa que roda num computador do escritório (Mac, PC ou Raspberry Pi) e fala com os transmissores pela rede local. Sem agente ligado no escritório, nenhum comando chega aos ares."),
+          ("principal", "Principal e reserva", "Só um agente executa por vez (o principal). Os outros ficam de reserva e assumem em até 45 segundos se o principal sumir."),
+          ("preferido", "Agente preferido", "O computador que deve ficar no comando quando está ligado e enxerga os transmissores."),
+          ("transmissor", "Transmissor", "O Smart IR (SRW-004) no teto: recebe o comando pelo Wi-Fi e manda o sinal infravermelho para o ar."),
+          ("botao", "Botão gravado", "O sinal do controle remoto original, gravado uma vez. O sistema reenvia esse sinal pelo transmissor."),
+          ("gree", "Gree", "Protocolo do controle Gree: com só o Desligar gravado, o sistema gera os 300 ajustes (modos, 16° a 30°, ventilações)."),
+          ("zona", "Zona", "Ares iguais à vista do mesmo transmissor obedecem ao mesmo sinal (o infravermelho não tem endereço). Um comando muda todos da zona."),
+          ("interferencia", "Teste de interferência", "Manda o sinal de um ar por vez; quem está na sala marca quem apitou. O resultado vira as zonas reais."),
+          ("fila", "Fila de comandos", "A nuvem não alcança a rede do escritório: ela grava o pedido na fila e o agente executa e devolve o resultado."),
+          ("sinric", "Sinric Pro", "A ponte entre a Alexa (ou o Google Home) e o sistema. Cada ar na Alexa é um aparelho do Sinric."),
+          ("portao", "Portão", "A tela \"Executando verificação de segurança\" antes do sistema: barra robôs com o Turnstile da Cloudflare."),
+          ("convite", "Código de instalação", "Código de uso único (30 minutos) que leva a configuração do agente para um computador novo."),
+          ("escudo", "Escudo anti-DDoS", "Liga sozinho quando chegam pedidos demais e corta quem passa do limite. Com ele ligado, o login pode pedir uma verificação extra."),
+          ("pin", "PIN do Telegram", "Seis dígitos que você cria no painel: comandos críticos pelo bot (desligar todos, bloquear IP) pedem o PIN."),
+          ("tokens", "Tokens da IA", "Unidade que a IA usa para medir texto. Os limites da sessão (5 h) e da semana contam tokens."),
+          ("novidades", "Novidades", "Cada publicação ganha um número em sequência (0.0.0, 0.0.1…) e a lista do que mudou aparece uma vez para cada pessoa.")]
+for _k, _t, _d in _GLOSS:
+    cmd(f"oque_{_k}", "guia", f"O que é: {_t}")(lambda ctx, a, _t=_t, _d=_d: ctx.enviar(f"<b>{_e(_t)}</b>\n{_e(_d)}"))
+
+# 10) telas do painel (30)
+_TELAS = [("painel", "/", "Painel"), ("projetos", "/projetos", "Projetos e salas"), ("mapa", "/mapa", "Mapa 2D/3D"), ("relatorios", "/relatorios", "Relatórios"),
+          ("aparelhos", "/aparelhos", "Aparelhos"), ("cenas", "/cenas", "Cenas"), ("automacoes", "/automacoes", "Automações"), ("agenda", "/agendamentos", "Agenda"),
+          ("transmissores", "/transmissores", "Transmissores"), ("luzes", "/luzes", "Iluminação"), ("musica", "/musica", "Música"), ("integracoes", "/integracoes", "Integrações (Alexa)"),
+          ("comandos_alexa", "/comandos-alexa", "Frases da Alexa"), ("emails", "/emails", "E-mails"), ("supabase", "/supabase", "Banco de dados"), ("infra", "/infra", "Infraestrutura"),
+          ("atividade", "/atividade", "Atividade"), ("seguranca", "/seguranca", "Segurança"), ("mensagens", "/mensagens", "Mensagens do site"), ("configuracoes", "/configuracoes", "Configurações"),
+          ("apps", "/apps", "Baixar apps"), ("guia", "/guia", "Passo a passo"), ("novidades", "/novidades", "Novidades"), ("ia", "/ia", "Assistente de IA"),
+          ("telegram", "/telegram", "Bot do Telegram"), ("bugs", "/bugs", "Bugs"), ("notificacoes", "/notificacoes", "Notificações"), ("backup", "/backup", "Backup"),
+          ("treinamento", "/treinamento", "Treinamento"), ("avatares", "/avatares", "Avatares")]
+for _k, _rota, _t in _TELAS:
+    cmd(f"abrir_{_k}", "guia", f"Abrir a tela {_t} no painel")(
+        lambda ctx, a, _rota=_rota, _t=_t: ctx.enviar(f"<b>{_e(_t)}</b>", [[{"text": f"Abrir {_t}", "url": f"{APP}{_rota}"}], [{"text": "Menu", "callback_data": "m:menu"}]]))
+
+# 11) roteiros quando algo dá errado (9)
+_PROB = [("ar_nao_obedece", "O ar não obedece", "1. /falhas mostra o erro.\n2. /agentes: existe um principal online que enxerga o transmissor?\n3. /transmissores: o do ar está online?\n4. O ar apitou? Se não: posição do transmissor ou gravação ruim (grave o Desligar de novo)."),
+         ("sem_botoes", "Botões do painel desativados", "O ar escolhido não tem transmissor. Vincule em Aparelho → Ajustes ou escolha outro ar."),
+         ("agente_cego", "Agente não enxerga os transmissores", "O computador está fora da rede do escritório, num Wi-Fi diferente, ou o transmissor está desligado. Ligue um computador do escritório."),
+         ("transmissor_novo", "Transmissor pareado de novo / Wi-Fi novo", "Pareie no Smart Life (Wi-Fi 2,4 GHz) com o agente na mesma rede e use Transmissores → Reconectar agora."),
+         ("dois_ares_juntos", "Dois ares iguais mudam juntos", "É físico: o mesmo sinal chega aos dois. Trate como zona (teste de interferência) ou use um transmissor para cada, virado só para o seu ar."),
+         ("alexa_ok_nada", "A Alexa diz ok e o ar não muda", "Integrações → Diagnóstico: o agente enxerga os transmissores? A zona tem um aparelho na Alexa? O ar tem botões gravados?"),
+         ("portao_parado", "Portão \"Verificando…\" parado", "Espere 20 s ou toque em Tentar de novo. Abrir zynio.com.br também libera."),
+         ("login_bloqueado", "Não consigo entrar", "Confira o e-mail e use Esqueci a senha. Muitas tentativas bloqueiam o IP por um tempo; o dono libera em Segurança → IPs."),
+         ("gravacao_sem_sinal", "Gravação: nenhum sinal recebido", "Aponte o controle para o transmissor a 10–30 cm e aperte o botão nos 30 s. Se repetir, o protocolo do transmissor pode estar errado: Transmissores → Reconectar.")]
+for _k, _t, _d in _PROB:
+    cmd(f"problema_{_k}", "guia", f"O que fazer: {_t}")(lambda ctx, a, _t=_t, _d=_d: ctx.enviar(f"<b>{_e(_t)}</b>\n{_e(_d)}", [[{"text": "Roteiro completo", "url": f"{APP}/guia#problemas"}], [{"text": "Menu", "callback_data": "m:menu"}]]))
+
+NOVOS_044 = len(C) - _ANTES_044

@@ -319,9 +319,19 @@ def processar(upd: dict, ip: str = ""):
                 auditar(cid, quem, "vinculo", "vinculou o Telegram", True, u)
                 _salvar(c); e["bloqueios"].pop(cid, None); _salvar_estado(e)
                 db.registrar("telegram", "Telegram vinculado", detalhe=f"{u.get('nome') or u['email']} (@{quem.get('username') or '-'})")
-                _enviar(cid, f"Pronto, <b>{_e(u.get('nome') or 'você')}</b>: este Telegram está ligado à sua conta, com as suas permissões. "
-                        "Toque em Menu completo ou escreva o que precisa.", _menu())
+                _primeiros_passos(cid, u)
                 return
+        # quem chega pela primeira vez (/start, /ajuda, /sobre sem código): apresentação completa, sem contar como tentativa negada.
+        # No máximo uma a cada 10 min por conversa (o controle de flood acima já barra rajadas).
+        if partes[:1] and partes[0].split("@")[0] in ("/start", "/ajuda", "/sobre", "/help", "/como") and len(partes) == 1:
+            ult = e.setdefault("apresentado", {}).get(cid, 0)
+            if agora - ult > 600:
+                e["apresentado"][cid] = agora
+                _salvar_estado(e)
+                auditar(cid, quem, "apresentacao", texto[:20], True)
+                return _apresentacao(cid, quem)
+            _salvar_estado(e)
+            return
         falhas = int(b.get("falhas", 0)) + 1
         e["bloqueios"][cid] = {"falhas": falhas, "em": agora, **({"ate": agora + 86400} if falhas >= FALHAS_BLOQUEIO else {})}
         _salvar_estado(e)
@@ -352,6 +362,57 @@ def processar(upd: dict, ip: str = ""):
         msg_erro = getattr(ex, "detail", None) or str(ex)
         _enviar(cid, f"Não deu: {_e(msg_erro)[:300]}")
         db.registrar("telegram", "Comando do Telegram falhou", ok=False, detalhe=f"{u.get('nome') or u['email']}: {str(msg_erro)[:160]}")
+
+
+APP_URL = "https://app.zynio.com.br"
+
+
+def _apresentacao(cid, quem):
+    """Para quem ainda não vinculou: o que é o bot, o que dá para fazer, como vincular e a segurança."""
+    from . import telegram_cmds
+    nome = _e(quem.get("first_name") or "")
+    _enviar(cid,
+            f"Olá{(', ' + nome) if nome else ''}! Este é o bot do <b>Clima Escritório</b>: controla os ar-condicionados do escritório "
+            "pelo Telegram, com as mesmas permissões que você tem no painel.\n\n"
+            "<b>O que dá para fazer</b>\n"
+            "• Ligar, desligar, mudar temperatura, modo e ventilação de cada ar ou da sala inteira\n"
+            "• Timers (desligar às 18:00, ligar por 1 hora), cenas e agenda\n"
+            "• Relatórios de uso e gasto, previsão do tempo hora a hora\n"
+            "• Luzes, cafeteira, persianas e música\n"
+            "• Avisos importantes aqui (ar ligado há muito tempo, falhas, segurança)\n"
+            f"• Conversar com a IA do sistema: escreva do seu jeito, como \"desliga o ar dos devs daqui a 1 hora\"\n"
+            f"• São {len(telegram_cmds.C)} comandos, organizados em {len(telegram_cmds.CATS)} categorias\n\n"
+            "<b>Como começar (1 minuto)</b>\n"
+            "1. Entre no painel: app.zynio.com.br\n"
+            "2. Abra <b>Telegram</b> no menu e toque em <b>Vincular meu Telegram</b>\n"
+            "3. Toque no link (ou mande aqui <code>/vincular CÓDIGO</code>). O código vale poucos minutos e só uma vez.\n\n"
+            "<b>Segurança</b>\n"
+            "• O bot só responde a quem vinculou pelo painel; o resto é bloqueado e registrado\n"
+            "• Ações em lote pedem confirmação; as críticas pedem o seu PIN\n"
+            "• Perdeu o celular? No painel → Telegram → Desvincular\n\n"
+            "Ainda não tem acesso? Peça ao administrador do escritório.",
+            [[{"text": "Abrir o painel e vincular", "url": f"{APP_URL}/telegram"}],
+             [{"text": "Como funciona o sistema", "url": f"{APP_URL}/guia#como-funciona"}, {"text": "Passo a passo do bot", "url": f"{APP_URL}/guia#telegram"}]])
+
+
+def _primeiros_passos(cid, u):
+    """Logo depois de vincular: um roteiro curto do que fazer primeiro."""
+    from . import telegram_cmds
+    _enviar(cid,
+            f"Pronto, <b>{_e(u.get('nome') or 'você')}</b>! Este Telegram está ligado à sua conta, com as suas permissões.\n\n"
+            "<b>Primeiros passos</b>\n"
+            "1. <b>/ares</b> mostra os ares que você controla; toque num para abrir o painel dele\n"
+            "2. <b>/usar NOME</b> escolhe o ar atual: depois <b>/23</b>, <b>/frio</b>, <b>/mais</b>, <b>/desligar</b> agem nele\n"
+            "3. <b>/desligar_1800</b> desliga o ar atual às 18:00 (há horários de 06:00 a 23:30)\n"
+            "4. <b>/avisos sim</b> recebe aqui os avisos importantes\n"
+            "5. Crie um <b>PIN</b> no painel (Telegram → PIN) para liberar os comandos críticos\n\n"
+            "<b>Dicas</b>\n"
+            "• Escreva do seu jeito que a IA entende\n"
+            f"• <b>/buscar palavra</b> acha um comando entre os {len(telegram_cmds.C)}\n"
+            "• <b>/menu</b> abre tudo por categoria · <b>/oque_zona</b> e os outros /oque_ explicam cada termo\n"
+            "• <b>/uso_ia</b> mostra o seu limite de uso da IA",
+            [[{"text": "Ver meus ares", "callback_data": "m:ares"}, {"text": "Menu completo", "callback_data": "m:menu"}],
+             [{"text": "Todos os comandos", "callback_data": "x:comandos"}, {"text": "Guia e glossário", "callback_data": "k:guia:0"}]])
 
 
 def _menu():
