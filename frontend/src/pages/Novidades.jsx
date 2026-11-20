@@ -1,11 +1,11 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Search } from 'lucide-react'
+import { ChevronsDownUp, ChevronsUpDown, Download, Link2, Search } from 'lucide-react'
 import { api } from '../api'
 import { SECOES, dataBR } from '../components/Novidades'
-import { Aviso, Cabecalho, Carregando, FaixaMetricas, Selo, Vazio, useDados } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Selo, Vazio, useDados, useToast } from '../components/ui'
+import GraficoVersoes from '../components/GraficoVersoes'
 
-const LinhaVersoes3D = lazy(() => import('../components/LinhaVersoes3D'))
 
 // Histórico de versões (fonte: backend/app/novidades.json): linha do tempo em 3D, números, filtro por tipo, busca
 // e cada versão por inteiro. Só o que entrou de verdade em cada publicação.
@@ -19,17 +19,34 @@ export default function Novidades() {
   const { dados, erro } = useDados(() => api.get('/api/novidades'))
   const [tipo, setTipo] = useState('todos')
   const [busca, setBusca] = useState('')
+  const [soNovas, setSoNovas] = useState(false)
+  const [fechadas, setFechadas] = useState(() => new Set())
+  const toast = useToast()
+  // "novas para mim": versões publicadas depois da última vez que esta pessoa abriu esta página (neste navegador)
+  const [ultimaVisita] = useState(() => { try { return localStorage.getItem('novidades-pagina-vista') } catch { return null } })
+  useEffect(() => { if (dados?.versoes?.[0]) { try { localStorage.setItem('novidades-pagina-vista', dados.versoes[0].versao) } catch { /* sem armazenamento */ } } }, [dados])
   const parado = useReducedMotion()
   const ir = useCallback((versao) => document.getElementById(ancora(versao))?.scrollIntoView({ behavior: 'smooth', block: 'start' }), [])
   const versoes = dados?.versoes
   const filtradas = useMemo(() => {
     if (!versoes) return []
     const q = busca.trim().toLowerCase()
-    return versoes.map((v) => {
+    const idxVisita = ultimaVisita ? versoes.findIndex((v) => v.versao === ultimaVisita) : -1
+    return versoes.filter((v, i) => !soNovas || (idxVisita >= 0 && i < idxVisita)).map((v) => {
       const secoes = SECOES.filter(([k]) => tipo === 'todos' || k === tipo).map(([k, rot, I]) => [k, rot, I, (v[k] || []).filter((t) => !q || t.toLowerCase().includes(q) || v.titulo.toLowerCase().includes(q))])
       return { v, secoes, n: secoes.reduce((s, x) => s + x[3].length, 0) }
     }).filter((x) => x.n > 0 || (!q && tipo === 'todos'))
-  }, [versoes, tipo, busca])
+  }, [versoes, tipo, busca, soNovas, ultimaVisita])
+  const novas = useMemo(() => {
+    const i = ultimaVisita && versoes ? versoes.findIndex((v) => v.versao === ultimaVisita) : -1
+    return new Set(i > 0 ? versoes.slice(0, i).map((v) => v.versao) : [])
+  }, [versoes, ultimaVisita])
+  const copiarLink = (v) => { const u = `${location.origin}/novidades#${ancora(v)}`; navigator.clipboard?.writeText(u).then(() => toast('Link da versão copiado.')) }
+  const baixarMd = () => {
+    const md = (versoes || []).map((v) => [`## ${v.versao} · ${dataBR(v.data)}`, `**${v.titulo}**`, v.resumo || '', ...SECOES.flatMap(([k, rot]) => (v[k]?.length ? [`### ${rot}`, ...v[k].map((t) => `- ${t}`)] : []))].join('\n\n')).join('\n\n---\n\n')
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([`# Novidades\n\n${md}\n`], { type: 'text/markdown' })); a.download = 'novidades.md'; a.click()
+  }
+  useEffect(() => { const h = location.hash.slice(1); if (h && dados) setTimeout(() => document.getElementById(h)?.scrollIntoView({ block: 'start' }), 200) }, [dados])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   if (!versoes?.length) return <Vazio icone={Search} titulo="Nenhuma versão registrada" texto="As novidades aparecem aqui a cada atualização do sistema." />
@@ -40,12 +57,14 @@ export default function Novidades() {
 
   return (
     <div className="w-full min-w-0">
-      <Cabecalho titulo="Novidades" descricao="Tudo o que mudou em cada versão: recursos novos, melhorias, segurança e correções, da mais nova para a mais antiga." />
+      <Cabecalho titulo="Novidades" descricao="Tudo o que mudou em cada versão: recursos novos, melhorias, segurança e correções, da mais nova para a mais antiga."
+        acoes={<Botao variante="secundario" icone={Download} onClick={baixarMd}>Baixar histórico (.md)</Botao>} />
 
       {/* linha do tempo 3D com a versão atual ao lado */}
       <section className="cartao mb-6 grid grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="relative h-[220px] min-w-0 overflow-hidden border-b border-border sm:h-[280px] lg:border-b-0 lg:border-r">
-          <Suspense fallback={<div className="h-full w-full animate-pulse bg-muted/40" />}><LinhaVersoes3D versoes={versoes} ir={ir} /></Suspense>
+        <div className="min-w-0 border-b border-border p-4 lg:border-b-0 lg:border-r">
+          <p className="mb-2 text-sm font-semibold">Versões ao longo do tempo</p>
+          <GraficoVersoes versoes={versoes} ir={ir} novas={novas} />
         </div>
         <div className="flex flex-col justify-between gap-4 p-5">
           <div>
@@ -96,6 +115,9 @@ export default function Novidades() {
           {/* filtros */}
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Tipo de mudança">
+              <button onClick={() => setSoNovas((x) => !x)} aria-pressed={soNovas} disabled={!novas.size}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium disabled:opacity-50 ${soNovas ? 'border-emerald-600 bg-emerald-500/10 text-foreground' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />Novas para mim<span className="tabular opacity-70">{novas.size}</span></button>
               {[['todos', 'Tudo', tudo], ...SECOES.map(([k, rot]) => [k, rot, somas[k]])].map(([k, rot, n]) => (
                 <button key={k} onClick={() => setTipo(k)} aria-pressed={tipo === k}
                   className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ${tipo === k ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:bg-muted'}`}>
@@ -105,8 +127,10 @@ export default function Novidades() {
             </div>
             <label className="relative w-full sm:w-64">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nas mudanças" className="campo h-8 pl-8 text-sm" aria-label="Buscar nas mudanças" />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nas mudanças" className="campo h-8 pl-8 text-sm" aria-label="Buscar nas mudanças" type="search" autoComplete="off" />
             </label>
+            <button onClick={() => setFechadas(fechadas.size ? new Set() : new Set(versoes.map((v) => v.versao)))} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground hover:bg-muted">
+              {fechadas.size ? <ChevronsUpDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />}{fechadas.size ? 'Abrir todas' : 'Recolher todas'}</button>
           </div>
 
           {filtradas.length === 0 ? <Vazio icone={Search} titulo="Nada encontrado" texto="Tente outra palavra ou mostre todos os tipos de mudança." /> : (
@@ -120,18 +144,22 @@ export default function Novidades() {
                       <h2 className="text-lg font-semibold tabular">Versão {v.versao}</h2>
                       {v === atual && <Selo cor="verde">Atual</Selo>}
                       <span className="text-xs text-muted-foreground">{dataBR(v.data)} · {haQuanto(v.data)}</span>
-                      <span className="ml-auto text-xs tabular text-muted-foreground">{n} de {total(v)} mudança(s)</span>
+                      {novas.has(v.versao) && <Selo cor="azul">Nova para você</Selo>}
+                      <span className="ml-auto flex items-center gap-1 text-xs tabular text-muted-foreground">{n} de {total(v)} mudança(s)
+                        <button onClick={() => copiarLink(v.versao)} className="rounded p-1 hover:bg-muted hover:text-foreground" aria-label={`Copiar link da versão ${v.versao}`} title="Copiar link"><Link2 className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => setFechadas((f) => { const x = new Set(f); x.has(v.versao) ? x.delete(v.versao) : x.add(v.versao); return x })} className="rounded p-1 hover:bg-muted hover:text-foreground" aria-label={fechadas.has(v.versao) ? 'Abrir' : 'Recolher'} title={fechadas.has(v.versao) ? 'Abrir' : 'Recolher'}>{fechadas.has(v.versao) ? <ChevronsUpDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />}</button>
+                      </span>
                       <p className="w-full text-sm font-medium">{v.titulo}</p>
                     </header>
                     {v.resumo && !busca && <p className="mb-4 text-sm text-muted-foreground">{v.resumo}</p>}
-                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    {!fechadas.has(v.versao) && <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                       {secoes.filter((x) => x[3].length).map(([k, rot, I, itens]) => (
                         <section key={k} className="min-w-0 rounded-md border border-border p-3">
                           <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><span className={`h-2 w-2 rounded-full ${COR_SECAO[k]}`} /><I className="h-4 w-4 text-muted-foreground" aria-hidden />{rot}<span className="ml-auto text-xs font-normal tabular text-muted-foreground">{itens.length}</span></h3>
                           <ul className="space-y-1.5 pl-4 text-sm leading-relaxed">{itens.map((t) => <li key={t} className="list-disc marker:text-muted-foreground">{t}</li>)}</ul>
                         </section>
                       ))}
-                    </div>
+                    </div>}
                   </article>
                 </motion.li>
               ))}

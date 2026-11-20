@@ -3025,7 +3025,44 @@ def _conversa_estado(email: str) -> dict:
     c = db.um("SELECT * FROM site_conversas WHERE email = ?", (email,))
     if c:
         c["etiquetas"] = c["etiquetas"] if isinstance(c["etiquetas"], list) else json.loads(c["etiquetas"] or "[]")
-    return c or {"email": email, "fixada": False, "favorita": False, "arquivada": False, "silenciada": False, "etiquetas": []}
+    if c and c.get("responsavel"):
+        c["responsavel"] = str(c["responsavel"])
+    return c or {"email": email, "fixada": False, "favorita": False, "arquivada": False, "silenciada": False, "etiquetas": [],
+                 "etapa": "novo", "responsavel": None, "prioridade": "normal", "prazo": None, "proximo_passo": "", "ordem": 0}
+
+
+ETAPAS_PADRAO = [{"id": "novo", "nome": "Novo contato", "cor": "#3b82f6"}, {"id": "atendimento", "nome": "Em atendimento", "cor": "#f59e0b"},
+                 {"id": "aguardando", "nome": "Aguardando retorno", "cor": "#8b5cf6"}, {"id": "resolvido", "nome": "Resolvido", "cor": "#10b981"},
+                 {"id": "perdido", "nome": "Sem continuidade", "cor": "#6b7280"}]
+
+
+def _etapas() -> list[dict]:
+    return db.cfg("mensagens_etapas") or ETAPAS_PADRAO
+
+
+@api.get("/site/kanban")
+def kanban_config():
+    equipe = [{"id": str(u["id"]), "nome": u["nome"] or u["email"].split("@")[0]} for u in db.consultar("SELECT id, nome, email FROM usuarios WHERE ativo ORDER BY nome")]
+    return {"etapas": _etapas(), "equipe": equipe}
+
+
+class EtapaIn(BaseModel):
+    id: str = Field(pattern=r"^[a-z0-9_-]{1,30}$")
+    nome: str = Field(min_length=1, max_length=40)
+    cor: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+
+
+@api.put("/site/kanban")
+def kanban_salvar(etapas: Annotated[list[EtapaIn], Field(min_length=1, max_length=12)]):
+    ids = [e.id for e in etapas]
+    if len(set(ids)) != len(ids):
+        raise HTTPException(422, "Duas colunas com o mesmo código.")
+    removidas = {e["id"] for e in _etapas()} - set(ids)
+    if removidas:   # quem estava numa coluna apagada volta para a primeira
+        db.executar(f"UPDATE site_conversas SET etapa = ? WHERE etapa IN ({','.join('?' * len(removidas))})", (ids[0], *removidas))
+    db.set_cfg("mensagens_etapas", [e.model_dump() for e in etapas])
+    db.registrar("painel", "Colunas do Kanban de mensagens alteradas", detalhe=", ".join(e.nome for e in etapas))
+    return kanban_config()
 
 
 @api.get("/site/conversas")
@@ -3042,7 +3079,9 @@ def listar_conversas(filtro: str = "tudo", busca: str = ""):
         SELECT u.*, c.total, c.nao_lidas, c.contato, c.novidades, c.primeira,
                r.texto AS resp_texto, r.quando AS resp_quando, r.tipo AS resp_tipo,
                COALESCE(s.fixada, false) AS fixada, COALESCE(s.favorita, false) AS favorita, COALESCE(s.arquivada, false) AS arquivada,
-               COALESCE(s.silenciada, false) AS silenciada, COALESCE(s.etiquetas, '[]'::jsonb) AS etiquetas
+               COALESCE(s.silenciada, false) AS silenciada, COALESCE(s.etiquetas, '[]'::jsonb) AS etiquetas,
+               COALESCE(s.etapa, 'novo') AS etapa, s.responsavel::text AS responsavel, COALESCE(s.prioridade, 'normal') AS prioridade,
+               s.prazo, COALESCE(s.proximo_passo, '') AS proximo_passo, COALESCE(s.ordem, 0) AS ordem
         FROM ult u JOIN cnt c USING (email) LEFT JOIN resp r USING (email) LEFT JOIN site_conversas s USING (email)""", p)
     itens = []
     for c in linhas:
@@ -3091,6 +3130,12 @@ class ConversaIn(BaseModel):
     silenciada: bool | None = None
     lida: bool | None = None
     etiquetas: list[str] | None = Field(None, max_length=12)
+    etapa: str | None = Field(None, pattern=r"^[a-z0-9_-]{1,30}$")
+    responsavel: str | None = Field(None, max_length=40)   # id do usuário ou "" para ninguém
+    prioridade: str | None = Field(None, pattern=r"^(baixa|normal|alta|urgente)$")
+    prazo: int | None = Field(None, ge=0)                  # 0 = sem prazo
+    proximo_passo: str | None = Field(None, max_length=200)
+    ordem: float | None = None
 
 
 @api.put("/site/conversa")
@@ -3103,10 +3148,33 @@ def atualizar_conversa(email: str, d: ConversaIn):
             est[k] = getattr(d, k)
     if d.etiquetas is not None:
         est["etiquetas"] = [e.strip()[:24] for e in d.etiquetas if e.strip()][:12]
-    db.executar("INSERT INTO site_conversas (email, fixada, favorita, arquivada, silenciada, etiquetas, atualizado_em) VALUES (?,?,?,?,?,CAST(? AS jsonb),?) "
+    antes = est.get("etapa") or "novo"
+    if d.etapa is not None:
+        if d.etapa not in {e["id"] for e in _etapas()}:
+            raise HTTPException(422, "Etapa desconhecida.")
+        est["etapa"] = d.etapa
+    if d.responsavel is not None:
+        if d.responsavel and not db.um("SELECT 1 FROM usuarios WHERE id::text = ?", (d.responsavel,)):
+            raise HTTPException(422, "Responsável não encontrado.")
+        est["responsavel"] = d.responsavel or None
+    for k in ("prioridade", "proximo_passo", "ordem"):
+        if getattr(d, k) is not None:
+            est[k] = getattr(d, k)
+    if d.prazo is not None:
+        est["prazo"] = d.prazo or None
+    db.executar("INSERT INTO site_conversas (email, fixada, favorita, arquivada, silenciada, etiquetas, atualizado_em, etapa, responsavel, prioridade, prazo, proximo_passo, ordem) "
+                "VALUES (?,?,?,?,?,CAST(? AS jsonb),?,?,CAST(? AS uuid),?,?,?,?) "
                 "ON CONFLICT (email) DO UPDATE SET fixada = excluded.fixada, favorita = excluded.favorita, arquivada = excluded.arquivada, "
-                "silenciada = excluded.silenciada, etiquetas = excluded.etiquetas, atualizado_em = excluded.atualizado_em",
-                (email, est["fixada"], est["favorita"], est["arquivada"], est["silenciada"], json.dumps(est["etiquetas"]), db.agora()))
+                "silenciada = excluded.silenciada, etiquetas = excluded.etiquetas, atualizado_em = excluded.atualizado_em, etapa = excluded.etapa, "
+                "responsavel = excluded.responsavel, prioridade = excluded.prioridade, prazo = excluded.prazo, proximo_passo = excluded.proximo_passo, ordem = excluded.ordem",
+                (email, est["fixada"], est["favorita"], est["arquivada"], est["silenciada"], json.dumps(est["etiquetas"]), db.agora(),
+                 est.get("etapa") or "novo", est.get("responsavel"), est.get("prioridade") or "normal", est.get("prazo"), est.get("proximo_passo") or "", est.get("ordem") or 0))
+    if d.etapa is not None and d.etapa != antes:
+        from .. import acesso as _acesso
+        nomes = {e["id"]: e["nome"] for e in _etapas()}
+        u = _acesso.atual.get() or {}
+        db.executar("INSERT INTO site_respostas (email, quando, tipo, texto, autor_id, autor_nome) VALUES (?,?,?,?,?,?)",
+                    (email, db.agora(), "nota", f"Etapa: {nomes.get(antes, antes)} → {nomes.get(d.etapa, d.etapa)}", u.get("id"), u.get("nome") or u.get("email") or ""))
     if d.lida is not None:
         db.executar("UPDATE site_mensagens SET lida = ? WHERE email = ?", (d.lida, email))
         if d.lida:

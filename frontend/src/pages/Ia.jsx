@@ -6,6 +6,7 @@ import {
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import MiniMarkdown from '../components/MiniMarkdown'
+import IconeIA, { EMPRESAS } from '../components/IconeIA'
 import { Aviso, Botao, Carregando, Interruptor, Modal, useDados, useToast } from '../components/ui'
 
 // Assistente de IA (NVIDIA) no formato de chat com histórico: conversas salvas por pessoa (fixar, renomear, apagar,
@@ -216,8 +217,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
     r.onend = () => setOuvindo(false); r.onerror = () => setOuvindo(false)
     reconhecer.current = r; setOuvindo(true); r.start()
   }
-  const nomeModelo = modelos.find((m) => m.id === modelo)?.nome?.split(' (')[0] || 'Modelo'
-  const seletor = <SeletorModelo modelo={modelo} setModelo={setModelo} modelos={modelos} nomeModelo={nomeModelo} />
+  const seletor = <SeletorModelo modelo={modelo} setModelo={setModelo} modelos={modelos} />
   return (
     <div className={`relative w-full ${grande ? '' : ''}`}>
       {barra.length > 0 && (
@@ -264,22 +264,58 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
   )
 }
 
-function SeletorModelo({ modelo, setModelo, modelos, nomeModelo }) {
-  const [menuModelo, setMenuModelo] = useState(false)
+const RITMO = { rapido: 'rápido', medio: 'médio', lento: 'lento', instavel: 'instável' }
+function SeletorModelo({ modelo, setModelo, modelos }) {
+  const [aberto, setAberto] = useState(false)
+  const [q, setQ] = useState('')
+  const atual = modelos.find((m) => m.id === modelo)
+  const fora = useRef(null)
+  useEffect(() => {
+    if (!aberto) return undefined
+    const f = (e) => { if (fora.current && !fora.current.contains(e.target)) setAberto(false) }
+    const esc = (e) => { if (e.key === 'Escape') setAberto(false) }
+    document.addEventListener('mousedown', f); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', f); document.removeEventListener('keydown', esc) }
+  }, [aberto])
+  const lista = modelos.filter((m) => !q || `${m.nome} ${EMPRESAS[m.empresa] || ''} ${m.descricao}`.toLowerCase().includes(q.toLowerCase()))
+  const grupos = [...new Set(lista.map((m) => m.empresa))]
   return (
-          <div className="relative">
-            <button onClick={() => setMenuModelo((v) => !v)} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-[var(--ia-texto)] hover:bg-[var(--ia-realce)]">{nomeModelo}<ChevronDown className="h-3.5 w-3.5 text-[var(--ia-suave)]" /></button>
-            {menuModelo && (
-              <div className="absolute bottom-full right-0 z-20 mb-2 w-72 rounded-xl border border-[var(--ia-borda)] bg-[var(--ia-caixa)] p-1 text-sm shadow-lg">{/* marca: escolha do modelo flutua */}
-                {modelos.map((m) => (
-                  <button key={m.id} onClick={() => { setModelo(m.id); setMenuModelo(false) }} className="flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--ia-realce)]">
-                    <span className="min-w-0 flex-1"><span className="block font-medium">{m.nome.split(' (')[0]}</span><span className="block text-xs text-[var(--ia-suave)]">{m.nome.match(/\((.*)\)/)?.[1] || m.id}</span></span>
-                    {m.id === modelo && <Check className="mt-0.5 h-4 w-4 text-[var(--ia-acento)]" />}
+    <div className="relative" ref={fora}>
+      <button onClick={() => setAberto((v) => !v)} aria-expanded={aberto} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-[var(--ia-texto)] hover:bg-[var(--ia-realce)]">
+        {atual && <IconeIA empresa={atual.empresa} className="h-4 w-4" />}{atual?.nome || 'Modelo'}<ChevronDown className="h-3.5 w-3.5 text-[var(--ia-suave)]" />
+      </button>
+      {aberto && (
+        <div className="absolute bottom-full right-0 z-30 mb-2 flex max-h-[70vh] w-[min(24rem,calc(100vw-2rem))] flex-col rounded-xl border border-[var(--ia-borda)] bg-[var(--ia-caixa)] text-sm shadow-lg">{/* marca: escolha do modelo flutua */}
+          <div className="border-b border-[var(--ia-borda)] p-2">
+            <label className="flex items-center gap-2 rounded-lg px-2 py-1.5 focus-within:bg-[var(--ia-realce)]"><Search className="h-4 w-4 text-[var(--ia-suave)]" />
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Procurar entre ${modelos.length} modelos gratuitos da NVIDIA`} type="search" autoComplete="off" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[var(--ia-suave)]" aria-label="Procurar modelo" /></label>
+          </div>
+          <div className="min-h-0 overflow-y-auto p-1">
+            {grupos.map((g) => (
+              <div key={g} className="py-1">
+                <p className="flex items-center gap-1.5 px-3 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--ia-suave)]"><IconeIA empresa={g} className="h-3.5 w-3.5" />{EMPRESAS[g] || g}</p>
+                {lista.filter((m) => m.empresa === g).map((m) => (
+                  <button key={m.id} onClick={() => { setModelo(m.id); setAberto(false) }} className={`flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--ia-realce)] ${m.id === modelo ? 'bg-[var(--ia-realce)]' : ''}`}>
+                    <IconeIA empresa={m.empresa} className="mt-0.5 h-5 w-5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{m.nome}</span>
+                      <span className="block text-xs text-[var(--ia-suave)]">{m.descricao}</span>
+                      <span className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                        <span className={`rounded px-1.5 py-0.5 ${m.ferramentas ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-[var(--ia-realce)] text-[var(--ia-suave)]'}`}>{m.ferramentas ? 'age nos ares' : 'só texto'}</span>
+                        <span className={`rounded px-1.5 py-0.5 ${m.ritmo === 'instavel' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'bg-[var(--ia-realce)] text-[var(--ia-suave)]'}`}>{RITMO[m.ritmo] || m.ritmo}</span>
+                      </span>
+                    </span>
+                    {m.id === modelo && <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ia-acento)]" />}
                   </button>
                 ))}
               </div>
-            )}
+            ))}
+            {!lista.length && <p className="px-3 py-4 text-[var(--ia-suave)]">Nenhum modelo com esse nome.</p>}
           </div>
+          <p className="border-t border-[var(--ia-borda)] px-3 py-2 text-[11px] text-[var(--ia-suave)]">Todos os modelos de conversa do catálogo gratuito da NVIDIA disponíveis para a chave do sistema.</p>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -417,7 +453,7 @@ export default function Ia() {
                       <div className="mt-1.5 flex items-center gap-1 text-muted-foreground">
                         <button onClick={() => copiar(m.content)} className="rounded p-1 hover:bg-muted" aria-label="Copiar a resposta" title="Copiar"><Copy className="h-3.5 w-3.5" /></button>
                         {i === msgs.length - 1 && <button onClick={deNovo} disabled={pensando} className="rounded p-1 hover:bg-muted" aria-label="Tentar de novo" title="Tentar de novo"><RotateCcw className="h-3.5 w-3.5" /></button>}
-                        {m.modelo && <span className="ml-1 text-[11px]">{dados.modelos.find((x) => x.id === m.modelo)?.nome?.split(' (')[0] || m.modelo}</span>}
+                        {m.modelo && <span className="ml-1 text-[11px]">{dados.modelos.find((x) => x.id === m.modelo)?.nome || m.modelo}</span>}
                       </div>
                     )}
                   </div>

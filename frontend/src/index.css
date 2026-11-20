@@ -163,3 +163,22 @@ svg.lucide { stroke-width: var(--icone, 2); }
   --ia-realce: #ecebe3; --ia-bolha: #f0eee6; --ia-acento: #c96442; --ia-acento-texto: #ffffff; }
 .dark .tela-ia { --ia-fundo: #262624; --ia-lateral: #1f1e1d; --ia-caixa: #30302e; --ia-borda: #3e3e3a; --ia-texto: #e5e3da; --ia-suave: #a3a199;
   --ia-realce: #353532; --ia-bolha: #141413; --ia-acento: #d97757; --ia-acento-texto: #ffffff; }
+
+/* marca: Mensagens no visual do WhatsApp Web (tokens redefinidos só dentro da tela; claro e escuro) */
+.tela-zap { --background: 220 14% 96%; --card: 0 0% 100%; --muted: 210 17% 95%; --muted-foreground: 199 9% 44%; --border: 210 12% 89%;
+  --foreground: 202 31% 10%; --primary: 169 100% 33%; --primary-foreground: 0 0% 100%; --accent: 210 14% 93%; --sidebar: 0 0% 100%; }
+.dark .tela-zap { --background: 202 31% 7%; --card: 202 31% 10%; --muted: 203 23% 16%; --muted-foreground: 203 11% 58%; --border: 203 22% 21%;
+  --foreground: 204 14% 93%; --primary: 152 63% 45%; --primary-foreground: 202 31% 7%; --accent: 203 23% 19%; --sidebar: 202 31% 10%; }
+.tela-zap .fundo-conversa { background-color: #efeae2; }
+.dark .tela-zap .fundo-conversa { background-color: #0b141a; }
+.tela-zap .balao-meu { background: #d9fdd3; color: #111b21; }
+.dark .tela-zap .balao-meu { background: #144d37; color: #e9edef; }
+.tela-zap .balao-dele { background: #ffffff; }
+.dark .tela-zap .balao-dele { background: #202c33; }
+
+/* marca: painel do banco no design system do Supabase (grafite, bordas finas, verde #3ECF8E), claro e escuro */
+.tela-supa { --background: 0 0% 99%; --card: 0 0% 100%; --muted: 0 0% 96%; --muted-foreground: 0 0% 40%; --border: 0 0% 87%;
+  --foreground: 0 0% 9%; --primary: 153 100% 19%; --primary-foreground: 0 0% 100%; --accent: 0 0% 94%; --sidebar: 0 0% 98%; }
+.dark .tela-supa { --background: 0 0% 7%; --card: 0 0% 9%; --muted: 0 0% 12%; --muted-foreground: 0 0% 63%; --border: 0 0% 18%;
+  --foreground: 0 0% 93%; --primary: 153 60% 53%; --primary-foreground: 0 0% 7%; --accent: 0 0% 14%; --sidebar: 0 0% 9%; }
+.tela-supa { font-size: 14px; }

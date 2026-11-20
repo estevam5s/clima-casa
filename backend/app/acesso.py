@@ -99,7 +99,7 @@ REGRAS = [
     ("*", r"^/api/musica/(credenciais|desconectar|retorno|rotinas)", "integracoes.gerenciar"),
     ("*", r"^/api/(relatorios|metricas|painel/analise)", "relatorios.ver"),
     ("*", r"^/api/atividade", "atividade.ver"),
-    ("*", r"^/api/site/(mensagens|conversas?|respostas-prontas)", "mensagens.ver"),
+    ("*", r"^/api/site/(mensagens|conversas?|respostas-prontas|kanban)", "mensagens.ver"),
     ("*", r"^/api/site/cookies/(config|relatorio|consentimento/|exportar|escanear)", "configuracoes.gerenciar"),
     ("*", r"^/api/(sinric|tuya|alexa/(?!comandos)|oauth/aprovar)", "integracoes.gerenciar"),
     ("GET|PUT", r"^/api/alexa$", "integracoes.gerenciar"),

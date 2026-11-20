@@ -23,9 +23,27 @@ import httpx
 from . import db
 
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-MODELOS = {"nvidia/nemotron-3-ultra-550b-a55b": "Nemotron Ultra (padrão, rápido e preciso)",
-           "nvidia/nemotron-3.5-lightning-30b-a3b": "Nemotron Lightning (o mais rápido)",
-           "mistralai/mistral-large-4-1t-a52b": "Mistral Large 4 (mais lento)"}
+# Catálogo gratuito da NVIDIA (build.nvidia.com) que conversa, testado em 20/11/2026 com a chave do sistema.
+# "ferramentas" = aceita function calling (consegue consultar e agir nos ares); sem isso, só responde em texto.
+# Fora: embeddings, filtros de segurança, detector de vídeo, calibração, tradução e modelos que deram 404.
+CATALOGO = [
+    # id, nome, empresa, descrição, ferramentas, ritmo
+    ("nvidia/nemotron-3-ultra-550b-a55b", "Nemotron 3 Ultra", "nvidia", "Padrão. Preciso e rápido para controlar os ares", True, "rapido"),
+    ("nvidia/nemotron-3.5-lightning-30b-a3b", "Nemotron 3.5 Lightning", "nvidia", "O mais rápido para perguntas do dia a dia", True, "rapido"),
+    ("nvidia/nemotron-3.5-super-vl-120b-a12b", "Nemotron 3.5 Super VL", "nvidia", "Equilibrado, entende texto e imagem", True, "rapido"),
+    ("nvidia/nemotron-3.5-bolt-e4b", "Nemotron 3.5 Bolt", "nvidia", "Pequeno e muito leve", True, "rapido"),
+    ("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", "Nemotron 3 Nano Omni", "nvidia", "Raciocina passo a passo antes de responder", True, "rapido"),
+    ("mistralai/mistral-large-4-1t-a52b", "Mistral Large 4", "mistral", "Muito capaz, às vezes mais lento", True, "medio"),
+    ("google/gemma-4-31b-it", "Gemma 4 31B", "google", "Modelo aberto do Google, bom em português", True, "rapido"),
+    ("meta/muse-glimmer-30b", "Muse Glimmer 30B", "meta", "Modelo da Meta para conversa geral", True, "medio"),
+    ("minimaxai/minimax-m3.1-flash", "MiniMax M3.1 Flash", "minimax", "Rápido, bom para resumos", True, "rapido"),
+    ("poolside/laguna-xs-2.1", "Laguna XS 2.1", "poolside", "Focado em código e respostas técnicas", True, "rapido"),
+    ("moonshotai/kimi-k3.1-pro", "Kimi K3.1 Pro", "kimi", "Raciocínio longo; só responde em texto (não age nos ares)", False, "lento"),
+    ("stepfun-ai/step-5-preview", "Step 5 (prévia)", "stepfun", "Prévia; a NVIDIA às vezes demora a responder", False, "instavel"),
+    ("z-ai/glm-5.3-flash", "GLM 5.3 Flash", "zai", "A NVIDIA às vezes demora a responder", False, "instavel"),
+]
+MODELOS = {m[0]: m[1] for m in CATALOGO}
+COM_FERRAMENTAS = {m[0] for m in CATALOGO if m[4]}
 PADRAO = "nvidia/nemotron-3-ultra-550b-a55b"
 RESERVA = "nvidia/nemotron-3.5-lightning-30b-a3b"
 LIMITE_HORA = 40
@@ -45,7 +63,8 @@ def estado_publico() -> dict:
     c = cfg()
     k = chave()
     return {"configurada": bool(k), "mascara": (k[:6] + "…" + k[-4:]) if len(k) > 12 else "", "modelo": c.get("modelo") or PADRAO,
-            "modelos": [{"id": m, "nome": n} for m, n in MODELOS.items()], "ativo": c.get("ativo", True),
+            "modelos": [{"id": i, "nome": n, "empresa": e, "descricao": d, "ferramentas": f, "ritmo": r} for i, n, e, d, f, r in CATALOGO],
+            "ativo": c.get("ativo", True),
             "telegram": c.get("telegram", True)}
 
 
@@ -392,9 +411,11 @@ def _chamar_modelo(msgs: list[dict], modelo: str) -> dict:
         raise RuntimeError("O assistente de IA não está configurado (falta a chave da NVIDIA em IA → Configuração).")
     ultimo = None
     for m in (modelo, RESERVA) if modelo != RESERVA else (modelo,):
+        corpo = {"model": m, "messages": msgs, "temperature": 0.2, "max_tokens": 900}
+        if m in COM_FERRAMENTAS:   # modelo sem function calling recusa "tools" (400): responde só em texto
+            corpo["tools"] = FERRAMENTAS
         try:
-            r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"},
-                           json={"model": m, "messages": msgs, "tools": FERRAMENTAS, "temperature": 0.2, "max_tokens": 900}, timeout=40)
+            r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, json=corpo, timeout=50)
             if r.status_code == 200:
                 return r.json()["choices"][0]["message"]
             ultimo = f"{r.status_code} {r.text[:160]}"

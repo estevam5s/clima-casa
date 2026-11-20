@@ -3,10 +3,11 @@ import { useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Archive, ArchiveRestore, ArrowLeft, BellOff, Bell, Check, CheckCheck, ChevronDown, Copy, Download, FileDown, Info, Mail, MailOpen, MapPin,
-  MessageSquareText, MessagesSquare, MoreVertical, Newspaper, Pin, PinOff, Plus, Reply, Search, Send, Smile, Star, StickyNote, Tag, Trash2, X, Zap,
+  KanbanSquare, MessageSquareText, MessagesSquare, MoreVertical, Newspaper, Pin, PinOff, Plus, Reply, Search, Send, Smile, Star, StickyNote, Tag, Trash2, X, Zap,
 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { Aviso, Botao, Modal, useToast, confirmar } from '../components/ui'
+import Kanban from '../components/mensagens/Kanban'
 
 // Caixa de mensagens do site no formato de conversa: lista à esquerda (uma conversa por e-mail),
 // conversa em balões à direita, respostas e notas internas, respostas prontas e painel do contato.
@@ -286,6 +287,10 @@ export default function Mensagens() {
   const toast = useToast()
   const [params, setParams] = useSearchParams()
   const [filtro, setFiltro] = useState('tudo')
+  // modo Kanban: as pessoas por etapa do atendimento (lembrado neste navegador)
+  const [modo, setModoBruto] = useState(() => { try { return localStorage.getItem('mensagens-modo') || 'chat' } catch { return 'chat' } })
+  const setModo = (m) => { setModoBruto(m); try { localStorage.setItem('mensagens-modo', m) } catch { /* sem armazenamento */ } }
+  const [versaoKanban, setVersaoKanban] = useState(0)
   const [busca, setBusca] = useState('')
   const [lista, setLista] = useState(null)
   const [erro, setErro] = useState('')
@@ -446,28 +451,32 @@ export default function Mensagens() {
 
   return (
     <div className="-mx-4 -mb-16 -mt-6 sm:-mx-6 lg:-mx-8 2xl:-mx-10">
-      <div className="relative flex h-[calc(100dvh-4rem)] overflow-hidden border-t border-border bg-background">
+      <div className="tela-zap relative flex h-[calc(100dvh-4rem)] overflow-hidden border-t border-border bg-background text-foreground">
         {/* trilho de ícones */}
         <nav className="hidden w-16 shrink-0 flex-col items-center gap-1 border-r border-border bg-muted/40 py-3 md:flex" aria-label="Pastas">
           {TRILHO.map(([k, r, I]) => {
             const n = k === 'tudo' ? contagem.nao_lidas : k === 'nao_lidas' ? 0 : contagem[k]
             return (
-              <button key={k} onClick={() => setFiltro(k)} title={r} aria-label={r}
-                className={`relative grid h-10 w-10 place-items-center rounded-full transition-colors ${filtro === k ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+              <button key={k} onClick={() => { setModo('chat'); setFiltro(k) }} title={r} aria-label={r}
+                className={`relative grid h-10 w-10 place-items-center rounded-full transition-colors ${modo === 'chat' && filtro === k ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                 <I className="h-5 w-5" />
                 {n > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{n > 99 ? '99+' : n}</span>}
               </button>
             )
           })}
+          <button onClick={() => { setModo('kanban'); setVersaoKanban((v) => v + 1) }} title="Kanban das pessoas" aria-label="Kanban das pessoas" aria-pressed={modo === 'kanban'}
+            className={`grid h-10 w-10 place-items-center rounded-full transition-colors ${modo === 'kanban' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><KanbanSquare className="h-5 w-5" /></button>
           <span className="my-2 h-px w-8 bg-border" />
           <button onClick={() => setProntas(true)} title="Respostas prontas" aria-label="Respostas prontas" className="grid h-10 w-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><Zap className="h-5 w-5" /></button>
           <button onClick={exportar} title="Exportar todas (CSV)" aria-label="Exportar todas" className="grid h-10 w-10 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><Download className="h-5 w-5" /></button>
         </nav>
 
+        {modo === 'kanban' ? <Kanban versao={versaoKanban} aoAbrir={(em) => { setModo('chat'); abrir(em) }} /> : (<>
         {/* lista de conversas */}
         <section className={`relative flex w-full shrink-0 flex-col border-r border-border bg-card md:w-[400px] ${aberta ? 'hidden md:flex' : 'flex'}`}>
           <div className="flex items-center justify-between px-4 pb-2 pt-4">
             <h1 className="text-[22px] font-semibold tracking-tight">{filtro === 'arquivadas' ? 'Arquivadas' : filtro === 'favoritas' ? 'Favoritas' : 'Conversas'}</h1>
+            <button onClick={() => { setModo('kanban'); setVersaoKanban((v) => v + 1) }} className="ml-auto mr-1 grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground md:hidden" aria-label="Kanban das pessoas" title="Kanban"><KanbanSquare className="h-5 w-5" /></button>
             <div className="relative flex items-center gap-0.5">
               <button onClick={lerTodas} title="Marcar todas como lidas" className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><CheckCheck className="h-5 w-5" /></button>
               <button onClick={() => setMenuLista((v) => !v)} title="Mais opções" aria-label="Mais opções" className={`rounded-full p-2 hover:bg-muted ${menuLista ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}><MoreVertical className="h-5 w-5" /></button>
@@ -648,6 +657,7 @@ export default function Mensagens() {
             </>
           )}
         </section>
+        </>)}
       </div>
       <RespostasProntas aberto={prontas} aoFechar={() => setProntas(false)} aoEscolher={(t) => { mudarTexto(t); setProntas(false); setTimeout(() => { campoRef.current?.focus(); ajustarAltura() }, 50) }} />
     </div>

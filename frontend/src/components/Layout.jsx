@@ -421,6 +421,8 @@ function Banner() {
   )
 }
 
+const TELAS_CHEIAS = ['/ia', '/mensagens', '/musica']
+
 function Rodape() {
   const { marca } = useMarca()
   const contatos = [marca.suporte_email && `Suporte: ${marca.suporte_email}`, marca.suporte_telefone, marca.suporte_whatsapp && `WhatsApp ${marca.suporte_whatsapp}`].filter(Boolean)
@@ -552,7 +554,8 @@ export default function Layout() {
       <Atalhos />
             {emManutencao ? <Manutencao marca={marca} /> : <Outlet />}
           </motion.div>
-          <Rodape />
+          {/* telas de app em tela cheia (chat, música): o rodapé empurrava a página para além da altura da tela */}
+          {!TELAS_CHEIAS.some((t) => local.pathname.startsWith(t)) && <Rodape />}
         </main>
       </motion.div>
       <Paleta aberta={paleta} fechar={() => setPaleta(false)} />

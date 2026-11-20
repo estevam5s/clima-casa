@@ -587,3 +587,11 @@ create table if not exists ia_conversas (
 );
 create index if not exists ia_conversas_usuario on ia_conversas (usuario_id, atualizado_em desc);
 alter table ia_conversas enable row level security;
+
+-- Kanban das mensagens (20/11): etapa, responsável, prioridade, prazo e próximo passo por contato
+alter table public.site_conversas add column if not exists etapa text not null default 'novo';
+alter table public.site_conversas add column if not exists responsavel uuid;
+alter table public.site_conversas add column if not exists prioridade text not null default 'normal';
+alter table public.site_conversas add column if not exists prazo bigint;
+alter table public.site_conversas add column if not exists proximo_passo text not null default '';
+alter table public.site_conversas add column if not exists ordem double precision not null default 0;

@@ -2,6 +2,26 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.26.0",
+      "data": "2026-11-20",
+      "titulo": "Kanban das mensagens, visual do WhatsApp e do Supabase, todos os modelos da NVIDIA",
+      "resumo": "Mensagens com o visual do WhatsApp Web e um Kanban para acompanhar cada pessoa, o painel do banco no design do Supabase, o Assistente com todos os modelos gratuitos da NVIDIA e uma linha do tempo nova em Novidades.",
+      "novo": [
+        "Mensagens: Kanban das pessoas, com colunas configuráveis, arrastar entre etapas, responsável, prioridade, prazo, próximo passo e etiquetas.",
+        "Assistente de IA: 13 modelos gratuitos da NVIDIA (NVIDIA, Google, Meta, Mistral, MiniMax, Kimi e outros) com o ícone de cada fabricante, busca e aviso de quais conseguem agir nos ares.",
+        "Novidades: gráfico das versões em barras, filtro \"novas para mim\", copiar o link de uma versão, recolher tudo e baixar o histórico."
+      ],
+      "melhorias": [
+        "Mensagens com o visual do WhatsApp Web, no claro e no escuro.",
+        "Painel do banco (/supabase) no design do Supabase, com a barra do projeto e o menu de ícones.",
+        "Assistente de IA: a página não passa mais da altura da tela."
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "Linha do tempo de Novidades com rótulos que não se sobrepõem."
+      ]
+    },
+    {
       "versao": "1.25.0",
       "data": "2026-11-20",
       "titulo": "Interruptor de 4 teclas, Assistente no visual do Claude e mapa com monitores e PCs",
