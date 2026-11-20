@@ -2,6 +2,26 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.27.0",
+      "data": "2026-11-20",
+      "titulo": "Mapa: heróis no céu, motos com piloto, sinaleiras e cidade maior",
+      "resumo": "O Homem de Ferro e o Goku sobrevoam a cidade e o Naruto corre pelo quarteirão; as motos do trânsito ganharam piloto e andam de frente; mais sinaleiras, pedestres e prédios; direção mais fácil de virar e a abertura do mapa mais leve.",
+      "novo": [
+        "Mapa: Homem de Ferro voando alto em volta do prédio, Goku voando com a aura e Naruto correndo e saltando pela calçada (modelos da biblioteca de Avatares).",
+        "Mapa: sinaleiras nos cruzamentos da cidade, no mesmo ciclo do semáforo principal."
+      ],
+      "melhorias": [
+        "Motos do trânsito com piloto de capacete e jaqueta.",
+        "Cidade maior (mais quadras de prédios e casas) e mais pedestres nas calçadas.",
+        "Direção: dá para virar com mais tranquilidade em velocidade, o volante volta ao centro mais rápido e a moto ficou mais estável.",
+        "Mapa: modelos que chegam depois (trânsito, carros, peças das mesas, heróis) entram sem travar a tela."
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "Moto andava de ré: agora anda de frente, no trânsito e quando você pilota."
+      ]
+    },
+    {
       "versao": "1.26.0",
       "data": "2026-11-20",
       "titulo": "Kanban das mensagens, visual do WhatsApp e do Supabase, todos os modelos da NVIDIA",

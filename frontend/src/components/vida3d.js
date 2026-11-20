@@ -138,7 +138,8 @@ export function montarVida({ calcadas = [], pracas = [], terminal: posTerminal =
   const termi = posTerminal ? terminal(posTerminal.x, posTerminal.z, noite, r) : null
   if (termi) grupo.add(termi.g)
   // pedestres pelas calçadas + passageiros nas plataformas do terminal
-  const N_PED = Math.min(150, calcadas.length * 5), N_PAS = termi ? 26 : 0, N_TRA = travessias.length * 3
+  // mais gente nas calçadas (instanciado: custo baixo)
+  const N_PED = Math.min(260, calcadas.length * 7), N_PAS = termi ? 26 : 0, N_TRA = travessias.length * 3
   const povo = multidao(N_PED + N_PAS + N_TRA, r)
   povo.partes.forEach((p) => grupo.add(p))
   const peds = []

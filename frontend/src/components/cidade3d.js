@@ -98,7 +98,7 @@ const planoGeo = (w, d, x, y, z) => { const g = new THREE.PlaneGeometry(w, d); g
 export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 }) {
   const grupo = new THREE.Group()
   const [cx, cz] = centro
-  const PASSO = 34, LOTE = 24, N = 8          // lotes de 24 m a cada 34 m (10 m de rua) até ±272 m
+  const PASSO = 34, LOTE = 24, N = 9          // lotes de 24 m a cada 34 m (10 m de rua) até ±306 m
   const porEstilo = Object.fromEntries(Object.keys(ESTILOS).map((k) => [k, { perto: [], longe: [] }]))
   const tetos = [], parapeitos = [], sacadas = [], maquinas = [], caixas = [], calcadas = [], gramados = [], toldos = []
   const arvores = [], postes = []
@@ -324,6 +324,41 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
   instancias(new THREE.BoxGeometry(0.5, 0.14, 0.5), M({ color: 0xfff3c4, emissive: 0xffe2a0, emissiveIntensity: noite ? 2.2 : 0.1 }), postes, () => [7.05, 1], false)
   if (hidrantes.length) instancias(new THREE.CylinderGeometry(0.14, 0.17, 0.7, 8), M({ color: 0xdc2626, roughness: 0.5 }), hidrantes, () => [0.35, 1], false)
 
+  // sinaleiras (semáforos) nos cruzamentos da grade perto do prédio: duas por cruzamento, em quinas opostas, uma para cada
+  // via. Tudo instanciado (poste, caixa e as três lâmpadas); a cor de cada lâmpada muda com o ciclo do semáforo principal.
+  const sinais = []   // [x, z, via ('H' | 'V'), rot]
+  for (let i = -N; i < N; i++) for (let j = -N; j < N; j++) {
+    const x = cx + (i + 0.5) * PASSO, z = cz + (j + 0.5) * PASSO
+    if (Math.hypot(x - cx, z - cz) > 175) continue
+    if (livres.some((l) => x > l[0] - 6 && x < l[2] + 6 && z > l[1] - 6 && z < l[3] + 6)) continue
+    const o = (PASSO - LOTE) / 2 - 0.6
+    sinais.push([x + o, z + o, 'H', Math.PI / 2], [x - o, z - o, 'V', 0])
+  }
+  let tickSinais = null
+  if (sinais.length) {
+    const n = sinais.length, um = new THREE.Vector3(1, 1, 1)
+    const poste = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.09, 3.6, 6).translate(0, 1.8, 0), M({ color: 0x374151, roughness: 0.6, metalness: 0.4 }), n)
+    const caixa = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 1.0, 0.3).translate(0, 3.95, 0), M({ color: 0x111827, roughness: 0.5 }), n)
+    const lamp = ['vermelho', 'amarelo', 'verde'].map((nome, k) => {
+      const im = new THREE.InstancedMesh(new THREE.SphereGeometry(0.11, 10, 8).translate(0, 4.27 - k * 0.32, 0.17), new THREE.MeshBasicMaterial({ color: 0xffffff }), n)
+      im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3)
+      grupo.add(im); return { nome, im }
+    })
+    sinais.forEach(([x, z, , rot], i) => {
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot); mat4.compose(new THREE.Vector3(x, 0, z), q, um)
+      poste.setMatrixAt(i, mat4); caixa.setMatrixAt(i, mat4); lamp.forEach((l) => l.im.setMatrixAt(i, mat4))
+    })
+    poste.castShadow = true; grupo.add(poste); grupo.add(caixa)
+    const ACESA = { vermelho: new THREE.Color(0xff3b30), amarelo: new THREE.Color(0xffc400), verde: new THREE.Color(0x22e36b) }, APAGADA = new THREE.Color(0x1f2937)
+    let ultimo = ''
+    tickSinais = (corDe) => {   // corDe(via) → 'vermelho' | 'amarelo' | 'verde'
+      const ch = corDe('H') + corDe('V')
+      if (ch === ultimo) return
+      ultimo = ch
+      lamp.forEach(({ nome, im }) => { sinais.forEach(([, , via], i) => im.setColorAt(i, corDe(via) === nome ? ACESA[nome] : APAGADA)); im.instanceColor.needsUpdate = true })
+    }
+  }
+
   // carros parados nos estacionamentos: 3 malhas instanciadas (lata com cor por instância, vidro, rodas). Cada um é um
   // obstáculo; "tirar" esconde a instância e libera a vaga (a pessoa pegou o carro para dirigir)
   let estacionados = null
@@ -368,5 +403,5 @@ export function montarCidade({ centro, livres, camera, noite, r, sombraAte = 90 
       },
     }
   }
-  return { grupo, calcadas: andaveis, pracas, obstaculos, estacionados, limite: [cx - N * PASSO - LOTE / 2 - 4, cz - N * PASSO - LOTE / 2 - 4, cx + N * PASSO + LOTE / 2 + 4, cz + N * PASSO + LOTE / 2 + 4] }
+  return { grupo, calcadas: andaveis, pracas, obstaculos, estacionados, tickSinais, limite: [cx - N * PASSO - LOTE / 2 - 4, cz - N * PASSO - LOTE / 2 - 4, cx + N * PASSO + LOTE / 2 + 4, cz + N * PASSO + LOTE / 2 + 4] }
 }

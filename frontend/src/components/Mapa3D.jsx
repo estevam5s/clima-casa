@@ -1,4 +1,6 @@
 import { compilarSeguro } from './compilar3d'
+import { pilotoMoto } from './piloto3d'
+import { montarHerois } from './herois3d'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -1375,6 +1377,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           }
         })
         im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.frustumCulled = false; mundoPecas.add(im)   // espalhados pelo andar: sem descarte por esfera
+        estado.current?.preparar?.(im)
       }).catch(() => { /* modelo apagado da biblioteca: ficam as caixas */ })
     })
     const ocupado = new Map(), semLugar = []
@@ -1593,6 +1596,22 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       // veículos nas ruas (avatares da espécie veículo, Avatares → Nas ruas do mapa): estacionados onde foram deixados
       // ou numa vaga perto do prédio; dirigíveis com física (veiculo3d.js)
       const grupoCarros = new THREE.Group(); grupoCarros.name = 'carros'; mundo.add(grupoCarros); E.grupoCarros = grupoCarros
+      // heróis da biblioteca (Avatares → mapa_modelos.herois): entram por último, no ocioso, para não pesar a abertura
+      E.herois = null
+      const hcfg = mapa.modelos?.herois || {}
+      if (Object.values(hcfg).some(Boolean)) {
+        const mundoH = mundo
+        quandoOcioso(9000, () => {
+          if (estado.current?.mundo !== mundoH) return
+          const carregar = (id) => (id ? carregarAvatar(id).then((gl) => clonarComOssos(gl.scene)).catch(() => null) : Promise.resolve(null))
+          Promise.all([carregar(hcfg.ferro), carregar(hcfg.goku), carregar(hcfg.naruto)]).then(([ferro, goku, naruto]) => {
+            if (estado.current?.mundo !== mundoH) return
+            const cx = (LF[0] + LF[2]) / 2, cz = (LF[1] + LF[3]) / 2
+            E.herois = montarHerois(grupoCarros, { centro: [cx, cz], raio: Math.max(40, (LF[2] - LF[0]) * 1.2), yChao: yT, rua: [LF[0] - 2.2, LF[1] - 2.2, LF[2] + 2.2, LF[3] + 2.2] }, { ferro, goku, naruto })
+            E.preparar?.(E.herois.grupo)
+          })
+        })
+      }
       E.veiculos = []
       const cidC = predio.cidade
       if (cidC) { const marcas = criarMarcas(); grupoCarros.add(marcas.malha); E.marcas = marcas }
@@ -1629,23 +1648,33 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
             const geo = malha.geometry.clone(); geo.applyMatrix4(malha.matrixWorld); geo.computeBoundingBox()
             const bb = geo.boundingBox, tam = bb.getSize(new THREE.Vector3())
             if (tam.x > tam.z * 1.2) geo.rotateY(Math.PI / 2)
+            if (v.fisica?.inverter) geo.rotateY(Math.PI)   // modelo de frente para -z (a moto andava de ré)
             geo.computeBoundingBox()
             const b2 = geo.boundingBox, t2 = b2.getSize(new THREE.Vector3())
             const Lr = v.fisica?.comprimento > 0 ? v.fisica.comprimento : t2.z < 2 ? 4.5 : t2.z
             const k = Lr / t2.z
             geo.translate(-(b2.min.x + b2.max.x) / 2, -b2.min.y, -(b2.min.z + b2.max.z) / 2); geo.scale(k, k, k); geo.rotateY(Math.PI / 2)
-            return { v, gl, geo, mat: malha.material, L: Lr, W: t2.x * k }
+            return { v, gl, geo, mat: malha.material, L: Lr, W: t2.x * k, H: t2.y * k }
           }).filter(Boolean)
           E.frota = prontos
+          // compila os materiais da frota escondido antes de vestir o trânsito (senão a tela congela quando eles aparecem)
+          const amostra = new THREE.Group(); prontos.forEach((f) => amostra.add(new THREE.Mesh(f.geo, f.mat))); amostra.add(pilotoMoto())
+          mundoF.add(amostra)
+          E.preparar?.(amostra).then(() => { amostra.removeFromParent(); if (estado.current?.mundo === mundoF) vestirFrota() })
+          const vestirFrota = () => {
           const moto = prontos.find((f) => f.v.fisica?.duasRodas), onibus = prontos.find((f) => f.L >= 8)
           const carros = prontos.filter((f) => f !== moto && f !== onibus)
           tr.vestir((c, i) => {
             const f = c.tipo === 'moto' ? moto : c.tipo === 'onibus' ? onibus : carros[i % Math.max(1, carros.length)]
             if (!f) return null
             const m = new THREE.Mesh(f.geo, f.mat); m.castShadow = true; m.receiveShadow = true
+            if (f === moto) {   // moto do trânsito com piloto (antes parecia andar sozinha)
+              const g = new THREE.Group(); g.add(m); g.add(pilotoMoto(f.H, f.L, i)); return { grupo: g, comp: f.L, W: f.W, frota: f }
+            }
             return { grupo: m, comp: f.L, W: f.W, frota: f }
           })
           if (carros.length) tr.estacionados?.trocar(carros.map((f) => ({ geo: f.geo, mat: f.mat, f })))
+          }
         }))
       }
       if (cidC && (mapa.veiculos || []).length) {
@@ -1675,7 +1704,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
               if (!v) return
               ;[x, z, psi] = v
             }
-            veh.colocar(x, z, psi); veh.atualizar(0, null, yT); grupoCarros.add(veh.raiz)
+            veh.colocar(x, z, psi); veh.atualizar(0, null, yT); grupoCarros.add(veh.raiz); E.preparar?.(veh.raiz)
             E.veiculos.push({ cfg: vc, veh, colide: E.colideCarro || colide, yT, nome: vc.nome || gltf.meta?.nome || 'Carro' })
           }).catch(() => { /* veículo apagado da biblioteca: fica fora das ruas */ }))
         })
@@ -2415,6 +2444,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // animação
     E.tick = (dt, t) => {
       pessoas.forEach((p) => animarPessoa(p, t))
+      E.herois?.tick(dt, t)
       if (E.telas?.length) {
         const cam = camera.position, ativo = E.ctrl?.assento
         const perto = E.telas.filter((x) => x.a === ativo || x.pos.distanceToSquared(cam) < 64)
@@ -2524,6 +2554,18 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // primeira renderização trava a página enquanto o WebGL compila dezenas de materiais
     E.compilando = true
     E.compilacao = compilarSeguro(renderer, cena, camera).catch(() => {}).finally(() => { E.compilando = false })
+    // objeto que chega depois (modelo baixado): compila escondido, em paralelo, e só então aparece. Sem isso o 1º quadro
+    // com ele compilava os sombreadores na hora e a tela congelava (frota, carros, peças das mesas, heróis)
+    E.preparar = (obj) => {
+      if (!obj) return Promise.resolve()
+      obj.visible = false
+      // texturas: uma por quadro para a placa de vídeo (subir todas no mesmo quadro também travava)
+      const tex = new Set()
+      obj.traverse((o) => [].concat(o.material || []).forEach((m) => Object.values(m).forEach((v) => { if (v?.isTexture) tex.add(v) })))
+      const fila = [...tex]
+      const subir = () => new Promise((ok) => { const um = () => { const t = fila.shift(); if (!t) { ok(); return } try { renderer.initTexture(t) } catch { /* sem suporte */ } requestAnimationFrame(um) }; um() })
+      return subir().then(() => compilarSeguro(renderer, obj, camera, cena)).catch(() => {}).finally(() => { obj.visible = true })
+    }
 
     // clique e cursor
     const ray = new THREE.Raycaster(), mouse = new THREE.Vector2()

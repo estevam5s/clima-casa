@@ -1,9 +1,10 @@
 // Compilação de shaders em paralelo, como o renderer.compileAsync do three.js 0.170, mas à prova de descarte:
 // se um material for descartado (dispose) enquanto compila, o original quebra com
 // "Cannot read properties of undefined (reading 'isReady')" (bug #10 e #17 da área de Bugs). Aqui ele só sai da lista.
-export function compilarSeguro(renderer, cena, camera) {
+export function compilarSeguro(renderer, cena, camera, alvo = null) {
   let materiais
-  try { materiais = renderer.compile(cena, camera) } catch { return Promise.resolve() }
+  // alvo: a cena principal (dá as luzes) quando se compila só um objeto novo, ainda escondido
+  try { materiais = alvo ? renderer.compile(cena, camera, alvo) : renderer.compile(cena, camera) } catch { return Promise.resolve() }
   if (!materiais?.forEach) return Promise.resolve()
   const paralelo = renderer.extensions?.get?.('KHR_parallel_shader_compile') != null
   return new Promise((pronto) => {

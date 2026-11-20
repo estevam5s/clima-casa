@@ -178,9 +178,12 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
 
   function passo(dt, colide) {
     const v = Math.hypot(S.vx, S.vy)
-    // direção: mais lenta e menos ângulo em velocidade alta (como um carro de verdade)
-    const maxD = THREE.MathUtils.degToRad(F.direcao) / (1 + Math.max(0, S.vx) / 10)
-    const taxa = 2.6 / (1 + Math.max(0, S.vx) / 25)
+    // direção: menos ângulo e mais devagar em velocidade alta (como um carro de verdade), mas sem travar a curva:
+    // antes, a 100 km/h sobrava 1/4 do volante e virar era difícil. Volta ao centro mais rápido do que vira.
+    const vf = Math.max(0, Math.abs(S.vx))
+    const maxD = THREE.MathUtils.degToRad(F.direcao) / (1 + vf / (F.duasRodas ? 28 : 22))
+    const voltando = ent.dir === 0 || Math.sign(ent.dir) !== Math.sign(S.delta)
+    const taxa = (voltando ? 4.2 : 3.2) / (1 + vf / 45)
     S.delta += THREE.MathUtils.clamp(ent.dir * maxD - S.delta, -taxa * dt, taxa * dt)
     // pedal: W acelera; S freia e, parado, engata a ré (aí W freia)
     let acel = ent.acel, freio = ent.freio

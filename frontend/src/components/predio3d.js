@@ -544,6 +544,7 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     const k = relogio % CICLO
     sinal.pedestre = k >= 13 && k < 16
     if (cruz) for (const via of ['H', 'V']) { const cor = corDe(via, k); for (const nome of ['vermelho', 'amarelo', 'verde']) lampadas[via][nome].emissiveIntensity = nome === cor ? 2.2 : 0 }
+    cidadeInfo?.tickSinais?.((via) => corDe(via, k))   // sinaleiras dos outros cruzamentos, no mesmo ciclo
     carros.forEach((c) => {
       if (c.roubado) return
       if (c.batido > 0) {   // levou uma batida: para, balança e depois segue
