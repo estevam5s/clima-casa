@@ -23,6 +23,7 @@ import difflib
 import fnmatch
 import json
 import os
+import random
 import re
 import subprocess
 import sys
@@ -38,6 +39,9 @@ from prompt_toolkit import PromptSession  # noqa: E402
 from prompt_toolkit.completion import Completer, Completion  # noqa: E402
 from prompt_toolkit.history import FileHistory  # noqa: E402
 from prompt_toolkit.key_binding import KeyBindings  # noqa: E402
+from prompt_toolkit.formatted_text import HTML  # noqa: E402
+from prompt_toolkit.styles import Style as PTStyle  # noqa: E402
+from rich.text import Text  # noqa: E402
 from rich.table import Table  # noqa: E402
 from rich.console import Console  # noqa: E402
 from rich.markdown import Markdown  # noqa: E402
@@ -51,6 +55,21 @@ MODELOS = {"ultra": "nvidia/nemotron-3-ultra-550b-a55b", "rapido": "nvidia/nemot
 PASTA_USUARIO = Path.home() / ".clima-ia"
 MEMORIA = RAIZ / "agente-ia" / "MEMORIA.md"
 con = Console()
+
+
+def _carregar_tela():
+    """A tela (cabeçalho com o logo, cores, seletor de modelo, /uso e os comandos de segurança) é a mesma do clima-ia
+    instalado pela internet: um arquivo só, em frontend/public/clima-ia/clima_ia.py."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("clima_tela", RAIZ / "frontend" / "public" / "clima-ia" / "clima_ia.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    m.con = con
+    return m
+
+
+TELA = _carregar_tela()
+DONO: dict = {}
 # modos de permissão (Shift+Tab troca): perguntar tudo · aceitar edições de arquivo · só leitura (nada muda)
 MODOS_PERMISSAO = ["perguntar", "aceitar edições", "só leitura"]
 ESTADO = {"modo": 0, "tokens": 0, "ligados": None, "agente": None, "visto": 0.0}
@@ -285,10 +304,13 @@ class Agente:
         self.auto_leitura = True
 
     def _pedir(self):
-        corpo = {"model": self.modelo, "messages": self.msgs, "tools": esquema(), "temperature": 0.2, "max_tokens": 4096, "stream": True}
+        corpo = {"model": self.modelo, "messages": self.msgs, "tools": esquema(), "temperature": 0.2, "max_tokens": 4096, "stream": True,
+                 "stream_options": {"include_usage": True}}
+        palavra = random.choice(TELA.GERUNDIOS)
+        usados = 0
         texto, chamadas = "", {}
         t0 = time.time()
-        status = con.status("[magenta]✻ Pensando…[/magenta] [dim](esc ou Ctrl+C interrompe)[/dim]", spinner="dots")
+        status = con.status(f"[{TELA.VERDE}]{palavra}…[/] [{TELA.CINZA}](ctrl+c para interromper)[/]", spinner="star2", spinner_style=TELA.VERDE)
         status.start()
         parado = False
 
@@ -303,9 +325,13 @@ class Agente:
             for linha in r.iter_lines():
                 if not linha.startswith("data:") or linha.strip() == "data: [DONE]":
                     continue
-                d = json.loads(linha[5:]).get("choices", [{}])[0].get("delta", {})
+                pedaco = json.loads(linha[5:])
+                if pedaco.get("usage"):
+                    usados = int(pedaco["usage"].get("total_tokens") or 0)
+                d = ((pedaco.get("choices") or [{}])[0] or {}).get("delta", {})
                 if not parado:
-                    status.update(f"[magenta]✻ Pensando…[/magenta] [dim]({int(time.time() - t0)} s · esc ou Ctrl+C interrompe)[/dim]")
+                    tk = f" · ↑ {ESTADO['tokens'] / 1000:.1f}k tokens".replace(".", ",")
+                    status.update(f"[{TELA.VERDE}]{palavra}…[/] [{TELA.CINZA}]({int(time.time() - t0)}s{tk} · ctrl+c para interromper)[/]")
                 if d.get("content") or d.get("tool_calls"):
                     parar()
                 if d.get("content"):
@@ -321,6 +347,7 @@ class Agente:
         if texto:
             con.print()
         ESTADO["tokens"] += len(texto) // 4
+        _gastar(usados or (sum(len(str(m.get("content") or "")) for m in self.msgs) + len(texto)) // 4, self.modelo)
         return texto, [chamadas[i] for i in sorted(chamadas)]
 
     def turno(self, pergunta: str):
@@ -346,7 +373,7 @@ class Agente:
         except json.JSONDecodeError:
             return "argumentos inválidos (JSON)"
         resumo = ", ".join(f"{k}={str(v)[:60]!s}" for k, v in args.items() if k not in ("conteudo", "antigo", "novo"))
-        con.print(f"[green]⏺[/green] [bold]{NOMES_FERRAMENTA.get(nome, nome)}[/bold]([dim]{mascarar(resumo)}[/dim])")
+        con.print(Text.assemble(("● ", TELA.OK), (NOMES_FERRAMENTA.get(nome, nome), TELA.LAVANDA), ("(", TELA.CINZA), (mascarar(resumo), TELA.AZUL), (")", TELA.CINZA)))
         modo = MODOS_PERMISSAO[ESTADO["modo"]]
         if muda and modo == "só leitura":
             con.print("[dim]  ⎿ bloqueado: modo só leitura (Shift+Tab troca)[/dim]")
@@ -371,7 +398,7 @@ class Agente:
             saida = f"erro: {getattr(e, 'detail', None) or e}"
             _registrar(nome, args, False, saida)
         linhas = saida.splitlines()
-        con.print(f"[dim]  ⎿ {mascarar(linhas[0][:160]) if linhas else '(vazio)'}{' …' if len(linhas) > 1 else ''}[/dim]")
+        con.print(Text.assemble(("  ⎿  ", TELA.CINZA), (f"{mascarar(linhas[0][:160]) if linhas else '(vazio)'}{' …' if len(linhas) > 1 else ''}", TELA.LAVANDA)))
         return saida
 
 
@@ -401,7 +428,9 @@ Tudo que muda algo (ares, arquivos, comandos) pede **sim** aqui. Segredos nunca 
 
 
 COMANDOS = ["/ajuda", "/status", "/ares", "/ligar", "/desligar", "/temp", "/cenas", "/cena", "/transmissores", "/agentes", "/falhas",
-            "/modelo", "/permissoes", "/contexto", "/compactar", "/memoria", "/revisar", "/limpar", "/salvar", "/sair"]
+            "/modelo", "/permissoes", "/contexto", "/compactar", "/memoria", "/revisar", "/limpar", "/salvar", "/sair",
+            "/uso", "/seguranca", "/ataques", "/ips", "/ip", "/bloquear", "/desbloquear", "/escudo", "/sessoes", "/telegram",
+            "/analisar", "/integridade", "/diagnostico", "/auditoria", "/login", "/logout", "/novidades"]
 
 
 class Completar(Completer):
@@ -440,12 +469,17 @@ def _estado_rapido():
 
 
 def _barra(ag):
+    """Abaixo do campo, como no Claude Code: a régua de baixo e a linha do modo; à direita, ares ligados e o agente."""
+    glifos = [("⏸", "modo manual ligado", TELA.CINZA, "· ? para atalhos"), ("⏵⏵", "aceitar edições ligado", "#afafd7", "(shift+tab para alternar)"),
+              ("⏸", "modo plano ligado", "#5fafaf", "(shift+tab para alternar) · só leitura")]
+
     def f():
         _estado_rapido()
+        g, rot, cor, dica = glifos[ESTADO["modo"] % 3]
         lig = "?" if ESTADO["ligados"] is None else ESTADO["ligados"]
         agente = "agente on" if ESTADO["agente"] else "agente off"
-        return (f" {ag.modelo.split('/')[-1]} · ⏵⏵ {MODOS_PERMISSAO[ESTADO['modo']]} (shift+tab) · {lig} ar(es) ligado(s) · {agente}"
-                f" · ~{ESTADO['tokens'] // 1000}k tokens")
+        w = max(20, con.width)
+        return HTML(f'<style fg="{TELA.REGUA}">{"─" * w}</style>\n<style fg="{cor}">{g} {rot}</style> <style fg="{TELA.CINZA}">{dica} · {lig} ar(es) ligado(s) · {agente}</style>')
     return f
 
 
@@ -512,18 +546,60 @@ def _direto(cmd: str, arg: str) -> bool:
     return True
 
 
+def _dono() -> dict:
+    """O agente local usa a chave da NVIDIA do .env: conta como uso do dono (mesmos limites de 5 h e semana do painel)."""
+    if not DONO:
+        try:
+            DONO.update(_db().um("SELECT id::text AS id, nome, email, papel FROM usuarios WHERE papel = 'dono' ORDER BY criado_em LIMIT 1") or {})
+        except Exception:  # noqa: BLE001
+            pass
+    return DONO
+
+
+def _gastar(tokens: int, modelo: str):
+    try:
+        from app import ia_uso
+        if _dono():
+            ia_uso.registrar(_dono(), tokens, modelo, "terminal")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _checar_uso() -> bool:
+    try:
+        from app import ia_uso
+        if _dono():
+            ia_uso.checar(_dono())
+    except PermissionError as e:
+        con.print(Text(f"  {e} (/uso)", style=TELA.AMARELO))
+        return False
+    except Exception:  # noqa: BLE001
+        pass
+    return True
+
+
+def _catalogo() -> list[dict]:
+    try:
+        from app import ia
+        return [{"id": i, "nome": n, "empresa": e, "descricao": d, "ferramentas": f} for i, n, e, d, f, _r in ia.CATALOGO]
+    except Exception:  # noqa: BLE001
+        return [{"id": v, "nome": k, "descricao": ""} for k, v in MODELOS.items()]
+
+
 def _boas_vindas(modelo):
     _estado_rapido()
-    con.print(Panel.fit(
-        f"[magenta]✻[/magenta] Bem-vindo ao [bold]clima-ia[/bold], o agente do Clima Escritório!\n\n"
-        f"[dim]/ajuda para os comandos · /ares para ver os ares · Shift+Tab muda o modo de permissão[/dim]\n\n"
-        f"[dim]pasta: {RAIZ}\nmodelo: {modelo}[/dim]", border_style="magenta"))
-    con.print("\n[dim] Dicas para começar:[/dim]")
-    for d in ("pergunte \"quais ares estão ligados?\" ou \"por que o ar do diretor não obedece?\"",
-              "use @caminho para mostrar um arquivo (ex.: @backend/app/clima.py)",
-              "!git status roda no terminal; #lembrete guarda na memória"):
-        con.print(f"[dim]  · {d}[/dim]")
-    con.print()
+    u = _dono() or {}
+    TELA.EST.update(usuario={**u, "papel_rotulo": "Dono · agente local"}, modelo=modelo, modelos=_catalogo())
+    try:
+        nov = (json.loads((RAIZ / "backend" / "app" / "novidades.json").read_text())["versoes"][0].get("novo") or [])[:2]
+    except (OSError, ValueError, KeyError, IndexError):
+        nov = []
+    pasta = str(RAIZ).replace(str(Path.home()), "~")
+    TELA.cabecalho(nov, pasta=pasta, linha_conta="lê e edita o código · pede o seu sim")
+
+
+SEGURANCA_CMDS = {"/uso", "/seguranca", "/ataques", "/ips", "/ip", "/bloquear", "/desbloquear", "/escudo", "/sessoes", "/telegram",
+                  "/analisar", "/integridade", "/diagnostico", "/auditoria", "/login", "/logout", "/novidades"}
 
 
 def main():
@@ -548,14 +624,19 @@ def main():
         ev.app.invalidate()
 
     sessao = PromptSession(history=FileHistory(str(PASTA_USUARIO / "historico")), completer=Completar(), key_bindings=teclas,
-                           bottom_toolbar=_barra(ag), complete_while_typing=True)
+                           bottom_toolbar=_barra(ag), complete_while_typing=True, style=PTStyle.from_dict({"bottom-toolbar": "noreverse bg:default"}))
     while True:
         try:
-            p = sessao.prompt("> ").strip()
+            TELA.EST["modelo"] = ag.modelo
+            con.print()
+            con.print(TELA.chip(), justify="right")
+            con.rule(style=TELA.REGUA)
+            p = sessao.prompt(HTML(f'<style fg="{TELA.LAVANDA}">❯ </style>')).strip()
         except (EOFError, KeyboardInterrupt):
             con.print("até mais."); return 0
         if not p:
             continue
+        TELA.eco(p)
         if p.startswith("!"):   # terminal direto (você digitou: não pede confirmação)
             r = subprocess.run(p[1:], shell=True, cwd=RAIZ, capture_output=True, text=True, timeout=300)
             con.print(mascarar((r.stdout + r.stderr)[-8000:]) or f"(saída {r.returncode})")
@@ -571,6 +652,18 @@ def main():
                 return 0
             if _direto(cmd, arg):
                 continue
+            if cmd in SEGURANCA_CMDS:   # mesmos comandos do clima-ia da internet (usam a sua conta: clima-ia login)
+                if cmd not in ("/login", "/diagnostico", "/auditoria") and not TELA._ler_sessao():
+                    con.print(Text("  Este comando usa a sua conta do painel: rode /login uma vez.", style=TELA.AMARELO)); continue
+                try:
+                    if TELA._ler_sessao() and not TELA.EST.get("modelos_api"):
+                        TELA.EST["usuario"] = {**TELA.chamar("GET", "/api/sessao", timeout=30)}
+                        TELA.EST["modelos_api"] = True
+                except RuntimeError:
+                    pass
+                TELA.EST["modo"] = {0: 0, 1: 1, 2: 2}.get(ESTADO["modo"], 0)
+                TELA.comando_local(p)
+                continue
             if cmd == "/ajuda":
                 con.print(Markdown(AJUDA)); continue
             if cmd == "/limpar":
@@ -578,7 +671,12 @@ def main():
             if cmd == "/modelo":
                 if arg:
                     ag.modelo = MODELOS.get(arg, arg)
-                con.print(f"modelo: [cyan]{ag.modelo}[/cyan] (atalhos: {', '.join(MODELOS)})"); continue
+                else:
+                    itens = [(m["id"], m["nome"], f"{m.get('empresa', '')} · {m.get('descricao', '')}" + ("" if m.get("ferramentas", True) else " · só texto"))
+                             for m in _catalogo()]
+                    novo = TELA.escolher("Escolha o modelo de IA", itens, ag.modelo)
+                    ag.modelo = novo or ag.modelo
+                con.print(Text(f"  ⎿  Modelo: {ag.modelo}", style=TELA.OK)); continue
             if cmd == "/permissoes":
                 ESTADO["modo"] = (ESTADO["modo"] + 1) % len(MODOS_PERMISSAO)
                 con.print(f"modo de permissão: [cyan]{MODOS_PERMISSAO[ESTADO['modo']]}[/cyan]"); continue
@@ -605,6 +703,8 @@ def main():
                 con.print(f"salvo em {arq}"); continue
             else:
                 con.print("comando desconhecido; /ajuda"); continue
+        if not _checar_uso():
+            continue
         try:
             ag.turno(_anexar(p))
         except KeyboardInterrupt:

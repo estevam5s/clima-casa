@@ -420,18 +420,30 @@ def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False) -> dict
         try:
             r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, json=corpo, timeout=50)
             if r.status_code == 200:
-                return r.json()["choices"][0]["message"]
+                j = r.json()
+                msg = j["choices"][0]["message"]
+                uso = j.get("usage") or {}
+                # tokens desta chamada (para os limites de 5 h e semanal); sem "usage", estima por caracteres (~4 por token)
+                msg["_tokens"] = int(uso.get("total_tokens") or (len(json.dumps(msg_lista_txt(msgs))) + len(msg.get("content") or "")) // 4)
+                msg["_modelo"] = m
+                return msg
             ultimo = f"{r.status_code} {r.text[:160]}"
         except httpx.HTTPError as e:
             ultimo = str(e)[:160]
     raise RuntimeError(f"A IA da NVIDIA não respondeu agora ({ultimo}). Tente de novo.")
 
 
+def msg_lista_txt(msgs: list[dict]) -> list[str]:
+    return [str(m.get("content") or "") for m in msgs]
+
+
 def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None, leitura: bool = False) -> dict:
     """Uma rodada de conversa. `historico` = [{role: user|assistant, content}] (o último é a pergunta).
     Devolve {texto, acoes: [...feitas], confirmacoes: [{confirmacao, descricao}]}."""
     u = _u()
-    _limite(str(u.get("id") or "anon"))
+    from . import ia_uso
+    ia_uso.checar(u)                      # limites de sessão (5 h) e semanal, definidos pelo dono
+    _limite(str(u.get("id") or "anon"))   # e o freio de rajada (perguntas por hora)
     c = cfg()
     if c.get("ativo") is False:
         raise RuntimeError("O assistente de IA está desligado (IA → Configuração).")
@@ -451,14 +463,24 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", 
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
             msgs.append({"role": h["role"], "content": h["content"][:3000]})
     acoes, confirmacoes = [], []
+    gasto = {"tokens": 0}
+    try:
+        return _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto)
+    finally:
+        ia_uso.registrar(u, gasto["tokens"], modelo, canal)
+
+
+def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto) -> dict:
     for _ in range(RODADAS):
         m = _chamar_modelo(msgs, modelo, leitura)
+        gasto["tokens"] += int(m.pop("_tokens", 0) or 0)
+        m.pop("_modelo", None)
         chamadas = m.get("tool_calls") or []
         if not chamadas:
             texto = (m.get("content") or "").strip() or "Feito."
             pergunta = next((h["content"] for h in reversed(historico) if h.get("role") == "user"), "")
             db.registrar(origem, "Conversa com a IA", detalhe=f"{u.get('nome') or u.get('email') or '-'}: {pergunta[:120]}")
-            return {"texto": texto, "acoes": acoes, "confirmacoes": confirmacoes, "modelo": modelo}
+            return {"texto": texto, "acoes": acoes, "confirmacoes": confirmacoes, "modelo": modelo, "tokens": gasto["tokens"]}
         msgs.append({"role": "assistant", "content": m.get("content") or "", "tool_calls": chamadas})
         for ch in chamadas:
             nome = ch["function"]["name"]

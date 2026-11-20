@@ -2,6 +2,36 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.31.0",
+      "data": "2026-11-20",
+      "titulo": "clima-ia com o logo do sistema, limites de uso da IA e Bugs mais completo",
+      "resumo": "O terminal ganhou a cara do sistema e ferramentas de segurança, a IA passa a ter limite de sessão (5 horas) e semanal definidos pelo dono, a área de Bugs encontra problemas de cadastro e o editor SQL ganhou cores e sugestões.",
+      "novo": [
+        "clima-ia com o logo do sistema e a interface verde, no mesmo formato do Claude Code (boas-vindas, dicas, novidades, modos e régua do campo)",
+        "Escolha do modelo de IA com as setas (/modelo), lembrada para a próxima vez",
+        "Limites de uso do Assistente: sessão de 5 horas e semana de 7 dias, em tokens, definidos pelo dono para todos e por pessoa; barras de uso em IA → Configuração e /uso no terminal",
+        "Segurança no terminal: /seguranca, /ataques, /ips, /ip, /bloquear, /desbloquear, /escudo, /sessoes, /telegram, /integridade, /analisar (a IA analisa os ataques) e /diagnostico",
+        "Bugs: autoteste dos cadastros (sala, transmissor, ar e botão numa transação desfeita), procura com radar animado, filtro por categoria e gráfico dos últimos 14 dias",
+        "Editor SQL com cores, sugestões das tabelas e colunas reais e trechos prontos (sel, join, grp, cte, dia, busca, jan, json, exp)"
+      ],
+      "melhorias": [
+        "A procura de bugs passou a conferir cadastros: ar sem sala ou com transmissor apagado, transmissor sem chave, nomes repetidos na Alexa, zonas com ar apagado",
+        "Formulário recusado pelo servidor vira bug sozinho, com a tela e os campos",
+        "Erros de cadastro agora dizem o que corrigir (IP inválido, protocolo, nome repetido)"
+      ],
+      "seguranca": [
+        "O terminal oculta chaves, tokens e senhas colados na pergunta antes de enviar à IA",
+        "O terminal confere o certificado do site (avisa se a rede estiver interceptando o HTTPS), corrige permissões da pasta da sessão e encerra o uso se a sessão foi revogada no painel",
+        "Ações de segurança pelo terminal sempre pedem o seu sim e ficam num registro local"
+      ],
+      "correcoes": [
+        "Cadastrar transmissor com espaço no ID dava erro interno",
+        "Ar com nome só de espaços era salvo sem nome",
+        "Editar um ar sem escolher a sala tirava o ar da sala dele",
+        "Bloqueio de IP pelo firewall aparecia como bug (agora fica só em Segurança)"
+      ]
+    },
+    {
       "versao": "1.30.0",
       "data": "2026-11-20",
       "titulo": "App de iPhone, Assistente no terminal e Supabase completo",

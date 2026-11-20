@@ -123,6 +123,19 @@ def registrar_excecao(rota: str, metodo: str, exc: BaseException):
         pass
 
 
+def registrar_formulario(rota: str, metodo: str, campos: list, u: dict):
+    """422 de quem está logado: a tela mandou o formulário no formato errado (campo faltando, tipo trocado)."""
+    try:
+        rota_norm = re.sub(r"/[0-9a-z]{16,}(?=/|$)|/\d+(?=/|$)", "/{id}", rota)
+        cat = "cadastro" if re.search(r"/(hubs|aparelhos|projetos|cenas|automacoes|agendamentos|dispositivos)", rota_norm) else "tela"
+        registrar_auto(_chave("422", metodo, rota_norm, ",".join(campos)), f"Formulário recusado: {metodo} {rota_norm}",
+                       f"A tela enviou dados que o servidor não aceitou nos campos: {', '.join(campos)}. Quem usa não consegue salvar.",
+                       pagina=rota_norm, gravidade="alta" if cat == "cadastro" else "media", categoria=cat,
+                       contexto={"erros": [f"{time.strftime('%d/%m %H:%M')} {u.get('email', '')}: {', '.join(campos)}"]})
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def varrer() -> dict:
     """Procura problemas no próprio sistema e transforma em bugs (sem duplicar)."""
     achados = 0
@@ -130,6 +143,7 @@ def varrer() -> dict:
     # falha porque nenhum agente estava no escritório já vira o bug "agente parado" (abaixo): não repete por ação
     for r in db.consultar("SELECT acao, count(*) n, max(detalhe) detalhe, max(quando) ultimo FROM atividade WHERE ok = 0 AND quando > ? "
                           "AND coalesce(detalhe, '') NOT SIMILAR TO '%(não respondeu a tempo|agente do Mac offline|Nenhum computador do escritório|não enxerga os transmissores)%' "
+                          "AND acao NOT LIKE 'IP bloqueado%' AND acao NOT LIKE 'Pedido recusado pelo Assistente%' "
                           "GROUP BY acao HAVING count(*) >= 3 ORDER BY count(*) DESC LIMIT 15", (desde,)):
         acao = re.sub(r"\d+°", "N°", r["acao"])[:120]
         registrar_auto(_chave("atividade", acao), f"Falha repetida: {acao}", f"{r['n']} falhas nas últimas 24 h. Último motivo: {r['detalhe'] or '-'}",
@@ -180,5 +194,133 @@ def varrer() -> dict:
         for h in db.consultar("SELECT id, nome, problema, visto_em FROM hubs WHERE problema IS NOT NULL AND (visto_em IS NULL OR visto_em < ?)", (db.agora() - 6 * 3600,)):
             notificacoes.notificar(f"hub:{h['id']}:parado", "transmissor", "media", f"Transmissor {h['nome']} sem responder há horas",
                                    f"{h['problema']} Confira se ele está ligado e se o computador do agente está no Wi-Fi do escritório.", "/transmissores")
+    for c in checar_cadastros():
+        registrar_auto(_chave("cadastro", c["codigo"], c.get("alvo", "")), c["titulo"], c["descricao"], pagina=c.get("pagina", ""),
+                       gravidade=c["gravidade"], categoria="cadastro", contexto={"erros": [c["descricao"][:200]]})
+        achados += 1
     db.set_cfg("bugs_ultima_varredura", db.agora())
     return {"achados": achados, "em": db.agora()}
+
+
+# ---------------- cadastros inconsistentes (ares, transmissores, botões, zonas) ----------------
+def checar_cadastros() -> list[dict]:
+    """Dados que quebram o uso: o que um formulário antigo, uma remoção pela metade ou uma importação deixou para trás.
+    Só inconsistência de verdade (ar sem transmissor de propósito, como o da Reunião, não entra)."""
+    achados = []
+
+    def add(codigo, titulo, descricao, gravidade="media", pagina="/aparelhos", alvo=""):
+        achados.append({"codigo": codigo, "titulo": titulo, "descricao": descricao, "gravidade": gravidade, "pagina": pagina, "alvo": str(alvo)})
+
+    for a in db.consultar("SELECT a.id, a.nome, a.hub_id FROM aparelhos a WHERE a.hub_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM hubs h WHERE h.id = a.hub_id)"):
+        add("hub_orfao", f"Ar {a['nome']} aponta para um transmissor que não existe", "Os comandos desse ar falham. Escolha o transmissor de novo em Aparelho → Ajustes.", "alta", f"/aparelhos/{a['id']}", a["id"])
+    for a in db.consultar("SELECT a.id, a.nome FROM aparelhos a WHERE a.projeto_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM projetos p WHERE p.id = a.projeto_id)"):
+        add("projeto_orfao", f"Ar {a['nome']} está numa sala que não existe", "Ele some do painel das salas e do mapa. Escolha a sala em Aparelho → Ajustes.", "alta", f"/aparelhos/{a['id']}", a["id"])
+    for a in db.consultar("SELECT id, nome FROM aparelhos WHERE projeto_id IS NULL"):
+        add("sem_projeto", f"Ar {a['nome']} sem sala", "Quem tem acesso só a algumas salas não vê este ar. Escolha a sala em Aparelho → Ajustes.", "media", f"/aparelhos/{a['id']}", a["id"])
+    n = db.um("SELECT count(*) n FROM codigos c WHERE NOT EXISTS (SELECT 1 FROM aparelhos a WHERE a.id = c.aparelho_id)")["n"]
+    if n:
+        add("codigos_orfaos", f"{n} botões gravados de ares que não existem mais", "Sobra de ar apagado pela metade: ocupam espaço e entram nos backups.", "baixa", "/aparelhos")
+    for a in db.consultar("SELECT a.id, a.nome FROM aparelhos a WHERE a.alexa = 1 AND a.hub_id IS NOT NULL AND NOT EXISTS "
+                          "(SELECT 1 FROM codigos c WHERE c.aparelho_id = a.id AND c.chave = 'desligar')"):
+        add("alexa_sem_desligar", f"Ar {a['nome']} está na Alexa sem o botão Desligar", "Pedir \"desligar\" na Alexa vai falhar. Grave o Desligar (ou copie de um ar igual).", "media", f"/aparelhos/{a['id']}", a["id"])
+    for a in db.consultar("SELECT id, nome, temperatura, temp_min, temp_max FROM aparelhos WHERE temp_min >= temp_max OR temperatura < temp_min OR temperatura > temp_max"):
+        add("faixa", f"Ar {a['nome']} com temperatura fora da faixa", f"Está em {a['temperatura']}° com faixa {a['temp_min']}°–{a['temp_max']}°. Ajuste a faixa em Aparelho → Ajustes.", "baixa", f"/aparelhos/{a['id']}", a["id"])
+    for r in db.consultar("SELECT lower(trim(nome)) nome, count(*) n FROM aparelhos GROUP BY 1 HAVING count(*) > 1"):
+        add("nome_repetido", f"{r['n']} ares com o nome \"{r['nome']}\"", "A Alexa e o Telegram acham o ar pelo nome: com nomes iguais, o comando pode ir para o ar errado.", "alta", "/aparelhos", r["nome"])
+    for r in db.consultar("SELECT sinric_device_id d, count(*) n FROM aparelhos WHERE coalesce(sinric_device_id, '') <> '' GROUP BY 1 HAVING count(*) > 1"):
+        add("sinric_repetido", "Dois ares ligados ao mesmo aparelho da Alexa", "Um comando de voz muda os dois no sistema. Refaça o vínculo em Integrações.", "alta", "/integracoes", r["d"])
+    for h in db.consultar("SELECT id, nome, local_key, versao FROM hubs"):
+        if not h["local_key"]:
+            add("hub_sem_chave", f"Transmissor {h['nome']} sem Local Key", "Sem a chave o agente não fala com ele. Conecte a conta Smart Life e use Importar.", "alta", "/transmissores", h["id"])
+        if h["versao"] not in ("3.1", "3.2", "3.3", "3.4", "3.5"):
+            add("hub_versao", f"Transmissor {h['nome']} com protocolo inválido ({h['versao']})", "Edite o transmissor e escolha 3.3, 3.4 ou 3.5.", "alta", "/transmissores", h["id"])
+    ids = {r["id"] for r in db.consultar("SELECT id FROM aparelhos")}
+    for z in (db.cfg("zonas") or []):
+        fora = [i for i in (z.get("aparelhos") or []) if i not in ids]
+        if fora:
+            add("zona_orfa", f"Zona {z.get('nome') or z.get('id')} com ar que não existe mais", "A zona manda o sinal para um ar apagado. Refaça o teste de interferência no transmissor.", "media", "/transmissores", z.get("id"))
+    return achados
+
+
+# ---------------- autoteste: os cadastros funcionam? (tudo numa transação desfeita no fim) ----------------
+def autoteste() -> list[dict]:
+    """Cadastra uma sala, um transmissor, um ar e um botão de mentira, lê como as telas leem, e DESFAZ tudo (rollback).
+    Pega o tipo de erro que só aparece na hora de cadastrar: coluna obrigatória nova, restrição, tipo trocado."""
+    from .rotas.api import HubIn, AparelhoIn, VERSOES_TUYA   # mesmos modelos dos formulários
+    passos = []
+
+    def passo(nome, fn):
+        t0 = time.time()
+        try:
+            det = fn() or "ok"
+            passos.append({"nome": nome, "ok": True, "detalhe": str(det)[:200], "ms": int((time.time() - t0) * 1000)})
+        except Exception as e:  # noqa: BLE001
+            passos.append({"nome": nome, "ok": False, "detalhe": f"{type(e).__name__}: {str(e)[:300]}", "ms": int((time.time() - t0) * 1000)})
+
+    passo("Formulário de transmissor aceita um cadastro válido", lambda: HubIn(id="autoteste0000000000x", nome="Autoteste", ip="192.168.0.50", versao="3.3").id)
+
+    def recusa():
+        ruins = [dict(id="autoteste0000000000x", nome="x", ip="abc"), dict(id="autoteste0000000000x", nome="x", versao="9"), dict(id="curto", nome="x")]
+        for d in ruins:
+            try:
+                HubIn(**d)
+            except Exception:  # noqa: BLE001
+                continue
+            raise AssertionError(f"aceitou dado inválido: {d}")
+        return f"{len(ruins)} cadastros inválidos recusados"
+    passo("Formulário de transmissor recusa IP, protocolo e ID inválidos", recusa)
+    passo("Formulário de ar aceita os valores padrão", lambda: AparelhoIn(nome="Ar autoteste").modos)
+    passo("Fila aceita todos os tipos de pedido do agente", lambda: _tipos_fila())
+
+    def transacao():
+        with db.conexao() as con:
+            cur = con.execute("INSERT INTO projetos (nome, descricao, endereco, cor, criado_em, tipo, responsavel, meta_custo_mes) "
+                              "VALUES ('[autoteste]', '', '', '#0f766a', %s, 'sala', '', 0) RETURNING id", (db.agora(),))
+            pid = _v(cur.fetchone())
+            con.execute("INSERT INTO hubs (id, nome, ip, local_key, versao, projeto_id, criado_em) VALUES ('autoteste0000000000x', '[autoteste]', '', '', %s, %s, %s)",
+                        (VERSOES_TUYA[2], pid, db.agora()))
+            cur = con.execute("INSERT INTO aparelhos (nome, comodo, marca, hub_id, temp_min, temp_max, modos, alexa, temperatura, modo, projeto_id, criado_em, potencia_w) "
+                              "VALUES ('[autoteste]', '', '', 'autoteste0000000000x', 16, 30, 'frio', 0, 23, 'frio', %s, %s, 1000) RETURNING id", (pid, db.agora()))
+            aid = _v(cur.fetchone())
+            con.execute("INSERT INTO codigos (aparelho_id, chave, rotulo, codigo, criado_em) VALUES (%s, 'desligar', 'Desligar', 'AAAA', %s)", (aid, db.agora()))
+            n = _v(con.execute("SELECT count(*) FROM aparelhos a JOIN hubs h ON h.id = a.hub_id JOIN codigos c ON c.aparelho_id = a.id WHERE a.id = %s", (aid,)).fetchone())
+            if n != 1:
+                raise AssertionError("o ar cadastrado não aparece junto do transmissor e do botão")
+            raise _Desfazer()   # só chega aqui se tudo deu certo: desfaz a transação inteira
+
+    def rodar_transacao():
+        try:
+            transacao()
+        except _Desfazer:
+            pass
+        sobrou = db.um("SELECT count(*) n FROM hubs WHERE id = 'autoteste0000000000x'")["n"]
+        if sobrou:
+            raise AssertionError("o autoteste deixou dados para trás")
+        return "sala, transmissor, ar e botão gravados, lidos e desfeitos"
+    passo("Cadastro de sala → transmissor → ar → botão no banco (desfeito no fim)", rodar_transacao)
+    passo("Cadastros sem inconsistência (ares, transmissores, zonas)", lambda: _sem_achados())
+    db.set_cfg("bugs_autoteste", {"em": db.agora(), "passos": passos})
+    return passos
+
+
+class _Desfazer(Exception):
+    pass
+
+
+def _v(linha):
+    return next(iter(linha.values())) if isinstance(linha, dict) else linha[0]
+
+
+def _tipos_fila():
+    d = db.um("SELECT pg_get_constraintdef(oid) d FROM pg_constraint WHERE conname = 'fila_comandos_tipo_check'")["d"]
+    faltam = [t for t in ("enviar", "aprender", "descobrir", "evento", "reparar", "infra") if f"'{t}'" not in d]
+    if faltam:
+        raise AssertionError(f"a restrição da fila não aceita: {', '.join(faltam)}")
+    return "6 tipos aceitos"
+
+
+def _sem_achados():
+    a = checar_cadastros()
+    if a:
+        raise AssertionError(f"{len(a)} problema(s): " + "; ".join(x["titulo"] for x in a[:4]))
+    return "nenhum problema"

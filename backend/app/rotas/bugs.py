@@ -34,6 +34,7 @@ def listar():
     w, p = ("", ()) if _gestor() else (" WHERE autor_id = ?", (_u().get("id"),))
     itens = [_linha(b) for b in db.consultar(f"SELECT * FROM bugs{w} ORDER BY (estado IN ('aberto','analisando')) DESC, atualizado_em DESC LIMIT 400", p)]
     return {"itens": itens, "gestor": _gestor(), "ultima_varredura": db.cfg("bugs_ultima_varredura"),
+            "autoteste": db.cfg("bugs_autoteste") if _gestor() else None,
             "abertos": sum(1 for b in itens if b["estado"] in ("aberto", "analisando"))}
 
 
@@ -117,3 +118,17 @@ def varrer():
     if not _gestor():
         raise HTTPException(403, "Só quem gerencia o sistema manda procurar bugs.")
     return bugs.varrer()
+
+
+@rotas_bugs.post("/bugs/autoteste")
+def autoteste():
+    """Testa os cadastros de verdade numa transação desfeita (nada fica gravado)."""
+    if not _gestor():
+        raise HTTPException(403, "Só quem gerencia o sistema roda o autoteste.")
+    passos = bugs.autoteste()
+    for p in passos:
+        if not p["ok"]:
+            bugs.registrar_auto(bugs._chave("autoteste", p["nome"]), f"Autoteste falhou: {p['nome']}", p["detalhe"], gravidade="alta",
+                                categoria="cadastro", contexto={"erros": [p["detalhe"][:200]]})
+    db.registrar("painel", "Autoteste dos cadastros", ok=all(p["ok"] for p in passos), detalhe=f"{sum(p['ok'] for p in passos)}/{len(passos)} ok")
+    return {"em": db.agora(), "passos": passos}

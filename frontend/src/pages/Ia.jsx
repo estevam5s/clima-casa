@@ -138,13 +138,13 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
   )
 }
 
-// Prévia de como o clima-ia aparece no terminal (mesmas cores do cliente: laranja do cabeçalho, lavanda do texto)
+// Prévia de como o clima-ia aparece no terminal (mesmas cores do cliente: verde da marca no cabeçalho, lavanda do texto)
 function PreviaTerminal() {
-  const L = '#d77757', T = '#c0caf5', C = '#949494'
+  const L = '#2fbf9b', T = '#c0caf5', C = '#949494'
   return (
     <div className="mt-3 overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#0d0d0d] p-3 font-mono text-[11px] leading-relaxed" aria-label="Prévia do clima-ia no terminal">
       <div className="rounded-md border p-2" style={{ borderColor: L }}>
-        <span style={{ color: L }}>clima-ia</span> <span style={{ color: C }}>v1.5.0</span>
+        <span style={{ color: L }}>clima-ia</span> <span style={{ color: C }}>v1.6.0</span>
         <p className="mt-1" style={{ color: T }}>Conta do painel · modelo padrão</p>
         <p style={{ color: C }}>Digite / para ver os comandos · Shift+Tab muda o modo</p>
       </div>
@@ -155,6 +155,86 @@ function PreviaTerminal() {
       <div className="mt-2 border-y border-[#808080] py-0.5" style={{ color: T }}>❯</div>
       <p className="mt-1"><span className="text-[#5fafaf]">⏸ modo plano</span> <span style={{ color: C }}>(shift+tab para alternar) · só leitura</span></p>
     </div>
+  )
+}
+
+
+// Uso do Assistente no método do Claude: sessão de 5 horas (começa na primeira pergunta) e semana (7 dias). Barra por
+// janela; o dono define os limites para todos e por pessoa.
+const fmtTk = (n) => (n == null ? '—' : n >= 1e6 ? `${(n / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi` : n >= 1e3 ? `${Math.round(n / 1e3)} mil` : String(n))
+const quandoLibera = (ep) => {
+  if (!ep) return 'começa na próxima pergunta'
+  const d = new Date(ep * 1000), hoje = new Date()
+  const h = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return d.toDateString() === hoje.toDateString() ? `reinicia às ${h}` : `reinicia em ${d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })} às ${h}`
+}
+
+function BarraUso({ rotulo, j }) {
+  const cor = j.pct >= 90 ? 'bg-red-500' : j.pct >= 70 ? 'bg-amber-500' : 'bg-primary'
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2 text-xs"><span className="font-medium">{rotulo}</span>
+        <span className="text-muted-foreground">{j.limite ? `${j.pct}% usado · ${quandoLibera(j.reinicia_em)}` : 'sem limite'}</span></div>
+      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={j.pct} aria-valuemin={0} aria-valuemax={100} aria-label={rotulo}>
+        <div className={`h-full rounded-full ${cor} transition-[width] duration-700`} style={{ width: `${j.limite ? j.pct : 0}%` }} />
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">{fmtTk(j.usado)} de {j.limite ? fmtTk(j.limite) : '∞'} tokens</p>
+    </div>
+  )
+}
+
+function UsoIA({ dono }) {
+  const toast = useToast()
+  const { dados, recarregar } = useDados(() => api.get('/api/ia/uso'))
+  const [form, setForm] = useState(null)
+  const [salvando, setSalvando] = useState(false)
+  useEffect(() => { if (dados?.config && !form) setForm({ sessao: dados.config.sessao, semana: dados.config.semana, dono_ilimitado: dados.config.dono_ilimitado, usuarios: dados.config.usuarios || {} }) }, [dados]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!dados) return <Carregando />
+  const m = dados.meu
+  const salvar = async () => {
+    setSalvando(true)
+    try { await api.put('/api/ia/limites', form); toast('Limites salvos.'); recarregar() } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
+  }
+  const pessoa = (id, campo, v) => setForm((f) => ({ ...f, usuarios: { ...f.usuarios, [id]: { ...(f.usuarios[id] || {}), [campo]: v } } }))
+  return (
+    <section className="space-y-3">
+      <h3 className="font-medium">Seu uso</h3>
+      {m.ilimitado ? <p className="text-xs text-muted-foreground">Sua conta não tem limite.</p> : null}
+      <BarraUso rotulo="Sessão atual (5 horas)" j={m.sessao} />
+      <BarraUso rotulo="Semana atual (7 dias)" j={m.semana} />
+      <p className="text-xs text-muted-foreground">A sessão começa na sua primeira pergunta e dura 5 horas; a semana, 7 dias. Vale para o painel, o terminal (clima-ia) e o Telegram.</p>
+      {dono && form && (
+        <div className="space-y-3 border-t border-border pt-3">
+          <h3 className="font-medium">Limites de uso (dono)</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <label><span className="rotulo">Sessão de 5 h (tokens)</span><input type="number" min={1000} step={10000} className="campo mt-1 h-9" value={form.sessao} onChange={(e) => setForm({ ...form, sessao: +e.target.value })} /></label>
+            <label><span className="rotulo">Semana (tokens)</span><input type="number" min={1000} step={100000} className="campo mt-1 h-9" value={form.semana} onChange={(e) => setForm({ ...form, semana: +e.target.value })} /></label>
+          </div>
+          <p className="text-xs text-muted-foreground">Uma pergunta comum gasta de 5 a 25 mil tokens (a IA consulta o sistema antes de responder).</p>
+          <div className="flex items-center justify-between"><span>O dono não tem limite</span><Interruptor ligado={form.dono_ilimitado} onChange={(v) => setForm({ ...form, dono_ilimitado: v })} rotulo="O dono não tem limite" /></div>
+          {(dados.pessoas || []).length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-xs">
+                <thead><tr className="text-left text-muted-foreground"><th className="py-1">Pessoa</th><th>Sessão</th><th>Semana</th><th>Limite próprio (sessão / semana)</th><th>Sem limite</th></tr></thead>
+                <tbody>{dados.pessoas.map((p) => {
+                  const f = form.usuarios[p.id] || {}
+                  return (
+                    <tr key={p.id} className="border-t border-border">
+                      <td className="py-1.5">{p.nome}</td>
+                      <td>{p.sessao.limite ? `${p.sessao.pct}%` : '∞'}</td><td>{p.semana.limite ? `${p.semana.pct}%` : '∞'}</td>
+                      <td className="flex gap-1 py-1"><input type="number" placeholder="padrão" aria-label={`Sessão de ${p.nome}`} className="campo h-7 w-24" value={f.sessao || ''} onChange={(e) => pessoa(p.id, 'sessao', e.target.value ? +e.target.value : undefined)} />
+                        <input type="number" placeholder="padrão" aria-label={`Semana de ${p.nome}`} className="campo h-7 w-24" value={f.semana || ''} onChange={(e) => pessoa(p.id, 'semana', e.target.value ? +e.target.value : undefined)} /></td>
+                      <td><Interruptor ligado={!!f.ilimitado} onChange={(v) => pessoa(p.id, 'ilimitado', v)} rotulo={`${p.nome} sem limite`} /></td>
+                    </tr>
+                  )
+                })}</tbody>
+              </table>
+            </div>
+          )}
+          <Botao tamanho="sm" carregando={salvando} onClick={salvar}>Salvar limites</Botao>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -184,6 +264,7 @@ function Configuracao({ dados, dono, recarregar, fechar }) {
           <h3 className="font-medium">Ferramentas que ele usa</h3>
           <p className="mt-1 text-muted-foreground">Estado geral, ares, salas, zonas, transmissores, agentes, atividade, cenas, relatório, tempo lá fora, luzes e aparelhos, notificações, comandar um ar, timer, desligar todos e cenas (os dois últimos com Confirmar). No modo plano só as consultas. Dentro da pasta do projeto (com o agente instalado) ele também lê e edita o código. Também no Telegram: mande qualquer texto ao bot.</p>
         </section>
+        <UsoIA dono={dono} />
         {dono && (
           <section className="space-y-3">
             <h3 className="flex items-center gap-2 font-medium"><KeyRound className="h-4 w-4" />Configuração (dono)</h3>

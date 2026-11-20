@@ -154,7 +154,16 @@ async def erro_interno(request: Request, exc: Exception):
 @app.exception_handler(RequestValidationError)
 async def validacao(request: Request, exc: RequestValidationError):
     campos = sorted({NOMES_CAMPOS.get(str(e["loc"][-1]), str(e["loc"][-1])) for e in exc.errors()})
-    return JSONResponse({"detail": f"Confira o(s) campo(s): {', '.join(campos)}."}, status_code=422)
+    # mensagem escrita por nós (validador "Value error, ...") vai inteira para a tela: diz o que fazer
+    proprias = [str(e.get("msg", ""))[len("Value error, "):] for e in exc.errors() if str(e.get("msg", "")).startswith("Value error, ")]
+    detalhe = " ".join(dict.fromkeys(proprias)) if proprias else f"Confira o(s) campo(s): {', '.join(campos)}."
+    # formulário do próprio sistema mandando dado no formato errado = bug da tela (cadastro de ar, transmissor…).
+    # Só com login (robô sem sessão não enche a área de bugs) e só quando não é erro de digitação explicado acima.
+    u = getattr(request.state, "u", None)
+    if u and not proprias and request.method in ("POST", "PUT", "PATCH"):
+        from . import bugs
+        await asyncio.to_thread(bugs.registrar_formulario, request.url.path, request.method, campos, u)
+    return JSONResponse({"detail": detalhe}, status_code=422)
 
 
 app.include_router(rotas_api.publico)

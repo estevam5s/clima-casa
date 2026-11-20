@@ -613,3 +613,15 @@ create table if not exists public.telegram_eventos (
 create index if not exists ix_telegram_eventos_quando on public.telegram_eventos (quando desc);
 create index if not exists ix_telegram_eventos_chat on public.telegram_eventos (chat, quando desc);
 alter table public.telegram_eventos enable row level security;
+
+-- 20/11 (1.31.0): uso do Assistente de IA por pessoa, para os limites de sessão (5 h) e semanal (método do Claude)
+create table if not exists public.ia_uso (
+  id bigint generated always as identity primary key,
+  usuario_id text not null,
+  quando bigint not null,
+  tokens integer not null default 0,
+  modelo text not null default '',
+  canal text not null default 'painel'
+);
+create index if not exists ix_ia_uso_usuario_quando on public.ia_uso (usuario_id, quando);
+alter table public.ia_uso enable row level security;

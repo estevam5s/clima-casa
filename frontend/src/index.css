@@ -11,6 +11,7 @@
     --muted-foreground: 240 4% 44%;
     --border: 240 6% 89%;
     --primary: 174 77% 26%;
+    --sql-chave: 262 60% 52%; --sql-texto: 142 55% 32%; --sql-numero: 24 85% 45%; --sql-funcao: 205 75% 42%; --sql-tipo: 330 55% 48%;
     --primary-foreground: 0 0% 100%;
     --accent: 240 5% 93%;
     --sidebar: 0 0% 100%;
@@ -23,6 +24,7 @@
       --muted-foreground: 240 5% 62%;
       --border: 240 4% 17%;
       --primary: 172 62% 40%;
+      --sql-chave: 262 80% 76%; --sql-texto: 142 50% 62%; --sql-numero: 28 90% 66%; --sql-funcao: 200 85% 68%; --sql-tipo: 330 70% 72%;
       --primary-foreground: 0 0% 100%;
       --accent: 240 4% 15%;
       --sidebar: 240 6% 8%;

@@ -396,6 +396,8 @@ CATALOGO = {
         FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
         JOIN pg_attribute af ON af.attrelid = c.confrelid AND af.attnum = c.confkey[1]
         WHERE c.contype = 'f' AND c.connamespace = 'public'::regnamespace ORDER BY 2""",
+    "colunas": """SELECT table_name AS tabela, column_name AS coluna, data_type AS tipo FROM information_schema.columns
+        WHERE table_schema = 'public' ORDER BY table_name, ordinal_position""",
     "tipos": """SELECT t.typname AS tipo, string_agg(e.enumlabel, ', ' ORDER BY e.enumsortorder) AS valores
         FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid JOIN pg_namespace n ON n.oid = t.typnamespace AND n.nspname = 'public'
         GROUP BY t.typname ORDER BY 1""",

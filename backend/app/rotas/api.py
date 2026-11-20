@@ -8,7 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .. import clima, cripto, db, supabase_painel, transmissor, tuya_nuvem
 from ..seguranca import exigir_login
@@ -297,7 +297,12 @@ class AparelhoIn(BaseModel):
     potencia_w: int = Field(1000, ge=100, le=10000)
 
 
-def _validar_aparelho(d: AparelhoIn):
+def _validar_aparelho(d: AparelhoIn, aid: int | None = None):
+    if not d.nome.strip():
+        raise HTTPException(400, "Dê um nome ao ar (é o nome falado na Alexa).")
+    # a Alexa e o Telegram acham o ar pelo nome: dois com o mesmo nome confundem os comandos de voz
+    if db.um("SELECT 1 FROM aparelhos WHERE lower(trim(nome)) = lower(?) AND id <> ?", (d.nome.strip(), aid or 0)):
+        raise HTTPException(409, f"Já existe um ar chamado \"{d.nome.strip()}\". Use outro nome (a Alexa confundiria os dois).")
     if d.temp_min >= d.temp_max:
         raise HTTPException(400, "A temperatura mínima precisa ser menor que a máxima.")
     if not d.modos or any(m not in clima.MODOS for m in d.modos):
@@ -414,12 +419,14 @@ def ver_aparelho(aid: int):
 
 @api.put("/aparelhos/{aid}")
 def editar_aparelho(aid: int, d: AparelhoIn):
-    _validar_aparelho(d)
-    _exigir_projeto(d.projeto_id)
+    _validar_aparelho(d, aid)
     try:
         a = clima.aparelho(aid)
     except KeyError as e:
         _erro(e)
+    if d.projeto_id is None:   # formulário sem sala não tira o ar da sala dele (antes ficava sem projeto e sumia das salas)
+        d.projeto_id = a.get("projeto_id")
+    _exigir_projeto(d.projeto_id)
     if d.hub_id != a["hub_id"]:
         _exigir_hub_usavel(d.hub_id)
     temp = max(d.temp_min, min(d.temp_max, a["temperatura"]))
@@ -864,21 +871,76 @@ def catalogo():
 
 
 # ---------------- transmissores ----------------
+VERSOES_TUYA = ("3.1", "3.2", "3.3", "3.4", "3.5")
+
+
+def _ip_ok(v: str) -> str:
+    """IP do transmissor: vazio (descobre sozinho) ou IPv4 válido. Antes aceitava qualquer texto e o envio quebrava depois."""
+    v = (v or "").strip()
+    if v:
+        import ipaddress
+        try:
+            if ipaddress.ip_address(v).version != 4:
+                raise ValueError
+        except ValueError:
+            raise ValueError("IP inválido: use o formato 192.168.0.10 (ou deixe vazio para descobrir sozinho).") from None
+    return v
+
+
 class HubIn(BaseModel):
-    id: str = Field(min_length=10, max_length=40)
+    id: str = Field(min_length=10, max_length=40, pattern=r"^\s*[A-Za-z0-9]+\s*$")
     nome: str = Field(min_length=1, max_length=60)
     ip: str = ""
-    local_key: str = ""
+    local_key: str = Field("", max_length=64)
     versao: str = "3.5"
     projeto_id: int | None = None
+
+    @field_validator("id", "nome")
+    @classmethod
+    def _limpar(cls, v):   # o duplicado era conferido sem strip e gravado com strip: um espaço virava erro 500
+        v = v.strip()
+        if not v:
+            raise ValueError("Não pode ficar vazio.")
+        return v
+
+    @field_validator("ip")
+    @classmethod
+    def _ip(cls, v):
+        return _ip_ok(v)
+
+    @field_validator("versao")
+    @classmethod
+    def _versao(cls, v):
+        if v not in VERSOES_TUYA:
+            raise ValueError("Protocolo deve ser 3.1, 3.2, 3.3, 3.4 ou 3.5.")
+        return v
 
 
 class HubEdit(BaseModel):
     nome: str = Field(min_length=1, max_length=60)
     ip: str = ""
     versao: str = "3.5"
-    local_key: str | None = None
+    local_key: str | None = Field(None, max_length=64)
     projeto_id: int | None = None
+
+    @field_validator("nome")
+    @classmethod
+    def _nome(cls, v):
+        if not v.strip():
+            raise ValueError("Não pode ficar vazio.")
+        return v.strip()
+
+    @field_validator("ip")
+    @classmethod
+    def _ip(cls, v):
+        return _ip_ok(v)
+
+    @field_validator("versao")
+    @classmethod
+    def _versao(cls, v):
+        if v not in VERSOES_TUYA:
+            raise ValueError("Protocolo deve ser 3.1, 3.2, 3.3, 3.4 ou 3.5.")
+        return v
 
 
 LIMITE_ARES_POR_TRANSMISSOR = 6   # recomendado: um SRW-004 no teto de um salão aberto alcança bem até ~6 ares à vista
@@ -969,7 +1031,7 @@ def criar_hub(d: HubIn):
     if db.um("SELECT 1 FROM hubs WHERE id = ?", (d.id,)):
         raise HTTPException(409, "Esse transmissor já está cadastrado.")
     db.executar("INSERT INTO hubs (id, nome, ip, local_key, versao, projeto_id, criado_em) VALUES (?,?,?,?,?,?,?)",
-                (d.id.strip(), d.nome.strip(), d.ip.strip(), cripto.cifrar(d.local_key.strip(), "hub:local_key"), d.versao,
+                (d.id, d.nome, d.ip, cripto.cifrar(d.local_key.strip(), "hub:local_key"), d.versao,
                  d.projeto_id or (db.um("SELECT min(id) AS id FROM projetos") or {}).get("id"), db.agora()))
     volta = _restaurar_removido(d.id.strip())
     if volta:

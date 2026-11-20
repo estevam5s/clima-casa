@@ -130,3 +130,41 @@ def config(d: ConfigIn, request: Request):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return ia.estado_publico()
+
+
+# ---------------- limites de uso (sessão de 5 h e semana, como no Claude) ----------------
+class LimitePessoaIn(BaseModel):
+    sessao: int | None = Field(None, ge=1000, le=100_000_000)
+    semana: int | None = Field(None, ge=1000, le=1_000_000_000)
+    ilimitado: bool = False
+
+
+class LimitesIn(BaseModel):
+    sessao: int | None = Field(None, ge=1000, le=100_000_000)
+    semana: int | None = Field(None, ge=1000, le=1_000_000_000)
+    dono_ilimitado: bool | None = None
+    usuarios: dict[str, LimitePessoaIn] | None = None
+
+
+@rotas_ia.get("/uso")
+def uso(request: Request):
+    """O seu uso (todos). O dono também recebe a configuração e o uso de cada pessoa."""
+    from .. import acesso, ia_uso
+    u = acesso.atual.get() or getattr(request.state, "u", None) or {}
+    r = {"meu": ia_uso.status(u), "janelas": {"sessao_h": 5, "semana_d": 7}}
+    if u.get("papel") == "dono":
+        r["config"] = ia_uso.config()
+        r["pessoas"] = ia_uso.por_pessoa()
+    return r
+
+
+@rotas_ia.put("/limites")
+def limites(d: LimitesIn, request: Request):
+    u = getattr(request.state, "u", None) or {}
+    if u.get("papel") != "dono":
+        raise HTTPException(403, "Só o dono define os limites de uso da IA.")
+    if d.sessao and d.semana and d.sessao > d.semana:
+        raise HTTPException(400, "O limite da sessão de 5 horas não pode ser maior que o da semana.")
+    from .. import ia_uso
+    pessoas = {k: v.model_dump(exclude_none=True) for k, v in d.usuarios.items()} if d.usuarios is not None else None
+    return ia_uso.salvar(d.sessao, d.semana, d.dono_ilimitado, pessoas)

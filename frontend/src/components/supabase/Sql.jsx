@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import EditorSql from './EditorSql'
 import { Clock, Download, FileCode2, Lock, Play, Save, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { Botao, useToast } from '../ui'
@@ -29,11 +30,21 @@ export default function Sql({ dono }) {
   const [salvas, setSalvas] = useState(() => ler('clima-sql-salvas'))
   const [historico, setHistorico] = useState(() => ler('clima-sql-historico'))
   const [painel, setPainel] = useState('modelos')
-  const campo = useRef(null), numeros = useRef(null)
+  const editor = useRef(null)
+  const [esquema, setEsquema] = useState(null)
   useEffect(() => { try { localStorage.setItem('clima-sql-atual', sql) } catch { /* */ } }, [sql])
+  useEffect(() => {   // tabelas e colunas reais para o autocompletar
+    if (!dono) return
+    api.get('/api/supabase/catalogo/colunas').then((cs) => {
+      const e = {}
+      for (const c of cs) (e[c.tabela] ||= []).push({ label: c.coluna, detail: c.tipo, type: 'property' })
+      setEsquema(e)
+    }).catch(() => {})
+  }, [dono])
+  const usar = (q) => { setSql(q); editor.current?.trocar(q) }
 
   const rodar = async () => {
-    const alvo = (() => { const el = campo.current; if (el && el.selectionEnd > el.selectionStart) return sql.slice(el.selectionStart, el.selectionEnd); return sql })()
+    const alvo = editor.current?.selecao() || sql
     if (!alvo.trim() || rodando) return
     setRodando(true); setErro('')
     try {
@@ -48,7 +59,6 @@ export default function Sql({ dono }) {
     if (!nome) return
     const s = [{ nome, sql }, ...salvas.filter((x) => x.nome !== nome)].slice(0, 50); setSalvas(s); gravar('clima-sql-salvas', s); setPainel('salvas'); toast('Consulta salva neste navegador.')
   }
-  const linhas = sql.split('\n').length
 
   if (!dono) return (
     <div className="mx-auto mt-16 max-w-md text-center">
@@ -67,13 +77,13 @@ export default function Sql({ dono }) {
           ))}
         </div>
         <ul className="flex-1 overflow-y-auto p-1.5 text-[13px]">
-          {painel === 'modelos' && MODELOS.map(([n, q]) => <li key={n}><button onClick={() => setSql(q)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground"><FileCode2 className="h-3.5 w-3.5 shrink-0" />{n}</button></li>)}
+          {painel === 'modelos' && MODELOS.map(([n, q]) => <li key={n}><button onClick={() => usar(q)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground"><FileCode2 className="h-3.5 w-3.5 shrink-0" />{n}</button></li>)}
           {painel === 'salvas' && (salvas.length ? salvas.map((s) => (
-            <li key={s.nome} className="group flex items-center rounded-md hover:bg-muted"><button onClick={() => setSql(s.sql)} className="flex-1 truncate px-2.5 py-2 text-left">{s.nome}</button>
+            <li key={s.nome} className="group flex items-center rounded-md hover:bg-muted"><button onClick={() => usar(s.sql)} className="flex-1 truncate px-2.5 py-2 text-left">{s.nome}</button>
               <button onClick={() => { const n = salvas.filter((x) => x.nome !== s.nome); setSalvas(n); gravar('clima-sql-salvas', n) }} className="px-2 text-muted-foreground opacity-0 hover:text-red-600 group-hover:opacity-100" aria-label="Apagar"><Trash2 className="h-3.5 w-3.5" /></button></li>
           )) : <li className="p-3 text-xs text-muted-foreground">Use “Salvar” para guardar consultas neste navegador.</li>)}
           {painel === 'historico' && (historico.length ? historico.map((h) => (
-            <li key={h.quando}><button onClick={() => setSql(h.sql)} className="w-full rounded-md px-2.5 py-2 text-left hover:bg-muted"><p className="truncate font-mono text-[12px]">{h.sql.replace(/\s+/g, ' ')}</p><p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground"><Clock className="h-3 w-3" />{new Date(h.quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · {h.linhas} linha(s) · {h.ms} ms</p></button></li>
+            <li key={h.quando}><button onClick={() => usar(h.sql)} className="w-full rounded-md px-2.5 py-2 text-left hover:bg-muted"><p className="truncate font-mono text-[12px]">{h.sql.replace(/\s+/g, ' ')}</p><p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground"><Clock className="h-3 w-3" />{new Date(h.quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · {h.linhas} linha(s) · {h.ms} ms</p></button></li>
           )) : <li className="p-3 text-xs text-muted-foreground">As consultas que você rodar aparecem aqui.</li>)}
         </ul>
       </aside>
@@ -87,18 +97,10 @@ export default function Sql({ dono }) {
             <Botao tamanho="sm" icone={Play} carregando={rodando} onClick={rodar}>Rodar <kbd className="ml-1 hidden rounded bg-white/20 px-1 text-[10px] sm:inline">⌘↵</kbd></Botao>
           </div>
         </div>
-        <div className="flex h-[38%] min-h-[160px] border-b border-border bg-card font-mono text-[13px] leading-[1.6]">
-          <div ref={numeros} className="w-10 shrink-0 select-none overflow-hidden border-r border-border bg-muted/40 py-3 pr-2 text-right text-muted-foreground/70" aria-hidden>
-            {Array.from({ length: linhas }, (_, i) => <div key={i}>{i + 1}</div>)}
-          </div>
-          <textarea ref={campo} value={sql} spellCheck={false} onChange={(e) => setSql(e.target.value)} aria-label="Consulta SQL"
-            onScroll={(e) => { if (numeros.current) numeros.current.scrollTop = e.target.scrollTop }}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); rodar() }
-              if (e.key === 'Tab') { e.preventDefault(); const el = e.target, a = el.selectionStart; setSql(sql.slice(0, a) + '  ' + sql.slice(el.selectionEnd)); setTimeout(() => el.setSelectionRange(a + 2, a + 2)) }
-            }}
-            className="flex-1 resize-none bg-transparent px-3 py-3 outline-none focus-visible:ring-0 focus-visible:ring-offset-0" />
+        <div className="flex h-[38%] min-h-[160px] border-b border-border bg-card">
+          <EditorSql ref={editor} valor={sql} aoMudar={setSql} aoRodar={rodar} esquema={esquema} />
         </div>
+        <p className="border-b border-border bg-card px-3 py-1 text-[11px] text-muted-foreground">Ctrl+Espaço sugere tabelas, colunas e trechos prontos (sel, join, grp, cte, dia, busca, jan, json, exp) · Tab pula para o próximo campo do trecho</p>
         <div className="flex items-center gap-3 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Resultado</span>
           {res && <span>{res.total} linha(s){res.cortado ? ` (mostrando as primeiras ${limite})` : ''} · {res.ms} ms</span>}
