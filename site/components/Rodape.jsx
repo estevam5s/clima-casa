@@ -40,6 +40,11 @@ export default function Rodape() {
                 <li><Link href="/sobre">Sobre o sistema</Link></li>
                 <li><Link href="/integracoes">Integrações</Link></li>
                 <li><Link href="/seguranca">Segurança</Link></li>
+                <li><Link href="/seguranca/defesas">Defesas contra ataques</Link></li>
+                <li><Link href="/assistente-ia">Assistente de IA</Link></li>
+                <li><Link href="/bot-telegram">Bot do Telegram</Link></li>
+                <li><Link href="/mapa-3d">Mapa 3D</Link></li>
+                <li><Link href="/glossario">Glossário</Link></li>
                 <li><Link href="/status">Status</Link></li>
                 <li><Link href="/funcionalidades">Funcionalidades</Link></li>
                 <li><Link href="/telas">Telas</Link></li>
