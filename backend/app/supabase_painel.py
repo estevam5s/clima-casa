@@ -334,3 +334,92 @@ def avisos() -> list:
                       "detalhe": f"{u['email']} entra só com senha. Cadastre o autenticador ou a biometria.", "correcao": ""})
     ordem = {"erro": 0, "alerta": 1, "info": 2}
     return sorted(lista, key=lambda x: ordem[x["nivel"]])
+
+
+# ---------------- catálogo avançado (20/11): índices, RLS, funções, gatilhos, extensões, conexões, bloqueios, ----------------
+# storage, realtime, manutenção, cache, relações (diagrama do esquema) e tipos. Lista FECHADA de consultas: nada do usuário
+# vira SQL; só o schema public (e contagens de storage/realtime, sem conteúdo). Texto de consulta das conexões sai mascarado.
+CATALOGO = {
+    "indices": """SELECT s.relname AS tabela, s.indexrelname AS indice, pg_get_indexdef(s.indexrelid) AS definicao,
+        pg_relation_size(s.indexrelid) AS bytes, s.idx_scan AS usos, s.idx_tup_read AS lidas, x.indisunique AS unico, x.indisprimary AS primaria
+        FROM pg_stat_user_indexes s JOIN pg_index x ON x.indexrelid = s.indexrelid WHERE s.schemaname = 'public'
+        ORDER BY pg_relation_size(s.indexrelid) DESC""",
+    "politicas": """SELECT c.relname AS tabela, c.relrowsecurity AS rls, c.relforcerowsecurity AS rls_forcado, p.policyname AS politica,
+        p.cmd AS comando, p.permissive AS tipo, array_to_string(p.roles, ', ') AS papeis, p.qual AS usando, p.with_check AS checagem
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+        LEFT JOIN pg_policies p ON p.schemaname = 'public' AND p.tablename = c.relname
+        WHERE c.relkind IN ('r', 'p') ORDER BY c.relname, p.policyname""",
+    "funcoes": """SELECT p.proname AS nome, pg_get_function_arguments(p.oid) AS argumentos, pg_get_function_result(p.oid) AS retorno,
+        l.lanname AS linguagem, p.prosecdef AS security_definer, p.provolatile AS volatilidade,
+        coalesce(array_to_string(p.proconfig, ', '), '') AS config, length(p.prosrc) AS tamanho
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public' JOIN pg_language l ON l.oid = p.prolang
+        WHERE p.prokind = 'f' ORDER BY p.proname""",
+    "gatilhos": """SELECT c.relname AS tabela, t.tgname AS gatilho, pg_get_triggerdef(t.oid) AS definicao, t.tgenabled <> 'D' AS ativo
+        FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+        WHERE NOT t.tgisinternal ORDER BY c.relname, t.tgname""",
+    "extensoes": """SELECT a.name AS nome, a.default_version AS versao_disponivel, e.extversion AS versao_instalada,
+        n.nspname AS schema, a.comment AS descricao
+        FROM pg_available_extensions a LEFT JOIN pg_extension e ON e.extname = a.name LEFT JOIN pg_namespace n ON n.oid = e.extnamespace
+        ORDER BY (e.extversion IS NULL), a.name""",
+    "conexoes": """SELECT pid, coalesce(usename::text, 'interno') AS usuario, coalesce(nullif(application_name, ''), backend_type) AS app,
+        coalesce(state, '') AS estado, coalesce(wait_event_type || ': ' || wait_event, '') AS espera,
+        extract(epoch FROM now() - backend_start)::int AS conectado_s,
+        CASE WHEN state = 'active' THEN extract(epoch FROM now() - query_start)::numeric(10,2) END AS consulta_s,
+        left(regexp_replace(coalesce(query, ''), '\\s+', ' ', 'g'), 160) AS consulta
+        FROM pg_stat_activity WHERE datname = current_database() ORDER BY state = 'active' DESC, backend_start""",
+    "bloqueios": """SELECT l.locktype AS tipo, coalesce(c.relname, '') AS objeto, l.mode AS modo, l.granted AS concedido, l.pid,
+        coalesce(a.application_name, '') AS app, extract(epoch FROM now() - a.query_start)::int AS ha_s
+        FROM pg_locks l LEFT JOIN pg_class c ON c.oid = l.relation LEFT JOIN pg_stat_activity a ON a.pid = l.pid
+        WHERE l.pid <> pg_backend_pid() AND (c.relname IS NULL OR c.relname NOT LIKE 'pg\\_%') ORDER BY l.granted, l.pid LIMIT 200""",
+    "storage": """SELECT b.id AS bucket, b.public AS publico, b.file_size_limit AS limite_bytes,
+        coalesce(array_to_string(b.allowed_mime_types, ', '), '') AS tipos, count(o.id) AS arquivos,
+        coalesce(sum((o.metadata->>'size')::bigint), 0) AS bytes, max(o.created_at) AS ultimo
+        FROM storage.buckets b LEFT JOIN storage.objects o ON o.bucket_id = b.id GROUP BY b.id, b.public, b.file_size_limit, b.allowed_mime_types
+        ORDER BY 6 DESC""",
+    "realtime": """SELECT p.pubname AS publicacao, coalesce(t.schemaname || '.' || t.tablename, '') AS tabela,
+        p.pubinsert AS insere, p.pubupdate AS atualiza, p.pubdelete AS apaga
+        FROM pg_publication p LEFT JOIN pg_publication_tables t ON t.pubname = p.pubname ORDER BY 1, 2""",
+    "manutencao": """SELECT relname AS tabela, n_live_tup AS vivas, n_dead_tup AS mortas,
+        CASE WHEN n_live_tup + n_dead_tup > 0 THEN round(100.0 * n_dead_tup / (n_live_tup + n_dead_tup), 1) ELSE 0 END AS mortas_pct,
+        extract(epoch FROM greatest(last_vacuum, last_autovacuum))::bigint AS ultimo_vacuum,
+        extract(epoch FROM greatest(last_analyze, last_autoanalyze))::bigint AS ultimo_analyze,
+        autovacuum_count + vacuum_count AS vacuums, n_tup_ins AS insercoes, n_tup_upd AS atualizacoes, n_tup_del AS remocoes,
+        pg_total_relation_size(relid) AS bytes
+        FROM pg_stat_user_tables WHERE schemaname = 'public' ORDER BY n_dead_tup DESC""",
+    "cache": """SELECT 'tabelas' AS tipo, sum(heap_blks_hit) AS acertos, sum(heap_blks_read) AS leituras_disco,
+        round(100.0 * sum(heap_blks_hit) / nullif(sum(heap_blks_hit) + sum(heap_blks_read), 0), 2) AS taxa
+        FROM pg_statio_user_tables
+        UNION ALL SELECT 'índices', sum(idx_blks_hit), sum(idx_blks_read),
+        round(100.0 * sum(idx_blks_hit) / nullif(sum(idx_blks_hit) + sum(idx_blks_read), 0), 2) FROM pg_statio_user_indexes""",
+    "relacoes": """SELECT c.conname AS nome, c.conrelid::regclass::text AS de, a.attname AS coluna, c.confrelid::regclass::text AS para,
+        af.attname AS coluna_para, c.confdeltype AS ao_apagar
+        FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+        JOIN pg_attribute af ON af.attrelid = c.confrelid AND af.attnum = c.confkey[1]
+        WHERE c.contype = 'f' AND c.connamespace = 'public'::regnamespace ORDER BY 2""",
+    "tipos": """SELECT t.typname AS tipo, string_agg(e.enumlabel, ', ' ORDER BY e.enumsortorder) AS valores
+        FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid JOIN pg_namespace n ON n.oid = t.typnamespace AND n.nspname = 'public'
+        GROUP BY t.typname ORDER BY 1""",
+    "configuracao": """SELECT name AS parametro, setting AS valor, coalesce(unit, '') AS unidade, category AS categoria, short_desc AS descricao
+        FROM pg_settings WHERE name IN ('max_connections', 'shared_buffers', 'work_mem', 'maintenance_work_mem', 'effective_cache_size',
+        'statement_timeout', 'idle_in_transaction_session_timeout', 'timezone', 'server_version', 'wal_level', 'max_wal_size',
+        'random_page_cost', 'default_transaction_isolation', 'ssl', 'log_min_duration_statement', 'autovacuum', 'max_worker_processes',
+        'lock_timeout', 'search_path') ORDER BY category, name""",
+}
+VOLATIL = {"i": "immutable", "s": "stable", "v": "volatile"}
+AO_APAGAR = {"a": "nada", "r": "restringe", "c": "cascata", "n": "anula", "d": "padrão"}
+_SEGREDO_SQL = re.compile(r"('[^']{16,}'|\$\d+|enc:v1:\S+)")
+
+
+def catalogo(tipo: str) -> list:
+    sql = CATALOGO.get(tipo)
+    if not sql:
+        raise ValueError("Consulta desconhecida.")
+    linhas = [_linha(dict(r)) for r in db.consultar(sql)]
+    for r in linhas:
+        if "volatilidade" in r:
+            r["volatilidade"] = VOLATIL.get(r["volatilidade"], r["volatilidade"])
+        if "ao_apagar" in r:
+            r["ao_apagar"] = AO_APAGAR.get(r["ao_apagar"], r["ao_apagar"])
+        if tipo == "conexoes" and r.get("consulta"):
+            r["consulta"] = _SEGREDO_SQL.sub("'…'", r["consulta"])   # literais longos podem ser chaves: nunca saem
+    return linhas

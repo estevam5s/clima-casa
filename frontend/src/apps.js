@@ -11,6 +11,8 @@ const porNome = Object.fromEntries((release.arquivos || []).map((a) => [a.nome, 
 export const DOWNLOADS = [
   { id: 'android', plataforma: 'android', nome: 'Android', detalhe: 'APK para celular e tablet', requisitos: 'Android 7.0 ou mais novo', arquivo: 'ClimaCasa-android.apk',
     passos: ['Baixe o APK no celular (ou leia o QR Code).', 'Abra o arquivo e permita "instalar apps desta fonte" quando o Android pedir.', 'Entre com o mesmo e-mail e senha do painel.'] },
+  { id: 'ios', plataforma: 'ios', nome: 'iPhone e iPad', detalhe: 'App nativo em SwiftUI (.ipa sem assinatura)', requisitos: 'iOS 17 ou mais novo', arquivo: 'ClimaCasa-ios.ipa',
+    passos: ['A Apple não deixa instalar .ipa direto do navegador: use um computador com o seu Apple ID.', 'Mac ou Linux com o xtool: xtool setup (uma vez, entra com o seu Apple ID) e depois xtool install ClimaCasa-ios.ipa com o iPhone no cabo.', 'Ou pelo AltStore / Sideloadly (Windows ou Mac): abra o .ipa e escolha o iPhone.', 'Com Apple ID grátis o app vale 7 dias: reinstale (ou use o AltStore, que renova sozinho). Login pelo navegador, Face ID depois.'] },
   { id: 'mac-arm', plataforma: 'mac', nome: 'macOS · Apple Silicon', detalhe: 'M1, M2, M3, M4', requisitos: 'macOS 12 Monterey ou mais novo', arquivo: 'ClimaCasa-mac-apple-silicon.dmg',
     passos: ['Abra o .dmg e arraste o Clima Escritório para Aplicativos.', 'Na primeira vez, clique com o botão direito no app → Abrir → Abrir (o app não é assinado pela Apple).', 'Ele fica na barra de menus; ⌘1 a ⌘4 trocam de tela.'] },
   { id: 'mac-intel', plataforma: 'mac', nome: 'macOS · Intel', detalhe: 'Macs com processador Intel', requisitos: 'macOS 12 Monterey ou mais novo', arquivo: 'ClimaCasa-mac-intel.dmg',

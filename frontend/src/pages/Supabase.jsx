@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Archive, CalendarClock, ChevronsUpDown, Database, ExternalLink, Gauge, GitBranch, Home, Lightbulb, ScrollText, Table2, Terminal, Users } from 'lucide-react'
+import { Archive, Blocks, Braces, CalendarClock, ChevronsUpDown, Database, ExternalLink, FolderArchive, Gauge, GitBranch, Home, KeyRound, Lightbulb, ListTree, Network, PanelLeftClose, PanelLeftOpen, Plug, Radio, ScrollText, Search, Settings2, ShieldCheck, Table2, Terminal, Users, Wrench } from 'lucide-react'
 import { siSupabase } from 'simple-icons'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
@@ -8,16 +9,21 @@ import Visao from '../components/supabase/Visao'
 import Tabelas from '../components/supabase/Tabelas'
 import Sql from '../components/supabase/Sql'
 import { Autenticacao, Avisos, Backups, Banco, Desempenho, Registros, Rotinas } from '../components/supabase/Outras'
+import { Conexoes, Configuracao, Esquema, Extensoes, Funcoes, Indices, Manutencao, Politicas, Realtime, Storage } from '../components/supabase/Avancado'
 
 // Painel do Supabase dentro do sistema, com a mesma organização do dashboard oficial:
 // menu do projeto à esquerda e cada ferramenta numa área própria. Tudo é só leitura, exceto pausar/rodar rotinas.
 const GRUPOS = [
   [null, [['visao', 'Visão geral', Home]]],
-  ['Banco de dados', [['tabelas', 'Editor de tabelas', Table2], ['sql', 'Editor SQL', Terminal], ['banco', 'Tabelas e tamanhos', Database], ['desempenho', 'Desempenho', Gauge]]],
-  ['Plataforma', [['auth', 'Autenticação', Users], ['rotinas', 'Rotinas (cron)', CalendarClock], ['registros', 'Registros', ScrollText], ['backups', 'Backups', Archive]]],
-  ['Revisão', [['avisos', 'Avisos', Lightbulb]]],
+  ['Banco de dados', [['tabelas', 'Editor de tabelas', Table2], ['sql', 'Editor SQL', Terminal], ['esquema', 'Diagrama do esquema', Network], ['banco', 'Tabelas e tamanhos', Database],
+    ['indices', 'Índices', ListTree], ['funcoes', 'Funções e gatilhos', Braces], ['extensoes', 'Extensões', Blocks]]],
+  ['Segurança', [['politicas', 'Políticas (RLS)', ShieldCheck], ['auth', 'Autenticação', Users], ['avisos', 'Avisos', Lightbulb]]],
+  ['Plataforma', [['storage', 'Storage', FolderArchive], ['realtime', 'Realtime', Radio], ['rotinas', 'Rotinas (cron)', CalendarClock], ['backups', 'Backups', Archive]]],
+  ['Observabilidade', [['desempenho', 'Desempenho', Gauge], ['conexoes', 'Conexões e bloqueios', Plug], ['manutencao', 'Manutenção e cache', Wrench], ['registros', 'Registros', ScrollText]]],
+  ['Projeto', [['configuracao', 'Configuração', Settings2]]],
 ]
 const CHEIA = new Set(['tabelas', 'sql'])
+const lerMenu = () => { try { return localStorage.getItem('supa-menu') === 'fechado' } catch { return false } }
 
 export default function Supabase() {
   const [params, setParams] = useSearchParams()
@@ -27,6 +33,11 @@ export default function Supabase() {
   const { dados: avisos } = useDados(() => api.get('/api/supabase/avisos'))
   const nAvisos = (avisos || []).filter((a) => a.nivel !== 'info').length
   const irPara = (s, t) => setParams(t ? { secao: s, tabela: t } : { secao: s })
+  const [fechado, setFechado] = useState(lerMenu)
+  const [busca, setBusca] = useState('')
+  const alternar = () => setFechado((f) => { try { localStorage.setItem('supa-menu', f ? 'aberto' : 'fechado') } catch { /* sem armazenamento */ } return !f })
+  const grupos = GRUPOS.map(([t, itens]) => [t, itens.filter(([, r]) => !busca || r.toLowerCase().includes(busca.toLowerCase()))]).filter(([, i]) => i.length)
+  const atual = GRUPOS.flatMap(([t, i]) => i.map((x) => [t, ...x])).find((x) => x[1] === secao)
 
   const ref = 'elyqjdcsbfdvlsxomxen'
   return (
@@ -45,24 +56,48 @@ export default function Supabase() {
         <a href={`https://supabase.com/dashboard/project/${ref}`} target="_blank" rel="noreferrer" className="ml-auto hidden items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted md:flex"><ExternalLink className="h-3.5 w-3.5" />Abrir no Supabase</a>
       </header>
       <div className="flex min-h-[calc(100dvh-7rem)] flex-col md:flex-row">
-        {/* menu de ícones que se abre ao passar o mouse (como o do Supabase); no celular vira faixa rolável */}
-        <div className="relative shrink-0 md:w-14">
-        <nav className="group/menu z-20 shrink-0 border-b border-border bg-card md:absolute md:inset-y-0 md:left-0 md:w-14 md:overflow-hidden md:border-b-0 md:border-r md:transition-[width] md:duration-150 md:hover:w-56 md:focus-within:w-56 md:hover:shadow-xl" aria-label="Seções do Supabase">{/* marca: menu flutua ao abrir */}
-          <div className="flex gap-1 overflow-x-auto px-2 py-2 sem-barra md:sticky md:top-16 md:block md:space-y-3 md:overflow-visible md:px-2 md:py-2">
-            {GRUPOS.map(([titulo, itens], gi) => (
-              <div key={titulo || 'inicio'} className={`flex gap-1 md:block md:space-y-0.5 ${gi ? 'md:border-t md:border-border md:pt-3' : ''}`}>
-                {itens.map(([k, r, I]) => (
-                  <button key={k} onClick={() => irPara(k)} title={r} className={`relative flex shrink-0 items-center gap-3 rounded-md px-2.5 py-2 text-[13px] md:w-full ${secao === k ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}>
-                    <I className="h-[18px] w-[18px] shrink-0" /><span className="whitespace-nowrap md:opacity-0 md:transition-opacity md:group-hover/menu:opacity-100 md:group-focus-within/menu:opacity-100">{r}</span>
-                    {k === 'avisos' && nAvisos > 0 && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500 md:right-1.5 md:top-1.5" aria-label={`${nAvisos} avisos`} />}
-                  </button>
-                ))}
+        {/* menu do projeto: fixo e aberto (como o dashboard atual do Supabase), com busca; recolhe para ícones e lembra a escolha */}
+        <nav className={`shrink-0 border-b border-border bg-card md:sticky md:top-0 md:h-[calc(100dvh-7rem)] md:border-b-0 md:border-r md:transition-[width] md:duration-150 ${fechado ? 'md:w-14' : 'md:w-60'}`} aria-label="Seções do Supabase">
+          <div className="flex h-full flex-col">
+            <div className={`hidden items-center gap-1 border-b border-border p-2 md:flex ${fechado ? 'justify-center' : ''}`}>
+              {!fechado && (
+                <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-background px-2 text-[13px]">
+                  <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <input type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar ferramenta" aria-label="Buscar ferramenta" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground" />
+                </label>
+              )}
+              <button onClick={alternar} title={fechado ? 'Abrir menu' : 'Recolher menu'} aria-label={fechado ? 'Abrir menu' : 'Recolher menu'} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+                {fechado ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              </button>
+            </div>
+            <div className="flex gap-1 overflow-x-auto px-2 py-2 sem-barra md:block md:flex-1 md:space-y-4 md:overflow-y-auto md:overflow-x-hidden md:py-3">
+              {grupos.map(([titulo, itens]) => (
+                <div key={titulo || 'inicio'} className="flex gap-1 md:block md:space-y-0.5">
+                  {titulo && !fechado && <p className="hidden px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80 md:block">{titulo}</p>}
+                  {titulo && fechado && <div className="mx-2 mb-2 hidden border-t border-border md:block" />}
+                  {itens.map(([k, r, I]) => (
+                    <button key={k} onClick={() => irPara(k)} title={r} aria-current={secao === k ? 'page' : undefined}
+                      className={`relative flex shrink-0 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] md:w-full ${fechado ? 'md:justify-center' : ''} ${secao === k ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}>
+                      <I className="h-4 w-4 shrink-0" /><span className={`whitespace-nowrap ${fechado ? 'md:sr-only' : ''}`}>{r}</span>
+                      {k === 'avisos' && nAvisos > 0 && (fechado
+                        ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500" aria-label={`${nAvisos} avisos`} />
+                        : <span className="ml-auto rounded bg-amber-500/15 px-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">{nAvisos}</span>)}
+                    </button>
+                  ))}
+                </div>
+              ))}
+              {!grupos.length && <p className="px-2.5 text-xs text-muted-foreground">Nada com “{busca}”.</p>}
+            </div>
+            {!fechado && (
+              <div className="hidden border-t border-border p-3 text-[11px] text-muted-foreground md:block">
+                <p className="flex items-center gap-1.5"><KeyRound className="h-3 w-3" />Só leitura · segredos ocultos</p>
+                <p className="mt-0.5 font-mono">{ref}</p>
               </div>
-            ))}
+            )}
           </div>
         </nav>
-        </div>
-        <main className={`min-w-0 flex-1 ${CHEIA.has(secao) ? 'p-4 sm:p-6' : 'mx-auto w-full max-w-6xl px-4 py-6 sm:px-6'}`}>
+        <main className={`min-w-0 flex-1 ${CHEIA.has(secao) ? 'p-4 sm:p-6' : 'w-full px-4 py-6 sm:px-6 xl:px-10'}`}>
+          {atual?.[0] && !CHEIA.has(secao) && <p className="mb-1 text-xs text-muted-foreground">{atual[0]} <span aria-hidden>/</span> <span className="text-foreground">{atual[2]}</span></p>}
           {secao === 'visao' && <Visao irPara={irPara} />}
           {secao === 'tabelas' && <Tabelas inicial={tabela} />}
           {secao === 'sql' && <Sql dono={sessao?.papel === 'dono'} />}
@@ -73,6 +108,16 @@ export default function Supabase() {
           {secao === 'registros' && <Registros />}
           {secao === 'backups' && <Backups />}
           {secao === 'avisos' && <Avisos />}
+          {secao === 'esquema' && <Esquema irPara={irPara} />}
+          {secao === 'indices' && <Indices />}
+          {secao === 'funcoes' && <Funcoes />}
+          {secao === 'extensoes' && <Extensoes />}
+          {secao === 'politicas' && <Politicas />}
+          {secao === 'storage' && <Storage />}
+          {secao === 'realtime' && <Realtime />}
+          {secao === 'conexoes' && <Conexoes />}
+          {secao === 'manutencao' && <Manutencao />}
+          {secao === 'configuracao' && <Configuracao />}
         </main>
       </div>
     </div>

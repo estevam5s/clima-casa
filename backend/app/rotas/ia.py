@@ -19,6 +19,7 @@ class ConversaIn(BaseModel):
     mensagens: list[MensagemIn] = Field(min_length=1, max_length=60)
     conversa_id: int | None = None      # com id, a conversa fica salva (lista à esquerda em /ia)
     modelo: str | None = Field(None, max_length=80)
+    leitura: bool = False               # modo plano (terminal): só consulta, nenhuma ferramenta que muda algo
 
 
 class ConversaEditIn(BaseModel):
@@ -45,7 +46,9 @@ def _erro(e: Exception):
 
 @rotas_ia.get("/estado")
 def estado():
-    return ia.estado_publico() | {"terminal": {"instalar": "./agente-ia/instalar.sh", "comando": "clima-ia"}}
+    return ia.estado_publico() | {"terminal": {"instalar": "curl -fsSL https://app.zynio.com.br/instalar-ia.sh | bash",
+                                              "instalar_windows": "irm https://app.zynio.com.br/instalar-ia.ps1 | iex",
+                                              "comando": "clima-ia", "login": "clima-ia login"}}
 
 
 @rotas_ia.post("/conversar")
@@ -53,7 +56,7 @@ def conversar(d: ConversaIn):
     if d.mensagens[-1].role != "user":
         raise HTTPException(400, "A última mensagem precisa ser a sua pergunta.")
     try:
-        r = ia.conversar([m.model_dump() for m in d.mensagens], "painel", modelo=d.modelo)
+        r = ia.conversar([m.model_dump() for m in d.mensagens], "painel", modelo=d.modelo, leitura=d.leitura)
     except (PermissionError, RuntimeError) as e:
         _erro(e)
     # salva a conversa (nova ou existente) com a resposta; o título nasce da primeira pergunta

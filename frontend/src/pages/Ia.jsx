@@ -138,6 +138,26 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
   )
 }
 
+// Prévia de como o clima-ia aparece no terminal (mesmas cores do cliente: laranja do cabeçalho, lavanda do texto)
+function PreviaTerminal() {
+  const L = '#d77757', T = '#c0caf5', C = '#949494'
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#0d0d0d] p-3 font-mono text-[11px] leading-relaxed" aria-label="Prévia do clima-ia no terminal">
+      <div className="rounded-md border p-2" style={{ borderColor: L }}>
+        <span style={{ color: L }}>clima-ia</span> <span style={{ color: C }}>v1.5.0</span>
+        <p className="mt-1" style={{ color: T }}>Conta do painel · modelo padrão</p>
+        <p style={{ color: C }}>Digite / para ver os comandos · Shift+Tab muda o modo</p>
+      </div>
+      <p className="mt-2 bg-[#3a3a3a] px-1" style={{ color: T }}>❯ quais ares estão ligados?</p>
+      <p className="mt-2"><span className="text-[#5faf5f]">●</span> <span style={{ color: T }}>Ar</span><span style={{ color: C }}>(</span><span className="text-[#7aa2f7]">Ar do diretor</span><span style={{ color: C }}>)</span></p>
+      <p style={{ color: C }}>  ⎿  <span style={{ color: T }}>Frio 19° · ventilação alta</span></p>
+      <p className="mt-2" style={{ color: L }}>✻ Resfriando… <span style={{ color: C }}>(4s · ctrl+c para interromper)</span></p>
+      <div className="mt-2 border-y border-[#808080] py-0.5" style={{ color: T }}>❯</div>
+      <p className="mt-1"><span className="text-[#5fafaf]">⏸ modo plano</span> <span style={{ color: C }}>(shift+tab para alternar) · só leitura</span></p>
+    </div>
+  )
+}
+
 function Configuracao({ dados, dono, recarregar, fechar }) {
   const toast = useToast()
   const [chave, setChave] = useState('')
@@ -152,16 +172,17 @@ function Configuracao({ dados, dono, recarregar, fechar }) {
       <div className="space-y-5 text-sm">
         <section>
           <h3 className="flex items-center gap-2 font-medium"><Terminal className="h-4 w-4" />No terminal (clima-ia)</h3>
-          <p className="mt-1 text-muted-foreground">O mesmo assistente, com acesso também ao código do projeto. Cada ação pede o seu "s" antes.</p>
-          {[['Instalar (na pasta do projeto)', dados.terminal.instalar], ['Abrir', dados.terminal.comando], ['Uma pergunta só', 'clima-ia "quais ares estão ligados?"']].map(([r, c]) => (
+          <p className="mt-1 text-muted-foreground">O mesmo assistente no terminal, no jeito do Claude Code: modos manual, aceitar e plano (Shift+Tab), comandos com "/", pedido de permissão antes de agir. Entra com a sua conta pelo navegador: nenhuma chave fica no computador.</p>
+          {[['Instalar (macOS e Linux)', dados.terminal.instalar], ['Instalar (Windows, PowerShell)', dados.terminal.instalar_windows], ['Entrar', dados.terminal.login], ['Abrir', dados.terminal.comando], ['Uma pergunta só', 'clima-ia "quais ares estão ligados?"']].filter(([, c]) => c).map(([r, c]) => (
             <div key={r} className="mt-2"><p className="text-xs text-muted-foreground">{r}</p>
-              <div className="mt-1 flex items-center gap-2 rounded-lg bg-muted px-3 py-2 font-mono text-xs"><span className="min-w-0 flex-1 truncate">{c}</span>
-                <button onClick={() => copiar(c)} aria-label={`Copiar: ${c}`} className="text-muted-foreground hover:text-foreground"><Copy className="h-3.5 w-3.5" /></button></div></div>
+              <div className="mt-1 flex items-center gap-2 rounded-lg bg-[#1a1a1a] px-3 py-2 font-mono text-xs text-[#c0caf5]"><span aria-hidden className="text-[#d77757]">$</span><span className="min-w-0 flex-1 truncate">{c}</span>
+                <button onClick={() => copiar(c)} aria-label={`Copiar: ${c}`} className="text-[#949494] hover:text-white"><Copy className="h-3.5 w-3.5" /></button></div></div>
           ))}
+          <PreviaTerminal />
         </section>
         <section>
           <h3 className="font-medium">Ferramentas que ele usa</h3>
-          <p className="mt-1 text-muted-foreground">Estado geral, ares, salas, zonas, transmissores, agentes, atividade, cenas, relatório, tempo lá fora, luzes e aparelhos, notificações, comandar um ar, timer, desligar todos e cenas (os dois últimos com Confirmar). Também no Telegram: mande qualquer texto ao bot.</p>
+          <p className="mt-1 text-muted-foreground">Estado geral, ares, salas, zonas, transmissores, agentes, atividade, cenas, relatório, tempo lá fora, luzes e aparelhos, notificações, comandar um ar, timer, desligar todos e cenas (os dois últimos com Confirmar). No modo plano só as consultas. Dentro da pasta do projeto (com o agente instalado) ele também lê e edita o código. Também no Telegram: mande qualquer texto ao bot.</p>
         </section>
         {dono && (
           <section className="space-y-3">

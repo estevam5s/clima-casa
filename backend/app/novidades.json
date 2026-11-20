@@ -2,6 +2,28 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.30.0",
+      "data": "2026-11-20",
+      "titulo": "App de iPhone, Assistente no terminal e Supabase completo",
+      "resumo": "O app nativo de iPhone chega junto com os apps 1.5.0, o Assistente ganha um terminal no jeito do Claude Code e o painel do banco ganha ferramentas avançadas.",
+      "novo": [
+        "App de iPhone e iPad (iOS 17+) em Apps, com o passo a passo para instalar pelo xtool, AltStore ou Sideloadly",
+        "Assistente no terminal (clima-ia): instala com uma linha, entra com a sua conta pelo navegador e não guarda chave nenhuma no computador",
+        "clima-ia com modos manual, aceitar e plano (só leitura), comandos com /, escolha de modelo e pedido de permissão antes de agir",
+        "Banco (Supabase): diagrama do esquema, índices, políticas de RLS, funções e gatilhos, extensões, storage, realtime, conexões e bloqueios, manutenção e cache, configuração do Postgres",
+        "Apps Android e computador 1.5.0 com as telas novas (dispositivos, mensagens com Kanban, segurança, música, novidades)"
+      ],
+      "melhorias": [
+        "Banco (Supabase): menu lateral fixo com busca, recolhível, e área de trabalho usando a largura inteira da tela",
+        "Assistente: modo plano no painel e no terminal, em que a IA só consulta e propõe, sem mudar nada"
+      ],
+      "seguranca": [
+        "Login do terminal por código de uso único (2 minutos) com PKCE: o código não vale nada sem o verificador que só o terminal tem",
+        "Painel do banco segue só leitura, com consultas fechadas; textos longos dentro das consultas das conexões saem ocultos"
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.29.0",
       "data": "2026-11-20",
       "titulo": "Segurança reforçada no sistema e no bot do Telegram",

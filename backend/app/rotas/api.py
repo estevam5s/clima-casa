@@ -1346,6 +1346,11 @@ def supabase_avisos():
     return supabase_painel.avisos()
 
 
+@api.get("/supabase/catalogo/{tipo}")
+def supabase_catalogo(tipo: str):
+    return _sp(supabase_painel.catalogo, tipo)
+
+
 @api.get("/metricas")
 def metricas(dias: int = 14):
     linhas = db.consultar("SELECT * FROM metricas_diarias WHERE dia > ((now() at time zone 'America/Sao_Paulo')::date - CAST(? AS integer)) "
@@ -2012,7 +2017,7 @@ def apps_codigo(arquivo: str):
 # link temporário (~5 min) que o GitHub gera. O token nunca vai para o navegador.
 REPO_APPS = "estevam5s/clima-casa"
 ARQUIVOS_APPS = {"ClimaCasa-android.apk", "ClimaCasa-mac-apple-silicon.dmg", "ClimaCasa-mac-intel.dmg", "ClimaCasa-windows.exe",
-                 "ClimaCasa-linux-x64.AppImage", "ClimaCasa-linux-arm64.AppImage"}
+                 "ClimaCasa-linux-x64.AppImage", "ClimaCasa-linux-arm64.AppImage", "ClimaCasa-ios.ipa"}
 
 
 def _gh(token: str, caminho: str, **kw):

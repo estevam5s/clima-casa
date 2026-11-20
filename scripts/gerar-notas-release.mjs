@@ -20,6 +20,7 @@ const releases = JSON.parse(sh('gh', 'api', `repos/${REPO}/releases?per_page=50`
   .sort((a, b) => new Date(a.published_at) - new Date(b.published_at))
 const SISTEMA = {
   'ClimaCasa-android.apk': ['Android', 'Android 8.0 ou mais novo', 'Abra o APK no celular e permita "instalar de fontes desconhecidas" para o navegador ou o gerenciador de arquivos.'],
+  'ClimaCasa-ios.ipa': ['iPhone e iPad', 'iOS 17 ou mais novo', 'Sem assinatura: instale com `xtool install ClimaCasa-ios.ipa` (depois de `xtool setup`), AltStore ou Sideloadly, usando o seu Apple ID. Com Apple ID grátis vale 7 dias.'],
   'ClimaCasa-mac-apple-silicon.dmg': ['macOS (Apple Silicon)', 'macOS 12+ em Mac M1, M2, M3 ou M4', 'Abra o DMG e arraste para Aplicativos. Na primeira vez: botão direito no app → Abrir (o app não é assinado pela Apple).'],
   'ClimaCasa-mac-intel.dmg': ['macOS (Intel)', 'macOS 12+ em Mac com processador Intel', 'Igual ao Apple Silicon: arraste para Aplicativos e, na primeira vez, botão direito → Abrir.'],
   'ClimaCasa-windows.exe': ['Windows', 'Windows 10 ou 11, 64 bits', 'Execute o instalador. Se o SmartScreen avisar, clique em "Mais informações" → "Executar assim mesmo".'],

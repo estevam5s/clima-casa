@@ -19,6 +19,15 @@ const ITENS: [string, string, string][] = [
   ['Transmissores IR', 'SRW-004 e status na rede', '/mais/transmissores'],
   ['Alexa e Google Home', 'Sinric Pro e como conectar outra Alexa', '/mais/integracoes'],
   ['Supabase', 'Rotinas automáticas, banco e backups', '/mais/supabase'],
+  ['Notificações', 'Avisos do sistema, marcar como lida', '/mais/notificacoes'],
+  ['Luzes e interruptores', 'Acender, apagar, brilho e cada tecla', '/mais/dispositivos?tipo=luz'],
+  ['Persianas', 'Abrir, parar e fechar', '/mais/dispositivos?tipo=persiana'],
+  ['Cafeteira', 'Ligar e desligar', '/mais/dispositivos?tipo=cafeteira'],
+  ['Fechadura', 'Estado da porta', '/mais/dispositivos?tipo=fechadura'],
+  ['Música', 'Spotify: tocar, pausar e onde tocar', '/mais/musica'],
+  ['Mensagens e Kanban', 'Quem escreveu pelo site, por etapa', '/mais/mensagens'],
+  ['Segurança', 'Firewall e o bot do Telegram', '/mais/seguranca'],
+  ['Novidades', 'O que mudou em cada versão', '/mais/novidades'],
 ];
 
 export default function Mais() {

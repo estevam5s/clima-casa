@@ -9,7 +9,7 @@ import Repositorio from '../components/apps/Repositorio'
 import { useProjeto } from '../contexto'
 
 const mb = (b) => (b ? `${(b / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} MB` : '')
-const COR = { android: 'bg-[#3DDC84]/15 text-[#1f9d55] dark:text-[#3DDC84]', mac: 'bg-foreground/10 text-foreground', windows: 'bg-[#0078D4]/15 text-[#0078D4]',
+const COR = { android: 'bg-[#3DDC84]/15 text-[#1f9d55] dark:text-[#3DDC84]', ios: 'bg-foreground/10 text-foreground', mac: 'bg-foreground/10 text-foreground', windows: 'bg-[#0078D4]/15 text-[#0078D4]',
   linux: 'bg-[#FCC624]/20 text-foreground', pwa: 'bg-[#5A0FC8]/15 text-[#5A0FC8] dark:text-[#a98bff]' }
 const RECURSOS = [
   ['Controle dos ares, cenas e agenda', [1, 1, 1, 1, 1]],
@@ -27,6 +27,7 @@ const RECURSOS = [
 // apps de computador abrem o próprio sistema web: as telas novas chegam na hora; só o "casco" do app muda por versão
 const REQUISITOS = [
   ['Android', 'Android 7.0 ou mais novo', '120 MB', 'Internet (Wi-Fi ou dados)'],
+  ['iPhone e iPad', 'iOS 17 ou mais novo; instalar com xtool, AltStore ou Sideloadly', '15 MB', 'Internet e um Apple ID'],
   ['macOS', 'macOS 12 Monterey ou mais novo', '300 MB', 'Internet'],
   ['Windows', 'Windows 10 ou 11 (64 bits)', '400 MB', 'Internet'],
   ['Linux', 'Ubuntu 20.04+, Fedora 36+ ou Raspberry Pi OS 64 bits; libfuse2', '300 MB', 'Internet'],
@@ -36,6 +37,8 @@ const PROBLEMAS = [
   ['macOS diz que o app "está danificado" ou "não pode ser aberto"', 'O app não é assinado pela Apple. Clique com o botão direito no app → Abrir → Abrir. Se ainda bloquear, rode no Terminal: xattr -dr com.apple.quarantine "/Applications/Clima Casa.app"'],
   ['Windows mostra "O Windows protegeu o computador"', 'É o SmartScreen avisando que o instalador é novo. Clique em "Mais informações" e depois em "Executar assim mesmo".'],
   ['Android não deixa instalar o APK', 'Ao abrir o arquivo, o Android pede para permitir apps "desta fonte" (o navegador ou o gerenciador de arquivos). Permita só para essa instalação.'],
+  ['iPhone: "Desenvolvedor não confiável" ao abrir', 'Em Ajustes → Geral → VPN e Gerenciamento de Dispositivos, toque no seu Apple ID e em Confiar. No iOS 16+, ligue também o Modo de Desenvolvedor (Ajustes → Privacidade e Segurança).'],
+  ['iPhone: o app parou de abrir depois de uma semana', 'Com Apple ID grátis a Apple limita a 7 dias. Instale de novo pelo xtool ou deixe o AltStore renovar sozinho.'],
   ['Linux: o AppImage não abre', 'Dê permissão de execução (chmod +x) e instale o libfuse2 (Ubuntu: sudo apt install libfuse2).'],
   ['O app pede um código depois da senha', 'Sua conta tem o Google Authenticator ligado. Abra o app autenticador e digite os 6 dígitos: a versão 1.1 envia sozinha ao completar.'],
   ['O app abre numa tela "Sem conexão"', 'Os apps precisam de internet para falar com o servidor. Quando a conexão voltar, toque em Tentar de novo.'],
@@ -197,7 +200,7 @@ export default function Apps() {
   useEffect(() => { api.get('/api/apps/qr?alvo=site').then(setQrSite).catch(() => {}) }, [])
   const desktop = typeof window !== 'undefined' ? window.climaDesktop : null
   const desatualizado = desktop?.versao && compararVersao(desktop.versao, RELEASE.versao) < 0
-  const destaque = DOWNLOADS.find((d) => d.id === meu)
+  const destaque = meu === 'ios' ? null : DOWNLOADS.find((d) => d.id === meu)   // iPhone não instala .ipa pelo navegador
   const total = DOWNLOADS.reduce((s, d) => s + (d.baixados || 0), 0)
   const instalarPwa = async () => {
     if (!pwa) return
@@ -239,7 +242,7 @@ export default function Apps() {
               <span className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl ${COR.pwa}`}><MonitorSmartphone className="h-8 w-8" /></span>
               <div>
                 <p className="text-xl font-semibold">{meu === 'ios' ? 'No iPhone e no iPad, use o app web' : 'Escolha a sua plataforma abaixo'}</p>
-                <p className="text-sm text-muted-foreground">{meu === 'ios' ? 'No Safari: Compartilhar → Adicionar à Tela de Início.' : 'Android, macOS, Windows, Linux ou direto pelo navegador.'}</p>
+                <p className="text-sm text-muted-foreground">{meu === 'ios' ? 'No Safari: Compartilhar → Adicionar à Tela de Início. O app nativo instala por um computador: veja "iPhone e iPad" abaixo.' : 'Android, iPhone, macOS, Windows, Linux ou direto pelo navegador.'}</p>
               </div>
             </div>
           )}

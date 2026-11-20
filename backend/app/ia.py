@@ -405,7 +405,10 @@ def _sistema(canal: str) -> str:
     )
 
 
-def _chamar_modelo(msgs: list[dict], modelo: str) -> dict:
+ACOES_IA = {"comandar_ar", "temporizador", "desligar_todos", "executar_cena"}   # o que muda algo (fora no modo plano)
+
+
+def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False) -> dict:
     k = chave()
     if not k:
         raise RuntimeError("O assistente de IA não está configurado (falta a chave da NVIDIA em IA → Configuração).")
@@ -413,7 +416,7 @@ def _chamar_modelo(msgs: list[dict], modelo: str) -> dict:
     for m in (modelo, RESERVA) if modelo != RESERVA else (modelo,):
         corpo = {"model": m, "messages": msgs, "temperature": 0.2, "max_tokens": 900}
         if m in COM_FERRAMENTAS:   # modelo sem function calling recusa "tools" (400): responde só em texto
-            corpo["tools"] = FERRAMENTAS
+            corpo["tools"] = [f for f in FERRAMENTAS if not (leitura and f["function"]["name"] in ACOES_IA)]
         try:
             r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, json=corpo, timeout=50)
             if r.status_code == 200:
@@ -424,7 +427,7 @@ def _chamar_modelo(msgs: list[dict], modelo: str) -> dict:
     raise RuntimeError(f"A IA da NVIDIA não respondeu agora ({ultimo}). Tente de novo.")
 
 
-def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None) -> dict:
+def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None, leitura: bool = False) -> dict:
     """Uma rodada de conversa. `historico` = [{role: user|assistant, content}] (o último é a pergunta).
     Devolve {texto, acoes: [...feitas], confirmacoes: [{confirmacao, descricao}]}."""
     u = _u()
@@ -443,13 +446,13 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", 
         db.registrar(origem, "Pedido recusado pelo Assistente (tentativa de mudar as regras)", ok=False, detalhe=trecho[:120])
         return {"texto": "Não posso fazer isso: o pedido tenta mudar as minhas regras ou pede informações protegidas. Posso ajudar com os ares, as salas e os relatórios.",
                 "acoes": [], "confirmacoes": [], "modelo": modelo, "recusado": True}
-    msgs = [{"role": "system", "content": _sistema(canal)}]
+    msgs = [{"role": "system", "content": _sistema(canal) + ("\n- MODO PLANO (só leitura): você NÃO pode mudar nada; consulte, explique e proponha um plano passo a passo." if leitura else "")}]
     for h in historico[-16:]:
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
             msgs.append({"role": h["role"], "content": h["content"][:3000]})
     acoes, confirmacoes = [], []
     for _ in range(RODADAS):
-        m = _chamar_modelo(msgs, modelo)
+        m = _chamar_modelo(msgs, modelo, leitura)
         chamadas = m.get("tool_calls") or []
         if not chamadas:
             texto = (m.get("content") or "").strip() or "Feito."

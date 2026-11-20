@@ -17,7 +17,9 @@ const ROTAS = [['Painel', '/'], ['Aparelhos', '/aparelhos'], ['Mapa do escritór
   ['Agenda', '/agendamentos'], ['Relatórios', '/relatorios'], ['Atividade', '/atividade'], ['Segurança', '/seguranca']]
 // telas novas (1.4.0): no menu Ir e na bandeja, sem atalho de número (Cmd+1 a 9 já são as de cima)
 const MAIS_TELAS = [['Assistente de IA', '/ia'], ['Notificações', '/notificacoes'], ['Treinamento e segurança', '/treinamento'], ['Backup e restauração', '/backup'],
-  ['Telegram', '/telegram'], ['Música', '/musica'], ['Bugs', '/bugs'], ['Transmissores', '/transmissores']]
+  ['Telegram', '/telegram'], ['Música', '/musica'], ['Bugs', '/bugs'], ['Transmissores', '/transmissores'],
+  ['Mensagens e Kanban', '/mensagens'], ['Luzes e interruptores', '/luzes'], ['Segurança do Telegram', '/seguranca?aba=telegram'],
+  ['Banco (Supabase)', '/supabase'], ['Avatares e Estúdio', '/avatares'], ['Novidades', '/novidades']]
 let janela = null, bandeja = null, saindo = false, travado = false, escondidaEm = null, novaVersao = null
 
 if (!app.requestSingleInstanceLock()) app.quit()
