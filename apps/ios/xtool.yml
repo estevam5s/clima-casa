@@ -1,0 +1,5 @@
+version: 1
+bundleID: com.estevam5s.climaescritorio
+product: ClimaEscritorio
+infoPath: Info.plist
+iconPath: Recursos/AppIcon.png
