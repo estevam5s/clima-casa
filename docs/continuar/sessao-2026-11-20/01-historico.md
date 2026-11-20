@@ -58,3 +58,23 @@
 - **Projetos**: anel de ligados, liga/desliga por ar no cartão, Conforto 23°, duplicar, mapa de calor de 14 dias, atalho "/".
 - **Apps 1.6.0**: Android (`mais/bugs.tsx`, `mais/uso-ia.tsx`), iOS (`Telas/Diagnostico.swift`), desktop (`MAIS_TELAS`). Regra nova no
   CLAUDE.md §0 item 9: toda atualização do sistema atualiza os apps, o release e o deploy.
+
+## 0.4.5 e apps 1.6.1 (fim da noite)
+- **Nave da Segurança**: som do motor pelo Web Audio (`components/somNave.js`), botão de mudo; **velocidade hipersônica** com contagem de 10 s
+  e salto para outra dimensão (`components/dimensao3d.js`, montada em etapas durante a contagem e descartada ao voltar).
+- **Botão GitHub** no topo do painel (`Layout.jsx`) e "Código no GitHub" nos apps 1.6.1 (release v1.6.1 com os 7 arquivos).
+- **Varredura de segredos** antes de deixar o repositório público: gitleaks no histórico (166 commits), regex de todos os formatos do
+  projeto e os valores exatos do `.env` no histórico. Só apareceu a chave pública do Supabase (`eas.json`, pública por desenho). Nada a rotacionar.
+- **Disco cheio** (ENOSPC) travou o build do Windows e o xtool; com o "sim" do dono, apagamos builds antigos do desktop (1.3 a 1.5) e pastas
+  temporárias de release. Os arquivos do release passaram a ser preparados com link físico (`ln`), sem ocupar espaço.
+- **iPhone**: app instalado pelo xtool no iPhone do dono (login do xtool feito pelo dono; 2 certificados de desenvolvimento revogados com o
+  "sim" dele). Apple ID grátis: vale 7 dias, reinstalar com `xtool install apps/ios/xtool/ClimaEscritorio.ipa`.
+
+## 0.4.6: avatar 3D do Estevam
+- O GLB do Tripo (`blender-estevam/estevam.glb`, 62 MB, 2 milhões de triângulos) era estático (sem esqueleto nem animação).
+  `scripts/avatar-esqueleto/`: `leve.mjs` (60 mil triângulos, texturas 1024) → `rig.mjs` (12 ossos `clima_*`, pesos por região
+  suavizados, clips parado/andando/sentado) → 2,7 MB, **avatar 73** na biblioteca, ligado à pessoa Estevam (`p-mwkun7r7`) no mapa.
+- `Mapa3D.jsx` `espelhoBoneco`: os ossos copiam as juntas do boneco invisível (passo preso ao chão, sentar/digitar, café, moto);
+  na 1ª pessoa o osso do pescoço encolhe (sem cabeça na frente da câmera). Na 3ª pessoa o nome não cobre mais a câmera.
+- Testado no Playwright: sentado na mesa, controlar sentado, levantar (F), andar (W) em 3ª e 1ª pessoa, sentar de novo; sem erro de JS.
+  Não testado: o avatar em celular e na moto/carro.

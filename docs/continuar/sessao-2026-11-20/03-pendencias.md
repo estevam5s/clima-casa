@@ -28,3 +28,9 @@
 - Telegram: o menu "/" do aplicativo do Telegram só é registrado de novo em /telegram → Configurar (os comandos novos já funcionam digitando).
 - Ilha: cores são ilustrativas (não há foto de satélite); relevo e profundidade são reais (grade de 150 m).
 - Apps 1.6.0 não foram instalados em aparelhos reais.
+
+## Depois da 0.4.6
+- O arquivo original do avatar (`blender-estevam/`, 62 MB) não está versionado (grande demais); a versão com esqueleto também fica só local
+  (`blender-estevam/estevam-esqueleto.glb`) e no Storage (avatar 73).
+- Altura do Estevam no mapa = 1,72 m (padrão). Se quiser a altura real, dizer qual.
+- Apps sem mudança na 0.4.6 (o mapa 3D é só do painel web): nenhum build novo.
