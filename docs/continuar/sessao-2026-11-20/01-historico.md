@@ -10,3 +10,13 @@
   - /ia: visual do Claude (paleta quente .tela-ia, conta na lateral, serifa, modelo abaixo da caixa).
   - /luzes: interruptor de várias teclas (Novadigital 4 teclas): uma luz por tecla, painel de vidro preto, escolha da tecla ao conectar.
   - Conformidade: testes ao vivo rodados de novo (aprovados); o resto é ação da organização.
+
+## Tarde (1.26.0 a 1.28.0)
+- 1.26.0: /ia sem rodapé (página cabia além da tela) e 13 modelos gratuitos da NVIDIA testados (11 agem nos ares) com ícones reais
+  (simple-icons); /novidades com gráfico de versões em barras (o 3D foi removido), "novas para mim", link, recolher, baixar .md;
+  /mensagens no visual do WhatsApp Web (.tela-zap) + Kanban (site_conversas: etapa, responsavel, prioridade, prazo, proximo_passo,
+  ordem; config mensagens_etapas; GET/PUT /api/site/kanban); /supabase no design do Supabase (.tela-supa, barra do projeto, menu de ícones).
+- 1.27.0: mapa com Homem de Ferro (37), Goku (36) e Naruto (44) em config.mapa_modelos.herois (herois3d.js); motos do trânsito com
+  piloto (piloto3d.js) e de frente (fisica.inverter na moto 38); sinaleiras instanciadas nos cruzamentos (cidade3d tickSinais);
+  cidade N=9; mais pedestres; direção mais suave; E.preparar (texturas uma por quadro + compilação escondida) para modelos tardios.
+- 1.28.0: Telegram +364 comandos (862); Estúdio com modelos prontos, sortear, acessórios, desfazer/refazer, vistas, fundos, foto e números.
