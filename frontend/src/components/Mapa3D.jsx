@@ -253,6 +253,30 @@ function pessoa(r, sentada, ap = null) {
   return g
 }
 
+// Avatar GLB com o esqueleto "clima_" (o sistema monta esse esqueleto em modelos parados, ex.: os vindos do Tripo): a
+// cada quadro os ossos copiam as juntas do boneco invisível que está por baixo. Assim o modelo anda com o passo preso
+// à distância percorrida (o pé não escorrega), senta e digita na cadeira, toma café, vai de moto, e na 1ª pessoa a
+// cabeça some (o osso do pescoço encolhe) para a câmera não ficar dentro dela. k = escala aplicada ao modelo.
+function espelhoBoneco(modelo, av, k) {
+  const osso = (n) => modelo.getObjectByName(`clima_${n}`)
+  const quadril = osso('quadril'), u = av?.userData
+  if (!quadril || !u?.quadril || !u.pernas?.length || !u.bracos?.length) return null
+  const pares = [['pescoco', u.pescoco]]
+  u.bracos.forEach((b, i) => pares.push([`ombro_${i}`, b.ombro], [`cotovelo_${i}`, b.cotovelo]))
+  u.pernas.forEach((q, i) => pares.push([`coxa_${i}`, q.quad], [`joelho_${i}`, q.joelho], [`tornozelo_${i}`, q.tornozelo]))
+  const lista = pares.map(([n, j]) => [osso(n), j]).filter(([o, j]) => o && j)
+  const cabeca = osso('pescoco'), y0 = quadril.position.y
+  const coxa = osso('coxa_0'), joelho = osso('joelho_0')
+  const ySentado = y0 + (coxa?.position.y || 0) + (joelho?.position.y || 0) + 0.006   // quadril na altura do joelho: coxa reta no assento
+  modelo.traverse((o) => { if (o.isSkinnedMesh) o.frustumCulled = false })   // sentado/agachado sai da caixa de repouso
+  return () => {
+    quadril.quaternion.copy(u.quadril.quaternion)
+    quadril.position.y = u.sentada ? ySentado + (u.quadril.position.y - 0.47) / k : y0 + (u.quadril.position.y - 0.92) / k
+    for (const [o, j] of lista) o.quaternion.copy(j.quaternion)
+    if (cabeca) cabeca.scale.setScalar(u.pescoco?.visible === false ? 0.001 : 1)
+  }
+}
+
 // senta (pose de digitar) e levanta: o avatar controlado usa as duas
 function sentarPose(p) {
   const u = p.userData
@@ -1484,7 +1508,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           if (g.atual) g.atual.crossFadeTo(nova, 0.3, false)
           g.atual = nova
         }
-        g.tocar = tocar; tocar(it.av.userData.sentada ? 'sentado' : 'parado'); glbs.push(g)
+        g.espelho = espelhoBoneco(modelo, it.av, kk)   // esqueleto do sistema: segue o boneco em vez dos clips
+        g.tocar = tocar; if (!g.espelho) tocar(it.av.userData.sentada ? 'sentado' : 'parado'); glbs.push(g)
       }).catch(() => { /* sem o arquivo, fica o boneco desenhado */ })
     }
 
@@ -1519,6 +1544,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           const porNomeP = (w) => gltf.animations.find((c) => w.some((x) => c.name.toLowerCase().includes(x)))
           const clipsP = { parado: porNomeP(['idle', 'parado', 'stand']) || gltf.animations[0], andando: porNomeP(['walk', 'andar']), sentado: porNomeP(['sit', 'sentad', 'seat']) }
           const gP = { it: { av: p }, mixer: mixerP, clips: clipsP, atual: null, ult: p.getWorldPosition(new THREE.Vector3()), vel: 0, modelo, y0: modelo.position.y }
+          gP.espelho = espelhoBoneco(modelo, p, k)
           gP.tocar = (nome) => { const c = clipsP[nome] || clipsP.parado; if (!c || gP.atual?.getClip() === c) return; const a = mixerP.clipAction(c); a.reset().play(); if (gP.atual) gP.atual.crossFadeTo(a, 0.3, false); gP.atual = a }
           glbs.push(gP)
           return
@@ -2363,7 +2389,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           av.userData.pescoco.visible = false; if (c.label) c.label.visible = false
           camera.position.set(vSent.x + fx * 0.12, 1.22, vSent.z + fz * 0.12)
         } else {
-          av.userData.pescoco.visible = true; if (c.label) c.label.visible = true
+          av.userData.pescoco.visible = true; if (c.label) c.label.visible = false   // o nome cobria a visão por cima do ombro
           camera.position.lerp(new THREE.Vector3(vSent.x - fx * 0.85 + fz * 0.35, 1.62, vSent.z - fz * 0.85 - fx * 0.35), Math.min(1, dt * 6))
         }
         camera.lookAt(vSent.x + fx * 0.75, 1.04, vSent.z + fz * 0.75)
@@ -2430,7 +2456,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         camera.lookAt(camera.position.x + fx * cp, yB + 1.63 + sp, camera.position.z + fz * cp)
       } else {
         av.userData.pescoco.visible = true
-        if (c.label) c.label.visible = true
+        if (c.label) c.label.visible = false   // na 3ª pessoa o nome ficava na frente da câmera (o HUD já diz quem é)
         const dist = 2.4, alt = 1.75 - sp * 1.6
         const desejo = new THREE.Vector3(P.x - fx * dist * cp, yB + Math.max(0.5, alt), P.z - fz * dist * cp)
         camera.position.lerp(desejo, Math.min(1, dt * 8))
@@ -2483,6 +2509,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       })
       for (const P of E.personagens || []) { if (E.nivel !== 'terreo') E.moverPersonagem(P, dt); P.mixer.update(dt) }
       for (const g of E.glbs || []) {   // avatares GLB: animação pelo movimento (andando × parado) ou sentado na mesa
+        if (g.espelho) { g.espelho(); continue }
         const pos = g.it.av.getWorldPosition(new THREE.Vector3())
         const v = dt > 0 ? pos.distanceTo(g.ult) / dt : 0
         g.vel = g.vel * 0.85 + v * 0.15; g.ult.copy(pos)

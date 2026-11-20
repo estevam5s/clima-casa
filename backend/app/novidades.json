@@ -2,6 +2,22 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "0.4.6",
+      "data": "2026-11-20",
+      "titulo": "Avatar 3D do Estevam com esqueleto no mapa",
+      "resumo": "O Estevam aparece no mapa com o modelo 3D dele, que anda, senta e trabalha na mesa como as outras pessoas, em 1ª ou 3ª pessoa.",
+      "novo": [
+        "Avatar 3D do Estevam na biblioteca (/avatares) e no lugar dele no mapa, com animações de parado, andando e sentado",
+        "Modelos 3D parados (como os do Tripo) podem ganhar um esqueleto do sistema: o modelo passa a seguir o boneco do mapa ao andar, sentar, digitar, tomar café e andar de moto"
+      ],
+      "melhorias": [
+        "Controlando uma pessoa em 3ª pessoa, o nome não fica mais na frente da câmera (o painel do controle já mostra quem é)",
+        "Na 1ª pessoa, a cabeça do modelo 3D some para a câmera não ficar dentro dela"
+      ],
+      "seguranca": [],
+      "correcoes": []
+    },
+    {
       "versao": "0.4.5",
       "data": "2026-11-20",
       "titulo": "Som da nave, salto hipersônico e botão do GitHub",

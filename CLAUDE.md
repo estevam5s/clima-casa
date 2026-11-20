@@ -113,6 +113,7 @@ caminhos de serviço e o projeto da Vercel).
 | Interruptor de parede de várias teclas (Novadigital 4 teclas, `switch_1…4`): uma luz por tecla | `dispositivos.py` (`teclas_de`, `teclas`, `config.tecla` em `resumo`/`_cmds`/`conectar`), `rotas/dispositivos.py` (`GET /dispositivos/teclas/{tuya_id}`, `POST /dispositivos/interruptor`), `pages/Luzes.jsx` (`AssistenteInterruptor`, `PaineisInterruptor`), `dispositivos/Comum.jsx` (escolha da tecla) |
 | Download dos apps sem acesso ao GitHub | `infra.op_app_link` (no agente: `GITHUB_APPS_TOKEN` do .env ou `gh auth token` do Mac, nunca gravado), `rotas/api.py` (`/apps/baixar/{arquivo}`: token de leitura em `config.github_apps` → agente → link público). Instaladores > 50 MB não cabem no Storage |
 | Compilar shaders sem quebrar ao descartar material | `components/compilar3d.js` (`compilarSeguro`, no lugar de `renderer.compileAsync`), usado no `Mapa3D` e no `Globo3D` |
+| Avatar 3D parado (Tripo) que anda e senta no mapa | `scripts/avatar-esqueleto/` (`leve.mjs` simplifica, `rig.mjs` monta 12 ossos `clima_*` + pesos + clips, `pose.mjs` confere em PNG), `Mapa3D.jsx` (`espelhoBoneco`: os ossos copiam as juntas do boneco invisível). Avatar 73 = Estevam |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---

@@ -1,0 +1,13 @@
+{
+  "name": "avatar-esqueleto",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gltf-transform/core": "^4",
+    "@gltf-transform/extensions": "^4",
+    "@gltf-transform/functions": "^4",
+    "meshoptimizer": "0.22.0",
+    "sharp": "0.33.5",
+    "three": "0.170.0"
+  }
+}
