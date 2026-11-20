@@ -91,7 +91,9 @@ async def cabecalhos(request: Request, chamar):
         resp.headers["Cache-Control"] = "no-store"
         return resp
     # Firewall: listas de IP, país, assinaturas de ataque e limite de taxa (só nas rotas dinâmicas)
-    dinamica = request.url.path.startswith(("/api/", "/oauth/", "/alexa/"))
+    from . import defesa
+    # iscas (/wp-login.php, /.env…) passam pelo firewall mesmo não sendo rota da API (na Vercel caem aqui pelo catch-all)
+    dinamica = request.url.path.startswith(("/api/", "/oauth/", "/alexa/")) or bool(defesa.ISCAS.search(request.url.path))
     de_teste = dinamica and request.headers.get("x-clima-teste") and firewall.pedido_de_teste(request)   # testes ao vivo do próprio sistema
     if dinamica and not de_teste:
         firewall.definir_contexto(request)
