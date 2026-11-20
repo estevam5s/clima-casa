@@ -1,0 +1,12 @@
+# O que foi feito
+- Música 1.22.0 (19/11): tela no estilo Spotify, player no navegador (Web Playback SDK), rotinas disparadas pela Alexa; app do Spotify novo (conta Estevam Souza, Premium) com Web API + Web Playback SDK.
+- 1.25.0 (20/11):
+  - /cafeteira: a vermelha antiga não pisca mais (modelo só aparece quando o certo chega).
+  - /mapa: monitores/teclados/mouses/PCs da biblioteca voltaram (altura NaN: a 4ª posição do monitor é a tela, não a altura); trânsito e carros carregam no ocioso depois do escritório.
+  - /avatares: lista da Biblioteca rola sozinha.
+  - Bugs: isReady (compilarSeguro no lugar de compileAsync), EMAXCONNSESSION (porta 6543 em todo lugar), transmissor parado vira notificação. Bugs 10–21 fechados.
+  - /apps: download sem acesso ao GitHub pelo agente (op app_link; token do `gh` do Mac lido na hora).
+  - Releases do GitHub: logo pelo app.zynio.com.br, selos numa linha, "Como atualizar" e "Problemas comuns" (todas as 5 releases).
+  - /ia: visual do Claude (paleta quente .tela-ia, conta na lateral, serifa, modelo abaixo da caixa).
+  - /luzes: interruptor de várias teclas (Novadigital 4 teclas): uma luz por tecla, painel de vidro preto, escolha da tecla ao conectar.
+  - Conformidade: testes ao vivo rodados de novo (aprovados); o resto é ação da organização.
