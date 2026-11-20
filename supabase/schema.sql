@@ -595,3 +595,21 @@ alter table public.site_conversas add column if not exists prioridade text not n
 alter table public.site_conversas add column if not exists prazo bigint;
 alter table public.site_conversas add column if not exists proximo_passo text not null default '';
 alter table public.site_conversas add column if not exists ordem double precision not null default 0;
+
+-- Auditoria do bot do Telegram (20/11): toda interação (quem, o quê, resultado e o IP do servidor do Telegram que entregou)
+create table if not exists public.telegram_eventos (
+  id bigint generated always as identity primary key,
+  quando bigint not null,
+  chat text not null,
+  tg_id text not null default '',
+  username text not null default '',
+  usuario_id uuid,
+  usuario_nome text not null default '',
+  tipo text not null,                 -- comando | clique | ia | negado | flood | bloqueado | vinculo | pin_ok | pin_errado | pin_pedido | identidade | injecao | expirado
+  texto text not null default '',
+  ok boolean not null default true,
+  ip text not null default ''
+);
+create index if not exists ix_telegram_eventos_quando on public.telegram_eventos (quando desc);
+create index if not exists ix_telegram_eventos_chat on public.telegram_eventos (chat, quando desc);
+alter table public.telegram_eventos enable row level security;

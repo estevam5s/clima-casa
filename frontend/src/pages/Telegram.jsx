@@ -6,6 +6,29 @@ import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Vazio, confirmar, u
 
 // Bot do Telegram: vincular o próprio Telegram (código de uso único), ver os vínculos, comandos e a segurança.
 // O dono configura o token do bot (fica cifrado no banco).
+// PIN de 6 dígitos para os comandos críticos do bot (destrancar a porta, escudo, bloquear IP, reiniciar o agente…)
+function PinCriticos() {
+  const toast = useToast()
+  const { dados, recarregar } = useDados(() => api.get('/api/telegram/pin'))
+  const [pin, setPin] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  if (!dados) return null
+  const salvar = async (e) => { e.preventDefault(); setSalvando(true); try { await api.put('/api/telegram/pin', { pin }); setPin(''); toast('PIN salvo. No bot: /pin seguido dos 6 dígitos.'); recarregar() } catch (err) { toast(err.message, 'erro') } finally { setSalvando(false) } }
+  const apagar = async () => { try { await api.del('/api/telegram/pin'); toast('PIN removido: os comandos críticos ficam travados no bot.'); recarregar() } catch (err) { toast(err.message, 'erro') } }
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><KeyRound className="h-4 w-4" />PIN dos comandos críticos</h2>
+      <p className="mt-1 text-sm text-muted-foreground">{dados.definido ? 'Você tem PIN definido.' : 'Sem PIN, os comandos críticos não rodam pelo bot.'} No bot, mande <code>/pin 123456</code> antes do comando; vale {dados.valido_min} min. 5 erros bloqueiam a conversa por 24 h.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Críticos: {dados.criticos.map((c) => `/${c}`).join(', ')}</p>
+      <form onSubmit={salvar} className="mt-3 flex flex-wrap items-center gap-2">
+        <input value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" placeholder="6 dígitos" className="campo h-9 w-36 font-mono tracking-widest" aria-label="Novo PIN" />
+        <Botao type="submit" tamanho="sm" disabled={pin.length !== 6} carregando={salvando}>{dados.definido ? 'Trocar PIN' : 'Definir PIN'}</Botao>
+        {dados.definido && <Botao type="button" tamanho="sm" variante="fantasma" onClick={apagar}>Remover</Botao>}
+      </form>
+    </section>
+  )
+}
+
 export default function Telegram() {
   const toast = useToast()
   const { sessao } = useProjeto()
@@ -79,6 +102,7 @@ export default function Telegram() {
         </div>
         <div className="space-y-6">
           <CatalogoComandos comandos={dados.comandos || []} categorias={dados.categorias || []} />
+          <PinCriticos />
           <section className="cartao p-5">
             <h2 className="titulo-secao flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />Segurança do bot</h2>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
@@ -88,6 +112,9 @@ export default function Telegram() {
               <li>Webhook só aceita o segredo do bot vindo dos endereços do Telegram.</li>
               <li>Até 20 comandos por minuto; quem tenta usar sem vínculo é bloqueado por 24 h após 5 tentativas.</li>
               <li>Conta desativada no sistema perde o vínculo na hora. Tudo fica na Atividade.</li>
+              <li>O ID do Telegram tem que ser o mesmo do vínculo; 3 estouros do limite em 10 min bloqueiam a conversa por 1 h.</li>
+              <li>Comandos críticos pedem o PIN de 6 dígitos; vínculo sem uso por 60 dias expira.</li>
+              <li>Toda interação fica na auditoria em Segurança → Telegram.</li>
             </ul>
           </section>
           {dono && (

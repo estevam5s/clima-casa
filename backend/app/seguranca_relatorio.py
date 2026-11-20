@@ -21,11 +21,19 @@ if _reg in REGIOES:
 else:  # agente no Mac (escritório, Grande Florianópolis)
     SERVIDOR = {"nome": "agente do escritório", "lat": -27.69, "lon": -48.78}
 # Ataque de verdade: alguém tentou entrar, adulterar ou varrer. Visita sem login e robô de pré-visualização não entram aqui.
-ATAQUES = ("scanner", "rate_limit", "token_invalido", "login_falhou", "login_negado", "pais_bloqueado", "ip_bloqueado_auto", "bot_bloqueado")
+ATAQUES = ("scanner", "rate_limit", "token_invalido", "login_falhou", "login_negado", "pais_bloqueado", "ip_bloqueado_auto", "bot_bloqueado",
+           "isca", "robo_ia", "spraying", "prompt_injection", "injecao_sqli", "injecao_nosql", "injecao_comando", "injecao_ssti", "injecao_xxe",
+           "injecao_log4shell", "injecao_prototype", "injecao_travessia", "telegram_negado", "telegram_flood", "telegram_pin", "telegram_identidade",
+           "telegram_webhook_negado")
 ROTULOS = {"acesso": "Acesso", "login_ok": "Login aceito", "login_falhou": "Senha errada", "login_negado": "Conta sem permissão",
            "auth_negado": "Sem permissão (logado)", "token_invalido": "Token falso ou adulterado", "sem_login": "Abriu sem login",
            "scanner": "Ferramenta de ataque", "rate_limit": "Excesso de requisições", "bot_bloqueado": "Robô barrado (Turnstile)",
-           "esqueci_senha": "Pediu nova senha", "consentimento": "Escolheu cookies no site", "site_contato": "Formulário do site", "pais_bloqueado": "País bloqueado", "ip_bloqueado_auto": "IP bloqueado"}
+           "esqueci_senha": "Pediu nova senha", "consentimento": "Escolheu cookies no site", "site_contato": "Formulário do site", "pais_bloqueado": "País bloqueado", "ip_bloqueado_auto": "IP bloqueado",
+           "isca": "Caiu na isca (robô)", "robo_ia": "Robô de IA barrado", "spraying": "Senha testada em várias contas", "prompt_injection": "Tentou mudar as regras da IA",
+           "injecao_sqli": "SQL injection", "injecao_nosql": "NoSQL injection", "injecao_comando": "Injeção de comando", "injecao_ssti": "Injeção de template (SSTI)",
+           "injecao_xxe": "XXE", "injecao_log4shell": "Log4Shell", "injecao_prototype": "Prototype pollution", "injecao_travessia": "Travessia de pasta",
+           "sem_agente": "Sem User-Agent", "telegram_negado": "Telegram sem vínculo", "telegram_flood": "Flood no Telegram", "telegram_pin": "PIN do Telegram errado",
+           "telegram_identidade": "Telegram com identidade diferente", "telegram_webhook_negado": "Webhook do Telegram falso"}
 _PREVIA = re.compile(r"WhatsApp|facebookexternalhit|Facebot|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|SkypeUriPreview|"
                      r"Googlebot|bingbot|Applebot|DuckDuckBot|YandexBot|Google-InspectionTool|vercel", re.I)
 _AUTOMATICO = re.compile(r"HeadlessChrome|python-requests|python-httpx|curl/|Wget|Go-http-client|okhttp|axios|node-fetch|"

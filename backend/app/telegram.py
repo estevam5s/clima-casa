@@ -10,6 +10,14 @@ Segurança (mais rígida que a do painel):
 - ações em lote (desligar todos, cenas) pedem confirmação por botão que expira em 60 s (nonce de uso único);
 - limite de 20 comandos por minuto por conversa; quem tenta usar sem vínculo é bloqueado por 24 h depois de 5 tentativas;
 - tudo vai para a Atividade (origem telegram); token e segredo ficam em config.telegram (cifrado, CHAVES_SENSIVEIS).
+Reforço de 20/11:
+- auditoria de TODA interação em telegram_eventos (quem, o quê, resultado e o IP do servidor do Telegram que entregou);
+  o Telegram não revela o IP de quem usa o bot: o que chega aqui é o IP dos servidores dele (conferido na lista oficial);
+- identidade: o ID da pessoa no Telegram tem que ser o mesmo gravado no vínculo (senão o vínculo cai);
+- flood: 3 estouros do limite em 10 min = conversa bloqueada por 1 h (e evento de segurança);
+- PIN de 6 dígitos (hash scrypt, definido no painel) para comandos críticos (destrancar a porta, escudo, bloquear IP,
+  reiniciar o agente, backup, encerrar sessões…); vale 10 min por conversa; 5 erros = 24 h bloqueado;
+- vínculo sem uso por 60 dias expira (precisa vincular de novo); prompt injection no texto livre é recusado (ia.py).
 """
 from __future__ import annotations
 
@@ -17,6 +25,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import re
 import logging
 import secrets
 import time
@@ -33,6 +42,53 @@ ESTADO = "telegram_estado"  # códigos pendentes (hash), confirmações, limites
 REDES_TELEGRAM = [ipaddress.ip_network(n) for n in ("149.154.160.0/20", "91.108.4.0/22", "2001:67c:4e8::/48", "2001:b28:f23c::/48")]
 LIMITE_MIN = 20
 FALHAS_BLOQUEIO = 5
+CRITICOS = {"destrancar", "reiniciaragente", "escudo", "desligarescudo", "bloquearip", "desbloquearip", "backup", "encerrarsessoes",
+            "pausartodasautos", "ativartodasautos", "desligartodos", "telegramvinculos"}
+PIN_MIN = 10            # minutos que o PIN vale depois de digitado
+PIN_ERROS = 5
+VINCULO_DIAS = 60
+_ip_atual = {"ip": ""}   # IP do servidor do Telegram que entregou a atualização em processamento
+
+
+def auditar(cid, quem: dict | None, tipo: str, texto: str = "", ok: bool = True, u: dict | None = None):
+    """Uma linha em telegram_eventos. Texto curto (até 160) e sem segredo: PIN nunca é gravado."""
+    try:
+        q = quem or {}
+        db.executar("INSERT INTO telegram_eventos (quando, chat, tg_id, username, usuario_id, usuario_nome, tipo, texto, ok, ip) VALUES (?,?,?,?,CAST(? AS uuid),?,?,?,?,?)",
+                    (db.agora(), str(cid), str(q.get("id") or ""), (q.get("username") or q.get("first_name") or "")[:60], (u or {}).get("id"),
+                     ((u or {}).get("nome") or (u or {}).get("email") or "")[:80], tipo, (texto or "")[:160], ok, _ip_atual["ip"][:45]))
+    except Exception as e:  # noqa: BLE001
+        log.warning("telegram auditoria: %s", e)
+
+
+# ---------------- PIN para comandos críticos ----------------
+def _hash_pin(pin: str, sal: bytes) -> str:
+    return hashlib.scrypt(pin.encode(), salt=sal, n=2 ** 14, r=8, p=1, dklen=32).hex()
+
+
+def definir_pin(usuario_id: str, pin: str | None):
+    pins = db.cfg("telegram_pins") or {}
+    if pin is None:
+        pins.pop(str(usuario_id), None)
+    else:
+        sal = secrets.token_bytes(16)
+        pins[str(usuario_id)] = {"sal": sal.hex(), "hash": _hash_pin(pin, sal), "em": int(time.time())}
+    db.set_cfg("telegram_pins", pins)
+
+
+def tem_pin(usuario_id: str) -> bool:
+    return str(usuario_id) in (db.cfg("telegram_pins") or {})
+
+
+def conferir_pin(usuario_id: str, pin: str) -> bool:
+    p = (db.cfg("telegram_pins") or {}).get(str(usuario_id))
+    if not p or not re.fullmatch(r"\d{6}", pin or ""):
+        return False
+    return hmac.compare_digest(p["hash"], _hash_pin(pin, bytes.fromhex(p["sal"])))
+
+
+def pin_liberado(cid: str) -> bool:
+    return (_estado().get("pin_ok") or {}).get(str(cid), 0) > time.time()
 
 # os comandos ficam em telegram_cmds.py (catálogo com categorias, permissões e confirmação); o menu "/" do Telegram
 # mostra os 100 mais usados (limite do Telegram) e /comandos navega por todos
@@ -49,7 +105,7 @@ def _salvar(c: dict):
 
 def _estado() -> dict:
     e = db.cfg(ESTADO) or {}
-    for k in ("codigos", "confirmar", "uso", "bloqueios"):
+    for k in ("codigos", "confirmar", "uso", "bloqueios", "pin_ok", "pin_erros", "floods", "ultimo"):
         e.setdefault(k, {})
     e.setdefault("vistos", [])
     agora = time.time()   # limpa o que venceu
@@ -188,8 +244,9 @@ def _e(t) -> str:
     return html.escape(str(t if t is not None else ""))
 
 
-def processar(upd: dict):
+def processar(upd: dict, ip: str = ""):
     """Uma atualização do Telegram (mensagem ou clique em botão)."""
+    _ip_atual["ip"] = ip or ""
     uid_upd = upd.get("update_id")
     if uid_upd is not None:   # o Telegram reenvia se a resposta demorar (ex.: IA): o mesmo comando não roda duas vezes
         ev = _estado()
@@ -208,17 +265,46 @@ def processar(upd: dict):
     e = _estado()
     agora = time.time()
     b = e["bloqueios"].get(cid) or {}
+    texto = ((msg or {}).get("text") or "").strip()
     if b.get("ate", 0) > agora:
+        auditar(cid, quem, "bloqueado", texto[:60] or (cb or {}).get("data", ""), False)
         return
     uso = e["uso"].setdefault(cid, [])
     if len(uso) >= LIMITE_MIN:
+        # flood: 3 estouros em 10 min = conversa bloqueada por 1 h
+        fl = [x for x in e["floods"].get(cid, []) if x > agora - 600] + [agora]
+        e["floods"][cid] = fl
+        if len(fl) >= 3:
+            e["bloqueios"][cid] = {"falhas": b.get("falhas", 0), "em": agora, "ate": agora + 3600, "motivo": "flood"}
+            from . import firewall
+            firewall.registrar(f"telegram:{cid}", "telegram_flood", "/api/telegram/webhook", f"flood · @{quem.get('username') or '-'}")
         _salvar_estado(e)
-        _enviar(cid, "Muitos comandos em pouco tempo. Espere um minuto.")
+        auditar(cid, quem, "flood", f"{len(uso)} comandos/min", False)
+        _enviar(cid, "Muitos comandos em pouco tempo. Espere um minuto." if len(fl) < 3 else "Muitos comandos seguidos: esta conversa ficou bloqueada por 1 hora.")
         return
     uso.append(agora)
-    texto = ((msg or {}).get("text") or "").strip()
     c = cfg()
     vinc = (c.get("vinculos") or {}).get(cid)
+    # identidade: quem escreve tem que ser a mesma conta do Telegram que fez o vínculo
+    if vinc and vinc.get("tg_id") and str(quem.get("id") or "") != str(vinc["tg_id"]):
+        auditar(cid, quem, "identidade", f"esperado {vinc['tg_id']}", False)
+        from . import firewall
+        firewall.registrar(f"telegram:{cid}", "telegram_identidade", "/api/telegram/webhook", f"ID diferente do vínculo · @{quem.get('username') or '-'}")
+        desvincular(cid, "seguranca")
+        _salvar_estado(e)
+        return
+    # vínculo parado há muito tempo expira
+    ult = e["ultimo"].get(cid) or (vinc or {}).get("desde") or agora
+    if vinc and agora - ult > VINCULO_DIAS * 86400:
+        auditar(cid, quem, "expirado", f"sem uso há {int((agora - ult) / 86400)} dias", False)
+        desvincular(cid, "expirou")
+        _salvar_estado(e)
+        _enviar(cid, f"Este Telegram ficou {VINCULO_DIAS} dias sem uso e o vínculo expirou. Gere um código novo no painel (app.zynio.com.br → Telegram).")
+        return
+    if vinc:
+        e["ultimo"][cid] = agora
+        if not vinc.get("tg_id") and quem.get("id"):   # vínculo antigo: grava o ID no primeiro uso (depois passa a conferir)
+            vinc["tg_id"] = str(quem["id"]); _salvar(c)
 
     # vínculo: /start CODIGO (link do painel) ou /vincular CODIGO
     partes = texto.split()
@@ -229,7 +315,8 @@ def processar(upd: dict):
             u = _usuario(dado["usuario_id"])
             if u:
                 c.setdefault("vinculos", {})[cid] = {"usuario_id": u["id"], "nome": u.get("nome") or u["email"], "desde": int(agora),
-                                                     "telegram": quem.get("username") or quem.get("first_name")}
+                                                     "telegram": quem.get("username") or quem.get("first_name"), "tg_id": str(quem.get("id") or "")}
+                auditar(cid, quem, "vinculo", "vinculou o Telegram", True, u)
                 _salvar(c); e["bloqueios"].pop(cid, None); _salvar_estado(e)
                 db.registrar("telegram", "Telegram vinculado", detalhe=f"{u.get('nome') or u['email']} (@{quem.get('username') or '-'})")
                 _enviar(cid, f"Pronto, <b>{_e(u.get('nome') or 'você')}</b>: este Telegram está ligado à sua conta, com as suas permissões. "
@@ -240,6 +327,7 @@ def processar(upd: dict):
         _salvar_estado(e)
         from . import firewall
         firewall.registrar(f"telegram:{cid}", "telegram_negado", "/api/telegram/webhook", f"falha {falhas} · @{quem.get('username') or '-'}")
+        auditar(cid, quem, "negado", texto[:60], False)
         if falhas < FALHAS_BLOQUEIO:
             _enviar(cid, "Este Telegram não está vinculado. Entre no painel (app.zynio.com.br → Telegram), gere o código e mande aqui: /vincular CÓDIGO")
         return
@@ -251,6 +339,10 @@ def processar(upd: dict):
         return
     from . import acesso
     acesso.atual.set(u)
+    # PIN digitado: /pin 123456 (nunca vai para a auditoria nem para a Atividade)
+    if texto.split()[:1] == ["/pin"]:
+        return _pin(cid, quem, u, (texto.split() + [""])[1])
+    auditar(cid, quem, "clique" if cb else ("comando" if texto.startswith("/") else "ia"), (cb or {}).get("data", "") if cb else texto[:120], True, u)
     try:
         if cb:
             _clique(cid, cb, u)
@@ -667,3 +759,26 @@ def _clique(cid, cb, u):
             r = rapi.executar_cena(int(p["valor"]))
             falhas = [x for x in r.get("resultados", []) if not x["ok"]]
             return _enviar(cid, "Cena executada." if not falhas else f"Cena executada com {len(falhas)} falha(s): {_e(falhas[0].get('erro', ''))[:160]}", _menu())
+
+
+def _pin(cid, quem, u, pin):
+    e = _estado()
+    agora = time.time()
+    if not tem_pin(u["id"]):
+        return _enviar(cid, "Você ainda não tem PIN. Defina no painel: app.zynio.com.br → Telegram → PIN dos comandos críticos.")
+    if conferir_pin(u["id"], pin):
+        e["pin_ok"][str(cid)] = agora + PIN_MIN * 60; e["pin_erros"].pop(str(cid), None); _salvar_estado(e)
+        auditar(cid, quem, "pin_ok", "", True, u)
+        return _enviar(cid, f"PIN conferido: comandos críticos liberados por {PIN_MIN} minutos nesta conversa.", _menu())
+    n = int(e["pin_erros"].get(str(cid), 0)) + 1
+    e["pin_erros"][str(cid)] = n
+    if n >= PIN_ERROS:
+        e["bloqueios"][str(cid)] = {"falhas": n, "em": agora, "ate": agora + 86400, "motivo": "pin"}
+        from . import firewall, notificacoes
+        firewall.registrar(f"telegram:{cid}", "telegram_pin", "/api/telegram/webhook", f"{n} PINs errados · @{quem.get('username') or '-'}")
+        notificacoes.notificar(f"telegram:pin:{cid}", "seguranca", "alta", "PIN do Telegram errado 5 vezes",
+                               f"A conversa de {u.get('nome') or u.get('email')} no Telegram ficou bloqueada por 24 h.", "/seguranca?aba=telegram")
+    _salvar_estado(e)
+    auditar(cid, quem, "pin_errado", f"tentativa {n}", False, u)
+    return _enviar(cid, "PIN incorreto." + (" Conversa bloqueada por 24 h." if n >= PIN_ERROS else f" Restam {PIN_ERROS - n} tentativa(s)."))
+

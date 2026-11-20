@@ -359,6 +359,23 @@ def verificar(request) -> tuple[int, str] | None:
         registrar(ip, "pais_bloqueado", rota, pais, pais, agente)
         return 403, "Acesso não permitido a partir desta região."
     if c.get("detectar_scanners"):
+        from . import defesa
+        # isca: só robô pede /wp-login.php, /.env, /.git/config… → bloqueio imediato por 24 h, sem segunda chance
+        if defesa.ISCAS.search(rota) or rota == "/api/isca":
+            rota = request.query_params.get("c", rota)[:80] if rota == "/api/isca" else rota
+            registrar(ip, "isca", rota, "caminho-isca (só robô visita)", pais, agente)
+            if not falhas_recentes(ip, ("login_ok",), 1440):   # alguém da equipe que abriu por engano: só registra
+                bloquear(ip, f"caiu na isca {rota[:60]}", 1440)
+            return 403, "Requisição recusada."
+        if defesa.FERRAMENTAS.search(agente):
+            registrar(ip, "scanner", rota, f"ferramenta de ataque: {agente[:120]}", pais, agente)
+            bloqueio_automatico(ip, "ferramenta de ataque (força bruta / varredura)")
+            return 403, "Requisição recusada."
+        if rota.startswith("/api/") and defesa.ROBOS_IA.search(agente):
+            registrar(ip, "robo_ia", rota, agente[:160], pais, agente)
+            return 403, "Robôs de IA não acessam este sistema."
+        if rota.startswith("/api/") and not agente.strip():
+            registrar(ip, "sem_agente", rota, "requisição sem User-Agent", pais, agente)
         alvo = rota + "?" + str(request.url.query)
         if AGENTES_MALICIOSOS.search(agente) or CAMINHOS_MALICIOSOS.search(alvo) or CARGAS_MALICIOSAS.search(alvo):
             registrar(ip, "scanner", rota, alvo[:300], pais, agente)
@@ -438,3 +455,23 @@ def depois(request, status: int):
     registrar(ip, tipo, request.url.path, str(status), pais, agente)
     if falhas_recentes(ip, ("token_invalido", "auth_negado"), c["janela_min"]) >= c["falhas_auth"]:
         bloqueio_automatico(ip, "excesso de acessos não autorizados")
+
+
+def inspecionar_corpo(request, corpo: bytes) -> tuple[int, str] | None:
+    """Corpo de POST/PUT/PATCH: assinaturas de injeção. 3 em 1 h = bloqueio progressivo."""
+    c = config()
+    if not c.get("ativo") or not c.get("detectar_scanners"):
+        return None
+    from . import defesa
+    achado = defesa.inspecionar_corpo(request.url.path, corpo)
+    if not achado:
+        return None
+    ip = ip_do_pedido(request)
+    if _casa(ip, "permitido"):
+        return None
+    tipo, trecho = achado
+    registrar(ip, f"injecao_{tipo}", request.url.path, trecho, request.headers.get("x-vercel-ip-country", ""), request.headers.get("user-agent", ""))
+    if falhas_recentes(ip, tuple(f"injecao_{t}" for t, _ in defesa.ASSINATURAS), 60) >= 3:
+        bloqueio_automatico(ip, f"tentativas de injeção ({tipo})")
+    return 400, "Requisição recusada: conteúdo com padrão de ataque."
+

@@ -55,7 +55,16 @@ export const config = {
   matcher: ['/((?!api/|\.well-known/|alexa/|oauth/|saude|assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js|tema\\.js|og\\.jpg|verificacao\\.js|instalar-agente\\.ps1|instalar-agente\\.sh|favicon).*)'],
 }
 
+// iscas: caminhos que só robô pede (/wp-login.php, /.env, /.git/config…). Reescreve para /api/isca, que registra e
+// bloqueia o IP por 24 h no firewall (o rewrite mantém o IP real de quem pediu). Mesma lista de backend/app/defesa.py.
+const ISCAS = /^\/(wp-login\.php|wp-admin\/?|xmlrpc\.php|\.env(\.\w+)?|\.git\/(config|HEAD)|\.aws\/credentials|phpmyadmin\/?|admin\.php|config\.php|\.DS_Store|server-status|actuator\/(env|heapdump)|vendor\/phpunit\/.*|boaform\/.*|cgi-bin\/.*|HNAP1|owa\/auth\/.*|\.svn\/entries|backup\.(zip|sql|tar\.gz)|db\.sql|dump\.sql)$/i
+
 export default async function middleware(request) {
+  const caminho = new URL(request.url).pathname
+  if (ISCAS.test(caminho)) {
+    const destino = new URL('/api/isca', request.url); destino.searchParams.set('c', caminho.slice(0, 80))
+    return new Response(null, { headers: { 'x-middleware-rewrite': destino.toString() } })
+  }
   const segredo = process.env.VERIFICACAO_SEGREDO
   const chave = process.env.TURNSTILE_SITE_KEY
   if (!segredo || !chave) return undefined

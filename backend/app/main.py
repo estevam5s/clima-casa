@@ -98,6 +98,15 @@ async def cabecalhos(request: Request, chamar):
         barrado = await asyncio.to_thread(firewall.verificar, request)
         if barrado:
             return JSONResponse({"detail": barrado[1]}, status_code=barrado[0], headers={"Retry-After": "60"} if barrado[0] == 429 else None)
+    # Corpo das escritas na API: tamanho máximo e assinaturas de injeção (SQL, NoSQL, comando, SSTI, XXE, Log4Shell…)
+    if dinamica and not de_teste and request.method in ("POST", "PUT", "PATCH"):
+        tam = request.headers.get("content-length")
+        if tam and tam.isdigit() and int(tam) > 4 * 1024 * 1024:
+            return JSONResponse({"detail": "Conteúdo grande demais."}, status_code=413)
+        corpo = await request.body()
+        barrado = await asyncio.to_thread(firewall.inspecionar_corpo, request, corpo)
+        if barrado:
+            return JSONResponse({"detail": barrado[1]}, status_code=barrado[0])
     # Bloqueia POST/PUT/DELETE vindos de outros sites (CSRF) nas rotas de sessão
     if request.method not in ("GET", "HEAD", "OPTIONS") and request.url.path.startswith("/api/"):
         origem = request.headers.get("origin")

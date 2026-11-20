@@ -2,6 +2,28 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Só fatos que entraram de verdade; nada de número ou recurso inventado. Seções vazias podem ficar como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "1.29.0",
+      "data": "2026-11-20",
+      "titulo": "Segurança reforçada no sistema e no bot do Telegram",
+      "resumo": "O firewall passou a examinar o conteúdo das requisições contra injeções, bloqueia robôs e ferramentas de ataque, pega senhas testadas em várias contas e protege o Assistente de IA; o bot do Telegram ganhou auditoria completa, PIN para comandos críticos e uma aba própria em Segurança.",
+      "novo": [
+        "Segurança → Telegram: cada interação com o bot (quem, o quê, resultado), os IPs que entregaram as mensagens, vínculos, PINs e bloqueios, com bloquear e desbloquear.",
+        "Bot do Telegram: PIN de 6 dígitos para comandos críticos (destrancar a porta, escudo, bloquear IP, reiniciar o agente, backup…), definido em Telegram → PIN."
+      ],
+      "melhorias": [
+        "Telegram: o ID da pessoa tem que ser o mesmo do vínculo, flood repetido bloqueia a conversa por 1 hora e vínculo sem uso por 60 dias expira."
+      ],
+      "seguranca": [
+        "O conteúdo das requisições é examinado contra SQL injection (inclusive às cegas), NoSQL, injeção de comando, injeção de template, XXE, Log4Shell, prototype pollution e travessia de pasta.",
+        "Caminhos-isca (/wp-login.php, /.env, /.git…) bloqueiam o robô na hora.",
+        "Ferramentas de força bruta e varredura (Hydra, Medusa, ffuf, Burp…) e robôs de IA não acessam a API.",
+        "Senha testada em várias contas pelo mesmo IP (password spraying) bloqueia o IP por 24 horas; cada senha errada atrasa mais a resposta.",
+        "O Assistente de IA recusa pedidos que tentam mudar as regras dele ou pedir chaves e tokens, e a tentativa vira evento de segurança.",
+        "Requisições maiores que 4 MB são recusadas."
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "1.28.0",
       "data": "2026-11-20",
       "titulo": "Telegram com 862 comandos e Estúdio de avatares mais completo",

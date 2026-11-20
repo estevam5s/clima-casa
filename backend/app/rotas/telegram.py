@@ -2,6 +2,8 @@
 Ver app/telegram.py (segurança e comandos)."""
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -27,7 +29,7 @@ async def webhook(request: Request):
         upd = await request.json()
     except ValueError:
         raise HTTPException(400, "JSON inválido.")
-    await asyncio.to_thread(telegram.processar, upd)
+    await asyncio.to_thread(telegram.processar, upd, ip)
     return {"ok": True}   # sempre 200 para o Telegram não repetir a mesma atualização
 
 
@@ -78,3 +80,87 @@ def configurar(d: ConfigIn):
         return telegram.configurar(d.token)
     except RuntimeError as e:
         raise HTTPException(502, str(e)) from e
+
+
+# ---------------- PIN dos comandos críticos (cada pessoa define o seu) ----------------
+class PinIn(BaseModel):
+    pin: str = Field(pattern=r"^\d{6}$")
+
+
+_PINS_FRACOS = {"000000", "111111", "222222", "333333", "444444", "555555", "666666", "777777", "888888", "999999",
+                "123456", "654321", "121212", "112233", "123123", "102030", "010203", "147258", "159753", "696969"}
+
+
+@rotas_telegram.get("/telegram/pin")
+def pin_estado():
+    return {"definido": telegram.tem_pin(_u()["id"]), "criticos": sorted(telegram.CRITICOS), "valido_min": telegram.PIN_MIN}
+
+
+@rotas_telegram.put("/telegram/pin")
+def pin_definir(d: PinIn):
+    if d.pin in _PINS_FRACOS or len(set(d.pin)) <= 2:
+        raise HTTPException(422, "PIN fácil demais. Use 6 dígitos sem sequência nem repetição.")
+    telegram.definir_pin(_u()["id"], d.pin)
+    db.registrar("painel", "PIN do Telegram definido", detalhe=_u().get("nome") or _u().get("email") or "")
+    return pin_estado()
+
+
+@rotas_telegram.delete("/telegram/pin")
+def pin_apagar():
+    telegram.definir_pin(_u()["id"], None)
+    db.registrar("painel", "PIN do Telegram removido", detalhe=_u().get("nome") or _u().get("email") or "")
+    return pin_estado()
+
+
+# ---------------- Segurança → Telegram: auditoria, conversas, bloqueios ----------------
+@rotas_telegram.get("/seguranca/telegram")
+def seguranca_telegram(horas: int = 168):
+    horas = max(1, min(24 * 90, horas))
+    desde = db.agora() - horas * 3600
+    ev = db.consultar("SELECT quando, chat, tg_id, username, usuario_nome, tipo, texto, ok, ip FROM telegram_eventos WHERE quando > ? ORDER BY quando DESC LIMIT 400", (desde,))
+    por_tipo = {r["tipo"]: r["n"] for r in db.consultar("SELECT tipo, count(*) n FROM telegram_eventos WHERE quando > ? GROUP BY tipo", (desde,))}
+    ips = db.consultar("SELECT ip, count(*) n, max(quando) ultimo FROM telegram_eventos WHERE quando > ? AND ip <> '' GROUP BY ip ORDER BY n DESC LIMIT 30", (desde,))
+    chats = db.consultar("SELECT chat, max(username) username, max(usuario_nome) usuario, count(*) n, count(*) FILTER (WHERE NOT ok) negados, max(quando) ultimo "
+                         "FROM telegram_eventos WHERE quando > ? GROUP BY chat ORDER BY ultimo DESC LIMIT 60", (desde,))
+    import ipaddress
+    for r in ips:   # confere se o IP é mesmo da rede do Telegram (o webhook já recusa os outros)
+        try:
+            r["telegram"] = any(ipaddress.ip_address(r["ip"]) in n for n in telegram.REDES_TELEGRAM)
+        except ValueError:
+            r["telegram"] = False
+    e = telegram._estado()
+    agora = time.time()
+    bloqueios = [{"chat": c, "ate": int(v.get("ate", 0)), "motivo": v.get("motivo") or ("vínculo" if v.get("falhas") else ""), "falhas": v.get("falhas", 0)}
+                 for c, v in e["bloqueios"].items() if v.get("ate", 0) > agora]
+    c = telegram.cfg()
+    pins = db.cfg("telegram_pins") or {}
+    vinc = [{"chat": k, "nome": v.get("nome"), "telegram": v.get("telegram"), "desde": v.get("desde"), "tg_id": bool(v.get("tg_id")),
+             "ultimo": int(e["ultimo"].get(k, 0)) or v.get("desde"), "pin": str(v.get("usuario_id")) in pins} for k, v in (c.get("vinculos") or {}).items()]
+    return {"horas": horas, "eventos": ev, "por_tipo": por_tipo, "ips": ips, "chats": chats, "bloqueios": bloqueios, "vinculos": vinc,
+            "regras": {"limite_min": telegram.LIMITE_MIN, "falhas_bloqueio": telegram.FALHAS_BLOQUEIO, "pin_erros": telegram.PIN_ERROS,
+                       "pin_min": telegram.PIN_MIN, "vinculo_dias": telegram.VINCULO_DIAS, "criticos": sorted(telegram.CRITICOS),
+                       "redes": [str(n) for n in telegram.REDES_TELEGRAM]}}
+
+
+class ChatIn(BaseModel):
+    chat: str = Field(pattern=r"^-?\d{1,20}$")
+    horas: int = Field(24, ge=1, le=24 * 365)
+
+
+@rotas_telegram.post("/seguranca/telegram/bloquear")
+def seguranca_telegram_bloquear(d: ChatIn):
+    e = telegram._estado()
+    e["bloqueios"][d.chat] = {"falhas": 0, "em": time.time(), "ate": time.time() + d.horas * 3600, "motivo": "manual"}
+    telegram._salvar_estado(e)
+    telegram.auditar(d.chat, None, "bloqueado", f"bloqueado no painel por {d.horas} h", False, _u())
+    db.registrar("painel", "Conversa do Telegram bloqueada", detalhe=f"{d.chat} · {d.horas} h")
+    return seguranca_telegram()
+
+
+@rotas_telegram.post("/seguranca/telegram/desbloquear")
+def seguranca_telegram_desbloquear(d: ChatIn):
+    e = telegram._estado()
+    e["bloqueios"].pop(d.chat, None); e["pin_erros"].pop(d.chat, None); e["floods"].pop(d.chat, None)
+    telegram._salvar_estado(e)
+    db.registrar("painel", "Conversa do Telegram desbloqueada", detalhe=d.chat)
+    return seguranca_telegram()

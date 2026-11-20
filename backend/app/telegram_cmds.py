@@ -2215,6 +2215,12 @@ def executar(ctx: Ctx, nome: str, args: str = "", ent_id=None):
         return ctx.enviar("Seu usuário não tem permissão para isto.")
     if c["papel"] and ctx.u.get("papel") not in c["papel"]:
         return ctx.enviar("Só " + " ou ".join(c["papel"]) + " pode usar este comando.")
+    # comandos críticos pedem o PIN (definido no painel) uma vez a cada 10 min por conversa
+    if nome in telegram.CRITICOS and not telegram.pin_liberado(ctx.cid):
+        telegram.auditar(ctx.cid, None, "pin_pedido", f"/{nome}", False, ctx.u)
+        if not telegram.tem_pin(ctx.u["id"]):
+            return ctx.enviar(f"/{nome} é um comando crítico e pede PIN. Defina o seu em app.zynio.com.br → Telegram → PIN dos comandos críticos.")
+        return ctx.enviar(f"/{nome} é um comando crítico. Mande <b>/pin</b> seguido dos 6 dígitos (vale {telegram.PIN_MIN} min) e repita o comando.")
     r = _resolver(ctx, c, args, ent_id)
     if r is None:
         return

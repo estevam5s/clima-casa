@@ -433,6 +433,16 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", 
     if c.get("ativo") is False:
         raise RuntimeError("O assistente de IA está desligado (IA → Configuração).")
     modelo = modelo if modelo in MODELOS else (c.get("modelo") or PADRAO)
+    # prompt injection: tentar trocar as regras, pedir segredos ou o prompt do sistema → recusa e evento de segurança
+    from . import defesa
+    pergunta = next((h.get("content") for h in reversed(historico) if h.get("role") == "user"), "") or ""
+    trecho = defesa.prompt_injection(pergunta)
+    if trecho:
+        from . import firewall
+        firewall.registrar(f"{canal}:{u.get('id') or 'anon'}", "prompt_injection", f"/ia ({canal})", f"{u.get('nome') or u.get('email') or '-'}: {trecho}")
+        db.registrar(origem, "Pedido recusado pelo Assistente (tentativa de mudar as regras)", ok=False, detalhe=trecho[:120])
+        return {"texto": "Não posso fazer isso: o pedido tenta mudar as minhas regras ou pede informações protegidas. Posso ajudar com os ares, as salas e os relatórios.",
+                "acoes": [], "confirmacoes": [], "modelo": modelo, "recusado": True}
     msgs = [{"role": "system", "content": _sistema(canal)}]
     for h in historico[-16:]:
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):

@@ -3762,6 +3762,12 @@ def entrar(d: EntrarIn, request: Request):
     else:
         turnstile.exigir(d.turnstile, ip, "/api/auth/entrar")
     limite, janela = c["tentativas_login"], c["janela_min"]
+    # password spraying / credential stuffing (Hydra, listas vazadas): o mesmo IP tentando muitas CONTAS diferentes
+    contas = db.um("SELECT count(DISTINCT detalhe) n FROM seguranca_eventos WHERE ip = ? AND tipo = 'login_falhou' AND quando > ?", (ip, db.agora() - janela * 60))["n"]
+    if contas >= 4 and not firewall.falhas_recentes(ip, ("login_ok",), 1440):
+        firewall.registrar(ip, "spraying", "/api/auth/entrar", f"{contas} contas diferentes em {janela} min", pais, agente)
+        firewall.bloquear(ip, "password spraying (muitas contas pelo mesmo IP)", 1440)
+        raise HTTPException(403, "Acesso bloqueado: tentativas em várias contas.")
     if firewall.falhas_recentes(ip, ("login_falhou",), janela, marca) >= limite or firewall.falhas_da_conta(marca, janela) >= limite * 3:
         raise HTTPException(429, f"Muitas tentativas para este e-mail. Tente de novo em {janela} minutos.")
     r = httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/token?grant_type=password", timeout=12,
@@ -3777,7 +3783,7 @@ def entrar(d: EntrarIn, request: Request):
             firewall.bloqueio_automatico(ip, "tentativas de login em excesso")
             raise HTTPException(403, "Acesso bloqueado por excesso de tentativas.")
         restantes = max(0, limite - firewall.falhas_recentes(ip, ("login_falhou",), janela, marca))
-        time.sleep(0.4)  # atrasa força bruta
+        time.sleep(min(4.0, 0.4 * 2 ** max(0, falhas_ip - 1)))  # atraso que dobra a cada falha (até 4 s): força bruta fica inviável
         raise HTTPException(401, "E-mail ou senha incorretos." + (f" Restam {restantes} tentativa(s)." if restantes <= 3 else ""))
     usuario = dados.get("user") or {}
     from .. import acesso
