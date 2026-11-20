@@ -1,8 +1,7 @@
 {
   "notas": [
-    "Android e iPhone: telas de Bugs (procurar e autoteste dos cadastros) e Uso da IA (sessão de 5 horas e semana)",
-    "Computador: atalhos para Editor SQL, Projetos, Mapa e Ilha 3D, Uso da IA, Passo a passo e Baixar apps",
-    "Acompanha a versão 0.4.4 do sistema"
+    "Atalho Código no GitHub no Android (pela atualização automática), no iPhone e no computador",
+    "Acompanha a versão 0.4.5 do sistema (som da nave e salto hipersônico na tela Segurança)"
   ],
   "publicado_em": "2026-11-20",
   "android": {
@@ -10,11 +9,11 @@
     "pagina": "https://app.zynio.com.br/apps"
   },
   "desktop": {
-    "versao": "1.6.0",
+    "versao": "1.6.1",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "ios": {
-    "versao": "1.6.0",
+    "versao": "1.6.1",
     "pagina": "https://app.zynio.com.br/apps"
   }
 }
