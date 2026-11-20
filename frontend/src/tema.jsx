@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState } from 'react'
 
 // Tema claro/escuro/sistema. A classe "dark" no <html> liga os tokens escuros (index.css) e o Tailwind (darkMode: 'class').
 const Ctx = createContext({ escolha: 'sistema', escuro: false, setEscolha: () => {} })
@@ -26,7 +26,8 @@ export function TemaProvider({ children }) {
     const m = midia(); const f = () => setSistemaEscuro(m.matches)
     m.addEventListener('change', f); return () => m.removeEventListener('change', f)
   }, [])
-  useEffect(() => { aplicar(escuro, true) }, [escuro])
+  // layout effect: a classe `dark` muda antes dos efeitos dos filhos (as cenas 3D leem o tema ao montar)
+  useLayoutEffect(() => { aplicar(escuro, true) }, [escuro])
 
   const setEscolha = useCallback((v) => {
     setEscolhaState(v)

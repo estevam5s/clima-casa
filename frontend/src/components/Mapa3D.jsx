@@ -620,20 +620,72 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     try { if (localStorage.getItem('clima-debug-3d') === '1') window.__mapa3d = estado }   // só para testes (Playwright): liga à mão no navegador
     catch { /* sem armazenamento */ }
     setPronto(true)
+    // Qualidade automática: mede o tempo de cada quadro e, se o computador não aguenta, baixa a resolução, o tamanho
+    // do mapa de sombra e a frequência com que a sombra é redesenhada (a sombra desenha a cena inteira de novo).
+    // Nada que recompile os materiais (trocar o tipo de sombra ou desligá-la travaria a tela por segundos).
+    // O nível em que o aparelho ficou é lembrado neste navegador, para a próxima visita já abrir leve.
+    const dprMax = Math.min(window.devicePixelRatio || 1, compacto ? 1.5 : 2)
+    const NIVEIS = [
+      { dpr: dprMax, sombra: 1, cada: 1 },
+      { dpr: Math.min(dprMax, 1.5), sombra: 1, cada: 1 },
+      { dpr: Math.min(dprMax, 1.25), sombra: 0.5, cada: 2 },
+      { dpr: 1, sombra: 0.5, cada: 3 },
+      { dpr: 0.85, sombra: 0.25, cada: 4 },
+      { dpr: 0.7, sombra: 0.25, cada: 6 },
+    ]
+    const CHAVE_Q = 'clima-mapa-qualidade'
+    let nivel = 0
+    try { nivel = Math.min(NIVEIS.length - 1, Math.max(0, parseInt(localStorage.getItem(CHAVE_Q) || '0', 10) || 0)) } catch { /* sem armazenamento */ }
+    let tetoSubida = -1   // depois de descer por lentidão, não volta a subir além do nível que já falhou
+    const aplicarQualidade = () => {
+      const q = NIVEIS[nivel], E = estado.current
+      if (Math.abs(renderer.getPixelRatio() - q.dpr) > 0.01) { renderer.setPixelRatio(q.dpr); ajustar() }
+      if (E.sol && E.sombraMax) {
+        const tam = Math.max(512, Math.round(E.sombraMax * q.sombra))
+        if (E.sol.shadow.mapSize.x !== tam) { E.sol.shadow.mapSize.set(tam, tam); E.sol.shadow.map?.dispose(); E.sol.shadow.map = null }
+      }
+      renderer.shadowMap.autoUpdate = q.cada === 1
+      renderer.shadowMap.needsUpdate = true
+      E.qualidade = { nivel, ...q }
+    }
+    estado.current.aplicarQualidade = aplicarQualidade
+    let somaQ = 0, nQ = 0, ultimoQ = 0, bons = 0, carenciaQ = 0, quadroN = 0
+    const medirQualidade = (agora) => {
+      if (!ultimoQ) { ultimoQ = agora; return }
+      const ms = agora - ultimoQ; ultimoQ = agora
+      if (ms > 700) return   // aba voltou, alerta, compilação: não conta
+      somaQ += ms; nQ++
+      if (somaQ < 1500) return
+      const media = somaQ / nQ; somaQ = 0; nQ = 0
+      if (carenciaQ > 0) { carenciaQ--; return }   // espera a troca anterior assentar
+      if (media > 26 && nivel < NIVEIS.length - 1) {   // abaixo de ~38 quadros/s: desce um nível
+        tetoSubida = nivel; nivel++; bons = 0; carenciaQ = 1; aplicarQualidade()
+        try { localStorage.setItem(CHAVE_Q, String(nivel)) } catch { /* sem armazenamento */ }
+      } else if (media < 13 && nivel > 0 && nivel - 1 > tetoSubida && ++bons >= 4) {   // folga por 6 s: sobe um
+        nivel--; bons = 0; carenciaQ = 1; aplicarQualidade()
+        try { localStorage.setItem(CHAVE_Q, String(nivel)) } catch { /* sem armazenamento */ }
+      } else if (media >= 13) bons = 0
+    }
     let quadro
     const relogio = new THREE.Clock()
-    const laco = () => {
+    const laco = (agora) => {
       quadro = requestAnimationFrame(laco)
-      if (document.hidden || estado.current.foraDaTela || estado.current.naIlha) { relogio.getDelta(); return }   // fora da tela não desenha (não pesa na rolagem)
+      if (document.hidden || estado.current.foraDaTela || estado.current.naIlha) { relogio.getDelta(); ultimoQ = 0; return }   // fora da tela não desenha (não pesa na rolagem)
       const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime
       estado.current.tick?.(dt, calmo ? 0 : t)
       if (!estado.current.ctrl) controles.update()
-      if (!estado.current.compilando) renderer.render(cena, camera)
+      if (!estado.current.compilando) {
+        const q = NIVEIS[nivel]
+        if (q.cada > 1 && ++quadroN % q.cada === 0) renderer.shadowMap.needsUpdate = true
+        renderer.render(cena, camera)
+        if (agora) medirQualidade(agora)
+      } else ultimoQ = 0
       estado.current.rotulos?.()
     }
-    laco()
-    const ajustar = () => { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix() }
+    function ajustar() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix() }
     ajustar()
+    aplicarQualidade()
+    laco()
     const ro = new ResizeObserver(ajustar); ro.observe(el)
     const io = new IntersectionObserver(([en]) => { estado.current.foraDaTela = !en.isIntersecting }, { rootMargin: '80px' }); io.observe(el)
     return () => {
@@ -698,6 +750,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     E.ajustarSombra = ajustarSombra
     sol.shadow.bias = -0.0004; sol.shadow.normalBias = 0.02
     mundo.add(sol)
+    E.sol = sol; E.sombraMax = sol.shadow.mapSize.x; E.aplicarQualidade?.()
 
     // terreno e pisos
     const chao = new THREE.Mesh(new THREE.PlaneGeometry(comPredio ? 500 : tam * 4, comPredio ? 500 : tam * 4), new THREE.MeshStandardMaterial({ color: escuro ? 0x111827 : 0xdfe4e8, roughness: 1 }))
@@ -1879,7 +1932,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const sem = []
         for (let i = 0; i < N; i++) { vida[i] = Math.random(); sem.push([(Math.random() - 0.5) * 0.8, Math.random()]) }
         u.fluxo = { pts, pos3, vida, sem }
-        const luz = new THREE.PointLight(COR_MODO[a.modo] || 0x14b8a6, 0.6, 3.2); luz.position.copy(g.position).add(dir.clone().multiplyScalar(0.6)).setY(g.position.y - 0.5); mundo.add(luz)
+        // sem luz pontual por ar ligado: cada luz a mais entra no cálculo de todos os pixels da cena (pesava no mapa);
+        // as partículas na cor do modo já mostram o ar saindo
         const temp = etiqueta(`${a.temperatura}°`, '#ffffff', `#${new THREE.Color(COR_MODO[a.modo] || 0x14b8a6).getHexString()}`); temp.position.set(0, 0.42, 0); temp.scale.multiplyScalar(0.8); g.add(temp)
       }
       unidades.push(u)

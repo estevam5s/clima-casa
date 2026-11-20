@@ -55,18 +55,20 @@ export default function AcessoRapido() {
     <div className="relative" ref={ref}>
       <button onClick={() => setAberto((v) => !v)} aria-expanded={aberto} aria-label="Atalhos" title="Atalhos"
         className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
-        <LayoutGrid className="h-4 w-4" /><span className="hidden xl:inline">Atalhos</span>
+        <LayoutGrid className="h-4 w-4" /><span className="topo-rotulo">Atalhos</span>
       </button>
       <AnimatePresence>
         {aberto && (
           <motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.14 }}
             className="absolute right-0 top-11 z-50 w-[26rem] max-w-[calc(100vw-1.5rem)] origin-top-right overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"> {/* marca: painel flutua */}
-            <label className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-              <Search className="h-4 w-4 text-muted-foreground" />
+            <label className="m-2 flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3 py-2 transition-colors focus-within:border-primary/50 focus-within:bg-background">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input autoFocus type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Ir para…" aria-label="Procurar atalho"
                 onKeyDown={(e) => { if (e.key === 'Enter' && grupos[0]?.[1][0]) ir(grupos[0][1][0][0]) }}
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
+                className="campo-embutido min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden" />
+              <kbd className="shrink-0 rounded border border-border px-1.5 text-[10px] text-muted-foreground">Enter</kbd>
             </label>
+            <div className="border-b border-border" />
             <div className="max-h-[60vh] overflow-y-auto p-3">
               {grupos.map(([g, itens]) => (
                 <div key={g} className="mb-3 last:mb-0">

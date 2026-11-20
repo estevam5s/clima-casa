@@ -331,7 +331,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
           ))}
         </ul>
       )}
-      <div className="rounded-[20px] border border-[var(--ia-borda)] bg-[var(--ia-caixa)] shadow-[0_2px_10px_rgba(0,0,0,0.05)] focus-within:border-[var(--ia-suave)]">{/* marca: caixa de mensagem flutua */}
+      <div className="rounded-[20px] border border-[var(--ia-borda)] bg-[var(--ia-caixa)] shadow-[0_2px_10px_rgba(0,0,0,0.05)] transition-[border-color,box-shadow] focus-within:border-[var(--ia-suave)] focus-within:shadow-[0_2px_14px_rgba(0,0,0,0.09)]">{/* marca: caixa de mensagem flutua */}
         {anexo && (
           <div className="flex items-center gap-2 px-4 pt-3 text-xs"><span className="flex items-center gap-1.5 rounded-md bg-muted px-2 py-1"><Paperclip className="h-3.5 w-3.5" />{anexo.nome}</span>
             <button onClick={() => setAnexo(null)} aria-label="Tirar o anexo" className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button></div>
@@ -343,7 +343,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
             if (e.key === 'Escape' && pensando) parar()
           }}
           placeholder={ativo ? (grande ? 'Como posso ajudar você hoje?' : 'Responder…') : 'O assistente está desligado ou sem chave'} aria-label="Mensagem para a IA"
-          className="block w-full resize-none bg-transparent px-4 pt-4 text-[15px] leading-relaxed outline-none placeholder:text-[var(--ia-suave)]" />
+          className="campo-embutido block w-full resize-none bg-transparent px-4 pt-4 text-[15px] leading-relaxed outline-none placeholder:text-[var(--ia-suave)]" />
         <div className="flex items-center gap-1 px-2.5 pb-2.5 pt-1">
           <input ref={arq} type="file" accept=".txt,.md,.csv,.json,.log,.py,.js,.jsx,.ts,.sql,.yml,.yaml,.xml,.html" className="hidden" onChange={anexar} />
           <button onClick={() => arq.current?.click()} disabled={!ativo} title="Anexar arquivo de texto" aria-label="Anexar arquivo de texto" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Plus className="h-4 w-4" /></button>

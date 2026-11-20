@@ -162,7 +162,7 @@ export default function Integracoes() {
           </motion.div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1 rolagem-fina">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="cartao p-5">
             <h2 className="flex items-center gap-2 titulo-secao"><Link2 className="h-4 w-4" /> Conectar outra Alexa</h2>
             {conexao && (

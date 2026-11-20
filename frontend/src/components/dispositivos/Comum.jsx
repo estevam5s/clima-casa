@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { CalendarClock, Link2, Plug, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { CalendarClock, Link2, Plug, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { api, haQuanto } from '../../api'
+import { useProjeto } from '../../contexto'
 import Placa from './Placa'
 import { Aviso, Botao, Modal, Selo, useDados, useToast } from '../ui'
 
@@ -9,6 +10,7 @@ export const HARDWARE = {
   cafeteira: 'uma tomada inteligente Wi-Fi compatível com o app Smart Life (Tuya) na cafeteira',
   persiana: 'um motor de persiana/cortina Wi-Fi compatível com o Smart Life (Tuya) em cada janela',
   fechadura: 'uma fechadura Wi-Fi compatível com o Smart Life (Tuya) na porta do escritório',
+  luz: 'uma lâmpada, painel, fita de LED ou interruptor de parede Wi-Fi compatível com o Smart Life (Tuya)',
 }
 const DIAS = [[1, 'Seg'], [2, 'Ter'], [3, 'Qua'], [4, 'Qui'], [5, 'Sex'], [6, 'Sáb'], [7, 'Dom']]
 
@@ -17,7 +19,12 @@ export function Estado({ d }) {
   return d.online ? <Selo cor="verde">Online{d.visto_em ? ` · lido ${haQuanto(d.visto_em)}` : ''}</Selo> : <Selo cor="ambar">Sem resposta</Selo>
 }
 
-export function SemAparelho({ d, aoConectar }) {
+export function SemAparelho({ d, aoConectar, compacto = false }) {
+  if (compacto) return (   // vários cartões lado a lado (Luzes): uma linha só, a explicação inteira fica no topo da tela
+    <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+      Sem aparelho: nenhum comando sai. <button onClick={aoConectar} className="font-medium text-primary hover:underline">Conectar</button>
+    </p>
+  )
   return (
     <Aviso tipo="alerta">
       <b>{d.nome}</b> ainda não tem aparelho conectado: o que aparece aqui é só o cadastro, nenhum comando sai. Para controlar de verdade, use {HARDWARE[d.tipo]} (pareie no app Smart Life, a mesma conta já conectada ao sistema) ou uma <b>placa própria</b> (Arduino UNO R4 WiFi, GIGA R1 WiFi, Opta, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, ESP32 ou ESP8266) com relé. Depois,{' '}
@@ -73,13 +80,26 @@ export function ConectarAparelho({ d, aberto, aoFechar, aoConectar }) {
 }
 
 export function Historico({ d, versao }) {
-  const { dados } = useDados(() => api.get(`/api/dispositivos/${d.id}/eventos?limite=40`), [d.id, versao])
+  const { dados } = useDados(() => api.get(`/api/dispositivos/${d.id}/eventos?limite=60`), [d.id, versao])
+  const [filtro, setFiltro] = useState('todos')
+  const lista = useMemo(() => (dados?.eventos || []).filter((e) => filtro === 'todos' || (filtro === 'falhas' ? !e.ok : !/^painel/.test(e.origem))), [dados, filtro])
   if (!dados) return null
+  const dia = Date.now() / 1000 - 86400
+  const hoje = dados.eventos.filter((e) => e.quando > dia), falhas = hoje.filter((e) => !e.ok).length
   return (
     <section className="cartao p-5">
-      <h2 className="text-sm font-semibold">Histórico</h2>
-      {!dados.eventos.length ? <p className="mt-2 text-sm text-muted-foreground">Nada ainda.</p> : (
-        <ul className="mt-3 divide-y divide-border text-sm">{dados.eventos.map((e, i) => (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Histórico</h2>
+          <p className="text-xs text-muted-foreground"><span className="tabular">{hoje.length}</span> nas últimas 24 h{falhas ? <> · <span className="tabular text-red-600 dark:text-red-400">{falhas}</span> com falha</> : ''}</p>
+        </div>
+        <div className="flex gap-0.5 rounded-lg border border-border p-0.5 text-xs" role="group" aria-label="Filtrar histórico">
+          {[['todos', 'Tudo'], ['falhas', 'Falhas'], ['auto', 'Automático']].map(([k, r]) => (
+            <button key={k} onClick={() => setFiltro(k)} aria-pressed={filtro === k} className={`rounded-md px-2 py-1 ${filtro === k ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{r}</button>))}
+        </div>
+      </div>
+      {!lista.length ? <p className="mt-3 text-sm text-muted-foreground">{dados.eventos.length ? 'Nada com esse filtro.' : 'Nada ainda.'}</p> : (
+        <ul className="mt-3 max-h-96 divide-y divide-border overflow-y-auto overscroll-contain text-sm rolagem-fina">{lista.map((e, i) => (
           <li key={i} className="flex flex-wrap items-center gap-2 py-2">
             <span className={`h-2 w-2 rounded-full ${e.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
             <span className="font-medium">{e.acao}</span>
@@ -88,6 +108,51 @@ export function Historico({ d, versao }) {
           </li>))}
         </ul>
       )}
+    </section>
+  )
+}
+
+// Travas de segurança do aparelho (backend/app/fisico.py): valem para painel, app, Alexa, Telegram, IA e agenda.
+// O estado seguro (desligar, fechar, parar, trancar) nunca é barrado. Dono/admin isola um aparelho suspeito.
+const LIMITE = { luz: 10, cafeteira: 4, persiana: 12, fechadura: 5 }
+const SEGURO = { luz: 'apagar', cafeteira: 'desligar', persiana: 'fechar ou parar', fechadura: 'trancar' }
+export function Travas({ d, aoMudar }) {
+  const toast = useToast()
+  const { sessao } = useProjeto()
+  const podeIsolar = ['dono', 'admin'].includes(sessao?.papel)
+  const [motivo, setMotivo] = useState('')
+  const [aberto, setAberto] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+  const iso = d.isolado
+  const mudar = async (isolar) => {
+    setOcupado(true)
+    try {
+      await api.post('/api/seguranca/isolar', { tipo: 'dispositivos', id: d.id, isolar, motivo })
+      aoMudar?.(await api.get(`/api/dispositivos/um/${d.id}`)); toast(isolar ? `${d.nome} isolado.` : `${d.nome} liberado.`); setAberto(false); setMotivo('')
+    } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  return (
+    <section className={`cartao p-5 ${iso ? 'border-red-500/50' : ''}`}>
+      <div className="flex items-start gap-2">
+        {iso ? <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /> : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />}
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold">{iso ? 'Isolado por segurança' : 'Travas de segurança'}</h2>
+          {iso ? <p className="mt-1 text-xs text-muted-foreground">Motivo: {iso.motivo}. Só {SEGURO[d.tipo]} é aceito até liberar. {iso.por ? `Isolado por ${iso.por}.` : ''}</p>
+            : <ul className="mt-1.5 space-y-1 text-xs text-muted-foreground">
+                <li>No máximo {LIMITE[d.tipo] || 10} comandos por minuto, de qualquer origem (painel, Alexa, Telegram, IA, agenda): segura rajadas e automações em laço.</li>
+                <li>{SEGURO[d.tipo][0].toUpperCase() + SEGURO[d.tipo].slice(1)} nunca é barrado: o estado seguro sempre passa.</li>
+                {d.driver === 'placa' && <li>Pedido que a placa não buscou a tempo expira ({d.tipo === 'fechadura' ? 'destrancar: 30 s' : '2 min'}) e não é executado depois.</li>}
+                {d.tipo === 'cafeteira' && <li>Desliga sozinha depois do tempo escolhido (sem tempo escolhido: 90 min). A proteção elétrica da própria cafeteira continua valendo.</li>}
+              </ul>}
+        </div>
+      </div>
+      {podeIsolar && (iso
+        ? <Botao tamanho="sm" variante="secundario" className="mt-3" carregando={ocupado} onClick={() => mudar(false)}>Liberar o aparelho</Botao>
+        : aberto
+          ? <div className="mt-3 flex flex-wrap gap-2"><input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Motivo (fica na auditoria)" className="campo h-8 min-w-0 flex-1" aria-label="Motivo do isolamento" />
+              <Botao tamanho="sm" variante="perigo" carregando={ocupado} disabled={motivo.trim().length < 3} onClick={() => mudar(true)}>Isolar</Botao>
+              <Botao tamanho="sm" variante="secundario" onClick={() => setAberto(false)}>Cancelar</Botao></div>
+          : <button onClick={() => setAberto(true)} className="mt-3 text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">Isolar este aparelho (suspeita de uso indevido)</button>)}
     </section>
   )
 }

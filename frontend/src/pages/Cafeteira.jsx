@@ -6,7 +6,7 @@ import { useProjeto } from '../contexto'
 import { cafeteiraVermelha } from '../components/copa3d'
 import { carregarAvatar } from '../components/avatares/AvatarViewer'
 import { clone as clonarComOssos } from 'three/examples/jsm/utils/SkeletonUtils.js'
-import { Agendas, ConectarAparelho, Estado, Historico, SemAparelho, useDispositivos } from '../components/dispositivos/Comum'
+import { Agendas, ConectarAparelho, Estado, Historico, Travas, SemAparelho, useDispositivos } from '../components/dispositivos/Comum'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Vazio, useDados, useToast } from '../components/ui'
 
 // a mesma cafeteira do mapa 3D, girando devagar (vapor quando está ligada)
@@ -97,10 +97,11 @@ function Painel({ d0, aoMudar, podeGerenciar, podeControlar }) {
             <label className="text-xs text-muted-foreground"><Flame className="mr-1 inline h-3.5 w-3.5" />Avisar com até (cápsulas)<input type="number" min="0" max="500" className="campo mt-1 h-9" value={cfg.capsulas_alerta ?? 5} onChange={(e) => setCfg({ ...cfg, capsulas_alerta: +e.target.value })} disabled={!podeGerenciar} /></label>
             <label className="text-xs text-muted-foreground"><Zap className="mr-1 inline h-3.5 w-3.5" />Potência da máquina (W)<input type="number" min="100" max="5000" className="campo mt-1 h-9" value={cfg.potencia_w ?? 1500} onChange={(e) => setCfg({ ...cfg, potencia_w: +e.target.value })} disabled={!podeGerenciar} /></label>
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">Desligar sozinha é segurança: se alguém esquecer ligada, ela desliga depois desse tempo (0 = nunca).</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">Desligar sozinha é segurança: se alguém esquecer ligada, ela desliga depois desse tempo (0 = o padrão de 90 min; ela nunca fica ligada para sempre).</p>
           {podeGerenciar && <Botao tamanho="sm" className="mt-3" carregando={ocupado === 'cfg'} onClick={salvarCfg}>Salvar ajustes</Botao>}
         </section>
         <Agendas d={d} acoes={[['ligar', 'Ligar (aquecer)'], ['desligar', 'Desligar']]} aoSalvar={atualizar} podeEditar={podeGerenciar} />
+        <Travas d={d} aoMudar={atualizar} />
         <Historico d={d} versao={versao} />
       </div>
       <ConectarAparelho d={d} aberto={conectar} aoFechar={() => setConectar(false)} aoConectar={atualizar} />

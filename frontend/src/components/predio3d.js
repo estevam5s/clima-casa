@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { montarCidade } from './cidade3d'
 import { montarTempo } from './tempo3d'
 import { montarVida } from './vida3d'
@@ -160,25 +161,32 @@ function placa(texto) {
   return { t, prop: w / 170 }
 }
 
+// Palmeira: 3 malhas (tronco, folhas, miolo) em vez de 18. Antes cada segmento e cada folha era uma malha: com ~36
+// palmeiras eram ~650 chamadas de desenho por quadro só nelas. A copa continua um grupo próprio (balança com o vento).
 function palmeira(r, matTronco, matFolha) {
   const g = new THREE.Group()
   const alt = 5.5 + r() * 2.5, curva = (r() - 0.5) * 0.5
   let y = 0, x = 0
+  const segs = [], m4 = new THREE.Matrix4()
   for (let i = 0; i < 7; i++) {
     const h = alt / 7, raio = 0.17 - i * 0.012
-    const seg = new THREE.Mesh(new THREE.CylinderGeometry(raio - 0.01, raio, h, 8), matTronco)
     x += curva * (i / 7) * 0.25
-    seg.position.set(x, y + h / 2, 0); seg.castShadow = true; g.add(seg); y += h
+    segs.push(new THREE.CylinderGeometry(raio - 0.01, raio, h, 8).translate(x, y + h / 2, 0)); y += h
   }
+  const tronco = new THREE.Mesh(mergeGeometries(segs), matTronco); tronco.castShadow = true; g.add(tronco)
+  segs.forEach((x2) => x2.dispose())
   const copa = new THREE.Group(); copa.position.set(x, y, 0); g.add(copa)
-  const nF = 10
+  const nF = 10, folhas = [], q = new THREE.Quaternion(), e = new THREE.Euler()
   for (let i = 0; i < nF; i++) {
-    const folha = new THREE.Group(); folha.rotation.y = (i / nF) * Math.PI * 2 + r() * 0.3; copa.add(folha)
-    const comp = 2.2 + r() * 0.6
-    const f = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), matFolha)
-    f.scale.set(comp / 2, 0.04, 0.32); f.position.set(comp / 2, 0, 0); f.rotation.z = -0.35 - r() * 0.35; f.castShadow = true
-    folha.add(f)
+    const ry = (i / nF) * Math.PI * 2 + r() * 0.3
+    const comp = 2.2 + r() * 0.6, rz = -0.35 - r() * 0.35
+    // folha = grupo girado em y com a malha deslocada, girada em z e achatada: a mesma conta numa matriz só
+    const local = new THREE.Matrix4().compose(new THREE.Vector3(comp / 2, 0, 0), q.setFromEuler(e.set(0, 0, rz)), new THREE.Vector3(comp / 2, 0.04, 0.32))
+    m4.makeRotationY(ry).multiply(local)
+    folhas.push(new THREE.SphereGeometry(1, 10, 6).applyMatrix4(m4))
   }
+  const f = new THREE.Mesh(mergeGeometries(folhas), matFolha); f.castShadow = true; copa.add(f)
+  folhas.forEach((x2) => x2.dispose())
   copa.add(new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), matTronco))
   return { g, copa }
 }
@@ -426,6 +434,15 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
     const pe = horiz ? bx0 - CAL - 6 : bz1 + CAL + 6
     for (const mm of [meio, meio2]) for (let i = 0; i < 9; i++) plano(horiz ? 0.5 : RUA - 0.6, horiz ? RUA - 0.6 : 0.5, matFaixa, horiz ? pe : mm - RUA / 2 + 0.6 + i * 1.05, horiz ? mm - RUA / 2 + 0.6 + i * 1.05 : pe, 0.013)
   }
+  // faixas brancas e amarelas: centenas de retângulos parados viram uma malha por cor (eram ~600 chamadas de desenho)
+  for (const m of [matFaixa, matAmarela]) {
+    const lista = entorno.children.filter((o) => o.isMesh && o.material === m)
+    if (lista.length < 2) continue
+    const geos = lista.map((o) => { o.updateMatrix(); return o.geometry.clone().applyMatrix4(o.matrix) })
+    const junta = new THREE.Mesh(mergeGeometries(geos), m); junta.receiveShadow = true
+    lista.forEach((o) => { entorno.remove(o); o.geometry.dispose() }); geos.forEach((x2) => x2.dispose())
+    entorno.add(junta)
+  }
   // palmeiras no canteiro e na calçada
   const arvores = []
   const matTronco = new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 0.95 })
@@ -449,7 +466,8 @@ export function montarPredio({ bx0: ox0, bx1: ox1, bz0: oz0, bz1: oz1, entrada, 
       const p = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 7.5, 8), matPoste); p.position.set(L.horiz ? u : lin, 3.75, L.horiz ? lin : u); p.castShadow = true; entorno.add(p)
       const bra = new THREE.Mesh(new THREE.BoxGeometry(L.horiz ? 0.1 : 1.6, 0.08, L.horiz ? 1.6 : 0.1), matPoste); bra.position.set(L.horiz ? u : lin + L.n * 0.8, 7.4, L.horiz ? lin + L.n * 0.8 : u); entorno.add(bra)
       const lu = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.3), matLuz); lu.position.set(L.horiz ? u : lin + L.n * 1.5, 7.3, L.horiz ? lin + L.n * 1.5 : u); entorno.add(lu)
-      if (noite) { const pl = new THREE.PointLight(0xffd59a, 2.2, 14, 1.8); pl.position.copy(lu.position).setY(6.8); entorno.add(pl); postes.push(pl) }
+      if (noite && k === 0) { const pl = new THREE.PointLight(0xffd59a, 3, 26, 1.6);   // uma luz real por calçada (cada luz pesa em todos os pixels); os outros postes só brilham
+        pl.position.copy(lu.position).setY(6.8); entorno.add(pl); postes.push(pl) }
     }
   }
   // trânsito: duas pistas por sentido (uma de cada lado do canteiro), carros, SUVs, vans, picapes, motos e ônibus.

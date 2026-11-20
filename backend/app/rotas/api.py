@@ -18,6 +18,9 @@ api = APIRouter(prefix="/api", dependencies=[Depends(exigir_login)])
 
 
 def _erro(e: Exception):
+    from ..fisico import Bloqueado
+    if isinstance(e, Bloqueado):   # trava de segurança física: pedido válido recusado agora (não é falha do serviço)
+        raise HTTPException(409, str(e))
     if isinstance(e, KeyError):
         raise HTTPException(404, e.args[0] if e.args else "Não encontrado.")
     if isinstance(e, ValueError):
@@ -4141,6 +4144,45 @@ class RegistroIn(BaseModel):
     data: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     responsavel: str = Field(min_length=2, max_length=80)
     resumo: str = Field(min_length=10, max_length=4000)
+
+
+# ---------------- segurança dos comandos físicos (fisico.py) ----------------
+@api.get("/seguranca/fisico")
+def seguranca_fisico():
+    from .. import fisico
+    r = fisico.resumo()
+    nomes_a = {str(x["id"]): x["nome"] for x in db.consultar("SELECT id, nome FROM aparelhos")}
+    nomes_d = {str(x["id"]): x["nome"] for x in db.consultar("SELECT id, nome FROM dispositivos")}
+    r["isolados"] = {"aparelhos": [{"id": int(k), "nome": nomes_a.get(k, f"#{k}"), **v} for k, v in r["isolados"]["aparelhos"].items()],
+                     "dispositivos": [{"id": int(k), "nome": nomes_d.get(k, f"#{k}"), **v} for k, v in r["isolados"]["dispositivos"].items()]}
+    r["opcoes"] = {"aparelhos": [{"id": x["id"], "nome": x["nome"]} for x in db.consultar("SELECT id, nome FROM aparelhos ORDER BY nome")],
+                   "dispositivos": [{"id": x["id"], "nome": x["nome"], "tipo": x["tipo"]} for x in db.consultar("SELECT id, nome, tipo FROM dispositivos ORDER BY tipo, nome")]}
+    r["bloqueios_24h"] = db.consultar("SELECT quando, aparelho_id, acao, detalhe FROM atividade WHERE origem = 'seguranca' AND ok = 0 "
+                                  "AND quando > ? ORDER BY quando DESC LIMIT 50", (db.agora() - 86400,))
+    return r
+
+
+class IsolarIn(BaseModel):
+    tipo: str = Field(pattern=r"^(aparelhos|dispositivos)$")
+    id: int = Field(ge=1)
+    isolar: bool
+    motivo: str = Field("", max_length=200)
+
+
+@api.post("/seguranca/isolar")
+def seguranca_isolar(d: IsolarIn, request: Request):
+    """Isola (ou libera) um ar ou dispositivo: isolado só aceita o estado seguro. Só dono/admin."""
+    from .. import fisico
+    u = request.state.u
+    if u.get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só o dono ou um admin isola aparelhos.")
+    tabela = "aparelhos" if d.tipo == "aparelhos" else "dispositivos"
+    if not db.um(f"SELECT id FROM {tabela} WHERE id = ?", (d.id,)):   # tabela vem de lista fechada
+        raise HTTPException(404, "Aparelho não encontrado.")
+    if d.isolar and len(d.motivo.strip()) < 3:
+        raise HTTPException(400, "Diga o motivo do isolamento (fica na trilha de auditoria).")
+    fisico.isolar(d.tipo, d.id, d.isolar, d.motivo, u.get("email", ""))
+    return seguranca_fisico()
 
 
 @api.get("/seguranca/registros")

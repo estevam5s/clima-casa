@@ -83,6 +83,8 @@ def aplicar(aparelho_id: int, origem: str, ligado=None, modo=None, temperatura=N
     if novo["ventilador"] not in VENTILACAO:
         raise ValueError("Ventilação inválida.")
     novo["temperatura"] = max(a["temp_min"], min(a["temp_max"], novo["temperatura"]))
+    from . import fisico
+    fisico.checar_ar(a, novo)   # isolamento, rajada e liga/desliga seguido (desligar sempre passa)
 
     cods = codigos(aparelho_id)
     if novo["ligado"]:

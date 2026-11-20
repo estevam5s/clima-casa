@@ -78,3 +78,14 @@
   na 1ª pessoa o osso do pescoço encolhe (sem cabeça na frente da câmera). Na 3ª pessoa o nome não cobre mais a câmera.
 - Testado no Playwright: sentado na mesa, controlar sentado, levantar (F), andar (W) em 3ª e 1ª pessoa, sentar de novo; sem erro de JS.
   Não testado: o avatar em celular e na moto/carro.
+
+## 0.4.7 (fim da tarde): travas físicas, mapa mais leve, topo e rolagens
+- Segurança (roteiro `seguranca.md`): `backend/app/fisico.py` com limite por aparelho, anti liga/desliga do ar, isolar aparelho
+  (só estado seguro passa), validade de 20 s para o sinal IR na fila e de 30/120 s na fila da placa, cafeteira com 90 min padrão.
+  Tela Segurança → Comandos físicos e cartão Travas nas telas de Luzes/Cafeteira/Persianas/Fechadura. Auditoria STRIDE, relatório e
+  roteiros de incidente em `docs/seguranca/`. Testes: 12 casos com banco simulado + consultas reais só leitura.
+- Mapa: faixas e palmeiras mescladas (entorno 1.877 → 833 malhas), luz por ar ligado removida, 1 luz real por calçada,
+  qualidade automática (resolução/sombra/frequência da sombra) guardada por navegador.
+- Topo com menu fixo por container query; foco dos campos embutidos; tema claro→escuro no ar 3D (useLayoutEffect no tema);
+  Novidades com índice que rola separado e acompanha a leitura; Integrações com coluna direita rolando sozinha.
+- Interruptor Novadigital 4 teclas: compatível (Tuya, `switch_1…4`); cartão "Vai funcionar?" em Luzes com as condições.

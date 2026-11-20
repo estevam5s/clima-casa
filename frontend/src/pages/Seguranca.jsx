@@ -9,6 +9,7 @@ import PainelSeguranca from '../components/config/PainelSeguranca'
 import { useSearchParams } from 'react-router-dom'
 import { Acessos, Conformidade, Incidentes, Integridade, Riscos, TestesAoVivo } from '../components/seguranca/Governanca'
 import TelegramSeg from '../components/seguranca/TelegramSeg'
+import Fisico from '../components/seguranca/Fisico'
 
 const Globo3D = lazy(() => import('../components/Globo3D'))
 
@@ -270,7 +271,7 @@ function Checklist() {
 }
 
 const ABAS = [['monitoramento', 'Monitoramento', Activity], ['conformidade', 'Conformidade ISO', Scale], ['riscos', 'Riscos', ClipboardList], ['incidentes', 'Incidentes', AlertOctagon],
-  ['acessos', 'Acessos', Users], ['telegram', 'Telegram', Bot], ['testes', 'Testes ao vivo', Radar], ['integridade', 'Integridade', FileLock2]]
+  ['fisico', 'Comandos físicos', ShieldCheck], ['acessos', 'Acessos', Users], ['telegram', 'Telegram', Bot], ['testes', 'Testes ao vivo', Radar], ['integridade', 'Integridade', FileLock2]]
 
 export default function Seguranca() {
   const [params, setParams] = useSearchParams()
@@ -286,9 +287,10 @@ export default function Seguranca() {
     </nav>
   )
   if (aba !== 'monitoramento') {
-    const Comp = { conformidade: Conformidade, riscos: Riscos, incidentes: Incidentes, acessos: Acessos, telegram: TelegramSeg, testes: TestesAoVivo, integridade: Integridade }[aba]
+    const Comp = { conformidade: Conformidade, riscos: Riscos, incidentes: Incidentes, fisico: Fisico, acessos: Acessos, telegram: TelegramSeg, testes: TestesAoVivo, integridade: Integridade }[aba]
     const desc = { conformidade: 'ISO/IEC 27001:2022 e 27002 com ligação para 27005, 27017, 27018, 27701, 27035, 22301 e LGPD. O que dá para conferir sozinho é conferido na hora.',
       riscos: 'Avaliação e tratamento de riscos (ISO 27005, cláusula 6.1 da 27001).', incidentes: 'Registro, resposta e lições de incidentes (ISO 27035 e LGPD).',
+      fisico: 'Travas que valem para todo comando que mexe em equipamento real, aparelhos isolados e comandos recusados.',
       acessos: 'Quem tem acesso a quê, duas etapas e revisão periódica (A.5.15 a A.5.18).', telegram: 'Auditoria do bot do Telegram: cada interação, quem fez, o resultado, os IPs que entregaram, vínculos, PINs e bloqueios.', testes: 'Conferência externa de HTTPS, certificado, cabeçalhos, arquivos expostos e CORS.',
       integridade: 'Selos SHA-256 encadeados que mostram se algum registro foi alterado.' }[aba]
     return (

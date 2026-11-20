@@ -2,6 +2,38 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "0.4.7",
+      "data": "2026-11-20",
+      "titulo": "Travas de segurança nos comandos físicos, mapa mais leve e topo arrumado",
+      "resumo": "Todo comando que mexe em equipamento real passa por travas no servidor (o estado seguro sempre passa), aparelhos suspeitos podem ser isolados, o mapa ficou mais leve e várias telas ganharam rolagem e visual corrigidos.",
+      "novo": [
+        "Segurança → Comandos físicos: as travas que valem para todo comando, os aparelhos isolados e os comandos recusados nas últimas 24 h",
+        "Isolar um ar, luz, cafeteira, persiana ou fechadura suspeito (dono ou admin, com motivo): ele só aceita desligar, fechar, parar ou trancar até ser liberado",
+        "Cartão Travas de segurança em Luzes, Cafeteira, Persianas e Fechadura",
+        "Iluminação: cartão Vai funcionar? com as condições para o interruptor Novadigital Touch Wi-Fi de 1 a 4 teclas"
+      ],
+      "melhorias": [
+        "Mapa 3D mais leve: faixas da rua e palmeiras desenhadas em poucas peças, menos luzes na cena e qualidade automática que baixa a resolução e a sombra quando o computador não aguenta",
+        "Topo do sistema com o menu lateral fixo: cada item aparece só quando cabe, sem a busca por cima do texto",
+        "Novidades: a lista de versões rola sozinha, separada da página, e acompanha a versão que você está lendo",
+        "Integrações: a coluna da direita rola sozinha, sem levar a página junto",
+        "Busca dos Atalhos e caixa de mensagem do Assistente sem o contorno quadrado por cima",
+        "Histórico de luzes, cafeteira, persianas e fechadura com filtro de falhas e automáticos e o total das últimas 24 h",
+        "Luzes sem aparelho mostram um aviso só no topo, em vez de um aviso grande em cada cartão"
+      ],
+      "seguranca": [
+        "Limite de comandos por minuto em cada aparelho, de qualquer origem (painel, apps, Alexa, Telegram, Assistente, agenda e automações): segura rajadas e automações em laço",
+        "Ar-condicionado: no máximo 8 trocas de ligado e desligado em 10 minutos, para proteger o compressor",
+        "Sinal de infravermelho parado na fila por mais de 20 segundos não é mais enviado depois",
+        "Placa própria: comando que não foi buscado a tempo expira (destrancar em 30 segundos)",
+        "Cafeteira sem tempo escolhido desliga sozinha em 90 minutos"
+      ],
+      "correcoes": [
+        "Trocar o tema de claro para escuro deixava o fundo do ar 3D do Painel claro",
+        "Aviso de luz sem aparelho saía com o texto incompleto"
+      ]
+    },
+    {
       "versao": "0.4.6",
       "data": "2026-11-20",
       "titulo": "Avatar 3D do Estevam com esqueleto no mapa",

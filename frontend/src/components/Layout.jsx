@@ -219,7 +219,7 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores,
         <label className="relative -mb-1 block">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={irPrimeiro} placeholder="Buscar no menu" aria-label="Buscar no menu" type="search" name="busca-menu" autoComplete="off" autoCorrect="off" spellCheck={false} data-1p-ignore data-lpignore="true" data-form-type="other"
-            className="h-9 w-full rounded-lg border border-border bg-background/60 pl-8 pr-8 text-[13px] outline-none placeholder:text-muted-foreground focus:border-primary/60" />
+            className="campo-embutido h-9 w-full rounded-lg border border-border bg-background/60 pl-8 pr-8 text-[13px] outline-none placeholder:text-muted-foreground focus:border-primary/60" />
           {busca ? <button onClick={() => setBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Limpar busca"><X className="h-3.5 w-3.5" /></button>
             : <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border px-1 text-[10px] text-muted-foreground">/</kbd>}
         </label>
@@ -295,7 +295,7 @@ function Paleta({ aberta, fechar }) {
             <div className="flex items-center gap-2 border-b border-border px-3">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input ref={ref} value={q} onChange={(e) => { setQ(e.target.value); setSel(0) }} placeholder="Buscar páginas e aparelhos…" type="search" name="busca-paginas" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other"
-                className="h-12 flex-1 bg-transparent text-sm outline-none focus-visible:ring-0 placeholder:text-muted-foreground" aria-label="Buscar" /* marca: o foco aparece na borda da paleta */
+                className="campo-embutido h-12 flex-1 bg-transparent text-sm outline-none focus-visible:ring-0 placeholder:text-muted-foreground" aria-label="Buscar" /* marca: o foco aparece na borda da paleta */
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, itens.length - 1)) }
                   if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)) }
@@ -332,27 +332,27 @@ function BarraStatus({ status }) {
   useEffect(() => { const t = setInterval(() => setAgora(new Date()), 15000); return () => clearInterval(t) }, [])
   const s = status || {}
   return (
-    <div className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
-      <span className="hidden truncate font-medium text-foreground sm:inline">{projeto ? projeto.nome : 'Todos os projetos'}</span>
+    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
+      <span className="topo-projeto max-w-[14rem] truncate font-medium text-foreground">{projeto ? projeto.nome : 'Todos os projetos'}</span>
       {status && (
         <>
-          <span className="hidden text-border sm:inline">/</span>
-          <Link to="/configuracoes?aba=sistema" className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Agente do Mac">
+          <span className="topo-projeto text-border">/</span>
+          <Link to="/configuracoes?aba=sistema" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Agente do Mac">
             <span className="relative flex h-2 w-2">
               {s.agente_online && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />} {/* marca: pulso indica que o agente está vivo */}
               <span className={`relative inline-flex h-2 w-2 rounded-full ${s.agente_online ? 'bg-emerald-500' : 'bg-red-500'}`} />
             </span>
             {s.agente_online ? 'Agente online' : 'Agente offline'}
           </Link>
-          <Link to="/aparelhos" className="hidden items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted md:flex" title="Ares ligados agora">
+          <Link to="/aparelhos" className="topo-ligados shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Ares ligados agora">
             <AirVent className="h-3.5 w-3.5" /><span className="tabular">{s.ligados}/{s.aparelhos}</span> ligados
           </Link>
-          <Link to="/transmissores" className="hidden items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted lg:flex" title="Transmissores respondendo">
+          <Link to="/transmissores" className="topo-transmissores shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Transmissores respondendo">
             <Radio className="h-3.5 w-3.5" /><span className="tabular">{s.hubs_online}/{s.hubs}</span> transmissores
           </Link>
         </>
       )}
-      <span className="hidden whitespace-nowrap tabular xl:inline">· {agora.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '')}, {agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+      <span className="topo-data shrink-0 whitespace-nowrap tabular">· {agora.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '')}, {agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
     </div>
   )
 }
@@ -529,20 +529,20 @@ export default function Layout() {
           <button onClick={() => setMovel(true)} className="-ml-1 rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
           <BarraStatus status={central.dados?.status} />
           {marca.selo_ambiente && <span className="hidden shrink-0 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 sm:inline">{marca.selo_ambiente}</span>}
-          <div className="ml-auto flex items-center gap-1">
-            <button onClick={() => setPaleta(true)} className="hidden h-9 w-64 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground hover:bg-muted sm:flex">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <button onClick={() => setPaleta(true)} className="topo-busca h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground hover:bg-muted">
               <Search className="h-4 w-4" /> <span className="flex-1 text-left">Buscar…</span>
               <kbd className="rounded border border-border px-1.5 text-[10px]">⌘K</kbd>
             </button>
-            <button onClick={() => setPaleta(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted sm:hidden" aria-label="Buscar"><Search className="h-[18px] w-[18px]" /></button>
-            {marca.mostrar_link_site !== false && <a href={siteComSessao(true)} className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:flex" title="Voltar ao site">
-              <Globe className="h-4 w-4" /> Site
+            <button onClick={() => setPaleta(true)} className="topo-busca-icone rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Buscar"><Search className="h-[18px] w-[18px]" /></button>
+            {marca.mostrar_link_site !== false && <a href={siteComSessao(true)} className="topo-link items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" title="Voltar ao site">
+              <Globe className="h-4 w-4" /> <span className="topo-rotulo">Site</span>
             </a>}
-            <a href="https://github.com/estevam5s/clima-casa" target="_blank" rel="noreferrer" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:flex" title="Código-fonte no GitHub" aria-label="Repositório no GitHub">
-              <IconeMarca nome="github" className="h-4 w-4" /> GitHub
+            <a href="https://github.com/estevam5s/clima-casa" target="_blank" rel="noreferrer" className="topo-link items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" title="Código-fonte no GitHub" aria-label="Repositório no GitHub">
+              <IconeMarca nome="github" className="h-4 w-4" /> <span className="topo-rotulo">GitHub</span>
             </a>
-            <Link to="/apps" className="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground lg:flex" title="Baixar os apps">
-              <Download className="h-4 w-4" /> Apps
+            <Link to="/apps" className="topo-apps items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" title="Baixar os apps" aria-label="Baixar os apps">
+              <Download className="h-4 w-4" /> <span className="topo-rotulo">Apps</span>
             </Link>
             <AcessoRapido />
             {marca.mostrar_ajuda && (marca.suporte_email || marca.suporte_telefone || marca.suporte_whatsapp || marca.site) && <Ajuda marca={marca} />}

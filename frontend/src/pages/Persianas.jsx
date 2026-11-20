@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { ChevronDown, ChevronUp, Link2, Pause, Sun } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
-import { Agendas, ConectarAparelho, Estado, Historico, useDispositivos } from '../components/dispositivos/Comum'
+import { Agendas, ConectarAparelho, Estado, Historico, Travas, useDispositivos } from '../components/dispositivos/Comum'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Selo, Vazio, useToast } from '../components/ui'
 
 // persiana desenhada: lâminas que sobem/descem conforme a posição (0 = fechada, 100 = aberta)
@@ -52,12 +52,14 @@ function Cartao({ d0, podeControlar, podeGerenciar, aoAbrir }) {
   )
 }
 
-function Detalhes({ d, aoFechar, podeGerenciar, conectarAgora, aoMudar }) {
+function Detalhes({ d: d0, aoFechar, podeGerenciar, conectarAgora, aoMudar }) {
   const [conectar, setConectar] = useState(!!conectarAgora)
+  const [d, setD] = useState(d0)
   return (
     <Modal aberto onFechar={aoFechar} titulo={d.nome} largura="max-w-2xl">
       <div className="space-y-4">
         <Agendas d={d} acoes={[['abrir', 'Abrir'], ['fechar', 'Fechar'], ['posicao', 'Posição (%)']]} aoSalvar={aoMudar} podeEditar={podeGerenciar} />
+        <Travas d={d} aoMudar={(n) => { setD(n); aoMudar?.(n) }} />
         <Historico d={d} versao={0} />
         {podeGerenciar && <Botao variante="secundario" icone={Link2} onClick={() => setConectar(true)}>{d.conectado ? 'Trocar motor' : 'Conectar motor'}</Botao>}
       </div>

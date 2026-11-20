@@ -134,7 +134,7 @@ function ControleAr({ ar, aoMudar, aparencia = {}, fora, compacto = false, cabec
     <div className={compacto ? 'flex h-full flex-col' : 'grid md:grid-cols-[1.25fr_1fr]'}>
       <div className={`relative border-b border-border ${compacto ? 'h-56' : 'h-64 md:h-auto md:min-h-[320px] md:border-b-0 md:border-r'}`}>
         <Suspense fallback={<div className="h-full animate-pulse bg-muted" />}>
-          <Cena3D key={escuro ? 'escuro' : 'claro'} estado={{ ...ar, cor: aparencia[ar.id]?.cor || '', externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
+          <Cena3D key={escuro ? 'escuro' : 'claro'} escuro={escuro} estado={{ ...ar, cor: aparencia[ar.id]?.cor || '', externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
         </Suspense>
         <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs backdrop-blur">
           <Ponto ativo={ar.ligado} /> {ar.ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador].toLowerCase()}` : 'Desligado'}

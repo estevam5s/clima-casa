@@ -94,6 +94,11 @@ class EditarIn(BaseModel):
     mapa_elemento: str = Field("", max_length=40)
 
 
+@rotas_disp.get("/dispositivos/um/{did}")
+def ver_um(did: int):
+    return _pegar(did)
+
+
 @rotas_disp.put("/dispositivos/{did}")
 def editar(did: int, d: EditarIn):
     atual = _pegar(did)

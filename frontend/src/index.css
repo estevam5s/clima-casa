@@ -188,3 +188,28 @@ svg.lucide { stroke-width: var(--icone, 2); }
 /* salto hipersônico (/seguranca, nave): número da contagem que pulsa e o clarão da chegada */
 @keyframes pulso-contagem { 0% { transform: scale(1.35); opacity: 0.2 } 30% { opacity: 1 } 100% { transform: scale(1); opacity: 0.85 } }
 @keyframes clarao-salto { 0% { opacity: 0 } 70% { opacity: 0.15 } 90% { opacity: 1 } 100% { opacity: 1 } }
+
+/* Campo embutido numa caixa que já mostra o foco (busca dos atalhos, chat da IA, buscas com ícone): sem o anel
+   retangular por cima; quem desenha o foco é a caixa (focus-within). No "foco reforçado", a caixa ganha o contorno. */
+.campo-embutido:focus-visible, [data-foco-reforcado] .campo-embutido:focus-visible { outline: none !important; box-shadow: none !important; }
+[data-foco-reforcado] :has(> .campo-embutido:focus-visible) { outline: 2px solid hsl(var(--primary)) !important; outline-offset: 2px; }
+
+/* Barra do topo: o espaço depende do menu lateral fixo, não da tela. O cabeçalho é um contêiner e cada item
+   aparece só quando cabe (sem empurrar a busca para cima do texto). */
+header[data-cabecalho-app] { container: topo / inline-size; }
+.topo-projeto, .topo-ligados, .topo-transmissores, .topo-data, .topo-busca, .topo-link, .topo-apps, .topo-rotulo { display: none; }
+.topo-busca-icone { display: inline-flex; }
+@container topo (min-width: 560px) { .topo-projeto { display: inline; } }
+@container topo (min-width: 640px) { .topo-busca { display: flex; width: 11rem; } .topo-busca-icone { display: none; } }
+@container topo (min-width: 760px) { .topo-link { display: flex; } }
+@container topo (min-width: 880px) { .topo-ligados { display: flex; } }
+@container topo (min-width: 960px) { .topo-apps { display: flex; } }
+@container topo (min-width: 1120px) { .topo-transmissores { display: flex; } .topo-busca { width: 14rem; } }
+@container topo (min-width: 1380px) { .topo-rotulo { display: inline; } }
+@container topo (min-width: 1500px) { .topo-busca { width: 16rem; } }
+@container topo (min-width: 1640px) { .topo-data { display: inline; } }
+
+/* Coluna que rola sozinha (índice das Novidades, lateral das Integrações): barra fina e discreta */
+.rolagem-fina { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
+.rolagem-fina::-webkit-scrollbar { width: 6px; }
+.rolagem-fina::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }

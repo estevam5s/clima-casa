@@ -4,7 +4,7 @@ import { BatteryMedium, DoorClosed, DoorOpen, Link2, Lock, LockOpen, ShieldAlert
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import Turnstile from '../components/Turnstile'
-import { ConectarAparelho, Estado, Historico, SemAparelho, useDispositivos } from '../components/dispositivos/Comum'
+import { ConectarAparelho, Estado, Historico, Travas, SemAparelho, useDispositivos } from '../components/dispositivos/Comum'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useToast } from '../components/ui'
 
 // Fechadura eletrônica da porta do escritório (só ela). Trancar/destrancar pela internet depende do modelo aceitar
@@ -76,6 +76,7 @@ function Painel({ d0, pode }) {
           {pode && <Botao tamanho="sm" className="mt-3" carregando={ocupado === 'cfg'} onClick={salvar}>Salvar regras</Botao>}
           <p className="mt-3 text-[11px] text-muted-foreground">Destrancar pela internet só funciona se o modelo da fechadura aceitar comando remoto; quando não aceita, a tela avisa e o resto (estado, bateria, histórico, avisos) continua.</p>
         </section>
+        <Travas d={d} aoMudar={atualizar} />
         <Historico d={d} versao={versao} />
       </div>
       <Modal aberto={pedir} titulo="Destrancar a porta do escritório" onFechar={() => setPedir(false)}>

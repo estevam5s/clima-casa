@@ -34,3 +34,9 @@
   (`blender-estevam/estevam-esqueleto.glb`) e no Storage (avatar 73).
 - Altura do Estevam no mapa = 1,72 m (padrão). Se quiser a altura real, dizer qual.
 - Apps sem mudança na 0.4.6 (o mapa 3D é só do painel web): nenhum build novo.
+
+## Depois da 0.4.7
+- Travas físicas não testadas com envio real de IR (precisa do agente no escritório).
+- Mapa: a qualidade automática não foi medida num computador lento de verdade (o navegador de teste não usa GPU).
+- Apps sem versão nova: as travas valem no servidor para os apps também; as telas novas são do painel web.
+- Rede IoT separada (SSID só para transmissores/tomadas/fechadura) depende do roteador do escritório.

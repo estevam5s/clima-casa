@@ -7,8 +7,9 @@ const NOME_MODO = { frio: 'FRIO', quente: 'QUENTE', seco: 'SECO', ventilar: 'VEN
 const VEL_VENT = { auto: 1, baixa: 0.6, media: 1, alta: 1.6 }
 const N = 1100
 
-function tema() {
-  const escuro = document.documentElement.classList.contains('dark')
+// `forcado` vem do tema do React: na troca, o efeito daqui roda antes de a classe `dark` mudar no <html>.
+function tema(forcado) {
+  const escuro = typeof forcado === 'boolean' ? forcado : document.documentElement.classList.contains('dark')
   return { corpo: escuro ? 0xe9e9ec : 0xfbfbfb, aba: escuro ? 0xd2d2d7 : 0xe6e6ea, parede: escuro ? 0x141416 : 0xf0f0f2, escuro }
 }
 
@@ -83,7 +84,7 @@ function texturaNevoa() {
 }
 
 // Ar-condicionado split em 3D, animado o tempo todo. `estado` = { ligado, modo, ventilador, temperatura }.
-export default function Cena3D({ estado, className = '' }) {
+export default function Cena3D({ estado, className = '', escuro }) {
   const ref = useRef(null)
   const estadoRef = useRef(estado)
   estadoRef.current = estado
@@ -93,7 +94,7 @@ export default function Cena3D({ estado, className = '' }) {
     if (!el) return
     const calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const amp = calmo ? 0.4 : 1
-    const t = tema()
+    const t = tema(escuro)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))

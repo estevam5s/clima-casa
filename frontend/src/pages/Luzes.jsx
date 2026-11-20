@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Lightbulb, LightbulbOff, Link2, Moon, Plus, RefreshCw, Sunrise, Sunset, ToggleRight, Trash2 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
-import { Agendas, ConectarAparelho, Estado, Historico, SemAparelho } from '../components/dispositivos/Comum'
+import { Agendas, ConectarAparelho, Estado, Historico, Travas, SemAparelho } from '../components/dispositivos/Comum'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
 
 // Iluminação do escritório: lâmpadas, painéis, fitas e interruptores Smart Life (ou placa própria). Ligar, desligar,
@@ -88,7 +88,7 @@ function CartaoLuz({ d0, sol, podeControlar, podeGerenciar, aoRemover }) {
         </div>
       </div>
       <div className="space-y-3 border-t border-border p-4">
-        {!d.conectado ? <SemAparelho d={d} aoConectar={() => setConectar(true)} /> : (
+        {!d.conectado ? <SemAparelho compacto d={d} aoConectar={() => setConectar(true)} /> : (
           <>
             <div className="flex flex-wrap gap-2">
               <Botao tamanho="sm" icone={Lightbulb} disabled={!podeControlar || acesa} carregando={ocupado === 'ligar'} onClick={() => comando('ligar')}>Acender</Botao>
@@ -115,6 +115,7 @@ function CartaoLuz({ d0, sol, podeControlar, podeGerenciar, aoRemover }) {
           <div className="space-y-4">
             <Automacoes d={d} sol={sol} aoSalvar={atualizar} podeEditar={podeGerenciar} />
             <Agendas d={d} acoes={r.tecla ? [['ligar', 'Acender'], ['desligar', 'Apagar']] : [['ligar', 'Acender'], ['desligar', 'Apagar'], ['brilho', 'Brilho (%)']]} aoSalvar={atualizar} podeEditar={podeGerenciar} />
+            <Travas d={d} aoMudar={atualizar} />
             <Historico d={d} versao={versao} />
           </div>
         )}
@@ -161,6 +162,31 @@ function PaineisInterruptor({ luzes, podeControlar, aoMudar }) {
         </section>
       ))}
     </div>
+  )
+}
+
+// "Vai funcionar?": o interruptor Novadigital Touch Wi-Fi (1 a 4 teclas, Tuya/Smart Life, Alexa e Google) é o caso
+// mais comum. O sistema conversa com ele pela nuvem Tuya (switch_1…switch_4); estas são as condições reais para dar certo.
+const CONDICOES = [
+  ['App certo', 'Parear no app Smart Life (a conta já conectada ao sistema). Pareado só no app da marca (Novo Digital), ele fica numa conta separada e não aparece aqui; nesse caso, remova lá e pareie de novo no Smart Life.'],
+  ['Wi-Fi 2,4 GHz', 'O interruptor não enxerga redes 5 GHz. Use a mesma rede 2,4 GHz que os transmissores.'],
+  ['Fio neutro', 'Confira na caixa se o seu modelo pede neutro na caixinha da parede. Sem neutro, só a versão "sem neutro" do fabricante funciona. Instalação elétrica com o disjuntor desligado, de preferência por eletricista.'],
+  ['Carga por tecla', 'Respeite a potência máxima por tecla que está na caixa do produto (LED, fluorescente). Não ligue tomada nem motor numa tecla de luz.'],
+  ['Uma tecla, uma luz', 'Em Adicionar interruptor, cada tecla vira uma luz com nome e sala. Acender, apagar, agenda, anoitecer e luz com a fechadura funcionam; brilho não (tecla só liga e desliga).'],
+]
+function Compatibilidade() {
+  return (
+    <section className="cartao mt-6 p-5 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold"><ToggleRight className="h-4 w-4" />Vai funcionar? Interruptor Novadigital Touch Wi-Fi</h2>
+        <span className="rounded-md border border-emerald-600/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">Compatível (1, 2, 3 ou 4 teclas)</span>
+      </div>
+      <p className="mt-1.5 text-muted-foreground">É um aparelho Tuya, a mesma plataforma do Smart Life. O sistema já sabe ler cada tecla dele. Funciona se estas condições forem atendidas:</p>
+      <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2.5 md:grid-cols-2">
+        {CONDICOES.map(([t, d]) => <div key={t}><dt className="font-medium">{t}</dt><dd className="text-muted-foreground">{d}</dd></div>)}
+      </dl>
+      <p className="mt-3 text-xs text-muted-foreground">Depois de instalado: Luzes → Adicionar interruptor → escolher o interruptor → dar nome e sala a cada tecla. Até ele aparecer na conta, nada é enviado.</p>
+    </section>
   )
 }
 
@@ -307,6 +333,12 @@ export default function Luzes() {
           {podeGerenciar && luzes.length < (projetos || []).length && (
             <p className="mb-3 text-sm text-muted-foreground">Faltam salas sem luz cadastrada. <button onClick={umaPorSala} className="font-medium text-primary hover:underline">Cadastrar uma luz para cada sala que falta</button></p>
           )}
+          {luzes.some((d) => !d.conectado) && (
+            <div className="mb-4"><Aviso tipo="alerta">
+              {luzes.filter((d) => !d.conectado).length} de {luzes.length} luzes ainda não têm aparelho conectado: o cartão delas é só o cadastro e nenhum comando sai.
+              Para controlar de verdade, pareie a lâmpada, o painel ou o interruptor de parede no app <b>Smart Life</b> (a conta já conectada ao sistema) ou use uma <b>placa própria</b> (Arduino/ESP com relé) e toque em Conectar no cartão.
+            </Aviso></div>
+          )}
           <PaineisInterruptor luzes={luzes} podeControlar={podeControlar} aoMudar={recarregar} />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {luzes.map((d) => <CartaoLuz key={d.id} d0={d} sol={dados.sol} podeControlar={podeControlar} podeGerenciar={podeGerenciar} aoRemover={recarregar} />)}
@@ -323,6 +355,8 @@ export default function Luzes() {
           <li>O pôr do sol é calculado para cada dia (<Sunrise className="inline h-3.5 w-3.5" /> {dados.sol?.nascer} · <Sunset className="inline h-3.5 w-3.5" /> {dados.sol?.por} hoje). No mapa 3D, a sala fica iluminada à noite e escura quando a luz dela está apagada.</li>
         </ul>
       </section>
+
+      <Compatibilidade />
 
       <AssistenteInterruptor aberto={assistente} projetos={projetos} aoFechar={() => setAssistente(false)} aoCriar={() => { setAssistente(false); recarregar() }} />
       <Modal aberto={!!nova} titulo="Cadastrar luz" onFechar={() => setNova(null)}>

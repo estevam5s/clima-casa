@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { ChevronsDownUp, ChevronsUpDown, Download, Link2, Search } from 'lucide-react'
 import { api } from '../api'
@@ -46,6 +46,34 @@ export default function Novidades() {
     const md = (versoes || []).map((v) => [`## ${v.versao} · ${dataBR(v.data)}`, `**${v.titulo}**`, v.resumo || '', ...SECOES.flatMap(([k, rot]) => (v[k]?.length ? [`### ${rot}`, ...v[k].map((t) => `- ${t}`)] : []))].join('\n\n')).join('\n\n---\n\n')
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([`# Novidades\n\n${md}\n`], { type: 'text/markdown' })); a.download = 'novidades.md'; a.click()
   }
+  // índice que acompanha a leitura: a versão cujo topo já passou do cabeçalho fica marcada e o índice (que rola
+  // sozinho, separado da página) se move até ela, sem mexer na rolagem da página
+  const indice = useRef(null)
+  const [ativa, setAtiva] = useState(null)
+  useEffect(() => {
+    if (!versoes?.length) return
+    let quadro = 0
+    const medir = () => {
+      quadro = 0
+      let atualV = versoes[0].versao
+      for (const v of versoes) {
+        const el = document.getElementById(ancora(v.versao))
+        if (!el) continue
+        if (el.getBoundingClientRect().top <= 140) atualV = v.versao; else break
+      }
+      setAtiva(atualV)
+    }
+    const pedir = () => { if (!quadro) quadro = requestAnimationFrame(medir) }
+    medir()
+    window.addEventListener('scroll', pedir, { passive: true })
+    return () => { window.removeEventListener('scroll', pedir); if (quadro) cancelAnimationFrame(quadro) }
+  }, [versoes, filtradas])
+  useEffect(() => {
+    const nav = indice.current, item = ativa && nav?.querySelector(`[data-versao="${ativa}"]`)
+    if (!nav || !item) return
+    const topo = item.offsetTop - nav.clientHeight / 2 + item.offsetHeight / 2
+    nav.scrollTo({ top: Math.max(0, topo), behavior: parado ? 'auto' : 'smooth' })
+  }, [ativa, parado])
   useEffect(() => { const h = location.hash.slice(1); if (h && dados) setTimeout(() => document.getElementById(h)?.scrollIntoView({ block: 'start' }), 200) }, [dados])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
@@ -97,10 +125,12 @@ export default function Novidades() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
         {/* índice das versões (fixo ao rolar no computador) */}
         <nav aria-label="Versões" className="hidden lg:block">
-          <ol className="sticky top-20 space-y-0.5 border-l border-border">
+          <div ref={indice} className="rolagem-fina sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain pr-1">
+          <ol className="relative space-y-0.5 border-l border-border">
             {versoes.map((v, i) => (
-              <li key={v.versao}>
-                <button onClick={() => ir(v.versao)} className="group -ml-px flex w-full items-start gap-2 border-l-2 border-transparent py-1.5 pl-3 text-left text-sm hover:border-primary">
+              <li key={v.versao} data-versao={v.versao}>
+                <button onClick={() => ir(v.versao)} aria-current={ativa === v.versao ? 'true' : undefined}
+                  className={`group -ml-px flex w-full items-start gap-2 border-l-2 py-1.5 pl-3 text-left text-sm transition-colors ${ativa === v.versao ? 'border-primary bg-primary/5' : 'border-transparent hover:border-primary/60'}`}>
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5 font-medium tabular">{v.versao}{i === 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="atual" />}</span>
                     <span className="block truncate text-xs text-muted-foreground group-hover:text-foreground">{v.titulo}</span>
@@ -109,6 +139,7 @@ export default function Novidades() {
               </li>
             ))}
           </ol>
+          </div>
         </nav>
 
         <div className="min-w-0">

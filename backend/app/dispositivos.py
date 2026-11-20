@@ -102,14 +102,23 @@ def _linha(d: dict) -> dict:
 def listar(tipo: str | None = None, filtro_sql: str = "", params: tuple = ()) -> list[dict]:
     w, p = (" WHERE d.tipo = ?", (tipo,)) if tipo else (" WHERE true", ())
     linhas = db.consultar(f"SELECT d.*, pr.nome AS projeto_nome FROM dispositivos d LEFT JOIN projetos pr ON pr.id = d.projeto_id{w}{filtro_sql} ORDER BY d.tipo, pr.nome, d.nome", p + params)
-    return [_linha(x) for x in linhas]
+    iso = _isolados()
+    return [{**_linha(x), "isolado": iso.get(str(x["id"]))} for x in linhas]
+
+
+def _isolados() -> dict:
+    from . import fisico
+    try:
+        return fisico.isolados()["dispositivos"]
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def um(did: int) -> dict:
     d = db.um("SELECT d.*, pr.nome AS projeto_nome FROM dispositivos d LEFT JOIN projetos pr ON pr.id = d.projeto_id WHERE d.id = ?", (did,))
     if not d:
         raise KeyError("Aparelho não encontrado.")
-    return _linha(d)
+    return {**_linha(d), "isolado": _isolados().get(str(did))}
 
 
 def evento(did: int, acao: str, origem: str = "painel", ok: bool = True, detalhe: str = ""):
@@ -246,6 +255,8 @@ ACOES = ACOES_PLACA   # ações válidas por tipo (a rota usa a mesma lista)
 
 def comando(did: int, acao: str, valor=None, origem: str = "painel") -> dict:
     d = um(did)
+    from . import fisico
+    fisico.checar_dispositivo(d, acao)   # isolamento e limite por minuto (estado seguro sempre passa)
     if d.get("driver") == "placa":   # entra na fila; a placa busca em até ~2 s e confirma
         if not d["placa_configurada"]:
             raise RuntimeError(f"{d['nome']} ainda não tem placa configurada. Gere o código da placa em Conectar aparelho → Placa própria.")
@@ -314,9 +325,15 @@ def sincronizar(token: str, corpo: dict) -> dict | None:
     d = db.um("SELECT id, tipo, fila, estado, nome, info_placa FROM dispositivos WHERE token_hash = ? AND driver = 'placa'", (_hash(token),))
     if not d:
         return None
+    from . import fisico
     fila = _j(d["fila"], [])
     feitos = {str(x) for x in (corpo.get("feitos") or [])[:50]}
-    resto = [c for c in fila if c["id"] not in feitos]
+    agora_s = db.agora()
+    vencidos = [c for c in fila if c["id"] not in feitos and agora_s - int(c.get("em") or 0) > fisico.validade_placa(c.get("acao"))]
+    resto = [c for c in fila if c["id"] not in feitos and c not in vencidos]
+    for c in vencidos:   # comando velho não é executado (a placa ficou offline): registra e descarta
+        evento(d["id"], f"{_rotulo(c['acao'], c.get('valor'))} (expirou sem a placa buscar)", "placa", False,
+               f"pedido há {agora_s - int(c.get('em') or 0)} s; refaça pelo painel se ainda quiser")
     estado = corpo.get("estado") if isinstance(corpo.get("estado"), dict) else _j(d["estado"], {})
     estado = {k: v for k, v in list(estado.items())[:20] if isinstance(k, str) and len(k) <= 30 and isinstance(v, (bool, int, float, str, type(None)))}
     info = {**_j(d.get("info_placa"), {}), **{k: corpo.get(k) for k in ("firmware", "placa", "rssi", "ip", "uptime_s", "heap") if corpo.get(k) is not None}}
@@ -415,7 +432,8 @@ def ciclo(contador: int = 0):
                 comando(d["id"], ag.get("acao", "ligar"), ag.get("valor"), "agenda")
             r = d["resumo"]
             if d["tipo"] == "cafeteira" and r.get("ligada"):   # desliga sozinha depois de X min ligada (segurança)
-                lim = int(cfg.get("desligar_apos_min") or 0)
+                from . import fisico
+                lim = int(cfg.get("desligar_apos_min") or 0) or fisico.CAFETEIRA_MAX_MIN   # sem limite escolhido: nunca fica ligada para sempre
                 ult = db.um("SELECT quando FROM dispositivos_eventos WHERE dispositivo_id = ? AND acao = 'Ligou' AND ok = 1 ORDER BY quando DESC LIMIT 1", (d["id"],))
                 if lim and ult and db.agora() - ult["quando"] > lim * 60:
                     comando(d["id"], "desligar", None, "segurança")

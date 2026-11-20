@@ -209,12 +209,18 @@ def aguardar(fila_id: int, limite: float) -> dict:
     return {"estado": "erro", "erro": sem_agente()}
 
 
+# Sinal de infravermelho só vale enquanto a nuvem espera por ele (8 s) e um pouco mais: um pedido que ficou parado
+# (agente caiu e voltou) não liga o ar minutos depois de alguém ter visto "não respondeu" na tela.
+VALIDADE_ENVIO = 20
+
+
 def processar_fila_uma_vez() -> bool:
     """Pega o próximo comando pendente (o agente chama isso em laço). Retorna True se processou algo."""
     item = db.um("""UPDATE fila_comandos SET estado = 'executando', inicio_em = ?
                     WHERE id = (SELECT id FROM fila_comandos WHERE estado = 'pendente' AND criado_em > ?
+                                AND (tipo <> 'enviar' OR criado_em > ?)
                                 ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED)
-                    RETURNING *""", (db.agora(), db.agora() - 120))
+                    RETURNING *""", (db.agora(), db.agora() - 120, db.agora() - VALIDADE_ENVIO))
     if not item:
         return False
     if item["tipo"] == "infra":
