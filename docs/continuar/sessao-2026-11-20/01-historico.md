@@ -30,3 +30,15 @@
 - 1.30.0: clima-ia no terminal (`frontend/public/clima-ia/clima_ia.py`, instaladores `instalar-ia.sh`/`.ps1`, login PKCE por
   `/entrar-app?cli=1`, modo plano = `leitura` em `/api/ia/conversar`); /supabase com menu fixo e busca, largura total e 10 telas novas
   (`components/supabase/Avancado.jsx`, `GET /api/supabase/catalogo/{tipo}` com consultas fechadas).
+
+## Fim do dia (1.31.0)
+- clima-ia: interface verde no formato do Claude Code com o logo do sistema em pixels (`frontend/public/clima-ia/clima_ia.py`, v1.6.0);
+  o agente local (`agente-ia/clima_ia.py`) carrega a mesma tela desse arquivo. Seletor de modelo com setas, /uso, comandos de segurança
+  (/seguranca, /ataques, /ips, /ip, /bloquear, /desbloquear, /escudo, /sessoes, /telegram, /integridade, /analisar, /diagnostico,
+  /atualizar, /auditoria), segredos colados ocultados antes de enviar.
+- Limites da IA (`backend/app/ia_uso.py`, tabela `ia_uso`, config `ia_limites`): sessão de 5 h e semana de 7 dias em tokens, começando
+  no primeiro uso (método do Claude). Padrão 300 mil / 2 milhões; dono sem limite por padrão. `GET /api/ia/uso`, `PUT /api/ia/limites` (dono).
+- Bugs: #23 descartado (era o firewall bloqueando os meus testes locais); `checar_cadastros()` na varredura, `autoteste()` com transação
+  desfeita (`POST /api/bugs/autoteste`), 422 de quem está logado vira bug "Formulário recusado". Tela com radar, filtro por categoria, 14 dias.
+- Cadastros corrigidos: ID de transmissor com espaço (500), IP/protocolo sem validação, ar com nome vazio ou repetido, editar ar sem sala.
+- Editor SQL com CodeMirror 6 (`components/supabase/EditorSql.jsx`), colunas de `GET /api/supabase/catalogo/colunas`.

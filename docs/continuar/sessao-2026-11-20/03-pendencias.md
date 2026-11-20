@@ -18,3 +18,8 @@
 - Instalador Windows do clima-ia (`instalar-ia.ps1`) não foi testado num Windows.
 - APK 1.5.0 não foi instalado num celular; desktop 1.5.0 não foi aberto depois do build.
 - Auditor da interface em 93: 95 de antes menos as cores fixas da prévia do terminal em /ia (de propósito).
+
+## Depois da 1.31.0
+- clima-ia: a tela interativa (seletor com setas, Shift+Tab, régua de baixo) foi vista só em captura renderizada, não num terminal real aberto à mão.
+- Limites da IA: a recusa ao estourar o limite foi testada só pela lógica da janela; ninguém tem limite baixo configurado ainda.
+- Dono sem nome no perfil: a saudação do clima-ia fica "Bem-vindo de volta!" até preencher o nome em Configurações → Perfil.
