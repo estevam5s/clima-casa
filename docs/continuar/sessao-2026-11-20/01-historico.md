@@ -20,3 +20,13 @@
   piloto (piloto3d.js) e de frente (fisica.inverter na moto 38); sinaleiras instanciadas nos cruzamentos (cidade3d tickSinais);
   cidade N=9; mais pedestres; direção mais suave; E.preparar (texturas uma por quadro + compilação escondida) para modelos tardios.
 - 1.28.0: Telegram +364 comandos (862); Estúdio com modelos prontos, sortear, acessórios, desfazer/refazer, vistas, fundos, foto e números.
+
+## Fim da tarde (1.29.0, 1.30.0 e apps 1.5.0)
+- 1.29.0: firewall com inspeção do corpo (SQLi, NoSQL, comando, SSTI, XXE, Log4Shell, prototype, travessia), iscas, robôs de IA,
+  ferramentas de ataque, spraying, tarpit no login, prompt injection; bot do Telegram com auditoria (`telegram_eventos`), identidade,
+  flood, PIN para comandos críticos e aba Telegram em /seguranca. Site com 5 páginas novas.
+- App de iPhone em SwiftUI (`apps/ios`, xtool): compila e roda no simulador com dados reais; `.ipa` de release sem assinatura.
+- Apps 1.5.0 no GitHub (release v1.5.0, 7 arquivos, incluindo `ClimaCasa-ios.ipa`); /apps mostra o iPhone com o passo a passo.
+- 1.30.0: clima-ia no terminal (`frontend/public/clima-ia/clima_ia.py`, instaladores `instalar-ia.sh`/`.ps1`, login PKCE por
+  `/entrar-app?cli=1`, modo plano = `leitura` em `/api/ia/conversar`); /supabase com menu fixo e busca, largura total e 10 telas novas
+  (`components/supabase/Avancado.jsx`, `GET /api/supabase/catalogo/{tipo}` com consultas fechadas).

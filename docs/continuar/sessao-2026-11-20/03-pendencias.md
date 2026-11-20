@@ -10,3 +10,11 @@
 - Kanban e WhatsApp: testados com mensagens de teste (apagadas); ainda não há mensagens reais do site.
 - Telegram: o menu "/" do app mostra só 100 comandos (limite do Telegram); os 862 aparecem em /comandos e na busca.
 - Auditor da interface em 95 (gradiente em GuiaBotoes.jsx, de outra sessão).
+
+## Depois da 1.30.0 (apps 1.5.0)
+- iPhone: o dono precisa rodar `xtool setup` (Apple ID) para instalar no aparelho; não foi testado num iPhone de verdade, só no simulador.
+- clima-ia: o login pelo navegador (`clima-ia login` → `/entrar-app?cli=1`) não foi testado de ponta a ponta (precisa de login real);
+  a conversa, o modo plano e o instalador foram testados com sessão temporária. A tela interativa (cabeçalho, Shift+Tab) só foi vista em código.
+- Instalador Windows do clima-ia (`instalar-ia.ps1`) não foi testado num Windows.
+- APK 1.5.0 não foi instalado num celular; desktop 1.5.0 não foi aberto depois do build.
+- Auditor da interface em 93: 95 de antes menos as cores fixas da prévia do terminal em /ia (de propósito).
