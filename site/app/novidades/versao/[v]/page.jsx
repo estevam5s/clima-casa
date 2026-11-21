@@ -10,7 +10,7 @@ export const generateStaticParams = () => VERSOES.map((v) => ({ v: v.versao }))
 export async function generateMetadata({ params }) {
   const { v } = await params
   const x = VERSOES.find((y) => y.versao === v)
-  return x ? meta({ titulo: `Versão ${x.versao}: ${x.titulo}`, descricao: x.resumo || x.titulo, caminho: `/novidades/versao/${x.versao}`, og: 'novidades', tipo: 'article', publicado: `${x.data}T12:00:00-03:00` }) : {}
+  return x ? meta({ titulo: `Versão ${x.versao} · novidades`, descricao: x.resumo || x.titulo, caminho: `/novidades/versao/${x.versao}`, og: 'novidades', tipo: 'article', publicado: `${x.data}T12:00:00-03:00` }) : {}
 }
 
 export default async function Versao({ params }) {

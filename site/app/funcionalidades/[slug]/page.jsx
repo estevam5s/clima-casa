@@ -11,7 +11,7 @@ export const generateStaticParams = () => FUNCIONALIDADES.map((f) => ({ slug: f.
 export async function generateMetadata({ params }) {
   const { slug } = await params
   const f = FUNCIONALIDADES.find((x) => x.slug === slug)
-  return f ? meta({ titulo: f.titulo, descricao: f.resumo, caminho: `/funcionalidades/${f.slug}`, og: `funcionalidade-${f.slug}` }) : {}
+  return f ? meta({ titulo: `Funcionalidade: ${f.titulo}`, descricao: f.resumo, caminho: `/funcionalidades/${f.slug}`, og: `funcionalidade-${f.slug}` }) : {}
 }
 
 export default async function Funcionalidade({ params }) {

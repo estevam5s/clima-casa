@@ -224,15 +224,14 @@ def traduzir_faltantes(idioma: str, lote: int = 30, refazer_ia: bool = False) ->
     saida = ia.json_da_resposta(resp)
     if not isinstance(saida, list) or len(saida) != len(textos):
         raise RuntimeError("A IA devolveu um número diferente de textos. Tente de novo (lotes menores ajudam).")
-    agora, feitos = db.agora(), 0
-    for pt, tr in zip(textos, saida):
-        tr = normalizar(str(tr or ""))
-        if not tr:
-            continue
-        db.executar("INSERT INTO site_traducoes (texto, idioma, traducao, origem, revisada, atualizado_em) VALUES (?,?,?,'ia',false,?) "
-                    "ON CONFLICT (texto, idioma) DO UPDATE SET traducao = excluded.traducao, atualizado_em = excluded.atualizado_em "
-                    "WHERE NOT site_traducoes.revisada", (pt, idioma, tr[:2400], agora))
-        feitos += 1
+    agora = db.agora()
+    linhas = [(pt, idioma, normalizar(str(tr or ""))[:2400], agora) for pt, tr in zip(textos, saida) if normalizar(str(tr or ""))]
+    with db.conexao() as c:   # o lote inteiro numa ida só ao banco
+        with c.cursor() as cur:
+            cur.executemany("INSERT INTO site_traducoes (texto, idioma, traducao, origem, revisada, atualizado_em) VALUES (%s,%s,%s,'ia',false,%s) "
+                            "ON CONFLICT (texto, idioma) DO UPDATE SET traducao = excluded.traducao, atualizado_em = excluded.atualizado_em "
+                            "WHERE NOT site_traducoes.revisada", linhas)
+    feitos = len(linhas)
     subir_versao()
     faltam = (db.um("SELECT count(*) AS n FROM site_textos s LEFT JOIN site_traducoes t ON t.texto = s.texto AND t.idioma = ? WHERE s.ativo AND t.texto IS NULL", (idioma,)) or {}).get("n")
     return {"traduzidos": feitos, "faltam": int(faltam or 0)}

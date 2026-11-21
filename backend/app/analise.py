@@ -252,7 +252,7 @@ class _Leitor(HTMLParser):
 
 def _passe() -> dict:
     """Cabeçalho que o portão anti-robô do site aceita (HMAC com o mesmo segredo, vale 5 min): a auditoria lê a página real."""
-    seg = os.environ.get("VERIFICACAO_SEGREDO", "")
+    seg = db.ENV.get("VERIFICACAO_SEGREDO") or os.environ.get("VERIFICACAO_SEGREDO", "")
     if not seg:
         return {}
     ts = str(int(time.time()))
@@ -317,7 +317,7 @@ def auditar() -> dict:
     with httpx.Client(timeout=15, follow_redirects=True, headers=cab) as cli:
         robots = cli.get(f"{SITE}/robots.txt")
         sm = cli.get(f"{SITE}/sitemap.xml")
-        urls = re.findall(r"<loc>([^<]+)</loc>", sm.text)[:80]
+        urls = re.findall(r"<loc>([^<]+)</loc>", sm.text)[:160]
         with ThreadPoolExecutor(8) as ex:
             paginas = list(ex.map(lambda u: _pagina(cli, u), urls))
         # sistema: cabeçalhos de segurança e tempo da raiz
