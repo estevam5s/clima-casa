@@ -40,6 +40,9 @@ for (const r of unicas) {
 }
 await nav.close()
 parar()
+// textos que só aparecem logado no sistema ou depois de uma ação (o navegador sem login não vê)
+const EXTRAS = ["ENTRAR NO SISTEMA", "ABRIR O PAINEL", "ENTRAR", "Entrar no sistema", "Fazer login", "Entrar no painel", "Fazer login no painel", "Enviando", "Enviando…", "Quase lá: abra o e-mail que acabamos de mandar e confirme a inscrição.", "Mensagem enviada. O administrador vê na central de notificações do sistema.", "Não foi possível enviar agora. Tente de novo em instantes.", "Inscrição confirmada.", "Você vai receber as próximas novidades. Sair é um clique em qualquer e-mail.", "Esse link não vale mais.", "Peça a inscrição de novo no formulário abaixo.", "Pronto, você saiu da lista.", "Não enviamos mais nada. Se mudar de ideia, é só assinar de novo.", "Cancelar a inscrição na newsletter?", "Você deixa de receber as novidades por e-mail.", "Não deu para cancelar por este link. Responda a qualquer e-mail da newsletter pedindo para sair.", "Cancelando", "Cancelar inscrição", "Nenhuma versão com esse filtro.", "Limpar busca"]
+for (const e of EXTRAS) if (!mapa.has(e)) mapa.set(e, new Set(['(dinâmico)']))
 const textos = [...mapa].map(([texto, rs]) => ({ texto, rotas: [...rs].slice(0, 20) })).sort((a, b) => a.texto.localeCompare(b.texto))
 fs.mkdirSync(`${raiz}public/i18n`, { recursive: true })
 fs.writeFileSync(`${raiz}public/i18n/textos.json`, JSON.stringify({ gerado_em: new Date().toISOString(), paginas: unicas.length, textos }) + '\n')
