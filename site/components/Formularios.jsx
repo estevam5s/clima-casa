@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Mail } from 'lucide-react'
 import Botao from './Botao'
 import Turnstile from './Turnstile'
@@ -15,6 +15,7 @@ async function enviar(corpo) {
 }
 
 export function FormNovidades() {
+  const id = useId()
   const [email, setEmail] = useState('')
   const [estado, setEstado] = useState(null)
   const [robo, setRobo] = useState('')
@@ -22,13 +23,13 @@ export function FormNovidades() {
   const enviarForm = async (e) => {
     e.preventDefault()
     setEstado({ tipo: 'enviando' })
-    try { await enviar({ tipo: 'novidades', email, turnstile: robo }); setEstado({ tipo: 'ok', msg: 'Pronto: você recebe as próximas novidades.' }); setEmail('') } catch (err) { setEstado({ tipo: 'erro', msg: err.message }) } finally { roboRef.current?.reiniciar() }
+    try { await enviar({ tipo: 'novidades', email, turnstile: robo, idioma: (document.documentElement.lang || 'pt').slice(0, 2) }); setEstado({ tipo: 'ok', msg: 'Quase lá: abra o e-mail que acabamos de mandar e confirme a inscrição.' }); setEmail('') } catch (err) { setEstado({ tipo: 'erro', msg: err.message }) } finally { roboRef.current?.reiniciar() }
   }
   return (
     <form onSubmit={enviarForm}>
       <div className="grupo-form">
-        <label htmlFor="email-novidades"><Mail size={18} strokeWidth={1.5} /></label>
-        <input id="email-novidades" type="email" required placeholder="Seu e-mail" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} />
+        <label htmlFor={`email-novidades${id}`}><Mail size={18} strokeWidth={1.5} /></label>
+        <input id={`email-novidades${id}`} type="email" required placeholder="Seu e-mail" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} />
         <Botao type="submit" disabled={estado?.tipo === 'enviando'}>{estado?.tipo === 'enviando' ? 'Enviando' : 'Assinar'}</Botao>
       </div>
       <Turnstile ref={roboRef} aoMudar={setRobo} acao="novidades" />

@@ -102,6 +102,7 @@ REGRAS = [
     ("*", r"^/api/atividade", "atividade.ver"),
     ("*", r"^/api/site/(mensagens|conversas?|respostas-prontas|kanban)", "mensagens.ver"),
     ("*", r"^/api/site/cookies/(config|relatorio|consentimento/|exportar|escanear)", "configuracoes.gerenciar"),
+    ("*", r"^/api/(analise|idiomas|newsletter)", "configuracoes.gerenciar"),   # acessos/SEO, idiomas do site e newsletter (a rota ainda exige dono/admin)
     ("*", r"^/api/(sinric|tuya|alexa/(?!comandos)|oauth/aprovar)", "integracoes.gerenciar"),
     ("GET|PUT", r"^/api/alexa$", "integracoes.gerenciar"),
     ("*", r"^/api/seguranca", "seguranca.gerenciar"),

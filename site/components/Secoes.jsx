@@ -4,7 +4,9 @@ import Botao from './Botao'
 import Icone, { nomeMarca } from './Icone'
 import Espiral from './Espiral'
 import { CarrosselComandos } from './Interativos'
-import { DESTAQUES, ENTRAR_URL, FUNCIONALIDADES, INTEGRACOES, MARCA, NOVIDADES, NUMEROS, PASSOS, TECNOLOGIAS, TELAS, TELAS_HOME } from '@/lib/dados'
+import { Acordeao } from './Interativos'
+import { FormNovidades } from './Formularios'
+import { DESTAQUES, DISPOSITIVOS, ENTRAR_URL, FAQ, FUNCIONALIDADES, INTEGRACOES, MARCA, NOVIDADES, NUMEROS, PASSOS, PLATAFORMAS, TECNOLOGIAS, TELAS, TELAS_HOME } from '@/lib/dados'
 
 export const dataBR = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(' de ', ' ').replace('.', '').replace(' de ', ', ')
 
@@ -165,7 +167,7 @@ export function SecaoNumeros() {
       <div className="container">
         <div className="linha alinha-centro">
           <div className="lg-6"><Titulo sub="Em números" className="mb-50">Números reais do sistema,<br />sem arredondar para cima</Titulo></div>
-          <div className="lg-6"><div className="caixa-texto empurra-direita mb-50 pf_fadeup"><p>Contados no código da <span>versão 1.0</span>, publicada em novembro de 2026.</p></div></div>
+          <div className="lg-6"><div className="caixa-texto empurra-direita mb-50 pf_fadeup"><p>Contados no código da <span>versão 0.4.9</span>, publicada em novembro de 2026.</p></div></div>
         </div>
         <div className="linha">
           <div className="lg-4"><div className="caixa-imagem mb-50 pf_fadeup"><img src="/telas/painel.jpg" alt="Painel do sistema" style={{ aspectRatio: '4/5', objectFit: 'cover', objectPosition: '20% top' }} /></div></div>
@@ -263,6 +265,140 @@ export function BannerPagina({ titulo, texto, trilha }) {
               </ul>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+
+// ---------- página inicial: o escritório inteiro ----------
+export function SecaoEscritorio() {
+  return (
+    <section className="pt-130">
+      <div className="container">
+        <div className="linha alinha-fim">
+          <div className="lg-6"><Titulo sub="Escritório inteligente" className="mb-50">Muito além do<br />ar-condicionado</Titulo></div>
+          <div className="lg-6"><div className="caixa-texto empurra-direita pf_fadeup mb-50"><p>Luzes, cafeteira, persianas, fechadura e música no <span>mesmo painel</span>, com as mesmas permissões, agendas e automações.</p></div></div>
+        </div>
+        <div className="grade-dispositivos">
+          {DISPOSITIVOS.map((d) => (
+            <Link key={d.slug} href={`/escritorio-inteligente/${d.slug}`} className="cartao-dispositivo pf_fadeup">
+              <span className="ic"><Icone nome={d.icone} tamanho={30} traco={1.3} /></span>
+              <h4>{d.titulo}</h4>
+              <p>{d.resumo}</p>
+              <span className="leia-mais">Ver detalhes</span>
+            </Link>
+          ))}
+        </div>
+        <div className="texto-centro pf_fadeup" style={{ marginTop: 50 }}><Botao href="/escritorio-inteligente">Conhecer o escritório inteligente</Botao></div>
+      </div>
+    </section>
+  )
+}
+
+const RECURSOS = [
+  { icone: 'Bot', titulo: 'Assistente de IA', texto: 'Pergunte em português e ele age com as suas permissões: estado dos ares, salas, relatórios, tempo lá fora. Ações em lote só depois de você confirmar.', href: '/assistente-ia', itens: ['No painel, no Telegram e no celular', 'Conversas salvas', 'Comandos com /'] },
+  { icone: 'Send', titulo: 'Bot do Telegram', texto: 'O painel de cada ar no jeito do controle remoto, timers, relatórios, luzes, persianas, música e avisos, com PIN e auditoria.', href: '/bot-telegram', itens: ['1.114 comandos', '28 categorias', 'Confirmação em ação em lote'] },
+  { icone: 'Building2', titulo: 'Mapa 3D', texto: 'O prédio de 11 andares na cidade, com o escritório no 9º: salas, ares, luzes reais à noite, equipe no expediente e quem está no mapa agora.', href: '/mapa-3d', itens: ['Andar, sentar, café e elevador', 'Previsão do tempo com chuva', 'Qualidade que se ajusta ao computador'] },
+  { icone: 'BarChart3', titulo: 'Relatórios', texto: 'Horas ligado, kWh e custo estimados por aparelho, comparação com o período anterior, horário de pico e falhas com o motivo.', href: '/funcionalidades/relatorios', itens: ['8 formatos, inclusive PDF', 'Modelo com cabeçalho oficial', 'Enviado por e-mail'] },
+]
+export function SecaoRecursos() {
+  return (
+    <section className="pt-130 pb-90">
+      <div className="container">
+        <Titulo sub="Recursos" centro anim="pf_zoomIn" className="mb-50">Mais do que ligar<br />e desligar</Titulo>
+        <div className="grade-recursos">
+          {RECURSOS.map((r) => (
+            <article key={r.titulo} className="cartao-recurso pf_fadeup">
+              <div className="topo"><span className="ic"><Icone nome={r.icone} tamanho={28} traco={1.3} /></span><h4>{r.titulo}</h4></div>
+              <p>{r.texto}</p>
+              <ul>{r.itens.map((x) => <li key={x}>{x}</li>)}</ul>
+              <Link href={r.href} className="leia-mais">Saiba mais</Link>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const PROTECOES = [
+  ['ShieldCheck', 'Travas em todo comando físico', 'Limite por aparelho, proteção do compressor e o estado seguro que sempre passa.'],
+  ['Lock', 'Segredos cifrados', 'Chaves das integrações guardadas com AES-256-GCM; banco com RLS em todas as tabelas.'],
+  ['ShieldAlert', 'Firewall próprio', 'Bloqueio progressivo de IPs, países, assinaturas de ataque e verificação anti-robô.'],
+  ['KeyRound', 'Acesso forte', 'Verificação em duas etapas, chaves de acesso (biometria) e aviso de entrada por IP novo.'],
+]
+export function SecaoSeguranca() {
+  return (
+    <section className="cinza-escuro pt-130 pb-80">
+      <div className="container">
+        <div className="linha alinha-centro">
+          <div className="lg-5">
+            <div className="mb-50 pf_fadeup">
+              <Titulo sub="Segurança" anim="" className="mb-30">Mexe em equipamento real,<br />com cuidado de verdade</Titulo>
+              <p>Ar, porta e cafeteira são coisas físicas. Por isso cada comando passa por travas no servidor, venha do painel, da Alexa, do Telegram ou da IA.</p>
+              <div style={{ marginTop: 30, display: 'flex', gap: 12, flexWrap: 'wrap' }}><Botao href="/seguranca">Ver a segurança</Botao><Botao href="/status" className="contorno">Status ao vivo</Botao></div>
+            </div>
+          </div>
+          <div className="lg-7">
+            <div className="grade-protecoes mb-50">
+              {PROTECOES.map(([i, t, x]) => <div key={t} className="item-protecao pf_fadeup"><Icone nome={i} tamanho={26} traco={1.3} /><h5>{t}</h5><p>{x}</p></div>)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function IconeApp({ nome }) {
+  if (nome === 'windows') return <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM11.5 4.4 21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.4z" /></svg>
+  return <Icone nome={nome} tamanho={34} />
+}
+export function SecaoApps() {
+  return (
+    <section className="pt-130 pb-80">
+      <div className="container">
+        <div className="linha alinha-centro">
+          <div className="lg-7"><Titulo sub="Apps" className="mb-50">No celular, no computador<br />e no navegador</Titulo></div>
+          <div className="lg-5"><div className="mb-60 lg-texto-dir pf_fadeup"><Botao href="/baixar">Baixar os apps</Botao></div></div>
+        </div>
+        <div className="grade-apps">
+          {PLATAFORMAS.map((p) => (
+            <Link key={p.id} href={`/baixar#${p.id}`} className="cartao-app pf_fadeup">
+              <IconeApp nome={p.icone} />
+              <h5>{p.nome}</h5>
+              <small>{p.detalhe}</small>
+            </Link>
+          ))}
+          <a href={ENTRAR_URL} className="cartao-app pf_fadeup"><Icone nome="Globe" tamanho={34} /><h5>Navegador</h5><small>Instalável (PWA)</small></a>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function SecaoFaqCurta() {
+  return (
+    <section className="pt-70 pb-90">
+      <div className="container">
+        <div className="linha">
+          <div className="lg-4"><Titulo sub="Perguntas" className="mb-30">O que perguntam<br />antes de começar</Titulo><div className="pf_fadeup mb-50"><Botao href="/faq">Todas as perguntas</Botao></div></div>
+          <div className="lg-8"><div className="mb-50"><Acordeao itens={FAQ.slice(0, 6)} /></div></div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export function SecaoNewsletter() {
+  return (
+    <section className="pb-130">
+      <div className="container">
+        <div className="faixa-newsletter pf_fadeup">
+          <div><h3>As novidades no seu e-mail</h3><p>Versões novas, recursos e dicas, no máximo algumas vezes por mês. <Link href="/newsletter">Saiba mais</Link></p></div>
+          <FormNovidades />
         </div>
       </div>
     </section>

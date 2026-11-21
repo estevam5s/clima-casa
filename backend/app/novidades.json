@@ -2,6 +2,37 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "0.4.9",
+      "data": "2026-11-21",
+      "titulo": "Site em 6 idiomas, acessos e SEO, newsletter com IA e site mais completo",
+      "resumo": "O site zynio.com.br fala português, inglês, espanhol, francês, russo e coreano; o painel mostra quem acessa o site e o sistema, o desempenho e o SEO de cada página; a newsletter ganhou campanhas com modelos e IA.",
+      "novo": [
+        "Site em inglês, espanhol, francês, russo e coreano, com o seletor de idioma no topo, ao lado de Entrar",
+        "Idiomas do site no painel: quanto de cada idioma está traduzido, tradução pela IA, revisão à mão e textos novos vistos no site",
+        "Acessos e SEO no painel: online agora, visitantes, rotas e cliques mais usados, países e cidades, aparelhos, de onde vêm as visitas",
+        "Desempenho medido em quem usa (Web Vitals por rota), tempo das chamadas da API do sistema e erros do navegador",
+        "Auditoria de SEO de todas as páginas do site e nota do PageSpeed (Google) sob demanda",
+        "Newsletter em E-mails: campanhas com 5 modelos visuais, blocos, prévia no computador e no celular, teste, agendamento e envio",
+        "A IA escreve a newsletter a partir das versões reais do sistema",
+        "Inscrição na newsletter com confirmação por e-mail e cancelamento em um clique",
+        "No site: páginas do escritório inteligente (ar, luzes, cafeteira, persianas, fechadura e música), da newsletter e de cada versão"
+      ],
+      "melhorias": [
+        "Menu do site com mais páginas, ícones e uma linha explicando cada uma",
+        "Rodapé do site em categorias, com os apps (Android, iPhone, Mac, Windows e Linux) e seus ícones",
+        "Página inicial do site bem mais completa: escritório inteligente, recursos, segurança, apps, perguntas e newsletter",
+        "Novidades do site com todas as versões, filtros por tipo, busca e índice",
+        "Botão Entrar do site mostra outra frase ao passar o mouse",
+        "Números do site atualizados (rotas, tabelas, comandos do Telegram, versões)"
+      ],
+      "seguranca": [
+        "Medição de acessos sem guardar IP e sem o que se digita; identificador entre visitas só com o consentimento de estatísticas",
+        "Endereço que devolve ou reclama da newsletter sai da lista sozinho",
+        "Textos novos vistos no site só entram na tradução depois de aprovados no painel"
+      ],
+      "correcoes": []
+    },
+    {
       "versao": "0.4.8",
       "data": "2026-11-21",
       "titulo": "Mapa 3D sem travar ao abrir o prédio",

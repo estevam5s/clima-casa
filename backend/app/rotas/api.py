@@ -2987,6 +2987,7 @@ class SiteContatoIn(BaseModel):
     email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     assunto: str = Field("", max_length=120)
     mensagem: str = Field("", max_length=2000)
+    idioma: str | None = Field(None, max_length=5)
 
 
 @publico.post("/site/contato")
@@ -3005,7 +3006,12 @@ def site_contato(d: SiteContatoIn, request: Request):
                       (db.agora(), d.tipo, d.nome.strip(), d.email.strip().lower(), d.assunto.strip(), d.mensagem.strip(), ip,
                        request.headers.get("x-vercel-ip-country", "")[:4], unquote(request.headers.get("x-vercel-ip-city", ""))[:80]))
     if d.tipo == "novidades":
-        titulo, detalhe = "Novo cadastro para receber novidades", d.email.strip()
+        # newsletter: entra como pendente e recebe o e-mail de confirmação (só recebe campanhas depois de confirmar)
+        from .. import newsletter
+        r = newsletter.inscrever(d.email, d.nome, (d.idioma or "pt")[:5], "site", request.headers.get("x-vercel-ip-country", "")[:4])
+        if not r.get("novo"):
+            return {"ok": True}
+        titulo, detalhe = "Novo cadastro para receber novidades", f"{d.email.strip()} (aguardando a confirmação por e-mail)"
     else:
         titulo = f"Mensagem do site: {d.nome.strip()}" + (f" · {d.assunto.strip()}" if d.assunto.strip() else "")
         detalhe = f"{d.email.strip()} · {d.mensagem.strip()}"

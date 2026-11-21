@@ -1,0 +1,1145 @@
+[
+ {
+  "versao": "0.4.9",
+  "data": "2026-11-21",
+  "titulo": "Site em 6 idiomas, acessos e SEO, newsletter com IA e site mais completo",
+  "resumo": "O site zynio.com.br fala português, inglês, espanhol, francês, russo e coreano; o painel mostra quem acessa o site e o sistema, o desempenho e o SEO de cada página; a newsletter ganhou campanhas com modelos e IA.",
+  "novo": [
+   "Site em inglês, espanhol, francês, russo e coreano, com o seletor de idioma no topo, ao lado de Entrar",
+   "Idiomas do site no painel: quanto de cada idioma está traduzido, tradução pela IA, revisão à mão e textos novos vistos no site",
+   "Acessos e SEO no painel: online agora, visitantes, rotas e cliques mais usados, países e cidades, aparelhos, de onde vêm as visitas",
+   "Desempenho medido em quem usa (Web Vitals por rota), tempo das chamadas da API do sistema e erros do navegador",
+   "Auditoria de SEO de todas as páginas do site e nota do PageSpeed (Google) sob demanda",
+   "Newsletter em E-mails: campanhas com 5 modelos visuais, blocos, prévia no computador e no celular, teste, agendamento e envio",
+   "A IA escreve a newsletter a partir das versões reais do sistema",
+   "Inscrição na newsletter com confirmação por e-mail e cancelamento em um clique",
+   "No site: páginas do escritório inteligente (ar, luzes, cafeteira, persianas, fechadura e música), da newsletter e de cada versão"
+  ],
+  "melhorias": [
+   "Menu do site com mais páginas, ícones e uma linha explicando cada uma",
+   "Rodapé do site em categorias, com os apps (Android, iPhone, Mac, Windows e Linux) e seus ícones",
+   "Página inicial do site bem mais completa: escritório inteligente, recursos, segurança, apps, perguntas e newsletter",
+   "Novidades do site com todas as versões, filtros por tipo, busca e índice",
+   "Botão Entrar do site mostra outra frase ao passar o mouse",
+   "Números do site atualizados (rotas, tabelas, comandos do Telegram, versões)"
+  ],
+  "seguranca": [
+   "Medição de acessos sem guardar IP e sem o que se digita; identificador entre visitas só com o consentimento de estatísticas",
+   "Endereço que devolve ou reclama da newsletter sai da lista sozinho",
+   "Textos novos vistos no site só entram na tradução depois de aprovados no painel"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.4.8",
+  "data": "2026-11-21",
+  "titulo": "Mapa 3D sem travar ao abrir o prédio",
+  "resumo": "O mapa não congela mais ao clicar no prédio, ao chegar um carro ou herói da biblioteca nem ao descer de elevador, e o prédio fechado ficou bem mais leve.",
+  "novo": [],
+  "melhorias": [
+   "Clicar no prédio abre o andar na hora: antes a tela parava por 1 a 2 segundos",
+   "Prédio fechado mais leve: o andar escondido pela torre não é mais desenhado por baixo dela",
+   "Descer ao térreo pelo elevador sem congelar: a recepção é preparada antes, enquanto o mapa está parado",
+   "A cena não é mais refeita a cada 15 minutos: o sol anda sozinho e a cena só muda na troca de dia, entardecer e noite"
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Carros voadores e heróis da biblioteca travavam o mapa alguns segundos depois de abrir"
+  ]
+ },
+ {
+  "versao": "0.4.7",
+  "data": "2026-11-20",
+  "titulo": "Travas de segurança nos comandos físicos, mapa mais leve e topo arrumado",
+  "resumo": "Todo comando que mexe em equipamento real passa por travas no servidor (o estado seguro sempre passa), aparelhos suspeitos podem ser isolados, o mapa ficou mais leve e várias telas ganharam rolagem e visual corrigidos.",
+  "novo": [
+   "Segurança → Comandos físicos: as travas que valem para todo comando, os aparelhos isolados e os comandos recusados nas últimas 24 h",
+   "Isolar um ar, luz, cafeteira, persiana ou fechadura suspeito (dono ou admin, com motivo): ele só aceita desligar, fechar, parar ou trancar até ser liberado",
+   "Cartão Travas de segurança em Luzes, Cafeteira, Persianas e Fechadura",
+   "Iluminação: cartão Vai funcionar? com as condições para o interruptor Novadigital Touch Wi-Fi de 1 a 4 teclas"
+  ],
+  "melhorias": [
+   "Mapa 3D mais leve: faixas da rua e palmeiras desenhadas em poucas peças, menos luzes na cena e qualidade automática que baixa a resolução e a sombra quando o computador não aguenta",
+   "Topo do sistema com o menu lateral fixo: cada item aparece só quando cabe, sem a busca por cima do texto",
+   "Novidades: a lista de versões rola sozinha, separada da página, e acompanha a versão que você está lendo",
+   "Integrações: a coluna da direita rola sozinha, sem levar a página junto",
+   "Busca dos Atalhos e caixa de mensagem do Assistente sem o contorno quadrado por cima",
+   "Histórico de luzes, cafeteira, persianas e fechadura com filtro de falhas e automáticos e o total das últimas 24 h",
+   "Luzes sem aparelho mostram um aviso só no topo, em vez de um aviso grande em cada cartão"
+  ],
+  "seguranca": [
+   "Limite de comandos por minuto em cada aparelho, de qualquer origem (painel, apps, Alexa, Telegram, Assistente, agenda e automações): segura rajadas e automações em laço",
+   "Ar-condicionado: no máximo 8 trocas de ligado e desligado em 10 minutos, para proteger o compressor",
+   "Sinal de infravermelho parado na fila por mais de 20 segundos não é mais enviado depois",
+   "Placa própria: comando que não foi buscado a tempo expira (destrancar em 30 segundos)",
+   "Cafeteira sem tempo escolhido desliga sozinha em 90 minutos"
+  ],
+  "correcoes": [
+   "Trocar o tema de claro para escuro deixava o fundo do ar 3D do Painel claro",
+   "Aviso de luz sem aparelho saía com o texto incompleto"
+  ]
+ },
+ {
+  "versao": "0.4.6",
+  "data": "2026-11-20",
+  "titulo": "Avatar 3D do Estevam com esqueleto no mapa",
+  "resumo": "O Estevam aparece no mapa com o modelo 3D dele, que anda, senta e trabalha na mesa como as outras pessoas, em 1ª ou 3ª pessoa.",
+  "novo": [
+   "Avatar 3D do Estevam na biblioteca (/avatares) e no lugar dele no mapa, com animações de parado, andando e sentado",
+   "Modelos 3D parados (como os do Tripo) podem ganhar um esqueleto do sistema: o modelo passa a seguir o boneco do mapa ao andar, sentar, digitar, tomar café e andar de moto"
+  ],
+  "melhorias": [
+   "Controlando uma pessoa em 3ª pessoa, o nome não fica mais na frente da câmera (o painel do controle já mostra quem é)",
+   "Na 1ª pessoa, a cabeça do modelo 3D some para a câmera não ficar dentro dela"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.4.5",
+  "data": "2026-11-20",
+  "titulo": "Som da nave, salto hipersônico e botão do GitHub",
+  "resumo": "A nave da tela Segurança ganhou som de motor e um salto hipersônico com contagem regressiva para outra dimensão; o painel e os apps ganharam o atalho para o código no GitHub.",
+  "novo": [
+   "Som da nave: ronco do motor que acompanha o acelerador e o turbo, com botão para desligar",
+   "Velocidade hipersônica: contagem regressiva de 10 segundos e salto para outra dimensão (ficção) com megacidade flutuante, frota alienígena, nave-mãe, portal, cristais e planeta anelado, onde dá para pilotar",
+   "Botão GitHub no topo do painel, ao lado de Site, com o repositório do sistema",
+   "Apps 1.6.1: atalho Código no GitHub no Android, no iPhone e no computador"
+  ],
+  "melhorias": [
+   "A outra dimensão é montada durante a contagem e descartada ao voltar: o globo e o universo param de desenhar enquanto você está lá"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.4.4",
+  "data": "2026-11-20",
+  "titulo": "Passo a passo vivo, Ilha com relevo real, Telegram com 1.114 comandos e apps 1.6.0",
+  "resumo": "Os transmissores e os ares ganharam um passo a passo que confere o estado real, a vista da Ilha passou a usar o relevo de verdade, o bot do Telegram recebe quem chega e ganhou 252 comandos, e os apps foram atualizados.",
+  "novo": [
+   "Passo a passo em Transmissores (do Smart Life ao teste de interferência) e na aba Botões de cada ar (como vincular o controle ao transmissor), com cada etapa marcada pelo estado real",
+   "Vista da Ilha com o relevo e a profundidade do mar de verdade, céu com sol e sombras, e 19 lugares marcados",
+   "Telegram: 252 comandos novos (1.114 no total), como desligar ou ligar o ar num horário (/desligar_1800), previsão hora a hora, ataques por período, bugs, uso da IA, guia, glossário e telas do painel",
+   "Telegram: quem inicia o bot sem vínculo recebe uma apresentação completa (o que faz, como vincular, segurança) e quem vincula recebe os primeiros passos; menu principal com mais atalhos",
+   "Projetos: anel de ares ligados, ligar e desligar cada ar no próprio cartão, Conforto (23° no frio), duplicar projeto, mapa de calor de 14 dias e atalho / para buscar",
+   "Apps 1.6.0: Android, computador e iPhone com Bugs (procurar e autoteste) e Uso da IA"
+  ],
+  "melhorias": [
+   "Versões numeradas em sequência a partir de 0.0.0 (o número antigo aparece ao lado de cada versão)",
+   "Notas das versões em Apps sem código aparente e com rolagem própria, sem rolar a página"
+  ],
+  "seguranca": [
+   "Uma tela com erro não fica mais preta: aparece o aviso para recarregar e o erro vai para Bugs"
+  ],
+  "correcoes": [
+   "A página de entrar no clima-ia (terminal) ficava preta",
+   "O botão Apagar publicações antigas da Vercel (Infra) quebrava ao clicar"
+  ]
+ },
+ {
+  "versao": "0.4.3",
+  "antes": "1.31.0",
+  "data": "2026-11-20",
+  "titulo": "clima-ia com o logo do sistema, limites de uso da IA e Bugs mais completo",
+  "resumo": "O terminal ganhou a cara do sistema e ferramentas de segurança, a IA passa a ter limite de sessão (5 horas) e semanal definidos pelo dono, a área de Bugs encontra problemas de cadastro e o editor SQL ganhou cores e sugestões.",
+  "novo": [
+   "clima-ia com o logo do sistema e a interface verde, no mesmo formato do Claude Code (boas-vindas, dicas, novidades, modos e régua do campo)",
+   "Escolha do modelo de IA com as setas (/modelo), lembrada para a próxima vez",
+   "Limites de uso do Assistente: sessão de 5 horas e semana de 7 dias, em tokens, definidos pelo dono para todos e por pessoa; barras de uso em IA → Configuração e /uso no terminal",
+   "Segurança no terminal: /seguranca, /ataques, /ips, /ip, /bloquear, /desbloquear, /escudo, /sessoes, /telegram, /integridade, /analisar (a IA analisa os ataques) e /diagnostico",
+   "Bugs: autoteste dos cadastros (sala, transmissor, ar e botão numa transação desfeita), procura com radar animado, filtro por categoria e gráfico dos últimos 14 dias",
+   "Editor SQL com cores, sugestões das tabelas e colunas reais e trechos prontos (sel, join, grp, cte, dia, busca, jan, json, exp)"
+  ],
+  "melhorias": [
+   "A procura de bugs passou a conferir cadastros: ar sem sala ou com transmissor apagado, transmissor sem chave, nomes repetidos na Alexa, zonas com ar apagado",
+   "Formulário recusado pelo servidor vira bug sozinho, com a tela e os campos",
+   "Erros de cadastro agora dizem o que corrigir (IP inválido, protocolo, nome repetido)"
+  ],
+  "seguranca": [
+   "O terminal oculta chaves, tokens e senhas colados na pergunta antes de enviar à IA",
+   "O terminal confere o certificado do site (avisa se a rede estiver interceptando o HTTPS), corrige permissões da pasta da sessão e encerra o uso se a sessão foi revogada no painel",
+   "Ações de segurança pelo terminal sempre pedem o seu sim e ficam num registro local"
+  ],
+  "correcoes": [
+   "Cadastrar transmissor com espaço no ID dava erro interno",
+   "Ar com nome só de espaços era salvo sem nome",
+   "Editar um ar sem escolher a sala tirava o ar da sala dele",
+   "Bloqueio de IP pelo firewall aparecia como bug (agora fica só em Segurança)"
+  ]
+ },
+ {
+  "versao": "0.4.2",
+  "antes": "1.30.0",
+  "data": "2026-11-20",
+  "titulo": "App de iPhone, Assistente no terminal e Supabase completo",
+  "resumo": "O app nativo de iPhone chega junto com os apps 1.5.0, o Assistente ganha um terminal no jeito do Claude Code e o painel do banco ganha ferramentas avançadas.",
+  "novo": [
+   "App de iPhone e iPad (iOS 17+) em Apps, com o passo a passo para instalar pelo xtool, AltStore ou Sideloadly",
+   "Assistente no terminal (clima-ia): instala com uma linha, entra com a sua conta pelo navegador e não guarda chave nenhuma no computador",
+   "clima-ia com modos manual, aceitar e plano (só leitura), comandos com /, escolha de modelo e pedido de permissão antes de agir",
+   "Banco (Supabase): diagrama do esquema, índices, políticas de RLS, funções e gatilhos, extensões, storage, realtime, conexões e bloqueios, manutenção e cache, configuração do Postgres",
+   "Apps Android e computador 1.5.0 com as telas novas (dispositivos, mensagens com Kanban, segurança, música, novidades)"
+  ],
+  "melhorias": [
+   "Banco (Supabase): menu lateral fixo com busca, recolhível, e área de trabalho usando a largura inteira da tela",
+   "Assistente: modo plano no painel e no terminal, em que a IA só consulta e propõe, sem mudar nada"
+  ],
+  "seguranca": [
+   "Login do terminal por código de uso único (2 minutos) com PKCE: o código não vale nada sem o verificador que só o terminal tem",
+   "Painel do banco segue só leitura, com consultas fechadas; textos longos dentro das consultas das conexões saem ocultos"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.4.1",
+  "antes": "1.29.0",
+  "data": "2026-11-20",
+  "titulo": "Segurança reforçada no sistema e no bot do Telegram",
+  "resumo": "O firewall passou a examinar o conteúdo das requisições contra injeções, bloqueia robôs e ferramentas de ataque, pega senhas testadas em várias contas e protege o Assistente de IA; o bot do Telegram ganhou auditoria completa, PIN para comandos críticos e uma aba própria em Segurança.",
+  "novo": [
+   "Segurança → Telegram: cada interação com o bot (quem, o quê, resultado), os IPs que entregaram as mensagens, vínculos, PINs e bloqueios, com bloquear e desbloquear.",
+   "Bot do Telegram: PIN de 6 dígitos para comandos críticos (destrancar a porta, escudo, bloquear IP, reiniciar o agente, backup…), definido em Telegram → PIN."
+  ],
+  "melhorias": [
+   "Telegram: o ID da pessoa tem que ser o mesmo do vínculo, flood repetido bloqueia a conversa por 1 hora e vínculo sem uso por 60 dias expira."
+  ],
+  "seguranca": [
+   "O conteúdo das requisições é examinado contra SQL injection (inclusive às cegas), NoSQL, injeção de comando, injeção de template, XXE, Log4Shell, prototype pollution e travessia de pasta.",
+   "Caminhos-isca (/wp-login.php, /.env, /.git…) bloqueiam o robô na hora.",
+   "Ferramentas de força bruta e varredura (Hydra, Medusa, ffuf, Burp…) e robôs de IA não acessam a API.",
+   "Senha testada em várias contas pelo mesmo IP (password spraying) bloqueia o IP por 24 horas; cada senha errada atrasa mais a resposta.",
+   "O Assistente de IA recusa pedidos que tentam mudar as regras dele ou pedir chaves e tokens, e a tentativa vira evento de segurança.",
+   "Requisições maiores que 4 MB são recusadas."
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.4.0",
+  "antes": "1.28.0",
+  "data": "2026-11-20",
+  "titulo": "Telegram com 862 comandos e Estúdio de avatares mais completo",
+  "resumo": "O bot do Telegram ganhou 364 comandos novos (modo, temperatura e ventilação num toque, salas e zonas por modo, mais timers e relatórios, atividade por origem) e o Estúdio ganhou modelos prontos, acessórios, sortear, desfazer, vistas da câmera e foto.",
+  "novo": [
+   "Telegram: 364 comandos novos, como /frio23alta, /todosquente25 (pede confirmação), /salafrio22 NOME, /zonaquente24 NOME, /usoar7d NOME, /atividade_alexa, /atividade6h, /seguranca12h e /notif_alta.",
+   "Estúdio de avatares: modelos prontos (Diretor, Analista, Técnico de TI, Recepcionista, Segurança, Estagiário, Desenvolvedora, cão e gato), Sortear e acessórios (boné, fone com microfone, mochila, relógio).",
+   "Estúdio: desfazer e refazer (Ctrl+Z), vistas da câmera (frente, 3/4, lado, costas, cima), giro automático, fundos, grade, foto PNG e números do modelo."
+  ],
+  "melhorias": [
+   "Telegram: relatórios em mais períodos (até 365 dias) e de um ar só; mais timers prontos; mais presets de luzes e persianas."
+  ],
+  "seguranca": [
+   "Comandos novos do Telegram que mexem em vários ares pedem Confirmar, como os anteriores."
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.3.9",
+  "antes": "1.27.0",
+  "data": "2026-11-20",
+  "titulo": "Mapa: heróis no céu, motos com piloto, sinaleiras e cidade maior",
+  "resumo": "O Homem de Ferro e o Goku sobrevoam a cidade e o Naruto corre pelo quarteirão; as motos do trânsito ganharam piloto e andam de frente; mais sinaleiras, pedestres e prédios; direção mais fácil de virar e a abertura do mapa mais leve.",
+  "novo": [
+   "Mapa: Homem de Ferro voando alto em volta do prédio, Goku voando com a aura e Naruto correndo e saltando pela calçada (modelos da biblioteca de Avatares).",
+   "Mapa: sinaleiras nos cruzamentos da cidade, no mesmo ciclo do semáforo principal."
+  ],
+  "melhorias": [
+   "Motos do trânsito com piloto de capacete e jaqueta.",
+   "Cidade maior (mais quadras de prédios e casas) e mais pedestres nas calçadas.",
+   "Direção: dá para virar com mais tranquilidade em velocidade, o volante volta ao centro mais rápido e a moto ficou mais estável.",
+   "Mapa: modelos que chegam depois (trânsito, carros, peças das mesas, heróis) entram sem travar a tela."
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Moto andava de ré: agora anda de frente, no trânsito e quando você pilota."
+  ]
+ },
+ {
+  "versao": "0.3.8",
+  "antes": "1.26.0",
+  "data": "2026-11-20",
+  "titulo": "Kanban das mensagens, visual do WhatsApp e do Supabase, todos os modelos da NVIDIA",
+  "resumo": "Mensagens com o visual do WhatsApp Web e um Kanban para acompanhar cada pessoa, o painel do banco no design do Supabase, o Assistente com todos os modelos gratuitos da NVIDIA e uma linha do tempo nova em Novidades.",
+  "novo": [
+   "Mensagens: Kanban das pessoas, com colunas configuráveis, arrastar entre etapas, responsável, prioridade, prazo, próximo passo e etiquetas.",
+   "Assistente de IA: 13 modelos gratuitos da NVIDIA (NVIDIA, Google, Meta, Mistral, MiniMax, Kimi e outros) com o ícone de cada fabricante, busca e aviso de quais conseguem agir nos ares.",
+   "Novidades: gráfico das versões em barras, filtro \"novas para mim\", copiar o link de uma versão, recolher tudo e baixar o histórico."
+  ],
+  "melhorias": [
+   "Mensagens com o visual do WhatsApp Web, no claro e no escuro.",
+   "Painel do banco (/supabase) no design do Supabase, com a barra do projeto e o menu de ícones.",
+   "Assistente de IA: a página não passa mais da altura da tela."
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Linha do tempo de Novidades com rótulos que não se sobrepõem."
+  ]
+ },
+ {
+  "versao": "0.3.7",
+  "antes": "1.25.0",
+  "data": "2026-11-20",
+  "titulo": "Interruptor de 4 teclas, Assistente no visual do Claude e mapa com monitores e PCs",
+  "resumo": "Luzes com interruptores de parede de várias teclas, o Assistente de IA com o visual do Claude, o mapa mais leve e com os modelos certos nas mesas, e downloads dos apps para quem não tem acesso ao GitHub.",
+  "novo": [
+   "Luzes: Adicionar interruptor. Interruptores Wi-Fi de várias teclas (como o Novadigital Touch de 4 teclas) viram uma luz por tecla, cada uma com nome e sala.",
+   "Luzes: painel do interruptor igual ao de vidro preto, com as teclas acendendo quando a luz está ligada; tocar na tecla liga ou desliga.",
+   "Apps: quem não tem acesso ao repositório do GitHub agora baixa os instaladores pelo painel."
+  ],
+  "melhorias": [
+   "Assistente de IA com o visual do Claude: cores quentes, conta embaixo na lateral, título em serifa e escolha do modelo abaixo da caixa.",
+   "Mapa: o trânsito e os carros entram depois do escritório aparecer, e a abertura ficou mais leve.",
+   "Avatares 3D: a lista da Biblioteca rola sozinha e o visualizador fica na tela.",
+   "Notas das versões no GitHub com o logo, seções de como atualizar e de problemas comuns."
+  ],
+  "seguranca": [
+   "O acesso ao GitHub para os downloads fica só no computador do escritório: a nuvem recebe apenas um link que vale poucos minutos."
+  ],
+  "correcoes": [
+   "Mapa: monitores, teclados, mouses e computadores da biblioteca voltaram a aparecer nas mesas.",
+   "Cafeteira: não mostra mais a cafeteira vermelha antiga antes do modelo certo.",
+   "Erro \"isReady\" que aparecia ao sair das telas com 3D (Projetos, Avatares, Mapa).",
+   "Falhas de \"limite de conexões\" com o banco quando vários computadores do escritório ficavam ligados.",
+   "Transmissor sem resposta virou aviso na central de notificações, em vez de bug."
+  ]
+ },
+ {
+  "versao": "0.3.6",
+  "antes": "1.24.1",
+  "data": "2026-11-19",
+  "titulo": "Apps 1.4.0 e o assistente no terminal",
+  "resumo": "O app do computador ganha o Assistente de IA no menu, o Android ganha a tela do Assistente e o clima-ia fica no jeito do Claude Code.",
+  "novo": [
+   "Android: Mais → Assistente de IA (chega sozinho, sem instalar o APK de novo)",
+   "Computador 1.4.0: Assistente de IA no menu Ir e na bandeja, e as telas novas em Mais telas",
+   "clima-ia no terminal: barra de status, modos de permissão, @arquivo, !comando, #memória e comandos diretos dos ares (/ares, /ligar, /temp)"
+  ],
+  "melhorias": [
+   "Site zynio.com.br com as páginas do Assistente de IA, do Telegram e de backup e treinamento",
+   "Documentação dos apps e do sistema atualizada"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.3.5",
+  "antes": "1.24.0",
+  "data": "2026-11-19",
+  "titulo": "Backup completo, treinamento com mais de mil perguntas e páginas de rotina mais completas",
+  "resumo": "Backup e restauração do sistema inteiro, prova de segurança e ISO com resultado na hora e por e-mail, apps baixados sem conta no GitHub e Agenda, Cenas e Automações com modelos prontos.",
+  "novo": [
+   "Backup e restauração: o banco inteiro num .zip (segredos cifrados), lista de backups, download, upload, simulação antes de gravar e restaurar mesclando ou substituindo",
+   "Atalhos do topo com busca, 17 destinos em grupos, Backup completo e Upload",
+   "Treinamento e segurança: banco com 1.017 perguntas (situações e LGPD, ISO/IEC 27001:2022 Anexo A, Estrutura Harmonizada e catálogo de normas ISO), prova sorteada, mapa da prova, resultado na hora com gabarito comentado e envio por e-mail",
+   "Apps: baixar mesmo sem acesso ao repositório no GitHub (o dono configura um token só de leitura; o QR Code do Android já baixa depois do login)",
+   "Guia visual de como gravar os botões do controle, no cadastro do ar e na aba Botões",
+   "Agenda: modelos prontos (expediente, rede de segurança à noite, almoço, sábado) para vários ares de uma vez, timers ativos e últimas execuções",
+   "Cenas sugeridas montadas com os seus ares e histórico de execuções",
+   "Automações: 9 modelos, o esquema quando → se → então e os últimos disparos",
+   "Projetos: comparativo das salas com a projeção de gasto, a meta e o uso"
+  ],
+  "melhorias": [
+   "Notificações agrupadas por dia, com busca, gravidade destacada e texto longo resumido",
+   "Aviso quando um e-mail atrasa ou volta, com a dica do Outlook/Hotmail"
+  ],
+  "seguranca": [
+   "Backup e restauração só para dono ou admin com acesso a todos os projetos; restaurar exige simular e digitar RESTAURAR; sessões e logins nunca são restaurados",
+   "Token de downloads só de leitura, cifrado, recusado se puder escrever no repositório"
+  ],
+  "correcoes": [
+   "Comandos de agenda do Telegram mostravam os dias da semana trocados"
+  ]
+ },
+ {
+  "versao": "0.3.4",
+  "antes": "1.23.0",
+  "data": "2026-11-19",
+  "titulo": "Assistente de IA com histórico, bot com 498 comandos e carros mais leves",
+  "resumo": "A tela da IA virou um chat com conversas salvas, o bot do Telegram ganhou 234 comandos novos e o mapa ficou mais leve e mais fácil de controlar.",
+  "novo": [
+   "Assistente de IA no formato de chat: conversas salvas (fixar, renomear, apagar, procurar), comandos com /, anexar arquivo de texto, ditado por voz, escolha do modelo, copiar, tentar de novo, editar a pergunta e baixar a conversa",
+   "IA com mais ferramentas: relatório de qualquer período, salas, zonas, agentes, luzes e aparelhos, notificações",
+   "Telegram: 234 comandos novos (498 no total) em 6 categorias novas: modo e temperatura (/frio23, /quente26…), modo e ventilação (/frio_alta…), todos de uma vez (/todos23, /sala23, /zona23…), timers prontos (/ligarpor60, /ligarem30, /desligarem90…), relatórios por período (/gasto15d, /mespassado…) e presets (/persianas50, /luzes75, /vol40…)",
+   "Moto: a pessoa vai sentada em cima, com as mãos no guidão, e inclina junto nas curvas",
+   "Nitro mais forte (2,2x a potência) e todos os carros voam com T (menos moto e ônibus)",
+   "Personagens da aba No escritório (Avatares) andam pelo andar e podem ser controlados"
+  ],
+  "melhorias": [
+   "Barra de controle do avatar embaixo, no centro, com todas as teclas; dirigindo, mostra todas as teclas do carro",
+   "Carros da biblioteca em versão média: entrar no carro não trava mais a tela",
+   "Sala de Reunião: mesa menor e espaço para passar dos lados e entrar"
+  ],
+  "seguranca": [
+   "Cada pessoa vê só as próprias conversas com a IA"
+  ],
+  "correcoes": [
+   "Monitores, teclados, mouses e PCs da biblioteca não apareciam nas mesas",
+   "A página Cafeteira mostrava a cafeteira antiga"
+  ]
+ },
+ {
+  "versao": "0.3.3",
+  "antes": "1.22.0",
+  "data": "2026-11-19",
+  "titulo": "Música com a cara do Spotify, tocando no próprio painel e reagindo à Alexa",
+  "resumo": "A tela de Música foi refeita no estilo do Spotify, o painel virou um aparelho do Spotify e as rotinas podem disparar só quando a Alexa liga ou desliga um ar.",
+  "novo": [
+   "Tela de Música no estilo do Spotify: biblioteca à esquerda, Início, Buscar, Rotinas e Alexa no meio e o player fixo embaixo.",
+   "Tocar neste navegador: o painel aparece como aparelho do Spotify, então dá para tocar mesmo sem celular ou Echo com o Spotify aberto.",
+   "Abrir playlist, álbum e artista com a lista de músicas, como no Spotify, e tocar a partir de qualquer faixa.",
+   "Fila do que vem a seguir, troca de aparelho num painel lateral e avançar a música clicando na barra.",
+   "Rotinas de música com o filtro \"quem mandou\": por exemplo, tocar só quando alguém pedir à Alexa para ligar um ar.",
+   "Aba Alexa com os Echo visíveis, modelos prontos de automação e frases de voz para qualquer música."
+  ],
+  "melhorias": [
+   "Início com tocadas recentemente, suas playlists, artistas do momento, mais ouvidas e músicas curtidas.",
+   "Quando o Spotify não libera um dado para apps em modo de desenvolvimento, a tela explica em vez de mostrar erro."
+  ],
+  "seguranca": [
+   "O token do player no navegador vale 1 hora, só é entregue a quem pode controlar a música e não fica guardado no navegador."
+  ],
+  "correcoes": [
+   "Música não tocava quando nenhum aparelho do Spotify estava aberto: agora o painel toca sozinho."
+  ]
+ },
+ {
+  "versao": "0.3.2",
+  "antes": "1.21.0",
+  "data": "2026-11-19",
+  "titulo": "Mapa multijogador, carros da biblioteca nas ruas e escritório com os modelos novos",
+  "resumo": "Quem está no mapa ao mesmo tempo aparece para os outros, o trânsito e os estacionamentos usam os carros da biblioteca, e as mesas ganharam monitor, teclado, mouse e PC 3D.",
+  "novo": [
+   "Mapa multijogador: quem estiver no mapa ao mesmo tempo aparece com o nome em cima, andando ou dirigindo, e os carros dos outros batem no seu",
+   "Trânsito e estacionamentos com os carros da biblioteca (Avatares)",
+   "Entrar e sair do carro com animação: a pessoa corre até a porta do motorista, abaixa e entra; ao pegar um carro do trânsito, o motorista sai correndo",
+   "Batida em carro do trânsito: ele para e balança",
+   "Cidade maior: avenidas de 640 m e quadras até cerca de 290 m do prédio, com mais trânsito",
+   "Mesas e bancadas com monitor, teclado, mouse e PC 3D da biblioteca (a tela continua mostrando o trabalho de cada posto)",
+   "Cafeteira expresso preta da biblioteca no mapa e na página Cafeteira"
+  ],
+  "melhorias": [
+   "Café: dá para fazer encostado em qualquer lado livre do armário da cafeteira, não só na copa"
+  ],
+  "seguranca": [
+   "O canal do mapa multijogador é privado: só usuários ativos do sistema entram, enviam e recebem posições; nada fica gravado"
+  ],
+  "correcoes": [
+   "Erro na tela do mapa quando ninguém estava no térreo",
+   "Tela do Telegram antiga no cache do navegador quebrava com a lista nova de comandos",
+   "Agente fora do escritório deixou de virar bug: agora é uma notificação"
+  ]
+ },
+ {
+  "versao": "0.3.1",
+  "antes": "1.20.0",
+  "data": "2026-11-19",
+  "titulo": "Bot do Telegram com 264 comandos, carros mais estáveis e cidade mais viva",
+  "resumo": "O bot ganhou um menu por categorias com o estado no topo, os carros pararam de rodar nas curvas e a cidade ganhou trânsito, estacionamentos e mais detalhes.",
+  "novo": [
+   "Telegram: 264 comandos em 16 categorias, menu com ares ligados, agente, tempo lá fora e notificações no topo, busca, favoritos, recentes e ar atual",
+   "Telegram: atalhos /16 a /30, comandos por sala e zona, relatórios, clima, luzes, persianas, música, segurança e sistema",
+   "Telegram: /avisos sim manda os avisos importantes para o seu Telegram",
+   "34 modelos novos na biblioteca de avatares: pessoas, objetos e 7 veículos",
+   "Roadster elétrico com propulsores: T decola, Espaço sobe, X desce",
+   "Pegar um carro do trânsito ou de um estacionamento com E",
+   "Nitro com Shift e câmbio automático P R N D no painel do carro",
+   "Cidade: estacionamentos, posto de combustível, pontos de ônibus, chafarizes, bancos, outdoors e faixas nas ruas"
+  ],
+  "melhorias": [
+   "Controle de estabilidade: o carro não roda mais numa curva forte",
+   "Direção mais leve e com menos ângulo em velocidade",
+   "Trânsito com duas pistas por sentido, SUVs, vans, picapes, motos e ônibus, que freiam para quem está na frente",
+   "Tela do Telegram lista todos os comandos com busca e categoria"
+  ],
+  "seguranca": [
+   "Cada comando do Telegram confere as permissões de quem vinculou; ações em lote e sensíveis pedem confirmação"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.3.0",
+  "antes": "1.19.0",
+  "data": "2026-11-19",
+  "titulo": "Editor de aparência dos avatares e carros dirigíveis no mapa",
+  "resumo": "Os modelos da pasta blender entraram na biblioteca, qualquer avatar ganha um editor completo de cores e pintura, e veículos andam pelas ruas do mapa 3D com física de carro de verdade.",
+  "novo": [
+   "Avatares → Editor de aparência: matiz, saturação, brilho, contraste, tingir, recolorir uma parte com um clique (mantém luz e sombra), pincel, material (fosco, metal, brilho próprio, opacidade), forma (escala, largura, altura, profundidade, girar, espelhar), desfazer e refazer",
+   "Salvar a aparência guarda uma versão nova; Voltar ao original desfaz tudo; Baixar .glb leva a versão editada para o Blender",
+   "Sete modelos novos na biblioteca: três pessoas, lhama, cavalo, panda e um carro esportivo",
+   "Novos tipos de avatar: Animal e Veículo",
+   "Carros nas ruas do mapa 3D: aperte E perto do carro no térreo para dirigir; onde você deixar, ele fica estacionado",
+   "Física do carro: motor com curva de torque, câmbio automático, ré, pneus com aderência e derrapagem, transferência de peso, ABS, controle de tração, freio de mão, suspensão, colisão com os prédios, marcas de pneu e som do motor",
+   "Painel do carro com velocidade, marcha, giro e luzes de ABS, tração e freio de mão; três câmeras; no celular, pedais e volante na tela",
+   "Física de cada veículo ajustável: massa, potência, aderência, freios, velocidade máxima, marchas, esterço, suspensão, centro de massa e tração"
+  ],
+  "melhorias": [
+   "Minimapa mostra os carros e se afasta conforme a velocidade",
+   "Quem anda a pé contorna os carros estacionados"
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Avatares importados apareciam sem textura: a política de segurança do navegador bloqueava as texturas embutidas no .glb"
+  ]
+ },
+ {
+  "versao": "0.2.9",
+  "antes": "1.18.0",
+  "data": "2026-11-19",
+  "titulo": "Assistente de IA no painel e no Telegram, e bot mais completo",
+  "resumo": "Converse com o sistema em português pelo painel ou pelo Telegram: ele vê os ares, transmissores e o agente, e comanda com as suas permissões.",
+  "novo": [
+   "Assistente de IA (menu Integrações): pergunte o estado dos ares, por que um comando não chegou, ou peça para ligar, desligar, mudar modo, temperatura, ventilação e programar timer",
+   "Desligar todos e cenas pela IA só depois de tocar em Confirmar",
+   "Telegram: escreva normalmente e a IA responde e executa; /esquecer apaga a conversa",
+   "Telegram: painel de cada ar no estilo do controle remoto (−1°/+1°, temperaturas prontas, modo, ventilação, desligar em 30 min, 1 h ou 2 h)",
+   "Telegram: /ligados, /transmissores e /agentes, com a causa quando o comando não chega ao ar",
+   "A tela do assistente mostra como usar o mesmo agente no terminal (clima-ia)"
+  ],
+  "melhorias": [
+   "Bugs: mostra como cada bug foi corrigido e não reabre por erros antigos",
+   "Mensagem clara quando nenhum computador do escritório enxerga os transmissores"
+  ],
+  "seguranca": [
+   "A IA age só com as permissões de quem pergunta, tem limite por hora e a chave da NVIDIA fica cifrada",
+   "O bot ignora a mesma mensagem reenviada pelo Telegram (o comando não roda duas vezes)"
+  ],
+  "correcoes": [
+   "Transmissor importado de novo ficava sem formato de comando e recusava os envios até gravar um botão",
+   "Gravação de botão quebrava quando o transmissor respondia pela metade",
+   "Bugs falsos de transmissor quando só faltava um computador no escritório"
+  ]
+ },
+ {
+  "versao": "0.2.8",
+  "antes": "1.17.0",
+  "data": "2026-11-18",
+  "titulo": "Relatórios oficiais por e-mail e Guia em PDF",
+  "resumo": "Relatório de segurança no modelo da Prefeitura, enviado por e-mail, e o Passo a passo em PDF oficial com capítulos novos.",
+  "novo": [
+   "Segurança → Relatório: modelo Prefeitura (brasão, cabeçalho oficial, seções numeradas e assinaturas) ou Moderno",
+   "Relatório de segurança por e-mail: ao baixar, vai também para o seu e-mail; ou use Só enviar por e-mail",
+   "Passo a passo: botão PDF (modelo da Prefeitura) com todos os capítulos"
+  ],
+  "melhorias": [
+   "Passo a passo com capítulos novos: Raspberry Pi 24 horas, bot do Telegram, Bugs, agente de IA no terminal, relatórios oficiais, transferir o posto de dono e avatares no Blender"
+  ],
+  "seguranca": [
+   "O relatório de segurança só pode ser enviado para e-mails de usuários do sistema, com limite por hora"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.2.7",
+  "antes": "1.16.0",
+  "data": "2026-11-18",
+  "titulo": "Bugs, minimapa no mapa 3D e personagens que abrem certo no Blender",
+  "resumo": "Área de Bugs que também encontra problemas sozinha e gera o prompt para a IA corrigir, minimapa estilo jogo ao controlar uma pessoa e exportação de personagens com esqueleto.",
+  "novo": [
+   "Bugs (menu Sistema, com contador): relate o que não funciona; o sistema também registra sozinho erros das telas, erros do servidor e falhas repetidas, sugere a correção e gera o prompt para a IA",
+   "Mapa 3D: minimapa no canto ao controlar uma pessoa, que gira com ela, mostra as salas, as quadras, as pessoas por perto, o norte e onde fica o escritório (com a distância)"
+  ],
+  "melhorias": [
+   "Avatares → Estúdio: o .glb sai como um personagem de verdade (um esqueleto com uma malha e as animações no esqueleto), e abre certo no Blender"
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Personagem exportado chegava no Blender como dezenas de peças soltas, com partes ocultas encolhidas e animações espalhadas"
+  ]
+ },
+ {
+  "versao": "0.2.6",
+  "antes": "1.15.0",
+  "data": "2026-11-18",
+  "titulo": "Transferir o posto de dono e agente de IA no terminal",
+  "resumo": "O dono pode passar o posto para outra pessoa, e há um agente de IA no terminal que conhece o sistema e controla os ares com confirmação.",
+  "novo": [
+   "Configurações → Usuários: o dono transfere o posto de dono (coroa na linha da pessoa); o novo dono pode transferir de novo",
+   "clima-ia: agente de IA no terminal (modelos da NVIDIA) que responde sobre o sistema e o código e controla ares e cenas, sempre pedindo confirmação"
+  ],
+  "melhorias": [],
+  "seguranca": [
+   "Transferir o dono exige a senha do dono, verificação anti-robô e o e-mail do novo dono digitado; os dois recebem e-mail",
+   "O agente de IA nunca envia segredos para fora (mascara antes) e não lê o .env nem as credenciais"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.2.5",
+  "antes": "1.14.0",
+  "data": "2026-11-18",
+  "titulo": "Bot do Telegram",
+  "resumo": "O @zynio_bot controla os ares, cenas e luzes pelo Telegram, com as mesmas permissões de cada pessoa no painel.",
+  "novo": [
+   "Telegram (menu Integrações): vincule o seu Telegram com um código de uso único e use o @zynio_bot",
+   "Comandos e menu: status, ares (ligar, desligar, temperatura), desligar todos, cenas, luzes, notificações e resumo de 7 dias"
+  ],
+  "melhorias": [],
+  "seguranca": [
+   "Bot só para conversas privadas de pessoas vinculadas, com as permissões delas; confirmação por botão nas ações em lote; limite por minuto e bloqueio de 24 h para quem tenta sem vínculo",
+   "Testes de segurança em lote usam um token de uso único por lote, sem depender da mesma chave no agente e na nuvem"
+  ],
+  "correcoes": [
+   "Segurança → Testes: o lote era cancelado com \"a nuvem não aceitou a assinatura\" quando o agente era um PC instalado antes da chave existir (ou com o escudo ligado, agora explicado)"
+  ]
+ },
+ {
+  "versao": "0.2.4",
+  "antes": "1.13.1",
+  "data": "2026-11-18",
+  "titulo": "Confirmações no próprio sistema e passo a passo atualizado",
+  "resumo": "Toda pergunta de \"tem certeza?\" agora aparece no visual do sistema, e o Passo a passo e o manual explicam as novidades.",
+  "novo": [
+   "Passo a passo: capítulos Um transmissor por sala, Iluminação e Notificações e relatórios por e-mail; Mapa com café, ruas e luzes à noite",
+   "Manual em PDF atualizado"
+  ],
+  "melhorias": [
+   "Confirmações (apagar, desconectar, reiniciar agente, DNSSEC e outras) aparecem no visual do sistema, com Esc para cancelar, em vez da caixa do navegador",
+   "Gravar botões: explica que o que vale é o visor do controle e que se começa pelo Desligar"
+  ],
+  "seguranca": [
+   "Auditoria: dependências do Python e do site sem vulnerabilidades, nenhum segredo no código, no histórico ou no app publicado, e todas as rotas com regra de permissão"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.2.3",
+  "antes": "1.13.0",
+  "data": "2026-11-18",
+  "titulo": "Projetos, Cenas, Automações e Agenda mais completos",
+  "resumo": "Cada sala mostra se tem transmissor próprio, as telas de Cenas, Automações e Agenda ganharam métricas, busca, filtros e duplicar, e nada mais é apagado sem confirmação.",
+  "novo": [
+   "Projetos: selo do transmissor da sala (próprio, dividido ou sem) e filtro das salas que precisam de transmissor",
+   "Cenas: métricas, busca, ordem e duplicar cena",
+   "Automações: métricas, busca, filtro ativas/pausadas e modelos prontos a qualquer momento",
+   "Agenda: filtro por ar, lista por horário e duplicar agendamento"
+  ],
+  "melhorias": [
+   "Desligar os ares de um projeto, apagar cena, automação ou agendamento pedem confirmação na própria tela"
+  ],
+  "seguranca": [
+   "Ligar o escudo anti-DDoS explica antes que ninguém consegue entrar no sistema enquanto ele estiver ligado"
+  ],
+  "correcoes": [
+   "Ligar/pausar, rodar e apagar automações e agendamentos falhavam sem mostrar o erro",
+   "Executar uma cena que falhava não mostrava o motivo"
+  ]
+ },
+ {
+  "versao": "0.2.2",
+  "antes": "1.12.0",
+  "data": "2026-11-18",
+  "titulo": "Andar pela cidade e atalhos no topo",
+  "resumo": "No mapa 3D, a pessoa sai do prédio e anda pelas ruas, calçadas, praças e pelo terminal. No topo do painel, um menu de atalhos com backup em um clique.",
+  "novo": [
+   "Mapa 3D: saindo pela porta do térreo, a pessoa anda pelas ruas e calçadas de todas as quadras, pelas praças e pelo terminal, sem atravessar prédios e casas",
+   "Atalhos no topo: Automações, Agenda, Cenas, Iluminação, Notificações, Relatórios, Atividade, Segurança e Agentes a um clique, e Backup agora (dono e admin)"
+  ],
+  "melhorias": [],
+  "seguranca": [],
+  "correcoes": [
+   "Mapa 3D: do lado de fora do prédio a rua ficava preta (o sol e o chão sumiam ao descer ao térreo)"
+  ]
+ },
+ {
+  "versao": "0.2.1",
+  "antes": "1.11.0",
+  "data": "2026-11-18",
+  "titulo": "Iluminação, central de notificações, relatório por e-mail e café no mapa",
+  "resumo": "Nova tela de Iluminação com acender ao anoitecer, página de Notificações com histórico e filtros, relatório enviado por e-mail ao gerar e o avatar tomando café na copa.",
+  "novo": [
+   "Iluminação: luzes de cada sala (lâmpadas, painéis, fitas e interruptores Smart Life ou placa própria), acender e apagar, brilho, acender ao anoitecer pelo pôr do sol real e quando a porta é destrancada à noite",
+   "Notificações no menu, com contador: histórico, busca, filtros por tipo e período, arquivar e restaurar, ações em lote e exportar CSV",
+   "Relatórios: ao baixar, o relatório também vai para o seu e-mail com o arquivo anexo (ou envie só por e-mail)",
+   "Mapa 3D: controlando uma pessoa, tecla C (ou botão Café) faz um café na copa e ela anda com a xícara e bebe"
+  ],
+  "melhorias": [
+   "Mapa 3D à noite: salas, corredor e copa iluminados de verdade; sala com a luz real apagada fica escura",
+   "Painel de notificações do topo com o atalho Ver todas"
+  ],
+  "seguranca": [
+   "Relatório por e-mail só para e-mails de usuários do sistema, com limite por hora"
+  ],
+  "correcoes": [
+   "Mapa 3D: a barra de controle da pessoa às vezes não aparecia (e as teclas F e R não respondiam)",
+   "Mapa 3D: avisos da barra de controle não apareciam com a pessoa sentada"
+  ]
+ },
+ {
+  "versao": "0.2.0",
+  "antes": "1.10.1",
+  "data": "2026-11-18",
+  "titulo": "Agente que não trava, passo a passo para gravar botões e correções",
+  "resumo": "O agente se recupera sozinho quando o computador troca de rede, a tela de gravar explica o passo a passo e a busca do menu não é mais preenchida com o seu e-mail.",
+  "novo": [
+   "Passo a passo na tela de gravar botões e no cadastro de ar: o que vale é o visor do controle, comece pelo Desligar"
+  ],
+  "melhorias": [
+   "Transmissores: mensagens dizem o motivo real quando não dá (nenhum computador ligado no escritório, ou o computador fora da rede) e o Verificar mostra quem não respondeu",
+   "Música: logo do Spotify na conta conectada e no botão de conectar"
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "O agente ficava horas parado depois que o computador trocava de rede ou dormia; agora se recupera sozinho",
+   "A conexão com a Alexa caía de vez quando a internet do computador do agente piscava",
+   "Na tela de E-mails o navegador colocava o seu e-mail na busca do menu"
+  ]
+ },
+ {
+  "versao": "0.1.9",
+  "antes": "1.10.0",
+  "data": "2026-11-18",
+  "titulo": "Um transmissor por sala",
+  "resumo": "A tela de Transmissores mostra quais salas têm transmissor próprio, o cadastro de ar sugere o transmissor da sala e um transmissor removido por engano volta como estava.",
+  "novo": [
+   "Transmissores → Salas e transmissores: cada sala com transmissor próprio, dividido com outra sala ou sem nenhum",
+   "Ao importar um transmissor, escolha a sala onde ele vai ficar"
+  ],
+  "melhorias": [
+   "Cadastro de ar sugere o transmissor da sala escolhida (antes ia sempre para o primeiro da lista) e avisa quando ele já atende outras salas ou não está respondendo",
+   "Cartão do transmissor avisa quando atende mais de uma sala",
+   "Remover transmissor mostra quais ares param de obedecer; importado de novo em até 30 dias, ele volta com o mesmo nome, sala e ares"
+  ],
+  "seguranca": [
+   "Só quem cuida de todos os ares de um transmissor pode removê-lo"
+  ],
+  "correcoes": [
+   "Transmissor cadastrado com o protocolo errado: o sistema descobre o certo sozinho ao reconectar e antes de gravar (antes a gravação dizia só \"Nenhum sinal recebido\")",
+   "Ações num transmissor que acabou de ser removido por outra pessoa davam erro interno"
+  ]
+ },
+ {
+  "versao": "0.1.8",
+  "antes": "1.9.3",
+  "data": "2026-11-18",
+  "titulo": "Diagnóstico da Alexa mais completo",
+  "resumo": "O diagnóstico da Alexa avisa quando um ar está nela sem transmissor, e os comandos de voz que não deram certo aparecem na Atividade.",
+  "novo": [],
+  "melhorias": [
+   "Integrações → Diagnóstico: aviso de ar na Alexa sem transmissor (por voz ele não responde)",
+   "Comando de voz que não pôde ser executado fica registrado na Atividade, no filtro de falhas"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.1.7",
+  "antes": "1.9.2",
+  "data": "2026-11-18",
+  "titulo": "Música não bloqueia mais o seu acesso",
+  "resumo": "Quando o Spotify recusa a conta, a tela de Música avisa o que fazer e não faz o firewall bloquear quem está usando.",
+  "novo": [],
+  "melhorias": [
+   "Mensagem clara quando o Spotify recusa a conta: adicionar o e-mail em User Management no app do Spotify",
+   "Com erro do Spotify, a tela de Música tenta de novo a cada minuto em vez de a cada 5 segundos"
+  ],
+  "seguranca": [
+   "Recusas do Spotify não contam mais como tentativa de acesso indevido no firewall"
+  ],
+  "correcoes": [
+   "Tela de Música aberta com o Spotify recusando a conta bloqueava o próprio IP por 15 minutos"
+  ]
+ },
+ {
+  "versao": "0.1.6",
+  "antes": "1.9.1",
+  "data": "2026-11-18",
+  "titulo": "Tela de Segurança mais leve",
+  "resumo": "O globo da tela de Segurança não trava mais o navegador ao abrir.",
+  "novo": [],
+  "melhorias": [
+   "O globo só começa a carregar quando você rola a página até ele, e para de desenhar quando sai da tela",
+   "O modo Explorar o universo e a nave só são montados quando você entra nele, sem congelar a tela",
+   "Mapa da Terra desenhado com menos memória e sem a travada de alguns segundos na abertura",
+   "O globo não é refeito a cada atualização automática quando os locais não mudaram"
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Tela de Segurança que travava ou fechava a aba em computadores mais fracos"
+  ]
+ },
+ {
+  "versao": "0.1.5",
+  "antes": "1.9.0",
+  "data": "2026-11-18",
+  "titulo": "Placas Arduino e ESP, Estúdio de avatares e pets, rede avançada, universo e conformidade",
+  "resumo": "Cafeteira e outros aparelhos também por placa própria (Arduino e ESP), Estúdio para criar e editar avatares e pets que andam pelo escritório, diagnóstico avançado da rede, globo mais realista com lugares da Terra e exoplanetas, e a conformidade com termo de uso e treinamento dentro do sistema.",
+  "novo": [
+   "Cafeteira e aparelhos: ligar por placa própria (Arduino UNO R4 WiFi, GIGA R1 WiFi, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, Opta, Portenta H7, ESP32 e ESP8266), com código pronto para a placa",
+   "Avatares: Estúdio para criar homem, mulher, cão e gato por parâmetros, pelas partes ou pela receita em código, e salvar como .glb",
+   "Avatares: aba No escritório para colocar pets e mascotes nas salas; eles passeiam pelo andar no mapa 3D",
+   "Rede: estabilidade deste computador, diagnóstico da rede do escritório, teste automático com alertas e os últimos 7 dias",
+   "Globo: lugares conhecidos da Terra com alfinete, incluindo o traçado da Muralha da China",
+   "Globo: os 200 exoplanetas confirmados mais próximos, com dados do NASA Exoplanet Archive",
+   "Segurança: bateria com mais de mil testes automáticos, com o andamento ao vivo",
+   "Conformidade: termo de uso e confidencialidade aceito no sistema, treinamento de segurança com prova e registros da gestão",
+   "Marca: material da marca com assinatura de e-mail, crachás da equipe, papel timbrado e placas das salas com QR Code"
+  ],
+  "melhorias": [
+   "Nave redesenhada, com voo por inércia, câmera de perseguição e mira pelo mouse",
+   "Terra com relevo, biomas, águas rasas na costa e nuvens mais naturais"
+  ],
+  "seguranca": [
+   "Cada placa usa um código de acesso próprio; o sistema guarda só a impressão dele",
+   "Os testes conferem se as rotas do sistema pedem login"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.1.4",
+  "antes": "1.8.0",
+  "data": "2026-11-18",
+  "titulo": "Cafeteira, persianas e fechadura, teste de velocidade da rede, avatares 3D e copa no mapa",
+  "resumo": "Automações do escritório prontas para aparelhos Smart Life, teste de velocidade completo do computador e da rede do escritório, biblioteca de avatares 3D e um andar com copa, banheiro, portas de vidro e gente tomando café.",
+  "novo": [
+   "Cafeteira: ligar para aquecer, desligar, agenda, desligamento automático por segurança, estoque de cápsulas e cafés do dia (com tomada inteligente Smart Life)",
+   "Persianas: todas as janelas de todas as salas, abrir, fechar, parar e posição, por sala ou todas, agenda e fechar quando o sol esquenta (com motor Smart Life); a persiana do mapa acompanha o motor",
+   "Fechadura da porta do escritório: estado, trancar e destrancar com a senha, trancar sozinha, aviso fora do expediente e histórico (com fechadura Smart Life)",
+   "Rede e velocidade: download, upload, latência, variação, latência com carga e perda, deste computador e da rede do escritório pelo agente, com o tempo de resposta de cada transmissor e histórico",
+   "Avatares 3D: importar personagens .glb (com origem e licença), ver as animações e expressões e escolher quem usa cada um no mapa",
+   "Mapa: copa com cafeteira de cápsulas vermelha, mesa e geladeira, e banheiro ao lado do elevador; as pessoas vão até a copa, fazem café e andam com a xícara",
+   "Mapa: posição do elevador escolhida na edição da planta (lado da porta e distância)"
+  ],
+  "melhorias": [
+   "Portas das salas de vidro, como as paredes (a da Reunião e a do Escritório continuam sólidas)",
+   "Mesa da Reunião branca e maior, com cadeiras dos dois lados e nas cabeceiras",
+   "Botões desativados ficam esmaecidos em todo o sistema"
+  ],
+  "seguranca": [
+   "Destrancar a porta exige a senha de novo e a verificação anti-robô; só dono e administradores mexem na fechadura",
+   "Arquivos de avatar ficam num armazenamento privado e são conferidos antes de entrar (sem arquivos externos embutidos)"
+  ],
+  "correcoes": [
+   "Mapa: o cartão do 3D não estica mais com uma área vazia embaixo"
+  ]
+ },
+ {
+  "versao": "0.1.3",
+  "antes": "1.7.1",
+  "data": "2026-11-17",
+  "titulo": "Menu recolhido com o seletor de projeto ajustado",
+  "resumo": "Com o menu lateral recolhido, o seletor de projeto ficou centralizado, com espaço igual em volta da sigla.",
+  "novo": [],
+  "melhorias": [
+   "Menu lateral recolhido: seletor de projeto centralizado, sem a borda encostando na sigla"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.1.2",
+  "antes": "1.7.0",
+  "data": "2026-11-17",
+  "titulo": "Térreo com saída para a rua, Ilha de Florianópolis, relatórios no modelo da Prefeitura e Raspberry Pi",
+  "resumo": "O avatar sai do prédio pela porta automática, a cidade ganhou casas, mais pessoas e aviões, e dá para ver a ilha de cima. Relatórios e documentos de segurança saem no modelo oficial da Prefeitura. Aparelhos e Transmissores ficaram mais completos.",
+  "novo": [
+   "Mapa: porta de vidro automática na recepção; o avatar sai do térreo para a calçada e vê o prédio por fora",
+   "Mapa: botão Ilha mostra a Ilha de Santa Catarina de cima, com o contorno real, as lagoas, as pontes, o aeroporto e o Centro marcados",
+   "Mapa: aviões passando no céu, bairros de casas com telhado e mais pedestres nas calçadas",
+   "Relatórios em PDF e Word no modelo da Prefeitura: brasão e cabeçalho oficial em todas as páginas, identificação, índice, seções numeradas e espaço para assinatura",
+   "Segurança: minutas da Política de Segurança, Uso Aceitável, Classificação, Resposta a Incidentes, Continuidade, Fornecedores, Termo de Confidencialidade e Declaração de Aplicabilidade, no modelo oficial",
+   "Segurança: lista do que falta na conformidade, separando o que se resolve no sistema, o que pede documento aprovado e o que é físico ou de pessoal",
+   "Infra → Agentes: passo a passo do Raspberry Pi, temperatura, memória, disco e IP de cada computador, e Reiniciar agente de qualquer lugar",
+   "Aparelhos: visões em grade, por sala (ligar ou desligar a sala inteira) e em tabela com seleção e ações em lote",
+   "Gravar botão: confere antes se o transmissor responde e se o agente do escritório o enxerga, e ao terminar mostra o próximo ar sem botões",
+   "Menu lateral com busca (tecla /) e grupos que recolhem"
+  ],
+  "melhorias": [
+   "Aparelhos: filtros por sala, transmissor e problema, e ordenação",
+   "Transmissores: busca, filtro por situação e as salas que cada um atende",
+   "Configurações → Marca: órgão (3ª linha) do cabeçalho oficial dos documentos",
+   "Selo de integridade dos registros renovado sozinho a cada hora"
+  ],
+  "seguranca": [
+   "Três controles técnicos da ISO 27001 passaram a ser conferidos pelo sistema (ferramentas privilegiadas, instalação de software e ciclo de desenvolvimento seguro)"
+  ],
+  "correcoes": [
+   "Térreo: o avatar não ficava mais preso na recepção e o térreo deixou de engasgar",
+   "Novidades: a linha do tempo 3D não passa mais por cima do cartão da versão",
+   "Relatórios: sem rolagem lateral no celular"
+  ]
+ },
+ {
+  "versao": "0.1.1",
+  "antes": "1.6.0",
+  "data": "2026-11-17",
+  "titulo": "Responsável por ar, ares do Fabio, dos Devs e da Reunião, e agente no Raspberry Pi",
+  "resumo": "Cada pessoa pode cuidar só dos ares que você escolher. Os ares que faltavam foram cadastrados e o agente agora instala num Raspberry Pi ou Linux com o mesmo código de instalação.",
+  "novo": [
+   "Ao criar ou editar um usuário, escolha \"Só estes ares\": a pessoa vê e comanda só os ares marcados, em qualquer tela (painel, mapa, relatórios, atividade e frases da Alexa)",
+   "A página de cada ar mostra quem é o responsável por ele",
+   "Ar do Fabio e Ar da reunião cadastrados; o Ar dos devs ganhou os botões do controle Gree",
+   "Instalar o agente num Raspberry Pi 3B, 4 ou 5 (sistema de 64 bits) ou num Linux com o mesmo código de uso único, em Infra → Agentes"
+  ],
+  "melhorias": [
+   "A lista de usuários mostra os ares de quem cuida só de alguns",
+   "O instalador tenta de novo sozinho quando a internet do escritório oscila"
+  ],
+  "seguranca": [
+   "Quem cuida só de alguns ares não consegue dar a outra pessoa um ar que não é dele, nem mexer em contas com mais acesso",
+   "O bloqueio por ar vale no servidor, não só na tela"
+  ],
+  "correcoes": [
+   "Exportar em Word não quebra mais em computadores com Python 3.11"
+  ]
+ },
+ {
+  "versao": "0.1.0",
+  "antes": "1.5.4",
+  "data": "2026-11-17",
+  "titulo": "Procurar na rede de volta, estado pelo controle remoto e zonas por sala",
+  "resumo": "A busca de transmissores voltou a funcionar, o painel se atualiza sozinho e dá para corrigir o estado quando alguém usa o controle remoto.",
+  "novo": [
+   "“Ligaram ou mudaram pelo controle?” no painel: conta como o ar está e o sistema atualiza sem mandar sinal (o ar não avisa quando usam o controle)",
+   "Na tela do ar: “marque que ele não muda junto” para um ar de sala fechada que não recebe o sinal do salão (e o contrário)"
+  ],
+  "melhorias": [
+   "O painel se atualiza sozinho a cada 15 segundos com o que mudou pela Alexa, celular, agenda ou outra pessoa",
+   "O transmissor do salão aparece também nos projetos das salas que ele atende (Analistas, Diretor, Sala Bancada, Sala Deison)",
+   "Avatar da Sala Fabio agora é o Fabio (masculino), aparece no expediente"
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "“Procurar na rede” em Transmissores dava erro (name 'tinytuya' is not defined)",
+   "Placa com o nome no pódio do prédio piscava ao mexer a câmera no mapa 3D"
+  ]
+ },
+ {
+  "versao": "0.0.9",
+  "antes": "1.5.3",
+  "data": "2026-11-17",
+  "titulo": "Painel mostra todos os ares da sala",
+  "resumo": "Com uma sala escolhida que tem mais de um ar, o painel mostra todos lado a lado, cada um com o 3D e os próprios controles.",
+  "novo": [
+   "Painel: ares da mesma sala lado a lado (ex.: Sala Bancada com o Ar servidor e o Ar Guilherme), cada um com temperatura, modos e ligar/desligar",
+   "Com “Todos os projetos”, o destaque tem o atalho “Ver os ares da sala lado a lado”"
+  ],
+  "melhorias": [
+   "Quando um comando muda também os ares que obedecem juntos ao mesmo transmissor, todos os cartões mudam na tela, com a animação",
+   "Ares da Sala Bancada renomeados: Ar servidor e Ar Guilherme (também na Alexa)"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.0.8",
+  "antes": "1.5.2",
+  "data": "2026-11-17",
+  "titulo": "Alexa por sala e troca de conta guiada",
+  "resumo": "Cada ar do escritório está na Alexa com o nome da sala, e a tela de Integrações guia a troca da conta Amazon do Echo, com um teste ao vivo no fim.",
+  "novo": [
+   "Integrações → “Passo a passo: trocar a conta da Alexa”: atalhos para tirar o Echo da conta antiga, configurar na nova e ativar a skill Sinric Pro, com o progresso marcado",
+   "Teste ao vivo: toque em “Esperar o comando”, fale com a Alexa e o comando aparece na tela quando chega"
+  ],
+  "melhorias": [
+   "Os 6 ares do escritório (Escritório, Analistas, Diretor, Bancada 1 e 2, Deison) estão na Alexa, cada um numa sala com o nome do projeto no Sinric",
+   "Ar novo, renomeado ou que muda de projeto vai sozinho para a sala certa no Sinric"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.0.7",
+  "antes": "1.5.1",
+  "data": "2026-11-17",
+  "titulo": "Instalar ar por ar com um transmissor só",
+  "resumo": "Para instalar sala por sala usando o mesmo transmissor: ele passa a atender só o ar da sala onde está, e o ar anterior não recebe mais nenhum comando por engano.",
+  "novo": [
+   "No cartão do transmissor, “Levar para o próximo ar”: escolhe (ou cadastra) o ar, leva o transmissor, copia os botões de um ar igual e testa, num passo a passo"
+  ],
+  "melhorias": [
+   "O ar que ficou para trás aparece como “sem transmissor”, com os botões guardados",
+   "Passo a passo (Guia) explica a instalação sala por sala",
+   "A Alexa (Sinric) agora comporta 9 aparelhos, um para cada ar"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.0.6",
+  "antes": "1.5.0",
+  "data": "2026-11-17",
+  "titulo": "Elevador até o térreo, salas personalizáveis e Novidades nova",
+  "resumo": "No mapa 3D dá para pegar o elevador ao lado da porta e descer até a recepção do prédio. As salas ganharam cores próprias e portas que abrem e fecham, o corredor ficou mais largo e as pessoas andam de um jeito mais natural.",
+  "novo": [
+   "Elevador funcionando: perto da porta dele, aperte R (ou o botão) para descer ao térreo e voltar ao escritório",
+   "Térreo do prédio: recepção com balcão, catracas, sala de espera, recepcionista, segurança e gente circulando",
+   "Cartão da sala no 3D: cor do chão, das cadeiras, das mesas e da porta, e o botão de abrir ou fechar a porta",
+   "Cartão da porta: abrir, fechar e trocar a cor; porta fechada não deixa ninguém passar",
+   "Pilar em frente à porta da Reunião",
+   "Página Novidades com a linha do tempo das versões em 3D, números, filtro por tipo e busca"
+  ],
+  "melhorias": [
+   "Corredor em volta das salas mais largo: o avatar passa sem enroscar",
+   "Escritório e Reunião maiores",
+   "Pessoas mais realistas: rosto com lábios e sobrancelhas, franja, tecido e jeans com textura, cadarço",
+   "Andar mais natural (o pé rola, o quadril balança) e, parados, alguns olham o celular",
+   "Porta do Escritório preta; Cássio e Alexandre trocaram de cadeira"
+  ],
+  "seguranca": [
+   "Trocar e-mail ou senha confere a senha atual no servidor, sem abrir outra sessão no navegador",
+   "Preparado para o CAPTCHA também no login do Supabase (proteção contra robôs que tentam senhas direto lá)"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.0.5",
+  "antes": "1.4.2",
+  "data": "2026-11-17",
+  "titulo": "Segurança reforçada depois da auditoria completa",
+  "resumo": "O sistema passou por uma auditoria de segurança completa. As correções valem principalmente para contas com acesso a só alguns projetos, e a Alexa agora conhece os 8 aparelhos do plano do Sinric.",
+  "novo": [
+   "Integrações mostra quantos aparelhos a sua conta do Sinric comporta (agora 8)"
+  ],
+  "melhorias": [
+   "Ar sem botões gravados não vai mais para a Alexa: a tela pede para gravar os botões antes",
+   "Diagnóstico da Alexa avisa quando o último comando de voz falhou"
+  ],
+  "seguranca": [
+   "Quem tem acesso a só alguns projetos não vê nem comanda ares, zonas, automações, cenas e transmissores de outros projetos",
+   "Notificações: cada pessoa só vê e arquiva o que é dela; desbloquear um IP pela notificação exige a permissão de segurança",
+   "Gerenciar usuários: ninguém troca a senha ou tira o 2FA de uma conta com mais permissões ou projetos do que ele",
+   "Backup e tabelas do banco só para quem tem acesso a todos os projetos; o código de instalação do agente não fica mais guardado na fila",
+   "Alexa (skill própria): só dono e administrador vinculam, e o vínculo cai se a conta for desativada",
+   "Login: limite de tentativas por conta mesmo trocando de IP; trocar a senha encerra as outras sessões",
+   "Planilhas exportadas não executam fórmulas vindas de nomes ou mensagens",
+   "Agente: o instalador do Windows protege a pasta do sistema e o agente não aceita IP informado pelo próprio computador"
+  ],
+  "correcoes": [
+   "Configurações → Contas sem rolagem lateral no celular"
+  ]
+ },
+ {
+  "versao": "0.0.4",
+  "antes": "1.4.1",
+  "data": "2026-11-17",
+  "titulo": "Verificação de segurança não trava mais",
+  "resumo": "Quando a verificação da Cloudflare emperra em \"Verificando…\" (alguns navegadores e bloqueadores causam isso), o sistema faz sozinho uma verificação alternativa e libera a entrada em poucos segundos.",
+  "novo": [],
+  "melhorias": [
+   "Tela \"Executando verificação de segurança\" libera em até ~8 s mesmo se a Cloudflare não responder"
+  ],
+  "seguranca": [
+   "Verificação alternativa por prova de trabalho assinada pelo servidor, com validade de 5 minutos; o login continua com a verificação da Cloudflare, firewall e bloqueio por tentativas"
+  ],
+  "correcoes": [
+   "Portão parado em \"Verificando…\" no navegador Brave e com bloqueadores de rastreio"
+  ]
+ },
+ {
+  "versao": "0.0.3",
+  "antes": "1.4.0",
+  "data": "2026-11-16",
+  "titulo": "Zonas de ar no salão aberto, Alexa por zona e cidade viva no mapa",
+  "resumo": "Ares iguais no mesmo transmissor agora são tratados como uma zona, do painel à Alexa. O mapa ganhou a previsão do tempo real, chuva, semáforos, pedestres, animais e um terminal de ônibus, e os avatares sentam e trabalham.",
+  "novo": [
+   "Zonas: ares do mesmo modelo no mesmo transmissor obedecem juntos; o cartão do transmissor tem Ligar zona, Desligar zona e a temperatura da zona",
+   "Teste de interferência guiado: você marca quais ares apitaram e o sistema grava as zonas reais",
+   "Ares deste transmissor: planejar ou mover um transmissor sem disparar sinal em ar que ficou para trás",
+   "Integrações: Zonas na Alexa (cada zona vira um aparelho, com prévia e confirmação) e o passo a passo da Alexa nova com a mesma conta",
+   "Mapa: previsão do tempo real (agora, próximas horas e 3 dias), nuvens, chuva e trovoada conforme a previsão",
+   "Mapa: semáforos com fase de pedestres, pedestres com guarda-chuva na chuva, cães, pombos, gaivotas e gatos",
+   "Mapa: terminal de ônibus inspirado no TICEN, com ônibus entrando, parando e saindo",
+   "Avatar: sentar na cadeira (tecla F) e trabalhar; cada monitor mostra um conteúdo diferente, conforme a sala",
+   "Cartão da pessoa com nome, sexo, cargo, sala e o que ela está fazendo agora"
+  ],
+  "melhorias": [
+   "Alexa recebe o estado de todos os ares que mudaram juntos, em ritmo que o Sinric aceita",
+   "Diagnóstico da Alexa confere zona por zona, a capacidade do plano do Sinric e se o agente enxerga os transmissores",
+   "Projeto Analista passa a se chamar Analistas; Deison cadastrado na sala dele",
+   "Até 6 ares por transmissor num salão aberto"
+  ],
+  "seguranca": [
+   "Permissões explícitas para persianas, equipe, escrita no vidro e música (antes, só administradores conseguiam)",
+   "Checklist de segurança confere, ao vivo, se toda ação que muda dados tem permissão definida",
+   "Auditoria de dependências e do código do servidor sem vulnerabilidade conhecida aberta"
+  ],
+  "correcoes": [
+   "Duas buscas de transmissores ao mesmo tempo não derrubam mais o agente no Windows (erro 10048)",
+   "Trocar de câmera com o avatar sentado mantém o botão Levantar",
+   "O globo da Segurança não tenta girar depois de fechar a tela"
+  ]
+ },
+ {
+  "versao": "0.0.2",
+  "antes": "1.3.1",
+  "data": "2026-11-16",
+  "titulo": "Mapa 3D: prédio de 11 andares e a cidade em volta",
+  "resumo": "O prédio do mapa agora tem 11 andares, com o escritório no 9º, fachada de vidro mais realista e uma cidade inteira em volta. O andar ganhou corredor e hall dos elevadores.",
+  "novo": [
+   "Cidade em volta do prédio: quadras com prédios de escritório, residenciais com sacadas, comércio no térreo, praças, árvores e postes",
+   "Corredor em volta das salas e hall dos elevadores em frente à porta de entrada",
+   "Na edição da planta: escolher o total de andares do prédio além do andar do escritório"
+  ],
+  "melhorias": [
+   "Prédio com 11 andares (escritório no 9º), pele de vidro com montantes, persianas e cobertura com caixas d'água e condensadoras",
+   "Janelas da cidade acendem à noite",
+   "Andando com o avatar, dá para sair pela porta de entrada até o corredor sem cair do andar"
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Erro do 3D ao sair da página antes de terminar de carregar (\"isReady\")"
+  ]
+ },
+ {
+  "versao": "0.0.1",
+  "antes": "1.3.0",
+  "data": "2026-11-16",
+  "titulo": "Vários ares por transmissor, e-mails do domínio e o agente no Windows",
+  "resumo": "Um transmissor agora atende 3 ou 4 ares do mesmo ambiente, os e-mails saem do zynio.com.br, a tela Infra cuida também da Cloudflare e o agente pode ser instalado num PC Windows com um código de uso único.",
+  "novo": [
+   "Um transmissor para vários ares: 'Adicionar ar a este transmissor', 'Ligar todos' e 'Desligar todos' no cartão do transmissor",
+   "Ares do mesmo modelo no mesmo transmissor são reconhecidos: o painel mostra os dois mudando juntos e avisa no cartão",
+   "Controle Gree: com só o botão Desligar gravado, o sistema gera os 300 ajustes (Conferir, Testar e Gerar)",
+   "Copiar os botões de outro ar do mesmo modelo, sem gravar de novo",
+   "Instalar o agente num PC Windows por código de uso único (Infra → Agentes), também pelo admin",
+   "Infra → Cloudflare: DNS com travas de segurança, e-mails @zynio.com.br, DNSSEC, Turnstile, auditoria e saúde do domínio",
+   "E-mails do sistema saem de nao-responda@zynio.com.br: recuperar senha, boas-vindas, senha alterada e acesso novo",
+   "Endereços contato@, suporte@, financeiro@ e seguranca@zynio.com.br recebendo e-mails",
+   "Esta janela de novidades e a página Novidades com o histórico de versões"
+  ],
+  "melhorias": [
+   "Quando há dois computadores com o agente, fica no comando o que enxerga os transmissores",
+   "Telas da Infra mais rápidas (consultas em paralelo e fila própria para elas)",
+   "Painel abre num ar que tem transmissor e avisa quando o ar escolhido ainda não tem um",
+   "Transmissor pareado de novo é encontrado e reconectado sozinho",
+   "Novo capítulo no Guia: Um transmissor para vários ares"
+  ],
+  "seguranca": [
+   "DNSSEC ligado no zynio.com.br (assinatura das respostas de DNS)",
+   "E-mails do domínio assinados (DKIM) e com DMARC rejeitando falsificações",
+   "Código de instalação do agente: uso único, vale 30 minutos, chaves cifradas e tentativas erradas contam no firewall",
+   "Token da Cloudflare fica só no computador do agente, nunca na nuvem",
+   "Webhook do Resend só aceito com assinatura válida"
+  ],
+  "correcoes": [
+   "Portão 'Executando verificação de segurança' não fica mais parado: tenta de novo sozinho e oferece 'Tentar de novo'",
+   "Instalador do Windows não falha mais com acentos (UTF-8)",
+   "Gravação de botão recusa ruído em vez de salvar um sinal vazio",
+   "Botões do Painel não ficam mais desativados sem explicação"
+  ]
+ },
+ {
+  "versao": "0.0.0",
+  "antes": "1.2.0",
+  "data": "2026-11-15",
+  "titulo": "Biometria, Google e atualizações nos apps",
+  "resumo": "Entrar com biometria e com Google nos apps, atualizações automáticas no Android e atalhos no computador. Detalhes em docs/releases/v1.2.0.md.",
+  "novo": [
+   "Entrar com biometria (digital, rosto, Touch ID e Windows Hello)",
+   "Entrar com Google",
+   "Relatórios completos em 8 formatos (PDF, Word, Excel, HTML, CSV, XML, JSON e Markdown)",
+   "Projetos com meta de gasto e mensagens do site no estilo WhatsApp Web"
+  ],
+  "melhorias": [
+   "Atualizações automáticas e aviso de versão nova nos apps",
+   "Atalhos de teclado e Touch ID no app de computador",
+   "Painel com conclusões da semana e escritório ao vivo em 3D"
+  ],
+  "seguranca": [
+   "Sessões ativas com encerramento remoto, tempo de inatividade e duração máxima",
+   "Senha mínima de 10 caracteres conferida contra vazamentos conhecidos",
+   "Política de segundo fator para administradores (opcional)"
+  ],
+  "correcoes": []
+ }
+]

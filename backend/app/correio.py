@@ -489,6 +489,13 @@ def registrar_evento(ev: dict):
     ordem = ["enviando", "enviado", "atrasado", "entregue", "aberto", "clicado", "devolvido", "marcado como spam", "falhou"]
     novo = estado if estado and ordem.index(estado) >= ordem.index(linha["estado"] if linha["estado"] in ordem else "enviado") else linha["estado"]
     db.executar("UPDATE email_envios SET estado = ?, eventos = CAST(? AS jsonb), atualizado_em = ? WHERE id = ?", (novo, json.dumps(eventos[-30:]), db.agora(), linha["id"]))
+    # newsletter: endereço que volta ou reclama sai da lista (sem notificar um por um)
+    if tipo in ("email.bounced", "email.complained"):
+        l1 = db.um("SELECT para, tipo FROM email_envios WHERE id = ?", (linha["id"],)) or {}
+        if str(l1.get("tipo") or "").startswith("newsletter"):
+            from . import newsletter
+            newsletter.marcar_devolvido(str(l1.get("para") or ""))
+            return
     # avisa quem cuida do sistema quando um e-mail atrasa (a 1ª vez) ou volta: assim ninguém fica esperando à toa
     try:
         primeiro_atraso = tipo == "email.delivery_delayed" and sum(1 for e in eventos if e["tipo"] == "email.delivery_delayed") == 1

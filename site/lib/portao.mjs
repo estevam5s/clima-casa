@@ -2,7 +2,20 @@
 // Passe = "<expira_epoch>.<hmac_sha256_hex(segredo, expira)>" no cookie "zv" (12 h, HttpOnly, domínio .zynio.com.br).
 
 // Robôs que precisam ver a página como ela é: buscadores e quem monta prévia de link (WhatsApp, redes sociais).
-export const ROBOS_LIBERADOS = /Google|bingbot|DuckDuckBot|Applebot|YandexBot|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|WhatsApp|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Pinterestbot/i
+export const ROBOS_LIBERADOS = /Google|bingbot|DuckDuckBot|Applebot|YandexBot|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|WhatsApp|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Pinterestbot|Chrome-Lighthouse/i
+
+// Auditoria de SEO do próprio sistema (Acessos e SEO → Auditar): cabeçalho "x-zynio-auditoria: <ts>.<hmac>" com o mesmo
+// segredo do portão, vale 5 minutos. Assim a auditoria lê a página de verdade, não a tela de verificação.
+export async function auditoriaValida(cabecalho, segredo) {
+  const m = /^(\d+)\.([0-9a-f]{64})$/.exec(cabecalho || '')
+  if (!segredo || !m || Math.abs(Date.now() / 1000 - Number(m[1])) > 300) return false
+  const chave = await crypto.subtle.importKey('raw', new TextEncoder().encode(segredo), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const ass = new Uint8Array(await crypto.subtle.sign('HMAC', chave, new TextEncoder().encode(`auditoria:${m[1]}`)))
+  const hex = Array.from(ass, (b) => b.toString(16).padStart(2, '0')).join('')
+  let dif = 0
+  for (let i = 0; i < 64; i++) dif |= hex.charCodeAt(i) ^ m[2].charCodeAt(i)
+  return dif === 0
+}
 
 export async function passeValido(cookie, segredo) {
   if (!segredo) return true

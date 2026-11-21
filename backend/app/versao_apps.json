@@ -1,19 +1,19 @@
 {
   "notas": [
-    "Atalho Código no GitHub no Android (pela atualização automática), no iPhone e no computador",
-    "Acompanha a versão 0.4.5 do sistema (som da nave e salto hipersônico na tela Segurança)"
+    "Tela Site e acessos (acessos, desempenho, idiomas do site e newsletter) no Android e no iPhone; atalhos no computador",
+    "Acompanha a versão 0.4.9 do sistema"
   ],
-  "publicado_em": "2026-11-20",
+  "publicado_em": "2026-11-21",
   "android": {
-    "versao": "1.6.0",
+    "versao": "1.7.0",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "desktop": {
-    "versao": "1.6.1",
+    "versao": "1.7.0",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "ios": {
-    "versao": "1.6.1",
+    "versao": "1.7.0",
     "pagina": "https://app.zynio.com.br/apps"
   }
 }

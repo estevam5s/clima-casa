@@ -4,6 +4,10 @@
 set -e
 ORIGEM="$(cd "$(dirname "$0")" && pwd)"
 TOKEN=$(grep -E '^VERCEL_TOKEN=' "$ORIGEM/../.env" | cut -d= -f2- | tr -d '"')
+# histórico de versões do sistema para a página /novidades
+node "$ORIGEM/scripts/copiar-versoes.mjs"
+# textos do site para a tradução (Idiomas do site no painel): precisa do Google Chrome; sem ele, mantém a lista atual
+if [ "${SEM_TEXTOS:-0}" != "1" ]; then node "$ORIGEM/scripts/extrair-textos.mjs" || echo "Aviso: não deu para atualizar public/i18n/textos.json (siga assim; os textos novos aparecem pelo navegador)."; fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 rsync -a --exclude node_modules --exclude .next --exclude .vercel --exclude ".env*" "$ORIGEM/" "$TMP/"

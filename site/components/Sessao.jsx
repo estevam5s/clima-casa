@@ -46,7 +46,7 @@ export function useSessaoSistema() {
 // Botão principal do cabeçalho e do menu do celular.
 export function BotaoEntrar(props) {
   const logado = useSessaoSistema()
-  return <Botao href={ENTRAR_URL} externo {...props}>{logado ? 'ENTRAR NO SISTEMA' : 'LOGIN'}</Botao>
+  return <Botao href={ENTRAR_URL} externo hover={logado ? 'ABRIR O PAINEL' : 'ENTRAR'} {...props}>{logado ? 'ENTRAR NO SISTEMA' : 'LOGIN'}</Botao>
 }
 
 // Texto de link simples (rodapé e páginas).

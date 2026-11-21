@@ -231,6 +231,18 @@ const CAPITULOS = [
     dicas: ['Exportar zona (em DNS) baixa o arquivo com todos os registros: bom guardar uma cópia antes de mudanças grandes.', 'O tráfego do site não passa pela Cloudflare (tudo em “DNS only”); por isso não há cache, WAF ou gráficos de visitas lá: esses números ficam na aba Vercel.'],
   },
   {
+    id: 'site', icone: Globe, titulo: 'Site: idiomas, acessos, SEO e newsletter',
+    resumo: 'O site zynio.com.br em 6 idiomas, quem acessa o site e o sistema, o SEO das páginas e as campanhas de e-mail.',
+    passos: [
+      { t: 'Idiomas do site', d: 'Idiomas do site → Buscar textos do site (depois de cada publicação do site) → Traduzir com IA em cada idioma. Revise o que quiser: o que você corrige à mão a IA não muda mais. Desligar um idioma tira ele do seletor do site.', link: ['/idiomas', 'Abrir Idiomas do site'] },
+      { t: 'Textos novos vistos no site', d: 'Mensagens que só aparecem depois de uma ação (por exemplo, ao enviar um formulário) chegam como "textos novos vistos no site". Inclua os que são do site e descarte o resto.' },
+      { t: 'Acessos', d: 'Acessos e SEO mostra quem está online, visitantes, rotas e cliques mais usados, países e cidades, aparelhos e de onde vêm as visitas, para o site e para o sistema. Não guardamos IP nem o que se digita.', link: ['/analise', 'Abrir Acessos e SEO'] },
+      { t: 'Desempenho e SEO', d: 'Desempenho mostra os Web Vitals medidos em quem usa (p75 por rota) e, no sistema, o tempo das chamadas da API. SEO → Auditar agora confere título, descrição, H1, imagens e idiomas de cada página; Medir chama o PageSpeed do Google.' },
+      { t: 'Newsletter', d: 'E-mails → Newsletter: Nova campanha (ou Gerar com IA a partir das últimas versões), escolha o modelo, monte os blocos, veja a prévia no computador e no celular, mande um teste e envie ou agende. Só recebe quem confirmou a inscrição.', link: ['/emails?aba=newsletter', 'Abrir a Newsletter'] },
+    ],
+    dicas: ['Agendadas saem pelo agente do escritório: com nenhum agente ligado, a campanha espera.', 'O formulário Assinar do rodapé do site manda um e-mail de confirmação; sem o clique, a pessoa não entra na lista.'],
+  },
+  {
     id: 'luzes', icone: Lightbulb, titulo: 'Iluminação',
     resumo: 'Luzes de cada sala: acender, apagar, brilho, ao anoitecer e quando a porta é destrancada.',
     passos: [

@@ -32,6 +32,7 @@ struct MaisView: View {
                     NavigationLink { SegurancaView() } label: { Label("Segurança", systemImage: "shield.lefthalf.filled") }
                     NavigationLink { IntegracoesView() } label: { Label("Alexa e Google", systemImage: "waveform") }
                     NavigationLink { SupabaseView() } label: { Label("Banco (Supabase)", systemImage: "cylinder.split.1x2") }
+                    NavigationLink { SiteView() } label: { Label("Site e acessos", systemImage: "chart.line.uptrend.xyaxis") }
                 }
             }
             Section("Conta") {

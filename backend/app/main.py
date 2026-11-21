@@ -22,6 +22,7 @@ from .rotas import telegram as rotas_telegram
 from .rotas import bugs as rotas_bugs
 from .rotas import ia as rotas_ia
 from .rotas import backup as rotas_backup
+from .rotas import site_gestao as rotas_site
 
 ESTATICO = Path(__file__).resolve().parents[1] / "static"
 
@@ -76,7 +77,10 @@ SITE_ORIGENS = {o.strip() for o in os.environ.get("CLIMA_SITE_ORIGENS", "https:/
 @app.middleware("http")
 async def cabecalhos(request: Request, chamar):
     origem_site = request.headers.get("origin", "")
-    if request.url.path in ("/api/site/contato", "/api/site/cookies", "/api/site/cookies/consentimento", "/api/site/status", "/api/apps/versao") and origem_site in SITE_ORIGENS:
+    caminho = request.url.path
+    rota_site = caminho in ("/api/site/contato", "/api/site/cookies", "/api/site/cookies/consentimento", "/api/site/status", "/api/apps/versao",
+                            "/api/site/coletar", "/api/site/newsletter/sair") or caminho.startswith("/api/site/idiomas/")
+    if rota_site and origem_site in SITE_ORIGENS:
         cors = {"Access-Control-Allow-Origin": origem_site, "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600", "Vary": "Origin"}
         if request.method == "OPTIONS":
@@ -88,7 +92,8 @@ async def cabecalhos(request: Request, chamar):
         resp = await chamar(request)
         resp.headers.update(cors)
         resp.headers["X-Content-Type-Options"] = "nosniff"
-        resp.headers["Cache-Control"] = "no-store"
+        # dicionário de idiomas: pode ficar em cache um pouco (a URL leva a versão, que muda a cada tradução)
+        resp.headers["Cache-Control"] = "public, max-age=120, s-maxage=60" if caminho.startswith("/api/site/idiomas/") and request.method == "GET" and resp.status_code == 200 else "no-store"
         return resp
     # Firewall: listas de IP, país, assinaturas de ataque e limite de taxa (só nas rotas dinâmicas)
     from . import defesa
@@ -183,6 +188,8 @@ app.include_router(rotas_telegram.rotas_telegram)
 app.include_router(rotas_bugs.rotas_bugs)
 app.include_router(rotas_ia.rotas_ia)
 app.include_router(rotas_backup.rotas_backup)
+app.include_router(rotas_site.publico_site)
+app.include_router(rotas_site.gestao)
 
 
 @app.get("/saude")

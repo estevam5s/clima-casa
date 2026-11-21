@@ -6,35 +6,114 @@ export const ENTRAR_URL = `${SISTEMA_URL}/`  // raiz: quem já está logado entr
 export const APPS_URL = `${SISTEMA_URL}/apps`
 export const MARCA = 'Clima Escritório'
 
+// Menu do topo: grupos com ícone e uma linha de explicação (painel largo no computador, sanfona no celular).
 export const MENU = [
   { rotulo: 'Início', href: '/' },
-  { rotulo: 'Produto', itens: [
-    { rotulo: 'Como funciona', href: '/como-funciona' },
-    { rotulo: 'Sobre o sistema', href: '/sobre' },
-    { rotulo: 'Funcionalidades', href: '/funcionalidades' },
-    { rotulo: 'Integrações', href: '/integracoes' },
-    { rotulo: 'Segurança', href: '/seguranca' },
-    { rotulo: 'Defesas contra ataques', href: '/seguranca/defesas' },
-    { rotulo: 'Assistente de IA', href: '/assistente-ia' },
-    { rotulo: 'Bot do Telegram', href: '/bot-telegram' },
-    { rotulo: 'Mapa 3D', href: '/mapa-3d' },
-    { rotulo: 'Baixar os apps', href: '/baixar' },
+  { rotulo: 'Produto', largo: true, grupos: [
+    { titulo: 'Plataforma', itens: [
+      { rotulo: 'Como funciona', href: '/como-funciona', icone: 'Workflow', desc: 'Do clique ao ar gelado, em 4 passos' },
+      { rotulo: 'Funcionalidades', href: '/funcionalidades', icone: 'LayoutGrid', desc: 'Tudo o que o sistema faz' },
+      { rotulo: 'Telas do sistema', href: '/telas', icone: 'MonitorSmartphone', desc: 'Capturas reais do painel' },
+      { rotulo: 'Integrações', href: '/integracoes', icone: 'Plug', desc: 'Alexa, Google, Tuya, Spotify e mais' },
+      { rotulo: 'Sobre o sistema', href: '/sobre', icone: 'Info', desc: 'Para quem é e como nasceu' },
+    ] },
+    { titulo: 'Recursos', itens: [
+      { rotulo: 'Assistente de IA', href: '/assistente-ia', icone: 'Bot', desc: 'Converse e mande no escritório' },
+      { rotulo: 'Bot do Telegram', href: '/bot-telegram', icone: 'Send', desc: '1.114 comandos no celular' },
+      { rotulo: 'Mapa 3D', href: '/mapa-3d', icone: 'Building2', desc: 'O prédio, a equipe e a cidade' },
+      { rotulo: 'Música com Spotify', href: '/escritorio-inteligente/musica', icone: 'Music2', desc: 'Toca no Echo e em rotinas' },
+      { rotulo: 'Relatórios', href: '/funcionalidades/relatorios', icone: 'BarChart3', desc: 'Consumo e custo em 8 formatos' },
+    ] },
   ] },
-  { rotulo: 'Ajuda', itens: [
-    { rotulo: 'Perguntas frequentes', href: '/faq' },
-    { rotulo: 'Glossário', href: '/glossario' },
-    { rotulo: 'Status do sistema', href: '/status' },
-    { rotulo: 'Contato', href: '/contato' },
+  { rotulo: 'Escritório', grupos: [
+    { titulo: 'Escritório inteligente', itens: [
+      { rotulo: 'Visão geral', href: '/escritorio-inteligente', icone: 'Building', desc: 'Tudo o que o painel comanda' },
+      { rotulo: 'Ar-condicionado', href: '/escritorio-inteligente/ar-condicionado', icone: 'AirVent', desc: 'Por infravermelho, sem trocar o aparelho' },
+      { rotulo: 'Iluminação', href: '/escritorio-inteligente/luzes', icone: 'Lightbulb', desc: 'Acende ao anoitecer, pelo pôr do sol real' },
+      { rotulo: 'Cafeteira', href: '/escritorio-inteligente/cafeteira', icone: 'Coffee', desc: 'Café pronto e desligamento por segurança' },
+      { rotulo: 'Persianas', href: '/escritorio-inteligente/persianas', icone: 'Blinds', desc: 'Fecham quando o sol esquenta' },
+      { rotulo: 'Fechadura', href: '/escritorio-inteligente/fechadura', icone: 'DoorClosed', desc: 'Destrancar com senha e trancar sozinha' },
+    ] },
   ] },
-  { rotulo: 'Telas', itens: [
-    { rotulo: 'Todas as telas', href: '/telas' },
-    { rotulo: 'Detalhe da tela', href: '/telas/painel' },
+  { rotulo: 'Segurança', grupos: [
+    { titulo: 'Proteção', itens: [
+      { rotulo: 'Segurança', href: '/seguranca', icone: 'ShieldCheck', desc: 'Como o sistema protege o escritório' },
+      { rotulo: 'Defesas contra ataques', href: '/seguranca/defesas', icone: 'ShieldAlert', desc: 'Firewall, bloqueios e criptografia' },
+      { rotulo: 'Status do sistema', href: '/status', icone: 'Activity', desc: 'Ao vivo, a cada 30 segundos' },
+      { rotulo: 'Privacidade', href: '/privacidade', icone: 'Lock', desc: 'O que guardamos e por quê (LGPD)' },
+    ] },
   ] },
-  { rotulo: 'Novidades', itens: [
-    { rotulo: 'Todas as novidades', href: '/novidades' },
-    { rotulo: 'Última versão', href: '/novidades/notificacoes-seguranca-3d' },
+  { rotulo: 'Ajuda', grupos: [
+    { titulo: 'Suporte', itens: [
+      { rotulo: 'Perguntas frequentes', href: '/faq', icone: 'CircleHelp', desc: 'Respostas rápidas' },
+      { rotulo: 'Glossário', href: '/glossario', icone: 'BookOpen', desc: 'Os termos do sistema' },
+      { rotulo: 'Baixar os apps', href: '/baixar', icone: 'Download', desc: 'Android, iPhone, Mac, Windows e Linux' },
+      { rotulo: 'Contato', href: '/contato', icone: 'Mail', desc: 'Fale com a equipe' },
+    ] },
   ] },
-  { rotulo: 'Contato', href: '/contato' },
+  { rotulo: 'Novidades', grupos: [
+    { titulo: 'Acompanhe', itens: [
+      { rotulo: 'Todas as versões', href: '/novidades', icone: 'History', desc: 'O que entrou em cada publicação' },
+      { rotulo: 'Destaques', href: '/novidades#destaques', icone: 'Sparkles', desc: 'As mudanças maiores, explicadas' },
+      { rotulo: 'Newsletter', href: '/newsletter', icone: 'Newspaper', desc: 'As novidades no seu e-mail' },
+    ] },
+  ] },
+]
+export const itensDoMenu = (m) => (m.grupos || []).flatMap((g) => g.itens)
+
+// Rodapé: links em categorias (mais curtas que a lista única de antes)
+export const RODAPE = [
+  { titulo: 'Produto', itens: [['Como funciona', '/como-funciona'], ['Funcionalidades', '/funcionalidades'], ['Telas', '/telas'], ['Integrações', '/integracoes'], ['Sobre', '/sobre']] },
+  { titulo: 'Escritório', itens: [['Ar-condicionado', '/escritorio-inteligente/ar-condicionado'], ['Iluminação', '/escritorio-inteligente/luzes'], ['Cafeteira', '/escritorio-inteligente/cafeteira'], ['Persianas', '/escritorio-inteligente/persianas'], ['Fechadura', '/escritorio-inteligente/fechadura'], ['Música', '/escritorio-inteligente/musica']] },
+  { titulo: 'Recursos', itens: [['Assistente de IA', '/assistente-ia'], ['Bot do Telegram', '/bot-telegram'], ['Mapa 3D', '/mapa-3d'], ['Novidades', '/novidades'], ['Newsletter', '/newsletter']] },
+  { titulo: 'Ajuda e empresa', itens: [['Perguntas frequentes', '/faq'], ['Glossário', '/glossario'], ['Segurança', '/seguranca'], ['Status', '/status'], ['Contato', '/contato']] },
+]
+export const PLATAFORMAS = [
+  { id: 'android', nome: 'Android', icone: 'siAndroid', detalhe: 'APK' },
+  { id: 'iphone', nome: 'iPhone', icone: 'siApple', detalhe: 'iOS' },
+  { id: 'mac', nome: 'macOS', icone: 'siApple', detalhe: 'Apple Silicon e Intel' },
+  { id: 'windows', nome: 'Windows', icone: 'windows', detalhe: 'Instalador' },
+  { id: 'linux', nome: 'Linux', icone: 'siLinux', detalhe: 'AppImage x64 e ARM' },
+]
+
+// ---------- escritório inteligente (uma página por aparelho) ----------
+export const DISPOSITIVOS = [
+  { slug: 'ar-condicionado', icone: 'AirVent', titulo: 'Ar-condicionado', curto: 'Ar',
+    resumo: 'Os ares que já existem no escritório passam a obedecer ao painel, ao celular e à Alexa, por infravermelho, sem trocar nenhum aparelho.',
+    texto: 'Um transmissor Wi-Fi Tuya SRW-004 aprende os botões do controle remoto original de cada ar e repete o sinal quando você manda. Para aparelhos Gree, gravar só o Desligar basta: o sistema gera os outros 300 botões pelo protocolo. Ares iguais na mesma sala viram uma zona e mudam juntos com um comando só.',
+    lista: ['Ligar, desligar, modo, temperatura e ventilação', 'Agenda, automações, cenas e temporizador', 'Zonas para ares iguais na mesma sala', 'Relatório de horas ligado, kWh e custo', 'Travas: limite de comandos por minuto e proteção contra liga/desliga seguido'],
+    precisa: ['Um transmissor Tuya SRW-004 por sala, com visão dos aparelhos', 'O agente num computador do escritório, na mesma rede'],
+    sistema: '/aparelhos' },
+  { slug: 'luzes', icone: 'Lightbulb', titulo: 'Iluminação', curto: 'Luzes',
+    resumo: 'Luzes de cada sala no painel: acender, apagar, brilho, acender sozinha ao anoitecer e quando a porta é destrancada à noite.',
+    texto: 'Funciona com lâmpadas, painéis, fitas de LED e interruptores de parede do Smart Life, e também com uma placa própria com relé. O pôr do sol é calculado para o escritório a cada dia, então o "acender ao anoitecer" acompanha a época do ano. Cada automação age uma vez por dia: se alguém apagar na mão, o sistema não acende de novo. Interruptores de várias teclas (como o Novadigital de 4 teclas) viram uma luz por tecla.',
+    lista: ['Acender, apagar e brilho', 'Acender ao anoitecer pelo pôr do sol real', 'Acender quando a porta é destrancada à noite', 'Interruptor de parede com uma luz por tecla', 'No mapa 3D, as salas acendem conforme as luzes reais'],
+    precisa: ['Lâmpada, painel, fita ou interruptor compatível com o app Smart Life (Wi-Fi 2,4 GHz)', 'Ou uma placa própria (ESP) com relé'],
+    sistema: '/luzes' },
+  { slug: 'cafeteira', icone: 'Coffee', titulo: 'Cafeteira', curto: 'Café',
+    resumo: 'Ligar para aquecer, desligar, agenda de manhã, desligamento automático por segurança, estoque de cápsulas e os cafés do dia.',
+    texto: 'A cafeteira fica numa tomada inteligente. O painel liga para aquecer antes de a equipe chegar e desliga sozinho depois de um tempo: sem tempo escolhido, a trava de segurança desliga em 90 minutos. A tela também acompanha o estoque de cápsulas e quantos cafés saíram no dia.',
+    lista: ['Ligar e desligar pelo painel, celular e Alexa', 'Agenda de manhã', 'Desligamento automático (padrão de 90 minutos)', 'Estoque de cápsulas e cafés do dia', 'Na copa do mapa 3D, o café sai quando alguém faz'],
+    precisa: ['Uma tomada inteligente compatível com o Smart Life'],
+    sistema: '/cafeteira' },
+  { slug: 'persianas', icone: 'Blinds', titulo: 'Persianas', curto: 'Persianas',
+    resumo: 'Todas as janelas de todas as salas: abrir, fechar, parar e posição, por sala ou todas juntas, com agenda e fechamento automático quando o sol esquenta.',
+    texto: 'Cada janela do mapa ganha a sua persiana. Dá para comandar uma, uma sala inteira ou todas de uma vez, escolher a posição e deixar que elas fechem sozinhas quando o sol esquenta. Fechar e parar passam sempre, mesmo com as travas de segurança ligadas.',
+    lista: ['Abrir, fechar, parar e posição', 'Por janela, por sala ou todas juntas', 'Agenda', 'Fechar quando o sol esquentar', 'Ligadas às janelas do mapa 3D'],
+    precisa: ['Motor de persiana compatível com o Smart Life', 'Ou uma placa própria com relés'],
+    sistema: '/persianas' },
+  { slug: 'fechadura', icone: 'DoorClosed', titulo: 'Fechadura', curto: 'Fechadura',
+    resumo: 'A fechadura eletrônica da porta do escritório: estado, trancar e destrancar com a sua senha, trancar sozinha, aviso fora do expediente e quem fez o quê.',
+    texto: 'Destrancar sempre pede a sua senha e a verificação anti-robô, e fica registrado quem fez. A porta pode trancar sozinha depois de um tempo, e o sistema avisa quando ela é aberta fora do expediente. Se algo parecer estranho, o dono ou um administrador isola a fechadura: ela passa a aceitar só trancar até ser liberada. Destrancar pela internet depende do modelo da fechadura (o sistema avisa quando não aceita).',
+    lista: ['Estado da porta ao vivo', 'Destrancar só com senha', 'Trancar sozinha', 'Aviso fora do expediente', 'Histórico de quem fez o quê', 'Isolar em caso de suspeita'],
+    precisa: ['Fechadura Wi-Fi compatível com o Smart Life'],
+    sistema: '/fechadura' },
+  { slug: 'musica', icone: 'Music2', titulo: 'Música com Spotify', curto: 'Música',
+    resumo: 'O Spotify do escritório no painel: tocar, pausar, escolher onde toca (inclusive o Echo), buscar, playlists e rotinas por horário ou quando o ar liga.',
+    texto: 'Conecte a conta Spotify Premium uma vez e o painel vira o controle do som do escritório. O Echo aparece como lugar para tocar quando a conta da Alexa tem o Spotify vinculado. As rotinas tocam uma playlist num horário ou quando um ar liga ou desliga, e a tela gera as frases que a Alexa entende para pedir música.',
+    lista: ['Tocar, pausar, avançar e volume', 'Escolher onde toca, inclusive o Echo', 'Busca e playlists', 'Rotinas por horário ou quando o ar liga/desliga', 'Frases prontas para pedir à Alexa'],
+    precisa: ['Uma conta Spotify Premium (o Spotify só deixa controlar com ela)'],
+    sistema: '/musica' },
 ]
 
 // ---------- funcionalidades (cartões "serviço") ----------
@@ -98,8 +177,8 @@ export const FUNCIONALIDADES = [
     texto: 'O assistente usa modelos da NVIDIA com ferramentas que leem o sistema de verdade: ares, salas, zonas, transmissores, agentes, atividade, relatórios, tempo lá fora e os aparelhos do escritório. Mudar um ar acontece na hora; desligar todos e executar cenas só depois de você confirmar. No painel as conversas ficam salvas; no terminal (clima-ia) ele também conhece o código do projeto e nunca envia segredos.',
     lista: ['Chat com conversas salvas, comandos com /, anexos e ditado', 'No Telegram: escreva normalmente', 'No celular: tela própria no app Android', 'No terminal: clima-ia com modos de permissão'] },
   { slug: 'telegram', icone: 'Send', titulo: 'Bot do Telegram',
-    resumo: '498 comandos com as suas permissões: o painel de cada ar no jeito do controle remoto, timers, relatórios, luzes, persianas e avisos.',
-    texto: 'Cada pessoa vincula o próprio Telegram com um código de uso único gerado no painel. O menu mostra o estado no topo e navega por 22 categorias. Ações em lote pedem confirmação, e os avisos importantes podem chegar no Telegram.',
+    resumo: '1.114 comandos com as suas permissões: o painel de cada ar no jeito do controle remoto, timers, relatórios, luzes, persianas, música e avisos.',
+    texto: 'Cada pessoa vincula o próprio Telegram com um código de uso único gerado no painel. O menu mostra o estado no topo e navega por 28 categorias. Ações em lote pedem confirmação, e os avisos importantes podem chegar no Telegram.',
     lista: ['Ar atual e atalhos /23, /frio23, /mais', 'Timers prontos e relatórios por período', 'Confirmação em toda ação em lote', 'Avisos importantes no Telegram'] },
   { slug: 'backup-e-treinamento', icone: 'ShieldCheck', titulo: 'Backup, restauração e treinamento',
     resumo: 'Backup do sistema inteiro com restauração simulada antes de gravar, e provas de segurança e ISO com mais de mil perguntas.',
@@ -150,25 +229,29 @@ export const INTEGRACOES = [
   { icone: 'siGooglehome', papel: 'Voz', nome: 'Google Home', href: '/funcionalidades/alexa-e-google' },
   { icone: 'Plug', papel: 'Ponte de voz', nome: 'Sinric Pro', href: '/funcionalidades/alexa-e-google' },
   { icone: 'Radio', papel: 'Infravermelho', nome: 'Tuya Smart IR', href: '/funcionalidades/transmissores' },
+  { icone: 'siSpotify', papel: 'Música', nome: 'Spotify', href: '/escritorio-inteligente/musica' },
+  { icone: 'siTelegram', papel: 'Celular', nome: 'Telegram', href: '/bot-telegram' },
+  { icone: 'siNvidia', papel: 'Assistente de IA', nome: 'NVIDIA', href: '/assistente-ia' },
+  { icone: 'siCloudflare', papel: 'DNS, e-mail e anti-robô', nome: 'Cloudflare', href: '/seguranca' },
 ]
 
 // ---------- números (lista "prêmios") ----------
 export const NUMEROS = [
-  { onde: 'API', o_que: '371 rotas, todas com regra de permissão', quando: 'v1.24' },
-  { onde: 'Supabase', o_que: '40 tabelas com RLS em todas', quando: 'v1.24' },
-  { onde: 'Telegram', o_que: '498 comandos com as permissões de cada pessoa', quando: 'v1.23' },
-  { onde: 'Treinamento', o_que: '1.017 perguntas de segurança e ISO', quando: 'v1.24' },
-  { onde: 'pg_cron', o_que: '10 rotinas automáticas no banco', quando: 'v1.0' },
-  { onde: 'Relatórios', o_que: '8 formatos de exportação', quando: 'v1.0' },
-  { onde: 'White label', o_que: '34 opções de marca própria', quando: 'v1.0' },
-  { onde: 'Apps', o_que: '5 plataformas nativas + PWA', quando: 'v1.0' },
+  { onde: 'API', o_que: '426 rotas, todas com regra de permissão', quando: '0.4.9' },
+  { onde: 'Supabase', o_que: '47 tabelas com RLS em todas', quando: '0.4.9' },
+  { onde: 'Telegram', o_que: '1.114 comandos em 28 categorias, com as permissões de cada pessoa', quando: '0.4.9' },
+  { onde: 'Versões', o_que: '50 versões publicadas, 445 mudanças registradas', quando: '0.4.9' },
+  { onde: 'Treinamento', o_que: '1.017 perguntas de segurança e ISO', quando: '1.24' },
+  { onde: 'Idiomas', o_que: 'Site em 6 idiomas: português, inglês, espanhol, francês, russo e coreano', quando: '0.4.9' },
+  { onde: 'Relatórios', o_que: '8 formatos de exportação', quando: '1.0' },
+  { onde: 'Apps', o_que: 'Android, iPhone, macOS, Windows, Linux e PWA', quando: '1.6' },
 ]
 export const CONTADORES = [
-  { n: 371, sufixo: '', rotulo: 'rotas de API' },
-  { n: 40, sufixo: '', rotulo: 'tabelas no banco' },
-  { n: 498, sufixo: '', rotulo: 'comandos no Telegram' },
-  { n: 8, sufixo: '', rotulo: 'formatos de relatório' },
-  { n: 30, sufixo: '', rotulo: 'comandos de voz por ar' },
+  { n: 426, sufixo: '', rotulo: 'rotas de API' },
+  { n: 47, sufixo: '', rotulo: 'tabelas no banco' },
+  { n: 1114, sufixo: '', rotulo: 'comandos no Telegram' },
+  { n: 50, sufixo: '', rotulo: 'versões publicadas' },
+  { n: 6, sufixo: '', rotulo: 'idiomas no site' },
 ]
 
 // ---------- comandos de voz (slider "depoimentos") ----------
@@ -218,6 +301,10 @@ export const NOVIDADES = [
 
 // ---------- perguntas frequentes ----------
 export const FAQ = [
+  { p: 'Além do ar-condicionado, o que mais o sistema comanda?', r: 'Luzes, cafeteira, persianas, fechadura e música pelo Spotify. Os aparelhos Smart Life (Tuya) entram pela conta do app; também dá para usar uma placa própria com relé. Tudo aparece no painel, no app, na Alexa, no Telegram e no mapa 3D.' },
+  { p: 'Que lâmpadas e interruptores funcionam?', r: 'Os que funcionam no app Smart Life, em Wi-Fi 2,4 GHz: lâmpadas, painéis, fitas de LED e interruptores de parede. Interruptor de várias teclas, como o Novadigital de 4 teclas, vira uma luz por tecla. Interruptor touch de parede costuma precisar de fio neutro na caixa.' },
+  { p: 'A porta pode ser destrancada por qualquer um do painel?', r: 'Não. Destrancar pede a senha de quem está pedindo e a verificação anti-robô, só para quem tem permissão, e fica registrado quem fez. Trancar sempre funciona. Destrancar pela internet também depende do modelo da fechadura.' },
+  { p: 'O site está em outros idiomas?', r: 'Sim: português, inglês, espanhol, francês, russo e coreano, no botão de idioma no topo. O sistema em si (o painel) continua em português.' },
   { p: 'O sistema sabe se o ar está ligado?', r: 'Não. Infravermelho só envia sinal. O painel mostra o último estado que o próprio sistema mandou; se alguém usar o controle original, ele fica desatualizado até o próximo comando.' },
   { p: 'Funciona com qualquer ar-condicionado?', r: 'Com qualquer aparelho que tenha controle remoto infravermelho. Cada ar precisa ter os botões gravados uma vez, pela tela do aparelho.' },
   { p: 'O que eu preciso comprar?', r: 'Um transmissor infravermelho Wi-Fi Tuya SRW-004 (o "Smart IR" do app Smart Life) por cômodo, com visão dos aparelhos. O resto é software.' },

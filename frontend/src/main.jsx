@@ -51,9 +51,13 @@ import Fechadura from './pages/Fechadura'
 import Avatares from './pages/Avatares'
 import Treinamento from './pages/Treinamento'
 import Emails from './pages/Emails'
+import Analise from './pages/Analise'
+import Idiomas from './pages/Idiomas'
+import { medirPagina } from './medicao'
 
 function ComProtecao({ children }) {   // erro numa tela não deixa a página preta; trocar de tela tenta de novo
   const local = useLocation()
+  useEffect(() => { medirPagina(local.pathname) }, [local.pathname])   // tela Acessos e SEO
   return <ProtecaoErro chave={local.pathname}>{children}</ProtecaoErro>
 }
 
@@ -151,6 +155,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="avatares" element={<Avatares />} />
             <Route path="treinamento" element={<Treinamento />} />
             <Route path="emails" element={<Emails />} />
+            <Route path="analise" element={<Analise />} />
+            <Route path="idiomas" element={<Idiomas />} />
             <Route path="configuracoes" element={<Configuracoes />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Route>

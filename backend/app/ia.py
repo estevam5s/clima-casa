@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import time
 
@@ -431,6 +432,53 @@ def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False) -> dict
         except httpx.HTTPError as e:
             ultimo = str(e)[:160]
     raise RuntimeError(f"A IA da NVIDIA não respondeu agora ({ultimo}). Tente de novo.")
+
+
+def gerar(sistema: str, pedido: str, modelo: str | None = None, max_tokens: int = 3000, temperatura: float = 0.3, sem_pensar: bool = True) -> str:
+    """Texto livre, sem ferramentas (tradução do site, newsletter). Mesmo catálogo e reserva do assistente.
+    sem_pensar: desliga o raciocínio dos modelos que "pensam" antes (senão eles gastam todos os tokens pensando e a resposta
+    vem vazia, com finish_reason "length")."""
+    k = chave()
+    if not k:
+        raise RuntimeError("A IA não está configurada (falta a chave da NVIDIA em Assistente de IA → Configuração).")
+    ultimo = None
+    alvo = modelo if modelo in MODELOS else (cfg().get("modelo") or PADRAO)
+    for m in (alvo, RESERVA) if alvo != RESERVA else (alvo,):
+        try:
+            corpo = {"model": m, "temperature": temperatura, "max_tokens": max_tokens,
+                     "messages": [{"role": "system", "content": ("/no_think\n" if sem_pensar else "") + sistema}, {"role": "user", "content": pedido}]}
+            if sem_pensar:
+                corpo["chat_template_kwargs"] = {"enable_thinking": False}
+            r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, timeout=55, json=corpo)
+            if r.status_code == 400 and sem_pensar:   # modelo que não aceita o ajuste: tenta sem ele
+                corpo.pop("chat_template_kwargs", None)
+                r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, timeout=55, json=corpo)
+            if r.status_code == 200:
+                txt = (r.json()["choices"][0]["message"].get("content") or "").strip()
+                if txt:
+                    return txt
+                ultimo = "resposta vazia"
+            else:
+                ultimo = f"{r.status_code} {r.text[:160]}"
+        except httpx.HTTPError as e:
+            ultimo = str(e)[:160]
+    raise RuntimeError(f"A IA da NVIDIA não respondeu agora ({ultimo}). Tente de novo.")
+
+
+def json_da_resposta(txt: str):
+    """Tira o JSON de uma resposta (com ou sem cerca ```json, com ou sem raciocínio antes)."""
+    t = re.sub(r"<think>.*?</think>", "", txt, flags=re.S).strip()
+    m = re.search(r"```(?:json)?\s*(.*?)```", t, re.S)
+    if m:
+        t = m.group(1).strip()
+    for abre, fecha in (("{", "}"), ("[", "]")):
+        i, j = t.find(abre), t.rfind(fecha)
+        if i >= 0 and j > i:
+            try:
+                return json.loads(t[i:j + 1])
+            except ValueError:
+                continue
+    raise ValueError("A IA não devolveu JSON válido.")
 
 
 def msg_lista_txt(msgs: list[dict]) -> list[str]:

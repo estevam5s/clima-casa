@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, Circle, Cloud, ExternalLink, Eye, KeyRound, Mail, MailCheck, RefreshCw, Search, Send, Settings2, ShieldCheck } from 'lucide-react'
+import { Newspaper, CheckCircle2, Circle, Cloud, ExternalLink, Eye, KeyRound, Mail, MailCheck, RefreshCw, Search, Send, Settings2, ShieldCheck } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
+import Newsletter from '../components/emails/Newsletter'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Interruptor, Modal, Selo, useToast } from '../components/ui'
 
 // E-mails: Resend (envio) + Cloudflare (DNS do domínio). Conexões, modelos com prévia e teste, histórico com os
 // eventos de entrega (webhook) e quais e-mails o sistema manda sozinho.
-const ABAS = [['conexoes', 'Conexões', Cloud], ['modelos', 'Modelos', Mail], ['historico', 'Histórico', MailCheck], ['automaticos', 'Automáticos', Settings2]]
+const ABAS = [['conexoes', 'Conexões', Cloud], ['newsletter', 'Newsletter', Newspaper], ['modelos', 'Modelos', Mail], ['historico', 'Histórico', MailCheck], ['automaticos', 'Automáticos', Settings2]]
 const COR_ESTADO = { entregue: 'verde', aberto: 'verde', clicado: 'verde', enviado: 'azul', enviando: 'cinza', atrasado: 'ambar', devolvido: 'vermelho', falhou: 'vermelho', 'marcado como spam': 'vermelho' }
 const NOMES_AUTO = {
   recuperar_senha: ['Recuperar a senha', 'Link de senha nova quando alguém usa “Esqueci a senha”. Sem o domínio verificado, o Supabase manda o e-mail padrão dele.'],
@@ -201,7 +202,7 @@ function Automaticos({ e, recarregar, dono }) {
 export default function Emails() {
   const { sessao } = useProjeto()
   const dono = sessao?.papel === 'dono'
-  const [aba, setAba] = useState('conexoes')
+  const [aba, setAba] = useState(() => new URLSearchParams(window.location.search).get('aba') || 'conexoes')
   const [e, setE] = useState(null), [erro, setErro] = useState('')
   const carregar = useCallback(() => api.get('/api/email/estado').then(setE).catch((x) => setErro(x.message)), [])
   useEffect(() => { carregar() }, [carregar])
@@ -211,7 +212,7 @@ export default function Emails() {
   const verif = e.dominio.status === 'verified'
   return (
     <div>
-      <Cabecalho titulo="E-mails" descricao="Envio pelo Resend com o domínio zynio.com.br (DNS na Cloudflare): recuperação de senha, boas-vindas, avisos de segurança e alertas, com histórico de entrega." />
+      <Cabecalho titulo="E-mails" descricao="Envio pelo Resend com o domínio zynio.com.br (DNS na Cloudflare): recuperação de senha, boas-vindas, avisos de segurança, alertas e a newsletter (campanhas com modelos e IA), com histórico de entrega." />
       {!verif && <div className="mb-5"><Aviso tipo="alerta">Domínio ainda não verificado: por enquanto o Resend só entrega para o e-mail da sua conta do Resend, e o “Esqueci a senha” usa o e-mail padrão do Supabase. Complete os passos em Conexões.</Aviso></div>}
       <div className="mb-6"><FaixaMetricas itens={[
         { rotulo: 'Domínio', valor: verif ? 'Verificado' : e.dominio.status === 'não cadastrado' ? 'Não cadastrado' : 'Pendente', tom: verif ? 'bom' : 'ruim', dica: e.dominio.nome },
@@ -223,6 +224,7 @@ export default function Emails() {
         {ABAS.map(([k, n, I]) => <button key={k} onClick={() => setAba(k)} className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm ${aba === k ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}><I className="h-4 w-4" />{n}</button>)}
       </div>
       {aba === 'conexoes' && <Conexoes e={e} recarregar={carregar} dono={dono} />}
+      {aba === 'newsletter' && <Newsletter meuEmail={sessao?.email} />}
       {aba === 'modelos' && <Modelos meuEmail={sessao?.email} />}
       {aba === 'historico' && <Historico />}
       {aba === 'automaticos' && <Automaticos e={e} recarregar={carregar} dono={dono} />}

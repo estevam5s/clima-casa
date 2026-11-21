@@ -625,3 +625,89 @@ create table if not exists public.ia_uso (
 );
 create index if not exists ix_ia_uso_usuario_quando on public.ia_uso (usuario_id, quando);
 alter table public.ia_uso enable row level security;
+
+-- 21/11 (0.4.9): acessos do site e do sistema (medição própria: rotas, cliques, lugares, desempenho). Sem IP guardado.
+create table if not exists public.analise_eventos (
+  id bigint generated always as identity primary key,
+  quando bigint not null,
+  origem text not null,                 -- site | sistema
+  tipo text not null,                   -- pagina | clique | vital | api | ping | erro
+  rota text not null default '',
+  sessao text not null default '',
+  visitante text not null default '',   -- só com consentimento de estatísticas (site); no sistema, a sessão da aba
+  ref text not null default '',
+  pais text not null default '',
+  regiao text not null default '',
+  cidade text not null default '',
+  dispositivo text not null default '',
+  navegador text not null default '',
+  so text not null default '',
+  idioma text not null default '',
+  alvo text not null default '',
+  nome text not null default '',
+  valor double precision,
+  dados jsonb
+);
+create index if not exists ix_analise_quando on public.analise_eventos (quando desc);
+create index if not exists ix_analise_origem_tipo on public.analise_eventos (origem, tipo, quando desc);
+create index if not exists ix_analise_sessao on public.analise_eventos (sessao, quando);
+alter table public.analise_eventos enable row level security;
+
+-- 21/11 (0.4.9): tradução do site (zynio.com.br) em inglês, espanhol, francês, russo e coreano
+create table if not exists public.site_textos (
+  texto text primary key,               -- o texto em português, normalizado (espaços colapsados)
+  rotas jsonb not null default '[]',
+  origem text not null default 'site',  -- site (coletado na publicação) | navegador (visto por quem visita, espera aprovação)
+  ativo boolean not null default true,
+  visto_em bigint not null default 0
+);
+alter table public.site_textos enable row level security;
+create table if not exists public.site_traducoes (
+  texto text not null references public.site_textos(texto) on delete cascade,
+  idioma text not null,
+  traducao text not null,
+  origem text not null default 'ia',    -- ia | manual
+  revisada boolean not null default false,
+  atualizado_em bigint not null default 0,
+  primary key (texto, idioma)
+);
+alter table public.site_traducoes enable row level security;
+
+-- 21/11 (0.4.9): newsletter (inscrição com confirmação por e-mail, campanhas com modelos e IA)
+create table if not exists public.newsletter_inscritos (
+  id bigint generated always as identity primary key,
+  email text not null unique,
+  nome text not null default '',
+  estado text not null default 'pendente',   -- pendente | ativo | cancelado | devolvido
+  idioma text not null default 'pt',
+  origem text not null default 'site',
+  token text not null,
+  pais text not null default '',
+  criado_em bigint not null,
+  confirmado_em bigint,
+  cancelado_em bigint
+);
+create index if not exists ix_newsletter_estado on public.newsletter_inscritos (estado);
+alter table public.newsletter_inscritos enable row level security;
+create table if not exists public.newsletter_campanhas (
+  id bigint generated always as identity primary key,
+  titulo text not null default '',
+  assunto text not null default '',
+  previa text not null default '',
+  modelo text not null default 'classico',
+  cor text not null default '',
+  blocos jsonb not null default '[]',
+  estado text not null default 'rascunho',   -- rascunho | agendada | enviando | enviada
+  ia boolean not null default false,
+  criado_por text not null default '',
+  criado_em bigint not null,
+  atualizado_em bigint not null,
+  agendada_para bigint,
+  enviada_em bigint,
+  total integer not null default 0,
+  enviados integer not null default 0,
+  falhas integer not null default 0
+);
+alter table public.newsletter_campanhas enable row level security;
+alter table public.email_envios add column if not exists campanha_id bigint;
+create index if not exists ix_email_envios_campanha on public.email_envios (campanha_id) where campanha_id is not null;

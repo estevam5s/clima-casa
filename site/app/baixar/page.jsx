@@ -4,14 +4,15 @@ import Icone from '@/components/Icone'
 import { BannerPagina, Titulo } from '@/components/Secoes'
 import { APPS_URL, ENTRAR_URL } from '@/lib/dados'
 
-export const metadata = meta({ titulo: 'Baixar os apps', descricao: 'Clima Escritório para Android, Mac (Apple Silicon e Intel), Windows, Linux e como app instalado no navegador (PWA).', caminho: '/baixar', og: 'funcionalidade-apps' })
+export const metadata = meta({ titulo: 'Baixar os apps', descricao: 'Clima Escritório para Android, iPhone, Mac (Apple Silicon e Intel), Windows, Linux e como app instalado no navegador (PWA).', caminho: '/baixar', og: 'funcionalidade-apps' })
 
 const APPS = [
-  { icone: 'siAndroid', nome: 'Android', arquivo: 'APK', itens: ['Entrar com biometria (digital ou rosto)', 'Entrar com Google', 'Atualizações automáticas pela internet', 'Aviso quando sai uma versão nova'] },
-  { icone: 'siApple', nome: 'macOS', arquivo: 'DMG · Apple Silicon e Intel', itens: ['Bloqueio com Touch ID', 'Ícone na barra de menus', 'Atalhos de teclado (⌘1 a ⌘9, ⌘K)', 'Aviso de versão nova'] },
-  { icone: 'Monitor', nome: 'Windows', arquivo: 'Instalador EXE', itens: ['Windows Hello no login com biometria', 'Ícone na bandeja', 'Atalhos de teclado (Ctrl+1 a 9)', 'Iniciar com o Windows'] },
-  { icone: 'siLinux', nome: 'Linux', arquivo: 'AppImage · x64 e ARM', itens: ['Sem instalação: é só abrir', 'Atalhos de teclado', 'Tela própria sem internet', 'Aviso de versão nova'] },
-  { icone: 'Globe', nome: 'Navegador (PWA)', arquivo: 'Instalar pelo navegador', itens: ['Funciona em qualquer aparelho', 'Chaves de acesso (Face ID, digital)', 'Sempre na última versão', 'Sem download'] },
+  { id: 'android', icone: 'siAndroid', nome: 'Android', arquivo: 'APK', itens: ['Entrar com biometria (digital ou rosto)', 'Entrar com Google', 'Atualizações automáticas pela internet', 'Aviso quando sai uma versão nova'] },
+  { id: 'iphone', icone: 'siApple', nome: 'iPhone', arquivo: 'App nativo · iOS 17 ou mais novo', itens: ['Entrar com Face ID', 'Login seguro pelo navegador', 'Ares, luzes, persianas, cafeteira, fechadura e música', 'Assistente de IA e notificações'] },
+  { id: 'mac', icone: 'siApple', nome: 'macOS', arquivo: 'DMG · Apple Silicon e Intel', itens: ['Bloqueio com Touch ID', 'Ícone na barra de menus', 'Atalhos de teclado (⌘1 a ⌘9, ⌘K)', 'Aviso de versão nova'] },
+  { id: 'windows', icone: 'Monitor', nome: 'Windows', arquivo: 'Instalador EXE', itens: ['Windows Hello no login com biometria', 'Ícone na bandeja', 'Atalhos de teclado (Ctrl+1 a 9)', 'Iniciar com o Windows'] },
+  { id: 'linux', icone: 'siLinux', nome: 'Linux', arquivo: 'AppImage · x64 e ARM', itens: ['Sem instalação: é só abrir', 'Atalhos de teclado', 'Tela própria sem internet', 'Aviso de versão nova'] },
+  { id: 'pwa', icone: 'Globe', nome: 'Navegador (PWA)', arquivo: 'Instalar pelo navegador', itens: ['Funciona em qualquer aparelho', 'Chaves de acesso (Face ID, digital)', 'Sempre na última versão', 'Sem download'] },
 ]
 
 export default function Baixar() {
@@ -23,7 +24,7 @@ export default function Baixar() {
           <Titulo sub="Escolha o seu" centro className="mb-50">Apps para todos os aparelhos</Titulo>
           <div className="grade-integracoes">
             {APPS.map((a) => (
-              <article key={a.nome} className="cartao-integracao pf_fadeup">
+              <article key={a.nome} id={a.id} className="cartao-integracao pf_fadeup" style={{ scrollMarginTop: 120 }}>
                 <header><span className="camada-icone"><Icone nome={a.icone} tamanho={26} /></span><div><h3>{a.nome}</h3><small>{a.arquivo}</small></div></header>
                 <ul className="lista-check compacta">{a.itens.map((t) => <li key={t}><span>{t}</span></li>)}</ul>
               </article>

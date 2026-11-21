@@ -37,6 +37,11 @@ async def laco():
             except Exception as e:  # noqa: BLE001
                 log.warning("rotinas de música: %s", e)
             try:
+                from . import newsletter
+                await asyncio.to_thread(newsletter.ciclo)   # campanhas agendadas da newsletter
+            except Exception as e:  # noqa: BLE001
+                log.warning("newsletter: %s", e)
+            try:
                 from . import vercel_ataque
                 await asyncio.to_thread(vercel_ataque.sincronizar)   # escudo anti-DDoS → modo de ataque da Vercel
             except Exception as e:  # noqa: BLE001

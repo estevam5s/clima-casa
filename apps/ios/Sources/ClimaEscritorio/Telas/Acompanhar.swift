@@ -111,3 +111,46 @@ struct NovidadesView: View {
         }.navigationTitle("Novidades")
     }
 }
+
+// Site e acessos (dono/admin): quem acessa o site e o sistema, desempenho, idiomas do site e newsletter.
+// A edição (traduções, campanhas) fica no painel web.
+struct SiteView: View {
+    @State private var origem = "site"
+    var body: some View {
+        SiteResumo(origem: origem)
+            .id(origem)
+            .toolbar { Picker("Origem", selection: $origem) { Text("Site").tag("site"); Text("Sistema").tag("sistema") }.pickerStyle(.segmented) }
+            .navigationTitle("Site e acessos")
+    }
+}
+
+private struct SiteResumo: View {
+    let origem: String
+    @State private var carga: Carga
+    @State private var idiomas = Carga("/api/idiomas")
+    init(origem: String) { self.origem = origem; _carga = State(initialValue: Carga("/api/analise/resumo?origem=\(origem)&dias=7")) }
+    var body: some View {
+        Estado(carga: carga) { d in
+            List {
+                Section("Últimos 7 dias") {
+                    LabeledContent("Online agora", value: d["totais"]["online"].s)
+                    LabeledContent("Visitantes", value: d["totais"]["visitantes"].s)
+                    LabeledContent("Páginas vistas", value: d["totais"]["paginas"].s)
+                    LabeledContent("Rejeição", value: "\(d["totais"]["rejeicao"].s)%")
+                }
+                Section("Rotas mais vistas") { ForEach(Array(d["rotas"].l.prefix(8))) { r in LabeledContent(r["rota"].s, value: r["paginas"].s) } }
+                Section("Cliques") { ForEach(Array(d["cliques"].l.prefix(8))) { r in LabeledContent(r["nome"].s, value: r["n"].s) } }
+                Section("Cidades") { ForEach(Array(d["cidades"].l.prefix(8))) { r in LabeledContent("\(r["cidade"].s) · \(r["pais"].s)", value: r["sessoes"].s) } }
+                Section("Desempenho (p75)") {
+                    ForEach(["LCP", "INP", "CLS", "TTFB"], id: \.self) { k in LabeledContent(k, value: d["vitais"][k]["p75"].vazio ? "-" : (k == "CLS" ? String(format: "%.2f", d["vitais"][k]["p75"].d) : "\(Int(d["vitais"][k]["p75"].d)) ms")) }
+                }
+                Section("Idiomas do site") {
+                    ForEach(idiomas.dados["idiomas"].l) { i in LabeledContent(i["nome"].s, value: "\(i["cobertura"].s)%") }
+                    Link("Revisar no painel", destination: URL(string: "https://app.zynio.com.br/idiomas")!)
+                    Link("Newsletter no painel", destination: URL(string: "https://app.zynio.com.br/emails?aba=newsletter")!)
+                }
+            }
+            .task { await idiomas.carregar() }
+        }
+    }
+}

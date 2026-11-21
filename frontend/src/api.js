@@ -1,5 +1,6 @@
 import { tokenAtual } from './supabase'
 import { marcaAtual } from './marcaAtual'
+import { medirApi } from './medicao'
 
 export class ErroApi extends Error {
   constructor(status, mensagem) {
@@ -17,11 +18,14 @@ async function chamar(metodo, caminho, corpo) {
     opcoes.body = JSON.stringify(corpo)
   }
   let r
+  const t0 = performance.now()
   try {
     r = await fetch(caminho, opcoes)
   } catch {
+    medirApi(caminho, metodo, performance.now() - t0, 0)
     throw new ErroApi(0, 'Sem conexão com o servidor do Clima Escritório.')
   }
+  medirApi(caminho, metodo, performance.now() - t0, r.status)
   const texto = await r.text()
   let dados = null
   try { dados = texto ? JSON.parse(texto) : null } catch { /* resposta não-JSON */ }
@@ -55,9 +59,10 @@ async function baixar(caminho, corpo = null) {
 }
 
 // Busca uma resposta como texto (ex.: o relatório em HTML para pré-visualizar)
-async function texto(caminho) {
+async function texto(caminho, corpo = null) {
   const token = await tokenAtual().catch(() => null)
-  const r = await fetch(caminho, { credentials: 'same-origin', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  const cab = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(corpo ? { 'Content-Type': 'application/json' } : {}) }
+  const r = await fetch(caminho, { credentials: 'same-origin', headers: cab, ...(corpo ? { method: 'POST', body: JSON.stringify(corpo) } : {}) })
   if (!r.ok) throw new ErroApi(r.status, `Erro ${r.status}`)
   return r.text()
 }

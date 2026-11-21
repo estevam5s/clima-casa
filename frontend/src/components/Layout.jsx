@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import IconeMarca from './IconeMarca'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
+import { Activity, Languages, LineChart, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -58,6 +58,8 @@ export const GRUPOS = [
     { para: '/atividade', rotulo: 'Atividade', icone: Activity, perm: 'atividade.ver' },
     { para: '/seguranca', rotulo: 'Segurança', icone: ShieldCheck, perm: 'seguranca.gerenciar' },
     { para: '/mensagens', rotulo: 'Mensagens do site', icone: Inbox, contador: 'mensagens_nao_lidas', perm: 'mensagens.ver' },
+    { para: '/analise', rotulo: 'Acessos e SEO', icone: LineChart, perm: 'configuracoes.gerenciar' },
+    { para: '/idiomas', rotulo: 'Idiomas do site', icone: Languages, perm: 'configuracoes.gerenciar' },
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
     { para: '/guia', rotulo: 'Passo a passo', icone: BookOpen },
@@ -71,9 +73,9 @@ const CHAVES = {
   '/': 'inicio dashboard resumo', '/notificacoes': 'avisos alertas sino central historico', '/luzes': 'luz lampada iluminacao anoitecer interruptor', '/telegram': 'bot telegram celular mensagem', '/bugs': 'erro problema defeito falha corrigir ia prompt', '/backup': 'backup restaurar upload copia seguranca dados zip exportar importar', '/ia': 'ia inteligencia artificial nvidia chat conversar terminal clima-ia assistente', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
   '/relatorios': 'pdf exportar consumo gasto energia', '/aparelhos': 'ar condicionado ares split botoes gravar', '/cenas': 'atalhos',
   '/automacoes': 'regras gatilhos', '/agendamentos': 'horario agenda temporizador', '/transmissores': 'ir infravermelho smart ir tuya hub controle remoto',
-  '/musica': 'spotify som', '/integracoes': 'alexa google sinric echo voz', '/comandos-alexa': 'frases voz alexa', '/emails': 'resend correio',
+  '/musica': 'spotify som', '/integracoes': 'alexa google sinric echo voz', '/comandos-alexa': 'frases voz alexa', 
   '/alexa': 'skill', '/supabase': 'banco dados tabelas sql backup', '/infra': 'vercel cloudflare dns agentes raspberry pi computador servidor',
-  '/atividade': 'historico log eventos', '/seguranca': 'firewall conformidade iso 27001 ips ataques', '/mensagens': 'contato site',
+  '/atividade': 'historico log eventos', '/seguranca': 'firewall conformidade iso 27001 ips ataques', '/mensagens': 'contato site', '/analise': 'seo visitantes analytics desempenho performance cliques rotas web vitals pagespeed', '/idiomas': 'traducao ingles espanhol frances russo coreano idioma lingua', '/emails': 'resend correio newsletter campanha inscritos',
   '/configuracoes': 'usuarios contas perfil marca senha 2fa', '/apps': 'android desktop windows mac download', '/guia': 'ajuda manual tutorial',
   '/novidades': 'versoes changelog atualizacoes', '/rede': 'speedtest velocidade internet wifi download upload ping latencia jitter', '/cafeteira': 'cafe capsula copa tomada dolce', '/persianas': 'cortina janela sol', '/fechadura': 'porta tranca chave entrada', '/avatares': 'personagem boneco glb modelo 3d animacao sims', '/treinamento': 'curso prova conscientizacao iso phishing',
 }
