@@ -275,7 +275,7 @@ def _pagina(cli: httpx.Client, url: str) -> dict:
     titulo, desc = re.sub(r"\s+", " ", h.title).strip(), m.get("description", "")
     canon = next((x.get("href") for x in h.links_rel if (x.get("rel") or "").lower() == "canonical"), "")
     alternos = [x.get("hreflang") for x in h.links_rel if (x.get("rel") or "").lower() == "alternate" and x.get("hreflang")]
-    portao = "Executando verificação" in r.text
+    portao = (r.headers.get("x-robots-tag") or "").lower() == "noindex" and "verificacao" in r.text[:20000]   # a página do portão manda noindex
     if r.status_code >= 400:
         probs.append({"g": "alta", "t": f"Responde {r.status_code}"})
     if portao:
