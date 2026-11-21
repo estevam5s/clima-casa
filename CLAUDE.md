@@ -115,7 +115,7 @@ caminhos de serviço e o projeto da Vercel).
 | Compilar shaders sem quebrar ao descartar material | `components/compilar3d.js` (`compilarSeguro`, no lugar de `renderer.compileAsync`), usado no `Mapa3D` e no `Globo3D` |
 | Avatar 3D parado (Tripo) que anda e senta no mapa | `scripts/avatar-esqueleto/` (`leve.mjs` simplifica, `rig.mjs` monta 12 ossos `clima_*` + pesos + clips, `pose.mjs` confere em PNG), `Mapa3D.jsx` (`espelhoBoneco`: os ossos copiam as juntas do boneco invisível). Avatar 73 = Estevam |
 | Travas dos comandos físicos (limite por aparelho, liga/desliga do ar, isolar aparelho, validade da fila IR e da placa) | `backend/app/fisico.py` (`checar_ar` em `clima.aplicar`, `checar_dispositivo` em `dispositivos.comando`, `SEGURAS` sempre passam), `transmissor.VALIDADE_ENVIO`, rotas `GET /api/seguranca/fisico` e `POST /api/seguranca/isolar`, `components/seguranca/Fisico.jsx`, `Travas` em `dispositivos/Comum.jsx`. Auditoria em `docs/seguranca/` |
-| Qualidade automática do mapa 3D (resolução, sombra) | `Mapa3D.jsx` (`NIVEIS`, `aplicarQualidade`, `localStorage['clima-mapa-qualidade']`); peças paradas mescladas em `predio3d.js` (faixas, `palmeira`) |
+| Qualidade automática do mapa 3D (resolução, sombra) | `Mapa3D.jsx` (`NIVEIS`, `aplicarQualidade`, `localStorage['clima-mapa-qualidade']`, `esconderInterior` com o prédio fechado, `E.moverSol` sem refazer a cena, `E.precompilarTerreo`); peças paradas mescladas em `predio3d.js` (faixas, `palmeira`) |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
@@ -896,6 +896,7 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | No térreo, rua preta | `trocarNivel('terreo')` escondia sol, céu e chão; mantém luzes não pontuais e o `chao` |
 | `useState` depois de `if (...) return` | quebra a regra dos hooks quando os dados chegam. Hooks sempre antes de qualquer return |
 | Confirmação com `window.confirm` | trava a tela e foge do visual; use `Modal` (ainda há ~25 pontos antigos: `grep -rn "window.confirm" frontend/src`) |
+| Mapa 3D congela 1 a 2 s ao abrir o prédio, ao chegar um modelo ou no elevador | mudar o **número de luzes visíveis** recompila todos os materiais (dezenas de programas). Objeto que chega depois não traz luz (`E.preparar` tira); o conjunto do térreo é pré-compilado no ocioso (`E.precompilarTerreo`); para apagar uma luz, intensidade 0, nunca `visible = false`. Conferir: `renderer.info.programs.length` antes e depois (0.4.8) |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---

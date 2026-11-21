@@ -146,7 +146,7 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
       const chama = new THREE.Mesh(new THREE.ConeGeometry(0.17, 1.2, 14, 1, true), matJ); chama.rotation.x = Math.PI; chama.position.y = -0.68; g.add(chama)
       g.visible = false; corpo.add(g); jatos.push({ g, chama })
     }
-    const luz = new THREE.PointLight(0x7dd3fc, 0, 9, 2); luz.position.y = -0.4; corpo.add(luz); jatos.luz = luz
+    // sem PointLight: luz que aparece depois recompila todos os materiais do mapa (a chama aditiva já brilha)
   }
   const zf = Math.max(...rodas.filter((x) => x.frente).map((x) => x.z)), zr = Math.min(...rodas.filter((x) => !x.frente).map((x) => x.z))
   const entre = Math.max(1.6, zf - zr), a = zf, b = -zr          // distância do centro de massa (origem) aos eixos
@@ -349,7 +349,6 @@ export function criarVeiculo(gltfCena, fisicaCfg = {}) {
     if (jatos.length) {
       const on = S.voando || S.dobra > 0.05
       for (const j of jatos) { j.g.visible = on; j.chama.scale.set(1, 0.6 + 0.5 * Math.max(ent.subir ? 1 : 0, ent.acel) + Math.random() * 0.25 + (S.nitroOn ? 0.6 : 0), 1) }
-      jatos.luz.intensity = on ? 2.5 + (S.nitroOn ? 2 : 0) : 0
     }
     // Ackermann: a roda de dentro da curva vira mais
     const tanD = Math.tan(S.delta)

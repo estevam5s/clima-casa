@@ -384,6 +384,7 @@ function ceuDaHora(h) {
   const az = ((h - 6) / 12) * Math.PI                       // leste → oeste
   return { elev, noite, crepusculo, az, dia: !noite && !crepusculo }
 }
+const faseCeu = (h) => { const c = ceuDaHora(h); return c.noite ? 'noite' : c.crepusculo ? 'crepusculo' : 'dia' }
 function texturaCeu(c) {
   const cv = document.createElement('canvas'); cv.width = 16; cv.height = 256
   const g = cv.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256)
@@ -487,7 +488,9 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     E.predio?.definirTempo?.(tempoRef.current.tipo, tempoRef.current.nuvens)
     if (E.cena?.fog && E.foFar0) { const nev = tempoRef.current.tipo === 'neblina', ch = ['chuva', 'trovoada'].includes(tempoRef.current.tipo); E.cena.fog.near = nev ? 25 : ch ? 70 : E.foNear0; E.cena.fog.far = nev ? 120 : ch ? 220 : E.foFar0 }
   }, [clima, tempoVista])
-  const [relogio, setRelogio] = useState(() => Math.floor(horaBrasilia() * 4))  // muda a cada 15 min
+  // fase do céu (dia, entardecer, noite): só ela remonta a cena. A posição do sol anda sozinha (E.moverSol) a cada minuto;
+  // antes a cena inteira era refeita a cada 15 min e a tela travava por alguns segundos
+  const [relogio, setRelogio] = useState(() => faseCeu(horaBrasilia()))
   const [aberto, setAberto] = useState(!comPredio)   // prédio fechado: clicar abre o andar do escritório
   // cartões do 3D (janela, item, pessoa, escrita), modo de escrever no vidro e controle de avatar
   const [cartao, setCartao] = useState(null)
@@ -736,11 +739,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     mundo.add(new THREE.HemisphereLight(ceu.noite ? 0x3b4a7a : 0xffffff, escuro ? 0x1e293b : 0xb7c4cf, ceu.noite ? 0.35 : ceu.crepusculo ? 0.8 : 1.15))
     const sol = new THREE.DirectionalLight(ceu.noite ? 0x9db4ff : ceu.crepusculo ? 0xffb37a : 0xfff4e5, ceu.noite ? 0.35 : ceu.crepusculo ? 1.5 : 2.4)
     const tam = Math.max(x1 - x0, y1 - y0) * S
-    const elev = Math.max(0.25, Math.abs(ceu.elev))
+    let ceuSol = ceu
     // a sombra cobre só o andar quando ele está aberto; com o prédio fechado, cobre a torre e a rua
     const ajustarSombra = (fechado) => {
-      const tamS = fechado ? Math.max(tam * 2.2, 40) : tam
-      sol.position.set(Math.cos(ceu.az) * tamS * 0.9, tamS * (0.35 + elev * 0.8) + (fechado ? 30 : 0), Math.sin(ceu.az) * tamS * 0.5 + tamS * 0.3)
+      const tamS = fechado ? Math.max(tam * 2.2, 40) : tam, elev = Math.max(0.25, Math.abs(ceuSol.elev))
+      sol.position.set(Math.cos(ceuSol.az) * tamS * 0.9, tamS * (0.35 + elev * 0.8) + (fechado ? 30 : 0), Math.sin(ceuSol.az) * tamS * 0.5 + tamS * 0.3)
       Object.assign(sol.shadow.camera, { left: -tamS, right: tamS, top: tamS, bottom: -tamS, near: 1, far: tamS * 4 + 60 })
       sol.shadow.camera.updateProjectionMatrix()
     }
@@ -748,6 +751,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     sol.shadow.mapSize.set(comPredio ? 4096 : compacto ? 1024 : 2048, comPredio ? 4096 : compacto ? 1024 : 2048)
     ajustarSombra(comPredio && !E.aberto)
     E.ajustarSombra = ajustarSombra
+    // o sol anda com a hora real sem refazer a cena (só a direção da luz e da sombra; a fase do céu remonta)
+    E.moverSol = hora === 'agora' ? (h2) => { ceuSol = ceuDaHora(h2); ajustarSombra(comPredio && !E.aberto); renderer.shadowMap.needsUpdate = true } : null
     sol.shadow.bias = -0.0004; sol.shadow.normalBias = 0.02
     mundo.add(sol)
     E.sol = sol; E.sombraMax = sol.shadow.mapSize.x; E.aplicarQualidade?.()
@@ -955,7 +960,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // minimapa (estilo jogo): salas com a cor do projeto e o contorno do prédio, em metros do mundo
     E.mini = { salas: salas.map((s) => ({ x0: W(s.x), z0: Z(s.y), x1: W(s.x + s.w), z1: Z(s.y + s.h), cor: s.p.cor || '#0f766a', nome: s.p.nome })),
       predio: [fx0, fz0, fx1, fz1], andar: Number.isFinite(+mapa.andar) ? +mapa.andar : 9 }
-    E.elevAndar = null; E.elevInfo = null; E.elevTerreo = null; E.trocarNivel = null   // a cena é refeita: nada da anterior
+    E.elevAndar = null; E.elevInfo = null; E.elevTerreo = null; E.trocarNivel = null; E.precompilarTerreo = null   // a cena é refeita: nada da anterior
     E.cidadeRuas = null
     const predio = comPredio ? montarPredio({ bx0: fx0, bx1: fx1, bz0: fz0, bz1: fz1, entrada, nome: marca?.nome || '', noite: ceu.noite, r, andar, andares }) : null
     if (predio) {
@@ -1790,21 +1795,40 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       }
       // trocar de nível: o térreo esconde o andar (móveis, pessoas, rótulos) e o andar volta ao subir
       const ocultos = []
-      E.trocarNivel = (nivel) => {
-        const c = E.ctrl
-        if (nivel === 'terreo' && E.nivel !== 'terreo') {
-          // esconde o andar, mas não o sol, o céu e o chão da cidade: na rua (fora da recepção) ficava tudo preto
+      // esconde o andar, mas não o sol, o céu e o chão da cidade: na rua (fora da recepção) ficava tudo preto
+      const irTerreo = (sim) => {
+        if (sim) {
+          E.mostrarInterior?.()
+          const c = E.ctrl
           const fica = (o) => o === predio.grupo || o === T.grupo || o === c?.av || o === chao || o === E.grupoCarros || (o.isLight && !o.isPointLight) || (o.isObject3D && sol && o === sol.target)
           for (const o of mundo.children) if (!fica(o) && o.visible) { o.visible = false; ocultos.push(o) }
           T.grupo.visible = true
-          E.gradeAtiva = gradeT; E.nivel = 'terreo'; E.yBase = yT
-        } else if (nivel === 'andar' && E.nivel !== 'andar') {
+        } else {
           ocultos.forEach((o) => { o.visible = true }); ocultos.length = 0
           T.grupo.visible = false
+        }
+      }
+      E.trocarNivel = (nivel) => {
+        const c = E.ctrl
+        if (nivel === 'terreo' && E.nivel !== 'terreo') {
+          irTerreo(true)
+          E.gradeAtiva = gradeT; E.nivel = 'terreo'; E.yBase = yT
+        } else if (nivel === 'andar' && E.nivel !== 'andar') {
+          irTerreo(false)
           E.gradeAtiva = grade; E.nivel = 'andar'; E.yBase = 0
         }
         if (c) c.av.position.y = E.yBase
         E.setNivel?.(E.nivel)
+      }
+      // No térreo as luzes visíveis são outras (as da recepção acendem, as do andar apagam) e o WebGL recompila TODOS os
+      // materiais para o novo conjunto de luzes: a viagem de elevador congelava a tela por 1 a 2 s. Aqui, no ocioso, o
+      // conjunto do térreo é ligado por um instante (sem desenhar), os programas são pedidos à placa de vídeo, que os
+      // compila em paralelo, e tudo volta. Sem compilação paralela no navegador, não faz (seria o mesmo congelamento).
+      E.precompilarTerreo = () => {
+        if (E.nivel === 'terreo' || renderer.extensions?.get?.('KHR_parallel_shader_compile') == null) return
+        irTerreo(true)
+        try { renderer.compile(cena, camera) } catch { /* sem efeito: compila na hora da viagem, como antes */ }
+        irTerreo(false)
       }
     }
     telas.forEach((x) => { desenharTela(x.g, x.a.ocupante ? x.a.papel : 'bloqueio', x.sem, 0); x.tx.needsUpdate = true })   // primeiro desenho de todas
@@ -1974,7 +1998,13 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       return { d, v: new THREE.Vector3(W(s.x + s.w / 2), ALT + 0.35, Z(s.y + s.h / 2)) }
     })
     const tmp = new THREE.Vector3()
+    let rotSumidos = false
     E.rotulos = () => {
+      if (predio && predio.k <= 0.92) {   // prédio fechado: os rótulos ficam apagados; não recalcula a posição a cada quadro
+        if (!rotSumidos) { rot.forEach(({ d }) => { d.style.opacity = '0' }); rotSumidos = true }
+        return
+      }
+      rotSumidos = false
       const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight
       rot.forEach(({ d, v }) => {
         tmp.copy(v).project(camera)
@@ -2521,8 +2551,35 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     E.mudarModo = (m) => { if (E.ctrl) { E.ctrl.modo = m; E.setControle?.({ modo: m, info: E.ctrl.info, sentado: !!E.ctrl.assento }) } }
     if (E.ctrlPendente) { const pend = E.ctrlPendente; E.ctrlPendente = null; iniciarControle(pend.info, pend.modo) }
 
+    // Prédio fechado: a torre é opaca e cobre o andar inteiro, mas o andar (salas, móveis, pessoas, ares) continuava sendo
+    // desenhado por baixo dela, quadro a quadro, junto com a sombra. Fechado e parado, o que está no andar fica escondido;
+    // ao clicar para abrir, volta antes de a torre começar a subir. Luzes nunca são escondidas (mudar o número de luzes
+    // visíveis recompila todos os materiais) e nem o que está na rua (carros, térreo, gente de outra aba).
+    const interiorOculto = []
+    let interiorDesde = -1
+    const caixaI = new THREE.Box3()
+    const temLuz = (o) => { let s = false; o.traverse((x) => { if (x.isLight) s = true }); return s }
+    E.mostrarInterior = () => { interiorOculto.forEach((o) => { o.visible = true }); interiorOculto.length = 0; interiorDesde = -1 }
+    const esconderInterior = () => {
+      const L = E.limitesAndar
+      if (!L) return
+      for (const o of mundo.children) {
+        if (!o.visible || o.isLight || o === predio.grupo || o === chao || o === E.grupoCarros || o === E.terreo?.grupo || (sol && o === sol.target)) continue
+        caixaI.setFromObject(o)
+        if (caixaI.isEmpty()) continue
+        const noAndar = caixaI.min.y > -1.5 && caixaI.max.y < 8 && caixaI.min.x > L[0] - 2 && caixaI.max.x < L[2] + 2 && caixaI.min.z > L[1] - 2 && caixaI.max.z < L[3] + 2
+        if (!noAndar || temLuz(o)) continue
+        o.visible = false; interiorOculto.push(o)
+      }
+    }
+
     // animação
     E.tick = (dt, t) => {
+      if (predio) {
+        const fechadoParado = !E.aberto && predio.k < 0.001 && E.nivel !== 'terreo' && !E.ctrl && !E.viagem
+        if (!fechadoParado) { if (interiorDesde >= 0) E.mostrarInterior() }
+        else if (interiorDesde < 0 || t - interiorDesde > 3) { esconderInterior(); interiorDesde = t }   // de 3 em 3 s pega o que chegou depois
+      }
       pessoas.forEach((p) => animarPessoa(p, t))
       E.herois?.tick(dt, t)
       if (E.telas?.length) {
@@ -2637,16 +2694,28 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     E.compilacao = compilarSeguro(renderer, cena, camera).catch(() => {}).finally(() => { E.compilando = false })
     // objeto que chega depois (modelo baixado): compila escondido, em paralelo, e só então aparece. Sem isso o 1º quadro
     // com ele compilava os sombreadores na hora e a tela congelava (frota, carros, peças das mesas, heróis)
+    // Luz que chega depois (dentro de um modelo baixado, de um carro, de um herói) muda o número de luzes da cena e obriga
+    // o WebGL a recompilar todos os materiais: era o congelamento de 1 a 2 s alguns segundos depois de abrir o mapa e ao
+    // clicar no prédio. Objetos que chegam depois não trazem luz: o brilho deles é do próprio material.
+    let terreoTimer = 0
     E.preparar = (obj) => {
       if (!obj) return Promise.resolve()
+      const luzes = []
+      obj.traverse((o) => { if (o.isLight) luzes.push(o) })
+      luzes.forEach((l) => l.removeFromParent())
       obj.visible = false
       // texturas: uma por quadro para a placa de vídeo (subir todas no mesmo quadro também travava)
       const tex = new Set()
       obj.traverse((o) => [].concat(o.material || []).forEach((m) => Object.values(m).forEach((v) => { if (v?.isTexture) tex.add(v) })))
       const fila = [...tex]
       const subir = () => new Promise((ok) => { const um = () => { const t = fila.shift(); if (!t) { ok(); return } try { renderer.initTexture(t) } catch { /* sem suporte */ } requestAnimationFrame(um) }; um() })
-      return subir().then(() => compilarSeguro(renderer, obj, camera, cena)).catch(() => {}).finally(() => { obj.visible = true })
+      return subir().then(() => compilarSeguro(renderer, obj, camera, cena)).catch(() => {}).finally(() => {
+        obj.visible = true
+        // os materiais novos também precisam do programa do térreo (o carro e o herói aparecem lá)
+        clearTimeout(terreoTimer); terreoTimer = setTimeout(() => { if (estado.current?.mundo === mundo) quandoOcioso(0, () => E.precompilarTerreo?.()) }, 1500)
+      })
     }
+    E.compilacao.then(() => { if (estado.current?.mundo === mundo) quandoOcioso(1500, () => E.precompilarTerreo?.()) })
 
     // clique e cursor
     const ray = new THREE.Raycaster(), mouse = new THREE.Vector2()
@@ -2720,7 +2789,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     E.ajustarSombra?.(!aberto && !!E.predio)
     E.enquadrar?.(false)
   }, [aberto])
-  useEffect(() => { const t = setInterval(() => setRelogio(Math.floor(horaBrasilia() * 4)), 60000); return () => clearInterval(t) }, [])
+  useEffect(() => { const t = setInterval(() => { const h = horaBrasilia(); setRelogio(faseCeu(h)); estado.current?.moverSol?.(h) }, 60000); return () => clearInterval(t) }, [])
 
   useEffect(() => { estado.current.sel = selecionado; estado.current.aoSelecionar = aoSelecionar }, [selecionado, aoSelecionar])
   useEffect(() => { const c = estado.current.controles; if (c) { c.autoRotate = girando; c.autoRotateSpeed = 0.6 } }, [girando, pronto])

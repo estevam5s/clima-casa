@@ -27,18 +27,17 @@ export function montarHerois(pai, { centro, raio = 60, yChao = 0, rua = null }, 
     const corpo = normalizar(modelos.ferro, 1.9)
     corpo.rotation.x = Math.PI / 2          // deitado: voa de cabeça para a frente (+z)
     const env = new THREE.Group(); env.add(corpo)
-    // propulsores: brilho nos pés e nas mãos + uma luz que acompanha
+    // propulsores: brilho nos pés e nas mãos (sem luz de verdade: recompilaria todos os materiais do mapa)
     for (const [x, y, z, r] of [[-0.12, 0, -0.95, 0.14], [0.12, 0, -0.95, 0.14], [-0.35, 0, 0.1, 0.08], [0.35, 0, 0.1, 0.08]]) { const b = brilho(0xfff1c4, r); b.position.set(x, y, z); env.add(b) }
     const jato = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.1, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending }))
     jato.rotation.x = Math.PI / 2; jato.position.set(0, 0, -1.5); env.add(jato)
-    const luz = new THREE.PointLight(0xffd9a0, 6, 14, 2); luz.position.set(0, 0, -1); env.add(luz)
     g.add(env)
     atores.push({ env, tick: (t) => {
       const a = t * 0.11, r = raio * 1.25
       const p = [cx + Math.cos(a) * r, yChao + 58 + Math.sin(t * 0.37) * 6, cz + Math.sin(a) * r * 0.75]
       const p2 = [cx + Math.cos(a + 0.05) * r, yChao + 58 + Math.sin((t + 0.4) * 0.37) * 6, cz + Math.sin(a + 0.05) * r * 0.75]
       env.position.set(...p); env.lookAt(...p2); env.rotateZ(Math.sin(t * 0.9) * 0.25 - 0.35)   // inclina na curva
-      jato.scale.setScalar(0.85 + Math.sin(t * 40) * 0.12); luz.intensity = 5 + Math.sin(t * 33) * 1.2
+      jato.scale.setScalar(0.85 + Math.sin(t * 40) * 0.12)
     } })
   }
   if (modelos.goku) {

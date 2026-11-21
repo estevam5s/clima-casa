@@ -2,6 +2,23 @@
   "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
   "versoes": [
     {
+      "versao": "0.4.8",
+      "data": "2026-11-21",
+      "titulo": "Mapa 3D sem travar ao abrir o prédio",
+      "resumo": "O mapa não congela mais ao clicar no prédio, ao chegar um carro ou herói da biblioteca nem ao descer de elevador, e o prédio fechado ficou bem mais leve.",
+      "novo": [],
+      "melhorias": [
+        "Clicar no prédio abre o andar na hora: antes a tela parava por 1 a 2 segundos",
+        "Prédio fechado mais leve: o andar escondido pela torre não é mais desenhado por baixo dela",
+        "Descer ao térreo pelo elevador sem congelar: a recepção é preparada antes, enquanto o mapa está parado",
+        "A cena não é mais refeita a cada 15 minutos: o sol anda sozinho e a cena só muda na troca de dia, entardecer e noite"
+      ],
+      "seguranca": [],
+      "correcoes": [
+        "Carros voadores e heróis da biblioteca travavam o mapa alguns segundos depois de abrir"
+      ]
+    },
+    {
       "versao": "0.4.7",
       "data": "2026-11-20",
       "titulo": "Travas de segurança nos comandos físicos, mapa mais leve e topo arrumado",
