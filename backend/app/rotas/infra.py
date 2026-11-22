@@ -126,6 +126,18 @@ def retencao(d: Retencao):
 
 
 # ---------- Cloudflare (zynio.com.br) — também pelo agente, com o CLOUDFLARE_API_TOKEN dele ----------
+@rotas_infra.get("/infra/dominios")
+def dominios():
+    _papel("dono", "admin")
+    return _via_agente("dominios", {}, 50)
+
+
+@rotas_infra.get("/infra/cf/visao")
+def cf_visao():
+    _papel("dono", "admin")
+    return _via_agente("cf_visao", {}, 50)
+
+
 @rotas_infra.get("/infra/cf/resumo")
 def cf_resumo():
     _papel("dono", "admin")

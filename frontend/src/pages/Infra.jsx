@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Activity, AlertTriangle, Cloud, Globe, KeyRound, LayoutDashboard, Laptop, Mail, Rocket, Settings, ShieldCheck, ShieldHalf, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, Cloud, Cpu, Gauge, Globe, Link2, KeyRound, LayoutDashboard, Laptop, Mail, Rocket, Settings, ShieldCheck, ShieldHalf, Zap } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Cabecalho } from '../components/ui'
@@ -7,14 +7,16 @@ import Visao from '../components/infra/Visao'
 import Agentes from '../components/infra/Agentes'
 import { Config, Publicacoes, Uso, VercelGeral } from '../components/infra/Vercel'
 import { CfDNS, CfEmail, CfSeguranca, CfToken, CfTurnstile } from '../components/infra/Cloudflare'
+import { CfVisao, PlacasIoT, VercelDominios } from '../components/infra/Novos'
 
 // Infra: o domínio de ponta a ponta. Vercel (site e app), Cloudflare (DNS, e-mails, DNSSEC, Turnstile) e os computadores
 // com o agente. Vercel e Cloudflare são operadas PELO AGENTE do escritório: os tokens têm acesso amplo e não ficam na nuvem.
 const GRUPOS = [
   ['geral', 'Visão geral', Activity, []],
-  ['vercel', 'Vercel', Cloud, [['painel', 'Painel', LayoutDashboard], ['uso', 'Uso', Zap], ['publicacoes', 'Publicações', Rocket], ['config', 'Configurações', Settings]]],
-  ['cloudflare', 'Cloudflare', Globe, [['dns', 'DNS', Globe], ['email', 'E-mails', Mail], ['turnstile', 'Turnstile', ShieldHalf], ['seguranca', 'Segurança', ShieldCheck], ['token', 'Token', KeyRound]]],
+  ['vercel', 'Vercel', Cloud, [['painel', 'Painel', LayoutDashboard], ['uso', 'Uso', Zap], ['publicacoes', 'Publicações', Rocket], ['dominios', 'Domínios', Link2], ['config', 'Configurações', Settings]]],
+  ['cloudflare', 'Cloudflare', Globe, [['visao', 'Visão geral', Gauge], ['dns', 'DNS', Globe], ['email', 'E-mails', Mail], ['turnstile', 'Turnstile', ShieldHalf], ['seguranca', 'Segurança', ShieldCheck], ['token', 'Token', KeyRound]]],
   ['agentes', 'Agentes', Laptop, []],
+  ['iot', 'Placas IoT', Cpu, []],
 ]
 const ANTIGAS = { uso: 'vercel/uso', publicacoes: 'vercel/publicacoes', config: 'vercel/config' }   // abas salvas antes da divisão
 
@@ -67,18 +69,21 @@ export default function Infra() {
     'vercel/painel': <VercelGeral resumo={resumo} saude={saude} uso={uso} recarregar={carregar} />,
     'vercel/uso': <Uso uso={uso} dias={dias} setDias={setDias} />,
     'vercel/publicacoes': <Publicacoes dono={dono} />,
+    'vercel/dominios': <VercelDominios />,
     'vercel/config': <Config resumo={resumo} dono={dono} recarregar={carregar} />,
+    'cloudflare/visao': <CfVisao irPara={irPara} />,
     'cloudflare/dns': <CfDNS dono={dono} />,
     'cloudflare/email': <CfEmail dono={dono} />,
     'cloudflare/turnstile': <CfTurnstile />,
     'cloudflare/seguranca': <CfSeguranca dono={dono} />,
     'cloudflare/token': <CfToken />,
+    iot: <PlacasIoT />,
     agentes: <Agentes dono={dono} admin={sessao?.papel === 'admin'} />,
   }[subAtiva ? `${def[0]}/${subAtiva}` : def[0]]
 
   return (
     <div>
-      <Cabecalho titulo="Infra" descricao="O domínio zynio.com.br de ponta a ponta: Vercel (site e app), Cloudflare (DNS, e-mails, DNSSEC, anti-robô) e os computadores com o agente. Vercel e Cloudflare são operadas pelo agente do escritório: os tokens não ficam na nuvem." />
+      <Cabecalho titulo="Infra" descricao="O domínio zynio.com.br de ponta a ponta: Vercel (site e app), Cloudflare (DNS, e-mails, DNSSEC, anti-robô), os computadores com o agente e as placas Arduino/ESP32. Vercel e Cloudflare são operadas pelo agente do escritório: os tokens não ficam na nuvem." />
       {erro && def[0] === 'vercel' && <div className="mb-4"><Aviso tipo="alerta"><span className="flex items-center gap-1.5"><AlertTriangle className="h-4 w-4" />{erro}</span></Aviso></div>}
       <Abas itens={GRUPOS} ativa={def[0]} onMudar={(g) => irPara(g)} />
       {!!def[3].length && <Abas pequena itens={def[3]} ativa={subAtiva} onMudar={(s) => irPara(`${def[0]}/${s}`)} />}

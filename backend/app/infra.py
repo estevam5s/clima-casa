@@ -223,8 +223,34 @@ def op_env(a):
     return {"itens": sorted(({"nome": e["key"], "alvos": e.get("target") or [], "tipo": e.get("type"), "atualizado": e.get("updatedAt")} for e in envs), key=lambda x: x["nome"])}
 
 
+def op_dominios(_a):
+    """Domínios de cada projeto como na aba Domains da Vercel: verificação, redirecionamento, como o DNS está apontado
+    (A/CNAME), conflitos e os endereços que a publicação em produção atende (aliases)."""
+    from .cloudflare import _paralelo
+    out = []
+    for nome, p in projetos().items():
+        pid = p["id"]
+        doms = _req("GET", f"/v9/projects/{pid}/domains").get("domains", [])
+        prod = _producao(pid)
+        tarefas = {d["name"]: (lambda n=d["name"]: _req("GET", f"/v6/domains/{n}/config")) for d in doms}
+        if prod:
+            tarefas["__aliases"] = lambda: _req("GET", f"/v2/deployments/{prod}/aliases").get("aliases", [])
+        res = _paralelo(tarefas)
+        itens = []
+        for d in doms:
+            c = res.get(d["name"])
+            c = {} if isinstance(c, Exception) else (c or {})
+            itens.append({"nome": d["name"], "verificado": d.get("verified"), "redireciona": d.get("redirect"), "codigo_redirecionamento": d.get("redirectStatusCode"),
+                          "ramo": d.get("gitBranch"), "criado": d.get("createdAt"), "configurado_por": c.get("configuredBy"), "mal_configurado": c.get("misconfigured"),
+                          "conflitos": c.get("conflicts") or [], "valores_a": c.get("aValues") or [], "cnames": c.get("cnames") or [],
+                          "nameservers": c.get("nameservers") or [], "servico": c.get("serviceType")})
+        al = res.get("__aliases")
+        out.append({"projeto": nome, "dominios": itens, "aliases": [] if isinstance(al, Exception) or not al else [{"alias": x.get("alias"), "criado": x.get("created")} for x in al]})
+    return {"projetos": out, "lido_em": int(time.time())}
+
+
 OPS = {"resumo": op_resumo, "uso": op_uso, "publicacoes": op_publicacoes, "eventos": op_eventos, "promover": op_promover, "republicar": op_republicar,
-       "cancelar": op_cancelar, "apagar": op_apagar, "limpar": op_limpar, "retencao": op_retencao, "env": op_env}
+       "cancelar": op_cancelar, "apagar": op_apagar, "limpar": op_limpar, "retencao": op_retencao, "env": op_env, "dominios": op_dominios}
 ALTERAM = {"promover", "republicar", "cancelar", "apagar", "limpar", "retencao", "agente_convite"}
 
 

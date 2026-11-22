@@ -464,6 +464,32 @@ def op_cf_resumo(_a):
     return out
 
 
+def op_cf_visao(_a):
+    """Página inicial da zona, no jeito do painel da Cloudflare: estado, plano, nameservers, DNSSEC, SSL/TLS, registros por
+    tipo, e-mails roteados e widgets do Turnstile, com o que vale a pena ajustar."""
+    z = zona()
+    r = _paralelo({"regs": _registros, "dnssec": lambda: op_cf_dnssec({})["estado"], "cfg": lambda: op_cf_config({})["itens"],
+                   "email": lambda: _resumo_email(op_cf_email({"atividade": False})), "turnstile": lambda: len(_widgets_da_zona())})
+    regs = _ou_erro(r["regs"])
+    tipos = {}
+    for x in regs:
+        tipos[x["type"]] = tipos.get(x["type"], 0) + 1
+    cfg = {} if isinstance(r["cfg"], Exception) else {i["id"]: i["valor"] for i in r["cfg"]}
+    dicas = []
+    if not isinstance(r["dnssec"], Exception) and r["dnssec"] != "active":
+        dicas.append("Ligar o DNSSEC (Segurança → DNSSEC) protege contra respostas de DNS falsificadas.")
+    if any(x.get("proxied") for x in regs):
+        dicas.append("Há registros com o proxy laranja: nos endereços da Vercel isso quebra o certificado.")
+    return {"zona": {"nome": z["name"], "estado": z.get("status"), "plano": (z.get("plan") or {}).get("name"), "pausada": z.get("paused"),
+                     "nameservers": z.get("name_servers"), "registrador": z.get("original_registrar"), "ativa_desde": z.get("activated_on"),
+                     "criada": z.get("created_on"), "tipo": z.get("type")},
+            "registros": {"total": len(regs), "por_tipo": tipos, "com_proxy": sum(1 for x in regs if x.get("proxied"))},
+            "dnssec": None if isinstance(r["dnssec"], Exception) else r["dnssec"],
+            "ssl": {k: cfg.get(k) for k in ("ssl", "min_tls_version", "tls_1_3", "always_use_https", "http3", "ipv6")},
+            "email": None if isinstance(r["email"], Exception) else r["email"], "turnstile": None if isinstance(r["turnstile"], Exception) else r["turnstile"],
+            "dicas": dicas, "aviso": "Todos os registros são “DNS only”: o tráfego vai direto para a Vercel, então cache, WAF e certificados são da Vercel."}
+
+
 def _dominios_vercel() -> list:
     """Só os domínios dos projetos (bem mais leve que infra.op_resumo)."""
     from . import infra

@@ -1,5 +1,22 @@
 [
  {
+  "versao": "0.5.1",
+  "data": "2026-11-21",
+  "titulo": "Infra mais completa: domínios da Vercel, visão geral da Cloudflare e placas IoT",
+  "resumo": "A tela Infra ganhou as partes que faltavam para acompanhar o domínio como nos painéis da Vercel e da Cloudflare, e uma aba para as placas Arduino e ESP32.",
+  "novo": [
+   "Vercel → Domínios: cada endereço do app e do site, como o DNS aponta para a Vercel, conflitos e os endereços que a produção atende",
+   "Cloudflare → Visão geral: estado da zona, nameservers, DNSSEC, SSL/TLS e registros por tipo, com atalhos para DNS, e-mails, Turnstile e segurança",
+   "Infra → Placas IoT: as placas Arduino/ESP32 ligadas ao sistema, quais estão online, comandos na fila, sinal do Wi-Fi, IP e firmware, e o que uma placa faz ou não faz aqui"
+  ],
+  "melhorias": [
+   "Publicações da Vercel com filtro por estado (prontas, com erro, em andamento), busca por endereço, commit ou autor, e coluna de ambiente",
+   "Log do build com busca, linhas de erro e aviso destacadas e botão Copiar"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
   "versao": "0.5.0",
   "data": "2026-11-21",
   "titulo": "Mensagem de voz na IA, Google Home completo, transmissor testado na hora e segurança da conta",

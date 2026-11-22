@@ -1,619 +1,573 @@
 <div align="center">
 
-<img src="frontend/public/icone-512.png" alt="Clima Escritório" width="120" />
+<img src="frontend/public/icone-512.png" alt="Clima Escritório" width="112" />
 
-# Clima Escritório: ar-condicionado por infravermelho, com Alexa, agenda e automações
+# Clima Escritório
 
-**Liga, desliga e ajusta os ares do escritório pelo navegador, pelo celular, pelo computador ou pela voz, usando um transmissor Wi-Fi de infravermelho de R$ 60 no lugar do controle remoto.**
+**Ar-condicionado, luzes, cafeteira, persianas e fechadura do escritório num painel só: pelo navegador, pelo celular, pelo computador, pelo Telegram ou pela voz.**
 
-O sistema grava os sinais do controle original de cada ar e os reenvia por um transmissor **Tuya SRW-004** (NovaDigital / Smart Life). Em cima disso tem painel web instalável (PWA), apps para Android, macOS, Windows e Linux, **Alexa e Google Home**, **assistente de IA** (painel, Telegram e terminal), **bot do Telegram** com 498 comandos, agenda, automações, cenas, relatórios com consumo e custo, **mapa 3D multijogador** com o prédio, a cidade e carros dirigíveis, **backup e restauração** do sistema inteiro, **treinamento de segurança e ISO** com mais de mil perguntas, marca própria (white label) e um firewall de aplicação.
+O sistema grava os sinais do controle remoto original de cada ar e os reenvia por um transmissor Wi-Fi de infravermelho
+**Tuya SRW-004** (Smart Life). Os demais aparelhos entram pela nuvem Smart Life ou por uma placa própria (Arduino, ESP32).
+Tudo roda numa API na Vercel com banco no Supabase e um **agente** num computador do escritório, o único que fala com a rede local.
 
-🔗 **Painel:** [app.zynio.com.br](https://app.zynio.com.br) · 🌐 **Site:** [zynio.com.br](https://zynio.com.br) · 📦 **Downloads:** [Releases](https://github.com/estevam5s/clima-casa/releases) · 📘 **Manual:** [`docs/MANUAL.md`](docs/MANUAL.md)
+[Painel](https://app.zynio.com.br) · [Site](https://zynio.com.br) · [Downloads](https://github.com/estevam5s/clima-casa/releases) · [Manual](docs/MANUAL.md) · [Guia para quem vai mexer no código](CLAUDE.md)
 
-> 🤝 **Vai continuar o projeto (pessoa ou agente)?** Leia o [`CLAUDE.md`](CLAUDE.md) inteiro antes da primeira mudança.
-> Ele tem a arquitetura, as receitas de como mexer e as armadilhas que já aconteceram.
-
-<br/>
-
-![Python](https://img.shields.io/badge/Python_3.13-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![React](https://img.shields.io/badge/React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![Vite](https://img.shields.io/badge/Vite_5-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
-![Three.js](https://img.shields.io/badge/Three.js-000000?style=for-the-badge&logo=threedotjs&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)
-![Vercel](https://img.shields.io/badge/Deploy_Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
-![Expo](https://img.shields.io/badge/Expo_SDK_58-000020?style=for-the-badge&logo=expo&logoColor=white)
-![Electron](https://img.shields.io/badge/Electron-47848F?style=for-the-badge&logo=electron&logoColor=white)
-![Alexa](https://img.shields.io/badge/Alexa_%2B_Google-00CAFF?style=for-the-badge&logo=amazonalexa&logoColor=white)
-![Tuya](https://img.shields.io/badge/Tuya_SRW--004-FF4800?style=for-the-badge&logo=tuya&logoColor=white)
+![Python](https://img.shields.io/badge/Python_3.13-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React_18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite_5-646CFF?style=flat-square&logo=vite&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-000000?style=flat-square&logo=threedotjs&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?style=flat-square&logo=cloudflare&logoColor=white)
+![Next.js](https://img.shields.io/badge/Site_Next.js-000000?style=flat-square&logo=nextdotjs&logoColor=white)
+![Expo](https://img.shields.io/badge/Expo_SDK_58-000020?style=flat-square&logo=expo&logoColor=white)
+![Electron](https://img.shields.io/badge/Electron-47848F?style=flat-square&logo=electron&logoColor=white)
+![Swift](https://img.shields.io/badge/iOS_Swift-F05138?style=flat-square&logo=swift&logoColor=white)
 
 </div>
 
----
-
-## 📑 Sumário
-
-1. [O que é](#-o-que-é)
-2. [Visão geral em números](#-visão-geral-em-números)
-3. [Funcionalidades: controle dos ares](#-funcionalidades-controle-dos-ares)
-4. [Funcionalidades: voz (Alexa e Google)](#-funcionalidades-voz-alexa-e-google)
-5. [Funcionalidades: rotina do escritório](#-funcionalidades-rotina-do-escritório)
-5.1. [Inteligência artificial (painel, Telegram e terminal)](#-inteligência-artificial-painel-telegram-e-terminal)
-5.2. [Bot do Telegram](#-bot-do-telegram)
-5.3. [Mapa 3D: avatares, carros e multijogador](#-mapa-3d-avatares-carros-e-multijogador)
-5.4. [Backup e restauração](#-backup-e-restauração)
-5.5. [Treinamento e conformidade](#-treinamento-e-conformidade)
-6. [Relatórios e exportação](#-relatórios-e-exportação)
-7. [Marca própria (white label)](#-marca-própria-white-label)
-8. [Aparência e tema](#-aparência-e-tema)
-9. [Apps](#-apps)
-10. [Arquitetura](#️-arquitetura)
-11. [Stack tecnológica](#-stack-tecnológica)
-12. [Estrutura de pastas](#-estrutura-de-pastas)
-13. [Modelo de dados](#️-modelo-de-dados)
-14. [Rotinas agendadas (pg_cron)](#-rotinas-agendadas-pg_cron)
-15. [Rotas da aplicação](#️-rotas-da-aplicação)
-16. [API](#-api)
-17. [Segurança](#-segurança)
-18. [Variáveis de ambiente](#️-variáveis-de-ambiente)
-19. [Como rodar localmente](#-como-rodar-localmente)
-20. [Deploy](#️-deploy)
-21. [Scripts utilitários](#-scripts-utilitários)
-22. [Roadmap](#-roadmap)
-23. [FAQ](#-faq)
-24. [Apêndice A: como o código IR é escolhido](#-apêndice-a-como-o-código-ir-é-escolhido)
-25. [Apêndice B: reconfiguração automática do transmissor](#-apêndice-b-reconfiguração-automática-do-transmissor)
-26. [Apêndice C: como o consumo é estimado](#-apêndice-c-como-o-consumo-é-estimado)
-27. [Licença](#-licença)
+> **Vai continuar o projeto (pessoa ou agente de IA)?** Leia as seções 0 a 2 do [`CLAUDE.md`](CLAUDE.md) antes da primeira
+> mudança. Ele tem as regras de ouro, o mapa "quero mudar X → arquivo Y", as receitas e as armadilhas que já aconteceram.
+> O diário de cada sessão de trabalho fica em [`docs/continuar/`](docs/continuar/) (a mais recente em `ATUAL.md`).
 
 ---
 
-## 🎯 O que é
+## Sumário
 
-Ar-condicionado split comum não tem Wi-Fi: só obedece ao controle remoto. O **SRW-004** é um "controle remoto universal" com Wi-Fi: aprende o sinal de cada botão e o repete. O app oficial (Smart Life) faz isso de forma limitada e sem agenda decente, relatório ou integração própria.
-
-O Clima Escritório resolve:
-
-- **Um painel só** para todos os ares de todos os lugares (escritório, casa, sala de reunião), com estado, temperatura e histórico.
-- **Voz de verdade**: "Alexa, ligar o ar da recepção em 22 graus", pelo Sinric Pro ou por uma skill própria.
-- **Rotina automática**: ligar às 7h30 em dias úteis, desligar depois de 3 horas ligado, ligar a cena "Reunião" quando alguém liga o ar da sala.
-- **Visão de custo**: quantas horas cada ar ficou ligado e quanto isso custou, com exportação para PDF, Word, Excel e outros.
-- **Marca do cliente**: nome, logo, cores, fontes, textos do login e do menu, para entregar o sistema com a identidade de quem usa.
-
-Público: o administrador do lugar. Não há cadastro público: só entra quem tem `app_metadata.role = "admin"` no Supabase Auth.
+1. [Em números](#em-números)
+2. [Como funciona em 30 segundos](#como-funciona-em-30-segundos)
+3. [Hardware suportado](#hardware-suportado)
+4. [Funcionalidades](#funcionalidades)
+5. [Arquitetura](#arquitetura)
+6. [Um comando de ponta a ponta](#um-comando-de-ponta-a-ponta)
+7. [Stack](#stack)
+8. [Estrutura do repositório](#estrutura-do-repositório)
+9. [Banco de dados](#banco-de-dados)
+10. [API](#api)
+11. [Usuários e permissões](#usuários-e-permissões)
+12. [Segurança](#segurança)
+13. [Configuração e segredos](#configuração-e-segredos)
+14. [Rodar localmente](#rodar-localmente)
+15. [Instalar o agente no escritório](#instalar-o-agente-no-escritório)
+16. [Publicar](#publicar)
+17. [Apps](#apps)
+18. [Versões e novidades](#versões-e-novidades)
+19. [Testes e checklist de entrega](#testes-e-checklist-de-entrega)
+20. [Problemas comuns](#problemas-comuns)
+21. [Perguntas frequentes](#perguntas-frequentes)
+22. [Apêndices técnicos](#apêndices-técnicos)
+23. [Licença](#licença)
 
 ---
 
-## 📊 Visão geral em números
+## Em números
+
+Conferidos no código em 21/11/2026.
 
 | Item | Quantidade |
 |---|---|
-| Telas no painel web | 42 |
-| Rotas de API (`/api`, OAuth, Alexa, Telegram, IA) | 371 |
-| Tabelas no Postgres (todas com RLS) | 40 |
-| Rotinas pg_cron | 10 |
-| Comandos do bot do Telegram | 498 (em 22 categorias) |
+| Telas no painel web | 44 |
+| Rotas da API (contando cada método) | 438 |
+| Tabelas no Postgres, todas com RLS | 45 |
+| Rotinas agendadas (pg_cron) | 10 |
+| Comandos do bot do Telegram | 1.114, em 28 categorias |
 | Perguntas no treinamento de segurança e ISO | 1.017 |
 | Formatos de exportação de relatório | 8 (PDF, DOCX, XLSX, CSV, HTML, XML, JSON, Markdown) |
-| Opções de marca própria | 34 |
-| Apps nativos | 5 (Android, macOS Apple Silicon, macOS Intel, Windows, Linux x64/arm64) |
-| Backend (Python) | ~22.000 linhas |
-| Frontend (React) | ~31.000 linhas |
+| Idiomas do site institucional | 6 (português, inglês, espanhol, francês, russo, coreano) |
+| Versões publicadas do sistema | 52 (numeração em sequência desde 0.0.0) |
+| Apps nativos | Android, iPhone, macOS (Apple Silicon e Intel), Windows, Linux (x64 e arm64), versão 1.7.0 |
+| Backend Python | ~26 mil linhas |
+| Frontend React | ~36 mil linhas (mais ~5 mil do site) |
 
 ---
 
-## ❄️ Funcionalidades: controle dos ares
+## Como funciona em 30 segundos
 
-| Recurso | Como funciona |
-|---|---|
-| Painel ao vivo | Faixa de métricas, ar em 3D (Three.js) com display, aleta e LED animados, controle rápido, gráfico de 14 dias e atividade recente |
-| Detalhe do aparelho | Mostrador de temperatura, modos (frio, quente, ventilar, desumidificar, automático), ventilação, botões extras (swing, turbo, luz), temporizador e histórico |
-| Gravação de botões | O transmissor entra em modo estudo por 30 s; você aperta o botão no controle original e o sinal é salvo em `codigos` |
-| Vários lugares | **Projetos** separam escritório, casa e filiais; o seletor no menu filtra todas as telas |
-| Vários transmissores | Cada ar aponta para um SRW-004; descoberta na rede local e importação da conta Smart Life (um ou todos) |
-| Reconexão automática | Se o transmissor mudar de IP, de Wi-Fi ou for pareado de novo, o agente acha o novo endereço e a nova chave sozinho ([Apêndice B](#-apêndice-b-reconfiguração-automática-do-transmissor)) |
-| Envio com plano B | Agente local primeiro; se ele estiver fora do ar, tenta a nuvem Tuya |
-| Notificações | Central guardada no banco: abas (todas, não lidas, importantes, segurança), marcar como lida, limpar uma ou todas, ações direto na notificação (resolver alerta, desbloquear IP, reconectar transmissor), som e preferências por tipo |
-| Barra de status | No lugar do título repetido: projeto, agente online, ares ligados, transmissores e relógio |
-| Temperatura de fora | Temperatura, sensação e umidade reais (Open-Meteo) no display do ar em 3D e no painel |
-| Busca ⌘K | Vai para qualquer tela ou aparelho pelo teclado |
+1. Ar split comum não tem Wi-Fi: só obedece ao controle remoto. O **SRW-004** aprende o sinal de cada botão e o repete.
+2. O **agente** (o mesmo backend, rodando num computador do escritório) fala com o SRW-004 pela rede local, porta 6668.
+3. O painel, os apps, a Alexa, o Google, o Telegram e a agenda pedem o comando à **API na Vercel**, que grava o pedido numa
+   fila no Supabase. O agente pega o pedido em cerca de 1 segundo, manda o infravermelho e grava o resultado.
+4. Sem agente ligado no escritório, nenhum comando chega aos ares, mesmo com o painel aberto e "online".
+
+O infravermelho só vai num sentido: o ar não diz se está ligado. O painel mostra o último estado que **o sistema** mandou.
+Se alguém usar o controle remoto, há o botão "Ligaram ou mudaram pelo controle?" para acertar o estado sem mandar sinal.
 
 ---
 
-## 🗣️ Funcionalidades: voz (Alexa e Google)
+## Hardware suportado
 
-**Caminho principal: Sinric Pro.** Cada ar com "Disponível na Alexa" vira um dispositivo "Window AC Unit" no Sinric (criado e apagado automaticamente junto com o aparelho). Funciona na Alexa e no Google Home: ligar, desligar, modo, temperatura e ventilação. O plano gratuito do Sinric aceita 3 dispositivos.
+| Aparelho | Como entra no sistema | Observações |
+|---|---|---|
+| **Ar-condicionado** (qualquer marca com controle IR) | Transmissor **Tuya SRW-004** (Smart IR) | Um transmissor atende até ~4 ares à vista (8 a 10 m, sem parede). Ares **iguais** no alcance do mesmo transmissor mudam juntos e viram uma **zona**. No protocolo **Gree**, gravando só o Desligar, o sistema gera os outros 300 botões |
+| **Luzes** (lâmpadas, fitas, interruptores) | Nuvem **Smart Life** (Tuya) ou placa própria | Interruptor de parede com várias teclas (ex.: Novadigital 4 teclas) vira uma luz por tecla. Acende ao anoitecer pelo pôr do sol real |
+| **Cafeteira** | Tomada inteligente Smart Life ou placa com relé | Desliga sozinha por segurança depois do tempo configurado |
+| **Persianas** | Motor Smart Life ou placa (relé de subir/descer) | Posição por porcentagem; ligadas às janelas do mapa 3D |
+| **Fechadura** | Fechadura Wi-Fi Smart Life ou placa | Destrancar pela internet depende do modelo; o sistema avisa quando não aceita |
+| **Placa própria** | Arduino UNO R4 WiFi, GIGA R1, Opta, Portenta H7, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, ESP32, ESP8266 | O painel gera o código pronto (com token só da placa). Ela busca os comandos por HTTPS a cada 3 s. Tela **Infra → Placas IoT** mostra as placas online, sinal do Wi-Fi, IP e firmware |
+| **Computador do agente** | macOS, Windows, Linux, **Raspberry Pi 3B/4/5 com sistema de 64 bits** | Arduino e ESP32 **não** rodam o agente (ele é Python com Postgres, TLS e WebSocket) |
+| **Assistentes de voz** | Alexa e Google Home pelo **Sinric Pro** | Skill própria da Alexa existe como opção (`alexa/`) |
 
-**Alternativa: skill própria** (Smart Home API v3, sem limite de dispositivos). OAuth 2.0 com tela de consentimento própria, Lambda em `alexa/lambda/index.mjs` e **cenas** expostas como `SCENE_TRIGGER` ("Alexa, ativar Reunião"). Passo a passo em [`alexa/GUIA.md`](alexa/GUIA.md).
+### Parear um aparelho Smart Life (exemplo: interruptor Novadigital de 4 teclas)
 
-A tela **Comandos da Alexa** gera as frases que funcionam para cada aparelho e receitas de Rotinas.
+1. Instale o interruptor com **fio neutro** na caixa (sem neutro ele não liga o Wi-Fi) e respeite a carga máxima por tecla.
+2. No celular, ligado ao **Wi-Fi 2,4 GHz** do escritório (5 GHz não funciona), abra o app **Smart Life** (não o app da marca).
+3. Segure uma tecla por ~6 s até a luz piscar rápido. No app: **+ → Adicionar dispositivo**, aceite o que ele encontrar,
+   escolha a rede e digite a senha do Wi-Fi.
+4. Se não achar no modo rápido, segure de novo até piscar devagar (modo AP) e use "Modo AP" no app.
+5. Teste no Smart Life as quatro teclas. Depois, no painel: **Luzes → Adicionar interruptor**. O sistema lê as teclas
+   (`switch_1` a `switch_4`) e cria uma luz para cada uma, com nome e sala.
+
+A conta Smart Life precisa estar conectada em **Configurações → Contas** (QR Code lido pelo app Smart Life). Só liga e desliga:
+interruptor de tecla não tem regulagem de brilho.
 
 ---
 
-## 🗓️ Funcionalidades: rotina do escritório
+## Funcionalidades
+
+### Ares
 
 | Recurso | O que faz |
 |---|---|
-| Agenda | Dias da semana + horário + ação, com grade da semana e próxima execução |
-| Automações | Gatilho (ligou, desligou, ligado há N min, horário) → condições (dias, janela de horário que pode virar a meia-noite) → ações (aparelho, cena, desligar depois de X min). Filtra pela origem (Alexa, painel, agenda, cena). Ações de automação não disparam outras automações |
-| Cenas | Várias ações em sequência com um toque ou por voz |
+| Painel | Abre num ar com transmissor (ligado primeiro), avisa o que impede o ar de obedecer, ar em 3D, ares da sala lado a lado, gasto, semana e **mapa de uso** (grade dia × hora com pico) |
+| Detalhe do ar | Mostrador, modos, ventilação, temporizador, histórico, botões gravados, copiar botões de outro ar igual, gerar botões Gree |
+| Gravar botão | O transmissor entra em modo estudo por 30 s. O sistema **reconhece o sinal** (protocolo, pulsos e, no Gree, o ajuste que ele manda) e, se você gravou o ajuste errado, salva no botão certo e avisa. "Conferir agora" revisa todos os botões |
+| Transmissores | Assistente **Adicionar transmissor** (importar da conta Smart Life, procurar na rede ou cadastrar à mão) com **teste de conexão** que corrige o protocolo Tuya (3.3/3.4/3.5). Reconexão automática quando muda IP ou chave |
+| Vários ares por transmissor | Ligar/desligar todos, aviso de ares que respondem juntos, **teste de interferência** (um ar por vez, quem está na sala marca quem apitou) que grava as zonas reais |
+| Responsável por ar | Um usuário pode cuidar só de alguns ares; o servidor recusa os outros |
+
+### Voz, Telegram e IA
+
+| Recurso | O que faz |
+|---|---|
+| Alexa e Google Home | Pelo Sinric Pro: ligar, desligar, modo, temperatura, ventilação. Uma zona vira **um** aparelho na Alexa. Diagnóstico ("vai funcionar em outra Alexa?") e teste ao vivo |
+| Comandos da Alexa | Catálogo de frases que a Alexa entende, por aparelho, com botão Testar |
+| Bot do Telegram | 1.114 comandos em 28 categorias, com as permissões de quem vinculou. Painel do ar no estilo do controle remoto, timers, relatórios, lote com confirmação, avisos importantes |
+| Assistente de IA (`/ia`) | Modelos da NVIDIA com ferramentas que veem o estado real e agem **com as permissões de quem pergunta**. Conversas salvas, comandos com `/`, **mensagem de voz** (transcrita no servidor, funciona no Brave), imagens, estilos de resposta, "Pensar mais", instruções pessoais, ouvir a resposta, avaliar |
+| IA no terminal (`clima-ia`) | Cliente no estilo do Claude Code: configuração na primeira execução (tema, cor, tema do código, modo), `/config`, `/retomar`, comandos diretos dos ares. Instaladores para macOS, Linux (Debian/Ubuntu, Fedora, Arch, openSUSE, WSL) e Windows |
+
+Instalar o `clima-ia`:
+
+```bash
+# macOS / Linux / WSL
+curl -fsSL https://app.zynio.com.br/instalar-ia.sh | bash
+```
+```powershell
+# Windows (PowerShell)
+irm https://app.zynio.com.br/instalar-ia.ps1 | iex
+```
+
+### Rotina do escritório
+
+| Recurso | O que faz |
+|---|---|
+| Agenda | Dias + horário + ação, com modelos prontos e histórico |
+| Automações | Gatilho (ligou, desligou, ligado há N min, horário) → condições (dias, janela que pode virar a meia-noite) → ações (ar, cena, desligar depois de X min). Ações de automação não disparam outras |
+| Cenas | Várias ações com um toque ou por voz |
 | Temporizadores | "Desligar em 90 min", um por aparelho |
-| Atividade | Linha do tempo de todo comando e evento, ao vivo, com filtros e exportação CSV |
-| Notificações | Sino no topo e página própria no menu (com contador): histórico, busca, filtros por tipo e período, arquivar e restaurar, ações em lote, CSV |
-| Atalhos | Menu no topo com as áreas mais usadas e **Backup agora** (JSON sem senhas nem chaves; dono e admin) |
-
-### Escritório: iluminação, cafeteira, persianas e fechadura
-
-| Recurso | O que faz |
-|---|---|
-| Iluminação | Lâmpadas, painéis, fitas e interruptores Smart Life (ou placa própria com relé): acender, apagar, brilho, **acender ao anoitecer pelo pôr do sol real** (calculado para o escritório) e **ao destrancar a porta à noite**; horários fixos |
-| Cafeteira, persianas, fechadura | Tomada inteligente, motor de persiana e fechadura Wi-Fi Smart Life (ou placa própria), com agendas e automações (desligar a cafeteira por segurança, fechar com sol forte, auto trancar) |
-
-### Um transmissor por sala
-
-O infravermelho não tem endereço: ares iguais que o sinal alcança mudam juntos e parede bloqueia o sinal. A tela
-**Transmissores → Salas e transmissores** e o selo em **Projetos** mostram cada sala com transmissor próprio, dividido ou sem;
-o cadastro de ar sugere o transmissor da sala; o agente descobre sozinho o protocolo Tuya certo (3.3/3.4/3.5); um
-transmissor removido por engano volta como estava ao ser importado de novo (30 dias).
+| Música | Spotify (conta Premium): player, aparelhos (Echo incluso), rotinas por horário ou quando um ar liga |
+| Luzes, cafeteira, persianas, fechadura | Telas próprias, agendas, automações e travas de segurança por aparelho |
 
 ### Mapa 3D
 
-Prédio de 11 andares na cidade, escritório no 9º, equipe com expediente, monitores, previsão do tempo e chuva, semáforos,
-pedestres e terminal de ônibus. Controlando uma pessoa: andar (W A S D), sentar e trabalhar (F), **fazer café na copa (C)**,
-descer ao térreo pelo elevador (R) e **andar pelas ruas, calçadas, praças e terminal**. À noite as salas, o corredor e a copa
-acendem; com as luzes cadastradas, a sala com a lâmpada real apagada fica escura.
+Prédio de 11 andares numa cidade (escritório no 9º, térreo com recepção, elevador), equipe com expediente, monitores com o
+trabalho de cada sala, previsão do tempo e chuva reais, trânsito com semáforos, pedestres, terminal de ônibus, avatares 3D
+(GLB) com editor de aparência, **carros dirigíveis** com física (câmbio automático, ABS, controle de tração, nitro, voo) e
+**multijogador** pelo Supabase Realtime. Controles: W A S D andar, F sentar, C café, R elevador, V câmera, Esc sair.
 
----
+### Gestão
 
-## 🤖 Inteligência artificial (painel, Telegram e terminal)
-
-Modelos da **NVIDIA** (Nemotron) com ferramentas que veem o estado real e agem **com as permissões de quem pergunta**.
-
-| Onde | Como é |
+| Recurso | O que faz |
 |---|---|
-| Painel (`/ia`) | Chat no estilo do Claude: conversas salvas (fixar, renomear, apagar, procurar), comandos com `/`, anexar arquivo de texto, ditado por voz, escolha do modelo por mensagem, copiar, tentar de novo, editar a pergunta e baixar em Markdown |
-| Telegram | Qualquer texto vira conversa com a IA; ações em lote pedem o botão Confirmar |
-| Celular (Android) | Tela Assistente de IA (Mais → Assistente de IA) |
-| Terminal (`clima-ia`) | No jeito do Claude Code: barra de status, modos de permissão (Shift+Tab), `@arquivo`, `!comando`, `#memória`, comandos diretos dos ares (`/ares`, `/ligar`, `/temp`), `/revisar` (git diff). Conhece o projeto (CLAUDE.md, diário) e mascara segredos antes de enviar |
+| Relatórios | Período livre, comparação com o período anterior, horas ligado, kWh e custo estimados, mapa de uso, falhas. Exporta em 8 formatos (inclusive no **modelo da Prefeitura**, com brasão) e manda por e-mail |
+| Atividade | Linha do tempo de todo comando e evento, com análise, busca no servidor e exportação |
+| Notificações | Central com abas, ações direto na notificação, lote, preferências e aviso de versão nova |
+| Backup e restauração | Zip com SHA-256 por tabela no Storage privado; simular, mesclar ou substituir (digitando `RESTAURAR`). Sessões, passkeys e a fila nunca são restaurados |
+| Treinamento | Provas sorteadas de 1.017 perguntas (LGPD, Anexo A da ISO/IEC 27001:2022, Estrutura Harmonizada) com resultado por e-mail |
+| Conformidade | Checagem dos controles da ISO 27001 e minutas de política, termos e declaração de aplicabilidade |
+| Marca própria | Nome, logo, cores, fontes, textos do login e do menu, modo manutenção, histórico de versões |
+| Bugs | Erros de tela viram registro automático, com varredura e acompanhamento |
 
-Ferramentas: estado geral, ares, salas, zonas, transmissores, agentes, atividade, cenas, relatório de qualquer período, tempo lá fora, luzes e aparelhos, notificações, comandar um ar, timer, desligar todos e cenas (os dois últimos só com confirmação). A chave fica cifrada no banco.
+### Infra (dono e administradores)
 
----
+A tela `/infra` opera a Vercel e a Cloudflare **pelo agente do escritório**: os tokens têm acesso amplo e nunca vão para a nuvem.
 
-## 💬 Bot do Telegram
-
-498 comandos em 22 categorias, com as permissões de quem vinculou o Telegram (código de uso único gerado no painel).
-`/menu` mostra o estado no topo (ares ligados, agente, tempo lá fora, notificações) e os atalhos; **Todos os comandos** navega por categoria.
-
-- Ares: painel de cada ar no jeito do controle remoto, `/usar NOME` (ar atual), `/23`, `/frio23`, `/frio_alta`, `/mais`, `/timer`, `/diagnostico`.
-- Lote: `/todos23`, `/sala23 NOME`, `/zona23 NOME`, `/desligartodos` (sempre pedem confirmação).
-- Timers prontos (`/ligarpor60`, `/ligarem30`, `/desligarem90`), relatórios por período (`/gasto15d`, `/mespassado`), clima, luzes, persianas, cafeteira, música, segurança e sistema.
-- `/avisos sim` manda os avisos importantes para o Telegram (um por assunto a cada 6 h; `/silenciar 8`).
-
----
-
-## 🏙️ Mapa 3D: avatares, carros e multijogador
-
-- Prédio de 11 andares, o escritório no 9º, térreo com recepção e uma cidade em volta (avenidas de 640 m, trânsito, estacionamentos, posto, praças, outdoors).
-- **Avatares 3D** (GLB) com editor de aparência (cores, recolorir, pincel, material, forma); modelos grandes ganham versões leves para o mapa.
-- **Carros dirigíveis** com física de verdade: pneus, transferência de peso, câmbio automático P R N D, ABS, controle de tração e de estabilidade, nitro e voo com propulsores. Moto com piloto sentado. Entrar e sair com animação; pegar carro do trânsito ou de um estacionamento.
-- **Multijogador**: quem abre o mapa ao mesmo tempo aparece para os outros (Supabase Realtime, canal privado só para usuários ativos).
-- Mesas com monitor, teclado, mouse e PC 3D; a tela de cada posto mostra o trabalho da sala.
-
----
-
-## 💾 Backup e restauração
-
-Página `/backup` (dono ou admin com acesso a todos os projetos) e atalho no topo:
-
-1. **Backup completo**: todas as tabelas num `.zip` com manifesto e SHA-256 de cada uma; segredos vão cifrados (como estão no banco). Guardado no Storage privado (`backups-sistema`), com download por link de 10 min.
-2. **Upload** de um `.zip` direto para o Storage (não passa pela Vercel).
-3. **Simular**: por tabela, o que é novo, o que muda, o que é igual e o que só existe hoje.
-4. **Restaurar** mesclando (insere e atualiza) ou substituindo (só tabelas escolhidas), sempre digitando `RESTAURAR`. Sessões, logins, passkeys, OAuth e a fila nunca são restaurados.
-
-Além disso o banco guarda um backup automático por dia (14 mais recentes).
-
----
-
-## 🎓 Treinamento e conformidade
-
-`/treinamento`: provas sorteadas de um banco com **1.017 perguntas** montadas a partir de dados conferíveis: situações do dia a dia e LGPD, os 93 controles do Anexo A da **ISO/IEC 27001:2022**, a Estrutura Harmonizada (ISO/IEC 27001:2022, 42001:2023, 37301:2021) e o catálogo de normas ISO (foco e se é certificável). Mapa da prova, resultado na hora (nota, acertos por trilha, gabarito comentado) e por e-mail. Aprovação de 70% vale 12 meses e conta no controle 6.3 da conformidade.
-
----
-
-## 📈 Relatórios e exportação
-
-A tela **Relatórios** (`/relatorios`) consolida o período escolhido (7, 30, 90 dias, 12 meses ou datas livres) para todos os aparelhos ou um só:
-
-- **Indicadores**: comandos e variação contra o período anterior de mesmo tamanho, taxa de sucesso, horas ligado, kWh e custo estimados, temperatura média escolhida.
-- **Comandos por dia**, empilhados por origem (painel, Alexa, agenda, automação).
-- **Horários de uso** com o horário de pico, **temperaturas escolhidas** e **mapa de uso** (dia da semana × hora).
-- **De onde vêm os comandos** e **tabela por aparelho** ordenável, com total.
-- **Falhas do período** com o motivo de cada uma.
-- **Por e-mail**: ao exportar, o arquivo vai anexo para o e-mail de quem gerou (ou só por e-mail, em PDF). Só para e-mails de usuários do sistema, com limite por hora.
-- **Tarifa de energia** (R$/kWh) editável na própria tela; a **potência** de cada ar fica no cadastro do aparelho.
-
-Exportação gerada no servidor (`GET /api/relatorios/exportar?formato=…`), sempre com a cor da marca:
-
-| Formato | Conteúdo |
+| Aba | Conteúdo |
 |---|---|
-| **PDF** | Resumo, gráfico de barras por dia, tabelas, rodapé com página (reportlab) |
-| **DOCX** | Documento editável no Word/Google Docs com todas as tabelas (python-docx) |
-| **XLSX** | Uma aba por tabela, cabeçalho fixo, gráfico nativo do Excel (openpyxl) |
-| **CSV** | ZIP com uma planilha por tabela, separador `;` e BOM para abrir certo no Excel |
-| **HTML** | Página única com indicadores, gráfico e mapa de uso; imprime bem |
-| **XML** | Estrutura para integração com outros sistemas |
-| **JSON** | Os dados completos do relatório, para scripts e BI |
-| **Markdown** | Para colar em wiki, Notion ou GitHub |
+| Visão geral | Saúde do domínio ao vivo: DNS, certificados da Vercel, e-mail (DKIM/SPF/DMARC), banco e fila |
+| Vercel | Painel dos dois projetos, **uso** do plano (requisições, invocações, transferência, GB-hora, builds), **publicações** com filtro por estado, busca por commit, voltar a uma versão, construir de novo, cancelar, apagar e **log do build** com busca e erros destacados; **domínios** (como o DNS aponta, conflitos, endereços de produção); configurações e limpeza de publicações antigas |
+| Cloudflare | **Visão geral da zona** (estado, nameservers, DNSSEC, SSL/TLS, registros por tipo), **DNS** com travas nos registros críticos, exportar em BIND e consultas por tipo; **e-mails** @zynio.com.br (Email Routing); **Turnstile**; **segurança** (DNSSEC, configurações, auditoria); **token** (cada permissão testada) |
+| Agentes | Computadores com o agente: quem é o principal, quem enxerga os transmissores, saúde (CPU, memória, disco, temperatura), reiniciar à distância, instalar em outro PC por código de uso único, guia do Raspberry Pi |
+| Placas IoT | Arduino/ESP ligados ao sistema: online, comandos na fila, Wi-Fi, IP, firmware, há quanto tempo ligada |
+
+O que **não** existe e por quê: logs de execução em tempo real da Vercel (a API não responde no plano atual) e métricas HTTP,
+cache e WAF da Cloudflare (todos os registros são "DNS only"; o tráfego vai direto para a Vercel).
+
+### Site institucional (`site/`)
+
+Next.js em [zynio.com.br](https://zynio.com.br): páginas de produto, segurança, integrações, status, downloads, novidades
+(todas as versões), newsletter com confirmação e **cancelamento pelo próprio site**, em 6 idiomas (tradução gerada por IA e
+revisável na tela **Idiomas** do painel), analytics próprio sem IP e auditoria de SEO.
 
 ---
 
-## 🏷️ Marca própria (white label)
-
-Em **Configurações → Marca** (`/configuracoes?aba=marca`), com prévia ao vivo, histórico das últimas 15 versões, exportar/importar JSON e voltar ao padrão:
-
-| Grupo | Opções |
-|---|---|
-| Identidade | nome, nome curto, slogan, descrição, logo, favicon, domínio |
-| Cores | primária, destaque e alerta, com paletas prontas e contraste corrigido automaticamente |
-| Tipografia e forma | fonte, escala do texto, densidade, raio dos cantos, CSS próprio (sanitizado) |
-| Login | título, subtítulo, fundo animado, links de download, texto do rodapé |
-| Menu e textos | renomear e esconder itens do menu, mensagem de boas-vindas no painel, banner de aviso (informação, sucesso, atenção) |
-| Contato | e-mail, telefone e WhatsApp de suporte, site, rodapé, créditos |
-| Regionais | °C ou °F, relógio 12 h ou 24 h, tema padrão, meta descrição |
-
-A marca é pública (`GET /api/marca`) porque a tela de login também a usa. Imagens são limitadas a ~300 KB e SVG com script é recusado.
-
----
-
-## 🌗 Aparência e tema
-
-- Tema **claro, escuro ou do sistema**, trocado no cabeçalho ou em Configurações → Aparência, guardado no navegador.
-- Script `public/tema.js` aplica o tema **antes da primeira pintura** (sem piscar branco).
-- Transição suave entre temas; o ar em 3D troca de materiais junto.
-- Animações respeitam `prefers-reduced-motion`.
-
----
-
-## 📱 Apps
-
-| App | Onde | Observação |
-|---|---|---|
-| Web / PWA | [clima-casa-lac.vercel.app](https://clima-casa-lac.vercel.app) | Instalável; `sw.js` guarda só a interface, `/api` nunca vai para o cache |
-| Android | `ClimaCasa-android.apk` | Expo SDK 58 (`apps/android`) |
-| macOS | `ClimaCasa-mac-apple-silicon.dmg`, `ClimaCasa-mac-intel.dmg` | Electron (`apps/desktop`), sem assinatura Apple |
-| Windows | `ClimaCasa-windows.exe` | Instalador NSIS |
-| Linux | `ClimaCasa-linux-x64.AppImage`, `ClimaCasa-linux-arm64.AppImage` | |
-
-Os arquivos ficam nos [Releases](https://github.com/estevam5s/clima-casa/releases). O repositório é privado: o download exige estar logado no GitHub com acesso.
-
-Documentação de cada app (o que faz, como rodar, build, release, segurança e problemas comuns):
-[`apps/android/README.md`](apps/android/README.md) · [`apps/desktop/README.md`](apps/desktop/README.md).
-
----
-
-## 🏗️ Arquitetura
+## Arquitetura
 
 ```
- Navegador / PWA / Desktop / Celular / Alexa / Google
+ Navegador / PWA / Apps / Alexa / Google / Telegram / Resend (webhook)
               │ HTTPS (Bearer = token do Supabase Auth)
               ▼
- ┌──────────────────────────────┐        ┌───────────────────────────────┐
- │ Vercel (papel "nuvem")        │        │ Supabase                      │
- │ FastAPI em api/index.py       │◄──────►│ Postgres (pooler, TLS)        │
- │ + estáticos do frontend       │  SQL   │ Auth (login admin)            │
- │ + OAuth e diretivas da Alexa  │        │ pg_cron (10 rotinas clima_*)  │
- │ + firewall de aplicação       │        └──────────────▲────────────────┘
- └──────────────┬────────────────┘                       │
-                │ grava em fila_comandos                 │ lê a fila (~1 s), heartbeat
-                ▼                                        │
- ┌───────────────────────────────────────────────────────┴────────────────┐
- │ Agente no Mac (LaunchAgent com.climacasa.servidor, porta 8090)         │
- │ mesmo FastAPI + threads: fila, Sinric Pro (WebSocket), agenda,         │
- │ automações, temporizadores, saúde e reparo dos transmissores           │
- └──────────────┬─────────────────────────────────────────────────────────┘
-                │ rede local (tinytuya, TCP 6668, protocolo 3.5)
-                ▼
-        SRW-004 ── infravermelho ──► ar-condicionado
+ ┌────────────────────────────────┐          ┌──────────────────────────────┐
+ │ Vercel (papel "nuvem")          │   SQL    │ Supabase                     │
+ │ FastAPI (api/index.py)          │◄────────►│ Postgres (pooler 6543, TLS)  │
+ │ + estáticos do frontend         │          │ Auth · pg_cron · Storage     │
+ │ + portão anti-robô (middleware) │          │ Realtime (mapa multijogador) │
+ └───────────────┬─────────────────┘          └──────────────▲───────────────┘
+                 │ grava em fila_comandos                    │ fila (~1 s), heartbeat,
+                 │ (enviar, aprender, testar, infra…)        │ aluguel do "principal"
+ ┌───────────────┴───────────────────────────────────────────┴──────────────┐
+ │ Agente em 1 ou mais computadores do escritório                           │
+ │ macOS (LaunchAgent) · Windows (tarefa agendada) · Linux/Raspberry Pi     │
+ │ (systemd). Só o PRINCIPAL executa: fila, Sinric (WebSocket), agenda,     │
+ │ automações, música, saúde dos transmissores, Vercel e Cloudflare.        │
+ │ Os outros ficam de reserva e assumem em até 45 s.                        │
+ └──────────────┬──────────────────────────────┬────────────────────────────┘
+                │ rede local (tinytuya, 6668)   │ HTTPS: Vercel, Cloudflare,
+                ▼                               ▼ Spotify, Resend, Tuya, NVIDIA
+     SRW-004 ── infravermelho ──► ar
 ```
 
-### Princípios
+**Princípios**
 
-- **Um código, dois papéis.** O mesmo FastAPI roda na Vercel (`PAPEL = "nuvem"`) e no Mac (`"agente"`). Só o agente abre threads e fala com a rede local.
-- **A nuvem não alcança o escritório.** Todo comando que nasce na Vercel vira uma linha em `fila_comandos`; o agente executa e responde; a Vercel espera até 8 s.
-- **Plano B pela nuvem Tuya** quando o agente está offline há mais de 45 s.
-- **O front nunca lê o banco direto.** Tudo passa pela API, que valida o Bearer e o papel de admin.
-- **Segredos cifrados em repouso** (AES-256-GCM) e nunca no bundle.
-- **Honestidade:** o ar não informa estado de volta. Se alguém usar o controle original, o painel fica desatualizado até o próximo comando.
+- **Um código, dois papéis.** O mesmo FastAPI roda na Vercel (`nuvem`) e no escritório (`agente`). Só o agente abre threads e fala com a rede local.
+- **Nunca dois principais.** Aluguel em `config.agente_lider` renovado a cada 10 s com `INSERT … ON CONFLICT … WHERE dono = eu OR vencido`. O computador **preferido** assume quando está online e enxerga os transmissores.
+- **O front nunca lê o banco.** Tudo passa pela API, que valida o token, o papel e o escopo de projetos e ares.
+- **Segredos cifrados em repouso** (AES-256-GCM com contexto por campo) e nunca no bundle.
+- **Tudo mora no Supabase**: trocar o computador do agente não perde aparelhos, botões, Alexa, agenda nem música.
 
 ---
 
-## 🧱 Stack tecnológica
+## Um comando de ponta a ponta
+
+| Etapa | Onde | Erro típico e o que significa |
+|---|---|---|
+| 1. Tela | `POST /api/aparelhos/{id}/estado` | Botões desativados = ar sem transmissor |
+| 2. Escolha do sinal | `clima.aplicar` | "Nenhum botão gravado…" = falta gravar |
+| 3. Fila | `transmissor.enviar` grava em `fila_comandos` e espera 8 s | "Tempo esgotado" = nenhum agente principal pegou |
+| 4. Agente | `processar_fila_uma_vez` → `_enviar_local` (TCP 6668) | "Nada respondeu" = rede; "Local Key mudou" = pareado de novo |
+| 5. Ar | infravermelho | Não apitou = sinal errado ou sem visada |
+
+Onde olhar: **Atividade** (filtro de falhas), **Infra → Agentes** (quem é o principal e o que enxerga), log do agente
+(`~/Library/Logs/ClimaCasa.log` no Mac, `data\agente.log` no Windows, `journalctl -u clima-escritorio-agente` no Linux).
+
+---
+
+## Stack
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | Python 3.13, FastAPI, psycopg 3 (autocommit, pool), tinytuya, sinricpro 6, cryptography |
-| Relatórios | reportlab (PDF), python-docx (DOCX), openpyxl (XLSX) |
+| Backend | Python 3.13 (Vercel em 3.12), FastAPI, psycopg 3 com pool, tinytuya, sinricpro 6, cryptography, httpx |
+| Relatórios | reportlab (PDF), gerador próprio de DOCX, openpyxl (XLSX) |
 | Frontend | React 18, Vite 5, Tailwind CSS 3, framer-motion, recharts, three.js, lucide-react, react-router 6, supabase-js 2 |
-| Banco e login | Supabase (Postgres 17, Auth, pg_cron) |
-| Hospedagem | Vercel (região `cle1`, Python serverless + estáticos) |
-| Agente local | LaunchAgent do macOS rodando de `~/Library/Application Support/ClimaCasa` |
-| Voz | Sinric Pro (Alexa + Google Home); skill própria opcional com AWS Lambda |
-| Apps | Expo SDK 58 (Android/iOS), Electron (macOS/Windows/Linux) |
-| Hardware | Tuya SRW-004 (IR, Wi-Fi 2,4 GHz, protocolo 3.5) |
+| Site | Next.js 16, GSAP, motor de tradução próprio |
+| Banco e login | Supabase: Postgres, Auth (senha, Google, TOTP, passkeys), pg_cron, Storage, Realtime |
+| Hospedagem | Vercel (app em `cle1`, site em `gru1`); DNS, e-mail recebido e Turnstile na Cloudflare |
+| E-mail | Resend (domínio verificado), webhook assinado (Svix) |
+| IA | NVIDIA (modelos Nemotron, inclusive o que ouve áudio e o que vê imagens) |
+| Apps | Expo SDK 58 (Android), Swift (iPhone), Electron (macOS, Windows, Linux) |
 
 ---
 
-## 📁 Estrutura de pastas
+## Estrutura do repositório
 
 ```
 ar-controle/
-├── CLAUDE.md                guia completo para quem for mexer (leia primeiro)
-├── README.md                este arquivo
-├── .env                     segredos (gitignored, chmod 600)
-├── api/index.py             entrada da Vercel
-├── vercel.json              build, rewrites, headers, região
-├── requirements.txt         deps Python da Vercel
-├── iniciar.sh               roda o agente no terminal (dev)
-├── instalar-servico.sh      instala/atualiza o agente como serviço do macOS
-├── publicar-vercel.sh       publica na Vercel a partir de cópia sem .git
-├── backend/
-│   ├── requirements.txt     deps do agente (inclui sinricpro)
-│   ├── supabase-ca.crt      CA raiz do pooler (TLS verificado)
-│   └── app/
-│       ├── main.py          FastAPI, middleware (firewall, CSRF, CSP, HSTS), SPA
-│       ├── db.py            Postgres, config cifrada, registro de atividade
-│       ├── cripto.py        AES-256-GCM para segredos em repouso
-│       ├── firewall.py      listas de IP, bloqueio automático, assinaturas de ataque, limite de taxa
-│       ├── seguranca.py     validação do Bearer e do papel admin
-│       ├── clima.py         estado do ar → código IR
-│       ├── transmissor.py   envio, gravação, descoberta, fila, reparo automático
-│       ├── tuya_nuvem.py    conta Smart Life (QR), Local Key, envio pela nuvem
-│       ├── sinric.py        Sinric Pro (REST + WebSocket)
-│       ├── alexa.py         skill própria (Discovery, Power, Thermostat, Scene)
-│       ├── automacao.py     automações, eventos, temporizadores
-│       ├── agenda.py        laço da agenda e da saúde dos transmissores
-│       ├── relatorio.py     consolidação do relatório + 8 exportadores
-│       └── rotas/           api.py (painel) e alexa.py (OAuth + diretivas)
+├── CLAUDE.md            guia completo para quem vai mexer (regras, mapa, receitas, armadilhas)
+├── api/index.py         entrada da Vercel
+├── vercel.json          build, rewrites, cabeçalhos (CSP, Permissions-Policy), região
+├── middleware.js        portão anti-robô do painel (Turnstile + prova de trabalho)
+├── publicar-vercel.sh   publica a partir de uma cópia sem .git
+├── instalar-servico.sh  agente como serviço do macOS
+├── instalar-windows.ps1 · instalar-linux.sh   agente no Windows e no Linux/Raspberry Pi
+├── backend/app/
+│   ├── main.py          FastAPI, middleware de segurança, ciclo de vida do agente
+│   ├── db.py            Postgres, config cifrada, registro de atividade
+│   ├── clima.py · transmissor.py · ir_analise.py · gree.py · zonas.py   ares e infravermelho
+│   ├── coordenador.py · convite.py   agente em vários computadores, instalação por código
+│   ├── dispositivos.py  luzes, cafeteira, persianas, fechadura (Smart Life e placa própria)
+│   ├── sinric.py · alexa.py · telegram.py · telegram_cmds.py · ia.py   voz, bot e IA
+│   ├── infra.py · cloudflare.py   Vercel e Cloudflare (só no agente)
+│   ├── correio.py · newsletter.py · musica.py · relatorio.py · backup_sistema.py · treinamento.py
+│   ├── acesso.py · firewall.py · turnstile.py · cripto.py · sessoes.py · fisico.py   segurança
+│   ├── novidades.json   "O que há de novo" (uma entrada por versão)
+│   └── rotas/           api.py, contas.py, infra.py, ia.py, dispositivos.py, telegram.py, …
 ├── frontend/
-│   ├── public/              manifest, sw.js, tema.js, ícones
-│   └── src/
-│       ├── main.jsx         rotas e proteção de login
-│       ├── api.js           fetch com Bearer, download de arquivos
-│       ├── tema.jsx         tema claro/escuro/sistema
-│       ├── marca.jsx        aplica a marca própria (cores, fontes, textos)
-│       ├── components/      Layout, ui (design system), Cena3D, Fumaca, config/WhiteLabel, config/PainelSeguranca
-│       └── pages/           uma por rota
-├── supabase/
-│   ├── schema.sql           esquema completo e idempotente
-│   └── cron-jobs.json       10 rotinas pg_cron
-├── alexa/                   guia e Lambda da skill própria
-├── apps/                    desktop (Electron) e android (Expo)
-└── docs/                    MANUAL.md, Manual em PDF, gerar-pdf.sh
+│   ├── public/          PWA, instaladores (agente e clima-ia), cliente clima-ia
+│   └── src/             pages/ (uma por rota), components/ (ui, 3D, infra, dispositivos, …)
+├── site/                site institucional (Next.js), publicar com site/publicar.sh
+├── supabase/            schema.sql (idempotente) e cron-jobs.json
+├── apps/                android (Expo), desktop (Electron), ios (Swift)
+├── agente-ia/           clima-ia completo, que roda dentro do projeto
+├── alexa/               skill própria opcional (guia e Lambda)
+├── scripts/             gree_gerar.py, release dos apps, cartão do Raspberry Pi, avatares
+└── docs/                MANUAL.md, releases/, continuar/ (diário das sessões)
 ```
 
 ---
 
-## 🗃️ Modelo de dados
+## Banco de dados
 
-Datas em epoch (segundos). RLS ligado em todas as tabelas; o backend conecta como dono pelo pooler.
+`supabase/schema.sql` é idempotente (rodar de novo é seguro). Datas em epoch (segundos). **RLS ligado em todas as tabelas**:
+o backend conecta como dono pelo pooler e o navegador nunca lê o banco direto.
 
-| Tabela | Conteúdo |
+| Grupo | Tabelas principais |
 |---|---|
-| `config` | chave → JSON (modo de envio, tarifa, marca, segurança, credenciais cifradas) |
-| `projetos` | lugares: nome, endereço, cor |
-| `hubs` | transmissores: id Tuya, IP, Local Key (cifrada), versão, tipo de controle, online, problema |
-| `aparelhos` | ares: nome falado na Alexa, cômodo, marca, faixa de temperatura, modos, estado, potência, projeto |
-| `codigos` | sinais IR gravados por aparelho (`modo_temp_vent`, `desligar`, `extra_<nome>`) |
-| `cenas`, `agendamentos`, `automacoes`, `temporizadores` | rotina do escritório |
-| `atividade` | todo comando e evento: origem, ação, ok, detalhe |
-| `fila_comandos` | ponte Vercel → agente (`enviar`, `aprender`, `descobrir`, `evento`, `reparar`) |
-| `oauth_codigos`, `oauth_tokens` | OAuth da skill própria (só hashes) |
-| `seguranca_ips` | IPs/CIDRs bloqueados ou permitidos, manuais ou automáticos, com expiração |
-| `seguranca_eventos` | tentativas de login, scanners, limite de taxa, acessos negados |
-| `metricas_diarias`, `alertas`, `backups`, `saude_sistema` | preenchidas pelas rotinas |
+| Configuração | `config` (chave → JSON; as sensíveis cifradas) |
+| Lugares e aparelhos | `projetos`, `hubs` (transmissores), `aparelhos`, `codigos` (sinais IR), `dispositivos`, `dispositivos_eventos` |
+| Rotina | `cenas`, `agendamentos`, `automacoes`, `temporizadores` |
+| Operação | `atividade`, `fila_comandos` (tipos: `enviar`, `aprender`, `descobrir`, `evento`, `reparar`, `infra`, `testar`), `notificacoes` |
+| Contas | `usuarios`, `passkeys`, `webauthn_desafios`, `sessoes_fortes`, `sessoes_uso` |
+| Segurança | `seguranca_ips`, `seguranca_eventos`, `seguranca_ip_info` |
+| Comunicação | `email_envios`, `newsletter_inscritos`, `newsletter_campanhas`, `site_mensagens` |
+| IA e site | `ia_conversas`, `site_textos`, `site_traducoes`, `analise_eventos` |
+| Rotinas | `metricas_diarias`, `alertas`, `backups`, `saude_sistema`, `cron_log`, `cron_job_registry` |
+
+**Rotinas pg_cron** (prefixo `clima_`, UTC): transmissores offline (5 min), OAuth vencido (15 min), métricas (de hora em hora),
+alerta de ar ligado há 12 h, alerta de falhas (30 min), backup diário (05:00, guarda 14), limpeza de atividade e logs,
+tamanho do banco (6 h) e ANALYZE semanal.
 
 ---
 
-## ⏱️ Rotinas agendadas (pg_cron)
+## API
 
-| Rotina | Quando (UTC) | O que faz |
-|---|---|---|
-| `clima_transmissores_offline` | a cada 5 min | marca offline o transmissor sem sinal há 10 min |
-| `clima_oauth_expirados` | a cada 15 min | apaga códigos e tokens da Alexa vencidos |
-| `clima_metricas_hora` | de hora em hora | consolida as métricas do dia (fuso de Brasília) |
-| `clima_alerta_ligado_12h` | de hora em hora | alerta de ar ligado há mais de 12 h |
-| `clima_alerta_falhas` | a cada 30 min | alerta com 3 ou mais falhas em 1 h |
-| `clima_backup_diario` | 05:00 | snapshot JSON (guarda 14) |
-| `clima_limpar_atividade` | 06:30 | atividade > 90 d, eventos de segurança > 30 d, bloqueios vencidos |
-| `clima_limpar_logs_cron` | 06:45 | logs das rotinas |
-| `clima_saude_banco` | a cada 6 h | tamanho do banco (limite de 500 MB do plano gratuito) |
-| `clima_manutencao_semanal` | domingo 07:00 | ANALYZE |
-
----
-
-## 🗺️ Rotas da aplicação
-
-| Rota | Tela |
-|---|---|
-| `/login`, `/redefinir-senha` | entrar (fundo de fumaça em WebGL) e trocar senha esquecida |
-| `/` | painel |
-| `/projetos` | lugares |
-| `/relatorios` | relatórios e exportação |
-| `/aparelhos`, `/aparelhos/:id` | lista e detalhe |
-| `/cenas`, `/automacoes`, `/agendamentos` | rotina |
-| `/transmissores` | SRW-004 |
-| `/integracoes`, `/comandos-alexa`, `/alexa` | Sinric Pro, frases de voz, skill própria |
-| `/supabase` | rotinas, uso do banco, alertas, backups |
-| `/atividade` | linha do tempo |
-| `/seguranca` | segurança: mapa 3D de acessos, IPs, bloqueios, relatório |
-| `/configuracoes?aba=geral\|aparencia\|marca\|seguranca\|contas\|sistema` | configurações |
-| `/apps` | downloads |
-| `/oauth/autorizar` | consentimento da vinculação da Alexa |
-
----
-
-## 🔌 API
-
-Prefixo `/api`, JSON, `Authorization: Bearer <token do Supabase>` obrigatório, exceto as rotas públicas. Erros sempre `{"detail": "mensagem em pt-BR"}`.
+Prefixo `/api`, JSON, `Authorization: Bearer <token do Supabase>`. Erros sempre `{"detail": "mensagem em pt-BR"}`;
+validação devolve 422 "Confira o(s) campo(s)".
 
 | Grupo | Rotas principais |
 |---|---|
-| Sessão | `POST /auth/entrar` (login com bloqueio por tentativas), `GET /supabase-config`, `GET /sessao` |
-| Painel | `GET /painel`, `GET /metricas`, `GET /notificacoes`, `GET /atividade`, `GET /alertas` |
-| Relatórios | `GET /relatorios`, `GET /relatorios/completo`, `GET /relatorios/exportar?formato=pdf\|docx\|xlsx\|csv\|html\|xml\|json\|md` |
-| Aparelhos | CRUD em `/aparelhos`, `POST /aparelhos/{id}/estado`, `/aprender`, `/botoes/{chave}/enviar`, `/temporizador` |
-| Transmissores | CRUD em `/hubs`, `/hubs/descobrir`, `/hubs/importar-todos`, `/hubs/reparar` |
-| Rotina | CRUD em `/projetos`, `/cenas`, `/agendamentos`, `/automacoes` |
-| Integrações | `/sinric`, `/alexa`, `/tuya/qr` |
-| Marca | `GET /marca` (pública), `PUT /marca`, `/marca/historico`, `/marca/padrao` |
-| Segurança | `GET\|PUT /seguranca`, `GET\|POST /seguranca/ips`, `DELETE /seguranca/ips/{id}`, `GET /seguranca/eventos` |
-| Fora de `/api` | `POST /oauth/token`, `POST /alexa/diretiva`, `GET /saude` |
+| Sessão e conta | `POST /auth/entrar`, `POST /auth/esqueci`, `GET /sessao`, `GET /conta/seguranca`, `GET /conta/meus-dados`, `/conta/sessoes` |
+| Painel | `GET /painel`, `GET /metricas`, `GET /atividade`, `GET /notificacoes` |
+| Ares | `/aparelhos…` (estado, aprender, botões, `botoes/analise`, `gree`, `copiar-botoes`, temporizador), `GET /gravacoes/{job}` |
+| Transmissores e zonas | `/hubs…` (`testar`, `todos`, `ares`, `teste-interferencia`), `GET\|PUT /zonas` |
+| Aparelhos Smart Life e placas | `/dispositivos…` |
+| Rotina | `/projetos`, `/cenas`, `/agendamentos`, `/automacoes` |
+| Voz | `/sinric…` (diagnóstico, zona, último comando), `/alexa…` |
+| IA | `/ia/conversar`, `/ia/conversas…`, `/ia/transcrever`, `/ia/preferencias` |
+| Relatórios | `GET /relatorios/completo`, `GET /relatorios/exportar?formato=…`, `POST /relatorios/enviar` |
+| Infra | `/infra/saude\|resumo\|uso\|publicacoes\|dominios`, `/infra/cf/…` (visão, DNS, e-mail, DNSSEC, Turnstile, auditoria), `/agentes…` |
+| Públicas | `POST /site/contato`, `/site/newsletter/…`, `POST /email/webhook` (Svix), `POST /agentes/convite/resgatar`, `GET /saude` |
+
+As rotas públicas têm proteção própria (Turnstile, assinatura, `state` de uso único ou prova de trabalho).
 
 ---
 
-## 🔒 Segurança
+## Usuários e permissões
+
+Sem cadastro público. Papéis: **dono > admin > subadmin > operador > visualizador** (ou personalizado), com 14 permissões e
+regras por rota em `backend/app/acesso.py`. Cada pessoa pode ter acesso a alguns projetos (salas) e até a **alguns ares**.
+Ninguém dá a outra pessoa o que não tem. Toda rota que muda dados precisa cair numa regra; `rotas_sem_regra()` lista as que
+faltam (meta: vazio, e hoje está vazio).
+
+Login com senha (mínimo 10 caracteres, conferida contra vazamentos conhecidos), **Google**, **2FA (TOTP)** e **biometria
+(passkeys)**. Sessões com limite de inatividade e duração máxima, revogáveis. Em **Configurações → Segurança**, cada pessoa vê
+a nota de segurança da própria conta, as últimas entradas e tentativas, liga alertas por e-mail (senha errada 3 vezes em 1 h,
+entrada de IP novo) e baixa os próprios dados.
+
+---
+
+## Segurança
 
 | Camada | Controle |
 |---|---|
-| Login | Só admin, sem cadastro. Login passa por `POST /api/auth/entrar`, que bloqueia e-mail e IP depois de 5 falhas |
-| Firewall de aplicação | Lista de IPs/CIDRs bloqueados e permitidos, bloqueio por país, detecção de ferramentas de ataque (sqlmap, nikto, nuclei…), assinaturas de SQLi/XSS/path traversal, limite de requisições por minuto |
-| Bloqueio progressivo | Reincidência sobe o degrau: 15 min → 1 h → 24 h → 7 dias. O próprio administrador logado não é bloqueado por sessão vencida |
-| Tela Segurança (`/seguranca`) | Postura de 0 a 100, **globo 3D** (Three.js) com a origem dos acessos e ataques e arcos animados até o servidor, eventos ao vivo, IPs com nota de risco e bloqueio em um clique, países, rotas atacadas, bloqueios ativos, regras do firewall |
-| Relatório de segurança | PDF, DOCX, XLSX, CSV, HTML, XML, JSON e Markdown, com recomendações automáticas |
-| Criptografia | TLS em tudo; segredos em repouso (Local Key, tokens Smart Life, Sinric, Alexa) com **AES-256-GCM** e contexto (AAD) por campo; chave mestra só em variável de ambiente |
-| Banco | Pooler com TLS verificado contra a CA do Supabase; RLS em todas as tabelas; SQL sempre parametrizado |
-| Navegador | CSP restrita, HSTS com preload, X-Frame-Options DENY, nosniff, COOP/CORP, `no-store` nas respostas dinâmicas, CSRF barrado por checagem de `Origin` |
-| OAuth da Alexa | Códigos e tokens guardados só como hash; redirect restrito a domínios da Amazon; `/oauth/token` limitado a 20/min por IP |
-| Marca própria | CSS sanitizado (sem `@import`, `url()`, `expression`), SVG com script recusado |
+| Portão | Página de verificação (Turnstile, com prova de trabalho como reserva) antes do painel e do site |
+| Login | Turnstile (também no Supabase Auth), bloqueio por conta e por IP, aviso de IP novo |
+| Firewall de aplicação | Listas de IP, país, assinaturas de ataque, limite por minuto, bloqueio progressivo; escudo anti-DDoS liga o modo de ataque da Vercel |
+| Navegador | CSP restrita, HSTS, X-Frame-Options DENY, nosniff, CSRF por `Origin`, microfone só no próprio domínio |
+| Dados | AES-256-GCM em repouso, TLS verificado até o banco, RLS em tudo, SQL parametrizado, logs selados com SHA-256 |
+| Comandos físicos | Limite por aparelho, isolar aparelho, validade dos comandos na fila (comando velho não é executado) |
+| Tokens amplos | Vercel, Cloudflare e GitHub só no `.env` do agente, nunca na Vercel |
+| Auditoria | `uvx pip-audit`, `npm audit`, `bandit`; checklist de 18 controles ao vivo na tela Segurança |
+
+Achou uma vulnerabilidade? Escreva para `seguranca@zynio.com.br`. Segredo vazado:
+rotacione na hora (Supabase, Vercel, Cloudflare, Sinric, Spotify, Resend, Turnstile, NVIDIA).
 
 ---
 
-## ⚙️ Variáveis de ambiente
+## Configuração e segredos
 
-Ficam em `.env` (agente, gitignored) e nas variáveis do projeto na Vercel. **Nunca** no repositório.
+O `.env` fica na raiz (gitignored, permissão 600) e nas variáveis do projeto na Vercel. **Nunca** no repositório, em issue
+ou no bundle.
 
-| Variável | Onde | Uso |
+| Variável | Onde | Para quê |
 |---|---|---|
-| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | agente, Vercel | projeto e chave pública |
-| `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_PORT` | agente, Vercel | Postgres pelo pooler (5432 no agente, 6543 na Vercel) |
-| `CLIMA_CHAVE_MESTRA` | agente, Vercel | chave AES-256 (32 bytes em base64) dos segredos em repouso. **Perder = reconectar Smart Life, Sinric e Alexa** |
-| `SUPABASE_SECRET_KEY`, `SUPABASE_ACCESS_TOKEN` | só `.env` | manutenção (criar admin, aplicar schema e rotinas) |
-| `SINRIC_API_KEY`, `SINRIC_APP_KEY`, `SINRIC_APP_SECRET` | `.env` | copiados para `config.sinric` (cifrado) na primeira execução |
-| `VERCEL_TOKEN` | `.env` | `publicar-vercel.sh` |
-| `CLIMA_PORTA`, `CLIMA_HOST`, `CLIMA_PAPEL`, `CLIMA_CONFIAR_PROXY` | opcionais | porta (8090), interface, papel, confiar em `x-forwarded-for` |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | agente e Vercel | projeto e chave pública |
+| `SUPABASE_SECRET_KEY` | agente e Vercel | administração do Auth |
+| `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_PORT` (6543) | agente e Vercel | Postgres pelo pooler |
+| `SUPABASE_ACCESS_TOKEN` | só `.env` | schema e rotinas |
+| `CLIMA_CHAVE_MESTRA` | agente e Vercel (a mesma) | cifra dos segredos em repouso. Perder = reconectar Smart Life, Sinric, Spotify e Resend |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `VERIFICACAO_SEGREDO` | agente e Vercel | anti-robô |
+| `VERCEL_TOKEN`, `CLOUDFLARE_API_TOKEN` | **só** agente | publicar e tela Infra |
+| `SINRIC_*`, `NVIDIA_API_KEY` | agente | copiados para o banco cifrados |
+| `CLIMA_PORTA`, `CLIMA_PAPEL`, `CLIMA_MAQUINA_ID` | opcionais | porta (8090), simular a nuvem, id do computador |
+
+A Vercel só repassa ao código variáveis com os prefixos `SUPABASE_`, `TUYA_`, `CLIMA_`, `TURNSTILE_` e `VERIFICACAO_`.
+Antes de cada commit, o diff não pode ter nada parecido com chave (`git diff --cached | grep -E "sb_secret_|sbp_|vcp_|ghp_|whsec_|nvapi-"`).
 
 ---
 
-## 💻 Como rodar localmente
+## Rodar localmente
+
+Requisitos: Python **3.13** (o 3.15 do Homebrew não tem o psycopg pronto), Node 20+, `uv`.
 
 ```bash
-# backend (Python 3.13 com uv)
 uv venv .venv --python 3.13
 uv pip install --python .venv/bin/python -r backend/requirements.txt
-
-# frontend (gera backend/static)
-cd frontend && npm install && npm run build && cd ..
-
-# agente
-cd backend && ../.venv/bin/python -m app.main     # http://127.0.0.1:8090
+cd frontend && npm install && npm run build && cd ..   # gera backend/static
+cd backend && ../.venv/bin/python -m app.main          # http://127.0.0.1:8090
 ```
 
-Modo dev do frontend: `cd frontend && npm run dev` (Vite em :5173 com proxy para :8090).
-Para simular a Vercel localmente: `CLIMA_PAPEL=nuvem CLIMA_PORTA=8793 …` (o serviço instalado já ocupa a 8090).
+- Frontend com recarga: `cd frontend && npm run dev` (Vite em :5173, proxy para :8090).
+- Simular a Vercel: `CLIMA_PAPEL=nuvem CLIMA_PORTA=8097 ../.venv/bin/python -m app.main` (a 8090 é do serviço instalado).
+- Site: `cd site && npm install && npm run dev` (porta 3100).
 
 ---
 
-## ☁️ Deploy
+## Instalar o agente no escritório
+
+| Sistema | Como |
+|---|---|
+| macOS | `./instalar-servico.sh` (roda de uma cópia em `~/Library/Application Support/ClimaCasa`, porque serviço não lê `~/Documents`) |
+| Windows | **Infra → Agentes → Instalar** gera um código de 30 min; no PowerShell como administrador, rode o comando que a tela mostra |
+| Linux / Raspberry Pi (64 bits) | `curl -fsSL https://app.zynio.com.br/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh <código>` |
+| Cartão do Raspberry pronto no Mac | `./scripts/preparar-cartao-raspberry.sh` (grava o sistema, Wi-Fi, código e `.env`; o 1º boot instala tudo) |
+
+Depois confira em **Infra → Agentes**: o principal precisa aparecer online e **enxergando N de N** transmissores.
+Recomendação: um computador do escritório sempre ligado (ou um Raspberry Pi) como **preferido**.
+
+---
+
+## Publicar
 
 ```bash
 cd frontend && npm run build && cd ..
-./publicar-vercel.sh       # NUNCA "vercel deploy" direto na pasta com .git (plano Hobby bloqueia)
-./instalar-servico.sh      # atualiza o agente no Mac
-git push
+git add <arquivos> && git commit -m "…" && git push
+./publicar-vercel.sh        # NUNCA "vercel deploy" na pasta com .git
+./instalar-servico.sh       # atualiza o agente do Mac (Windows/Linux: rodar o instalador de novo)
+cd site && ./publicar.sh    # site (SEM_TEXTOS=1 pula a extração de textos para tradução)
+curl -s -o /dev/null -w "%{http_code}" https://app.zynio.com.br/saude   # 200
 ```
 
-Conferir depois: `GET /saude` (200), login, uma rota de cada área tocada.
+---
+
+## Apps
+
+| App | Arquivo no release | Pasta | Como construir |
+|---|---|---|---|
+| Android | `ClimaCasa-android.apk` | `apps/android` | `npx eas-cli@latest build -p android --profile preview` |
+| iPhone | `ClimaCasa-ios.ipa` | `apps/ios` | `xtool dev build --ipa -c release` |
+| macOS | `ClimaCasa-mac-apple-silicon.dmg`, `ClimaCasa-mac-intel.dmg` | `apps/desktop` | `electron-builder` |
+| Windows | `ClimaCasa-windows.exe` | `apps/desktop` | `electron-builder` |
+| Linux | `ClimaCasa-linux-x64.AppImage`, `ClimaCasa-linux-arm64.AppImage` | `apps/desktop` | `electron-builder` |
+| Web / PWA | instalável pelo navegador | `frontend/public` | junto com o build |
+
+Os downloads também saem pela tela **Apps** do painel, sem precisar de acesso ao GitHub (link temporário pedido pelo servidor).
+Depois do release: `scripts/gerar-release-json.sh` e `backend/app/versao_apps.json` (os apps avisam da versão nova).
+Detalhes em [`apps/android/README.md`](apps/android/README.md) e [`apps/desktop/README.md`](apps/desktop/README.md).
 
 ---
 
-## 🧰 Scripts utilitários
+## Versões e novidades
 
-| Script | O que faz |
+Toda publicação que muda o que alguém vê ganha uma entrada no topo de `backend/app/novidades.json` (versão em sequência:
+0.0.0 … 0.0.9, 0.1.0 …). Cada pessoa vê o modal "O que há de novo" uma vez, a central de notificações avisa e a página
+`/novidades` (e a do site) mostra o histórico inteiro. Os apps têm numeração própria (1.7.0).
+
+---
+
+## Testes e checklist de entrega
+
+1. `cd frontend && npx vite build` sem erro.
+2. `cd backend && ../.venv/bin/python -c "import app.main"` e `uvx ruff check --select F821 backend/app`.
+3. ESLint só com `no-undef` no `frontend/src` (variável indefinida já deixou tela preta).
+4. Navegador (Playwright) com sessão temporária: telas tocadas em 1440 e 375 px, sem erro de JS, sem 4xx/5xx, sem rolagem lateral.
+5. Publicar, conferir `/saude` 200 e rotas novas 401 sem login.
+6. Apagar a sessão e os dados de teste; dizer o que não foi testado.
+
+---
+
+## Problemas comuns
+
+| Sintoma | Causa e solução |
 |---|---|
-| `iniciar.sh` | sobe o agente no terminal |
-| `scripts/gerar-release-json.sh` | atualiza versão, tamanhos e SHA-256 dos apps mostrados em `/apps` |
-| `instalar-servico.sh [status\|remover]` | instala, mostra o estado ou remove o LaunchAgent |
-| `publicar-vercel.sh` | build + deploy na Vercel a partir de uma cópia sem `.git` |
-| `site/publicar.sh` | publica o site institucional (Next.js) na Vercel |
-| `docs/gerar-pdf.sh` | gera `docs/Manual-Clima-Casa.pdf` a partir do `MANUAL.md` |
+| O ar não obedece | Infra → Agentes: existe principal online **enxergando** o transmissor? Senão, ligar o PC do escritório |
+| Botões do painel desativados | O ar não tem transmissor: vincular em Aparelho → Ajustes |
+| Dois ares iguais mudam juntos | É físico (o infravermelho não tem endereço): trate como zona ou dê um transmissor para cada |
+| "Nenhum sinal recebido" ao gravar | Protocolo Tuya errado: use **Testar conexão** no cartão do transmissor (ele corrige) |
+| Transmissor "Local Key mudou" | Foi pareado de novo: com a conta Smart Life conectada, "Reconectar agora" busca a chave nova |
+| Portão parado em "Verificando…" | Espere 20 s ou "Tentar de novo"; abrir zynio.com.br também libera |
+| Erro de certificado só em certas redes | Firewall corporativo interceptando HTTPS: use `https://clima-casa-lac.vercel.app` ou peça à TI para liberar o domínio |
+| Publicação "BLOCKED" | Use `./publicar-vercel.sh` (cópia sem `.git`) |
+
+A lista completa, com dezenas de casos que já aconteceram, está na seção 13 do [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
-## 🧭 Roadmap
+## Perguntas frequentes
 
-- [ ] Gravar os botões IR do primeiro ar (depende de alguém com o controle na mão).
-- [ ] Validar o envio pela nuvem Tuya com o Mac desligado.
-- [ ] Testar o APK num celular e publicar na loja.
-- [ ] Criar a skill própria na Amazon (opcional; o Sinric já cobre).
-- [ ] Sensor de temperatura ambiente para automações por temperatura real.
-- [ ] Relatórios agendados por e-mail.
-- [ ] Mais de um usuário com papéis (operador, só leitura).
-
----
-
-## ❓ FAQ
-
-**O sistema sabe se o ar está ligado?**
-Não. Infravermelho só envia. O painel mostra o último estado que **ele** mandou.
+**Cada ar precisa do seu transmissor?**
+Não. Um SRW-004 atende vários ares à vista. Mas ares **iguais** recebem o mesmo sinal e mudam juntos; para comandá-los
+separados, cada um precisa de um transmissor perto e virado só para ele, ou estar em salas fechadas diferentes.
 
 **Funciona com qualquer ar-condicionado?**
-Com qualquer um que tenha controle remoto infravermelho. Cada ar precisa ter os botões gravados uma vez.
+Com qualquer um que tenha controle remoto infravermelho. Cada modelo precisa ter os botões gravados uma vez (ou copiados de
+um ar igual; no Gree, gerados a partir do Desligar).
 
-**E se o Mac desligar?**
-A Vercel tenta pela nuvem Tuya. Agenda e automações rodam no agente, então param até ele voltar.
+**E se o computador do escritório desligar?**
+Os comandos ficam sem ter quem os execute. Outro computador com o agente assume em até 45 s; por isso vale ter dois.
 
-**Mudei o Wi-Fi do escritório. E agora?**
-Pareie o SRW-004 de novo no Smart Life (rede 2,4 GHz). O agente encontra o novo IP e a nova chave sozinho, se a conta Smart Life estiver conectada em Configurações.
-
-**Posso usar com a marca de um cliente?**
-Sim: Configurações → Marca. Exporte o JSON para reaproveitar em outra instalação.
+**Dá para usar Arduino ou ESP32?**
+Sim, como placa própria para luzes, cafeteira, persianas e fechadura (código gerado no painel). Não para rodar o agente nem,
+por enquanto, para mandar infravermelho aos ares.
 
 **O custo do relatório é exato?**
-Não, é estimativa ([Apêndice C](#-apêndice-c-como-o-consumo-é-estimado)). Serve para comparar meses e aparelhos.
+Não, é estimativa (horas ligado × potência × tarifa). Serve para comparar meses e aparelhos.
 
 ---
 
-## 🧮 Apêndice A: como o código IR é escolhido
+## Apêndices técnicos
+
+### A. Como o sinal do ar é escolhido
 
 1. Monta o estado desejado (ligado, modo, temperatura, ventilação) dentro da faixa do aparelho.
-2. Procura o código exato `modo_temp_vent`.
-3. Não achou? Mesmo modo e temperatura com outra ventilação.
-4. Não achou? A temperatura gravada mais próxima no mesmo modo (o estado salvo passa a ser o do código enviado).
-5. Desligar usa sempre o código `desligar`.
+2. Procura o botão exato `modo_temp_vent`; senão, mesma temperatura com outra ventilação; senão, a temperatura gravada mais
+   próxima no mesmo modo (e o estado salvo vira o do sinal enviado).
+3. Desligar usa sempre `desligar`.
+4. Depois do envio, os outros ares da mesma zona mudam junto no banco e na Alexa.
 
-## 🔧 Apêndice B: reconfiguração automática do transmissor
+### B. Reconexão automática do transmissor
 
-O `status()` do SRW-004 responde com um código que diz o que houve:
-
-| Código | Significado | O que o agente faz |
+| Resposta | Significado | O que o agente faz |
 |---|---|---|
-| `900` | ok (IR não tem estado) | nada |
+| `900` | ok | nada |
 | `914` | chave errada (pareado de novo) | busca a Local Key nova na conta Smart Life |
-| `905` / `901` | não responde no IP | varre a rede pelo ID e grava o IP novo |
+| `905` / `901` | não responde no IP | varre a rede pelo ID e grava o IP novo; ID novo único → migra o cadastro |
 
-Se o novo pareamento gerou outro ID e há exatamente um transmissor novo na conta, migra o cadastro e os aparelhos para ele. Quando não consegue, mostra o problema na tela com a instrução.
+O protocolo (3.3, 3.4 ou 3.5) é testado e corrigido sozinho.
 
-## ⚡ Apêndice C: como o consumo é estimado
+### C. Reconhecimento do botão gravado
 
-- **Horas ligado** = soma do tempo entre cada "ligar" bem-sucedido e o "desligar" seguinte; se não houve desligar, conta até o fim do período. Cada trecho é limitado a 24 h.
-- **kWh** = horas × potência do aparelho (W) ÷ 1000. Potência padrão: 1.000 W.
-- **Custo** = kWh × tarifa (padrão R$ 0,85/kWh, ajustável na tela).
-- Referência de potência: 9.000 BTU ≈ 800 W, 12.000 BTU ≈ 1.100 W, 18.000 BTU ≈ 1.650 W, 24.000 BTU ≈ 2.200 W.
+`backend/app/ir_analise.py` lê a quantidade de pulsos e o cabeçalho para dizer o protocolo (Gree, NEC, Midea, Samsung,
+LG e outros) e a confiança. No Gree, decodifica o ajuste (modo, temperatura, ventilação) e compara com o botão que foi
+pedido; se não bate e o ajuste existe no ar, grava no botão certo.
+
+### D. Consumo estimado
+
+- Horas ligado = soma dos trechos entre "ligar" e o "desligar" seguinte (cada trecho limitado a 24 h).
+- kWh = horas × potência (W) ÷ 1000; custo = kWh × tarifa (editável na tela).
+- Referência: 9.000 BTU ≈ 800 W, 12.000 ≈ 1.100 W, 18.000 ≈ 1.650 W, 24.000 ≈ 2.200 W.
 
 ---
 
-## 📄 Licença
+## Licença
 
 Software proprietário. Todos os direitos reservados. Uso restrito ao titular do repositório e a quem ele autorizar.

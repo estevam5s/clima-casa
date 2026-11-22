@@ -107,24 +107,31 @@ export function Publicacoes({ dono }) {
     setOcupado(d.id + a)
     try { await api.post('/api/infra/publicacoes/acao', { projeto, id: d.id, acao: a }); toast('Feito.'); carregar() } catch (e) { toast(e.message, 'erro') } finally { setOcupado('') }
   }
-  const verLog = async (d) => { setLog({ d, linhas: null }); try { setLog({ d, linhas: (await api.get(`/api/infra/publicacoes/${d.id}/log?projeto=${projeto}`)).linhas }) } catch (e) { setLog({ d, linhas: [], erro: e.message }) } }
+  const [filtro, setFiltro] = useState('todos'), [busca, setBusca] = useState(''), [buscaLog, setBuscaLog] = useState('')
+  const itens = (dados?.itens || []).filter((d) => (filtro === 'todos' || (filtro === 'erro' ? d.estado === 'ERROR' : filtro === 'pronto' ? d.estado === 'READY' : ['BUILDING', 'QUEUED', 'INITIALIZING'].includes(d.estado)))
+    && (!busca || `${d.url} ${d.origem || ''} ${d.criador || ''}`.toLowerCase().includes(busca.toLowerCase())))
+  const contar = (f) => (dados?.itens || []).filter((d) => (f === 'erro' ? d.estado === 'ERROR' : f === 'pronto' ? d.estado === 'READY' : ['BUILDING', 'QUEUED', 'INITIALIZING'].includes(d.estado))).length
+  const verLog = async (d) => { setBuscaLog(''); setLog({ d, linhas: null }); try { setLog({ d, linhas: (await api.get(`/api/infra/publicacoes/${d.id}/log?projeto=${projeto}`)).linhas }) } catch (e) { setLog({ d, linhas: [], erro: e.message }) } }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border border-border bg-card p-0.5 text-sm">{PROJETOS.map(([k, n]) => <button key={k} onClick={() => setProjeto(k)} className={`rounded-md px-3 py-1.5 ${projeto === k ? 'bg-muted font-medium' : 'text-muted-foreground'}`}>{n}</button>)}</div>
+        <div className="flex rounded-lg border border-border bg-card p-0.5 text-sm">{[['todos', 'Todas'], ['pronto', 'Prontas'], ['erro', 'Com erro'], ['andamento', 'Em andamento']].map(([k, n]) => <button key={k} onClick={() => setFiltro(k)} className={`rounded-md px-2.5 py-1.5 ${filtro === k ? 'bg-muted font-medium' : 'text-muted-foreground'}`}>{n}{k !== 'todos' && dados ? <span className="ml-1 tabular text-xs text-muted-foreground">{contar(k)}</span> : null}</button>)}</div>
+        <input type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por endereço, commit ou autor" className="campo h-9 w-full sm:w-64" aria-label="Buscar publicações" />
         <Botao tamanho="sm" variante="secundario" icone={RefreshCw} onClick={carregar}>Atualizar</Botao>
       </div>
       {erro && <Aviso>{erro}</Aviso>}
       {!dados ? (!erro && <Esqueleto className="h-80" />) : (
         <div className="cartao overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-muted/40 text-left text-xs text-muted-foreground"><tr><th className="px-4 py-2 font-medium">Quando</th><th className="px-4 py-2 font-medium">Estado</th><th className="px-4 py-2 font-medium">Build</th><th className="px-4 py-2 font-medium">Endereço</th><th className="px-4 py-2 text-right font-medium">Ações</th></tr></thead>
-            <tbody className="divide-y divide-border">{dados.itens.map((d) => (
+            <thead className="bg-muted/40 text-left text-xs text-muted-foreground"><tr><th className="px-4 py-2 font-medium">Quando</th><th className="px-4 py-2 font-medium">Estado</th><th className="px-4 py-2 font-medium">Ambiente</th><th className="px-4 py-2 font-medium">Build</th><th className="px-4 py-2 font-medium">Endereço e origem</th><th className="px-4 py-2 text-right font-medium">Ações</th></tr></thead>
+            <tbody className="divide-y divide-border">{!itens.length && <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-muted-foreground">Nenhuma publicação com esse filtro.</td></tr>}{itens.map((d) => (
               <tr key={d.id} className={d.atual ? 'bg-primary/5' : ''}>
                 <td className="whitespace-nowrap px-4 py-2.5"><p className="font-medium">{dataHora(d.criado)}</p><p className="text-xs text-muted-foreground">{haQuanto(Math.floor(d.criado / 1000))}{d.criador ? ` · ${d.criador}` : ''}</p></td>
                 <td className="px-4 py-2.5"><div className="flex items-center gap-1.5"><Selo cor={COR_ESTADO[d.estado] || 'cinza'}>{NOME_ESTADO[d.estado] || d.estado}</Selo>{d.atual && <Selo cor="verde">No ar</Selo>}</div></td>
+                <td className="px-4 py-2.5 text-xs">{d.alvo === 'production' ? 'Produção' : 'Prévia'}</td>
                 <td className="px-4 py-2.5 tabular text-muted-foreground">{d.duracao_s != null ? `${d.duracao_s} s` : '—'}</td>
-                <td className="max-w-[16rem] truncate px-4 py-2.5"><a href={`https://${d.url}`} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground hover:underline">{d.url}</a></td>
+                <td className="max-w-[18rem] px-4 py-2.5"><a href={`https://${d.url}`} target="_blank" rel="noreferrer" className="block truncate text-muted-foreground hover:text-foreground hover:underline">{d.url}</a>{d.origem && <p className="truncate text-xs text-muted-foreground" title={d.origem}>{d.origem}</p>}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right">
                   <button onClick={() => verLog(d)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" title="Log do build" aria-label="Log do build"><FileText className="h-4 w-4" /></button>
                   {dono && d.estado === 'READY' && !d.atual && <button disabled={!!ocupado} onClick={() => acao(d, 'promover')} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" title="Colocar no ar (voltar para esta versão)" aria-label="Colocar no ar"><RotateCcw className="h-4 w-4" /></button>}
@@ -140,7 +147,15 @@ export function Publicacoes({ dono }) {
       {log && (
         <Modal aberto titulo={`Log do build · ${dataHora(log.d.criado)}`} onFechar={() => setLog(null)} largura="max-w-3xl">
           {log.erro ? <Aviso>{log.erro}</Aviso> : !log.linhas ? <Esqueleto className="h-64" /> : (
-            <pre className="max-h-[60vh] overflow-auto rounded-md bg-zinc-950 p-3 text-[11px] leading-relaxed text-zinc-200">{log.linhas.map((l) => `${l.t ? new Date(l.t).toLocaleTimeString('pt-BR') : ''}  ${l.texto}`).join('\n') || 'Sem linhas.'}</pre>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input type="search" autoComplete="off" value={buscaLog} onChange={(e) => setBuscaLog(e.target.value)} placeholder="Filtrar linhas" className="campo h-8 flex-1" aria-label="Filtrar o log" />
+                <span className="text-xs text-muted-foreground">{log.linhas.filter((l) => /error|erro|failed|falh/i.test(l.texto)).length} linha(s) com erro</span>
+                <Botao tamanho="sm" variante="secundario" onClick={() => { navigator.clipboard?.writeText(log.linhas.map((l) => l.texto).join('\n')); toast('Log copiado.') }}>Copiar</Botao>
+              </div>
+              <pre className="max-h-[60vh] overflow-auto rounded-md bg-zinc-950 p-3 text-[11px] leading-relaxed text-zinc-200">{log.linhas.filter((l) => !buscaLog || l.texto.toLowerCase().includes(buscaLog.toLowerCase())).map((l, i) => (
+                <div key={i} className={/error|erro|failed|falh/i.test(l.texto) ? 'text-red-400' : /warn|aviso/i.test(l.texto) ? 'text-amber-300' : ''}><span className="select-none text-zinc-500">{l.t ? new Date(l.t).toLocaleTimeString('pt-BR') : ''}  </span>{l.texto}</div>))}{!log.linhas.length && 'Sem linhas.'}</pre>
+            </div>
           )}
         </Modal>
       )}
