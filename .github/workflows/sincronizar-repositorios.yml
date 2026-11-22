@@ -54,6 +54,7 @@ jobs:
           if [ "$EVENTO" = "delete" ]; then
             if [ "$TIPO_APAGADO" = "tag" ]; then ALVO="refs/tags/$NOME_APAGADO"; else ALVO="refs/heads/$NOME_APAGADO"; fi
             if git ls-remote --exit-code "$DESTINO" "$ALVO" >/dev/null 2>&1; then
+              git init -q vazio && cd vazio   # o git push precisa estar dentro de um repositório, mesmo só para apagar
               git push "$DESTINO" ":$ALVO"; resumo "- $ALVO apagado em $OUTRO"
             else
               resumo "- $ALVO já não existe em $OUTRO"
