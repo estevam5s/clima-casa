@@ -310,7 +310,7 @@ O serviço já ocupa a 8090: para testar, use outra porta (`CLIMA_PAPEL=nuvem CL
 | Windows | PowerShell admin: `powershell -ExecutionPolicy Bypass -File .\instalar-windows.ps1` | `… status` | `data\agente.log` |
 | Linux / Raspberry Pi | `sudo ./instalar-linux.sh` (ou por código: `curl -fsSL https://app.zynio.com.br/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh <código>`) | `sudo ./instalar-linux.sh status` | `journalctl -u clima-escritorio-agente` |
 
-**Raspberry Pi / placas** (testado 17/11 em Debian 12 ARM64 no Docker, a base do Raspberry Pi OS; não testado num Pi de verdade): Pi 3B, 4 e 5
+**Raspberry Pi / placas** (guia de uso: `docs/RASPBERRY.md`; primeiro Pi real instalado em 22/11/2026, Pi 3 Model B com Debian 13, agente rodando como reserva): Pi 3B, 4 e 5
 com **Raspberry Pi OS 64-bit** rodam o agente (o instalador por código põe o Python 3.13 à parte pelo uv em `/opt/clima-escritorio/python`;
 todas as dependências têm pacote pronto para aarch64). **32 bits (armv7) não**: falta pacote pronto (cryptography, pillow…), o instalador
 recusa. **Arduino, ESP32 e ESP8266 não rodam o agente** (é Python com Postgres/TLS/WebSocket); um ESP32 só serviria como transmissor IR
