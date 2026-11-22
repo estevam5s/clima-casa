@@ -1,0 +1,87 @@
+# Mantém estevam5s/clima-casa e PMF-projetos/clima-casa iguais, nos dois sentidos: o push feito em um vai para o outro.
+# O mesmo arquivo roda nos dois repositórios; cada lado só envia para o outro.
+#
+# Regras:
+# - Nunca força. Se o outro lado tem commits que este não tem (duas pessoas mexeram na mesma branch ao mesmo tempo),
+#   o job falha e diz o que fazer: puxar dos dois remotos, juntar e dar push de novo. Nada se perde.
+# - Branch ou tag apagada num lado é apagada no outro (evento `delete`).
+# - Não entra em laço: o push que chega ao outro lado dispara este workflow lá, que encontra tudo igual e não envia nada.
+# - Leitura do próprio repositório com o GITHUB_TOKEN (só leitura). Escrita no outro com uma chave SSH de deploy que só
+#   escreve naquele repositório: ESPELHO_CHAVE_SSH (na origem, escreve na PMF-projetos) e ORIGEM_CHAVE_SSH (na
+#   PMF-projetos, escreve na origem). Push com o GITHUB_TOKEN não dispararia o CI do outro lado; com a chave dispara.
+name: Sincronizar repositórios
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  delete:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sincronizar-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sincronizar:
+    if: github.repository == 'estevam5s/clima-casa' || github.repository == 'PMF-projetos/clima-casa'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Enviar para o outro repositório
+        env:
+          CHAVE: ${{ github.repository == 'estevam5s/clima-casa' && secrets.ESPELHO_CHAVE_SSH || secrets.ORIGEM_CHAVE_SSH }}
+          LEITURA: ${{ github.token }}
+          AQUI: ${{ github.repository }}
+          EVENTO: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          APAGADO: ${{ github.event.deleted }}
+          TIPO_APAGADO: ${{ github.event.ref_type }}
+          NOME_APAGADO: ${{ github.event.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$AQUI" = "estevam5s/clima-casa" ]; then OUTRO="PMF-projetos/clima-casa"; else OUTRO="estevam5s/clima-casa"; fi
+          [ -n "$CHAVE" ] || { echo "::error::Falta o segredo da chave SSH que escreve em $OUTRO"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/sincronia && chmod 600 ~/.ssh/sincronia
+          # chave do servidor fixada (publicada pelo GitHub em api.github.com/meta), sem StrictHostKeyChecking=no
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/sincronia -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          DESTINO="git@github.com:${OUTRO}.git"
+          resumo() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
+
+          # apagar no outro lado o que foi apagado aqui
+          if [ "$EVENTO" = "delete" ]; then
+            if [ "$TIPO_APAGADO" = "tag" ]; then ALVO="refs/tags/$NOME_APAGADO"; else ALVO="refs/heads/$NOME_APAGADO"; fi
+            if git ls-remote --exit-code "$DESTINO" "$ALVO" >/dev/null 2>&1; then
+              git push "$DESTINO" ":$ALVO"; resumo "- $ALVO apagado em $OUTRO"
+            else
+              resumo "- $ALVO já não existe em $OUTRO"
+            fi
+            exit 0
+          fi
+          # o push de uma remoção também chega como "push"; quem cuida dela é o evento delete acima
+          if [ "$APAGADO" = "true" ]; then resumo "- remoção de $REF: tratada pelo evento delete"; exit 0; fi
+
+          git clone --quiet --bare "https://x-access-token:${LEITURA}@github.com/${AQUI}.git" aqui
+          cd aqui
+          if [ "$EVENTO" = "push" ]; then
+            REFS=("$REF")
+          else
+            mapfile -t REFS < <(git for-each-ref --format='%(refname)' refs/heads refs/tags)
+          fi
+          falhou=0
+          for r in "${REFS[@]}"; do
+            if saida=$(git push --porcelain "$DESTINO" "$r:$r" 2>&1); then
+              if echo "$saida" | grep -q '\[up to date\]'; then resumo "- $r já estava igual em $OUTRO"; else resumo "- $r enviado para $OUTRO"; fi
+            else
+              falhou=1
+              echo "$saida"
+              resumo "- $r NÃO enviado: $OUTRO tem commits que $AQUI não tem"
+              echo "::error::$r está diferente nos dois repositórios. Num clone com os dois remotos: git fetch --all, junte (git merge organizacao/${r#refs/heads/} ou origin/${r#refs/heads/}) e dê push de novo. Nada foi sobrescrito."
+            fi
+          done
+          exit $falhou
+      - name: Apagar a chave do runner
+        if: always()
+        run: rm -f ~/.ssh/sincronia

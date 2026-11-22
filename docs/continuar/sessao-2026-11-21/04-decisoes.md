@@ -8,3 +8,4 @@
 - Logs de execução em tempo real da Vercel (`/v1/projects/{id}/deployments/{id}/runtime-logs`) testados: a API não responde no plano atual. Não entram na tela; o README diz isso.
 - Arduino/ESP32 na Infra = placa própria dos aparelhos (relé/PWM). Não rodam o agente; infravermelho por ESP32 seria integração nova.
 - 22/11: espelho na PMF-projetos sem CD: a produção continua à mão (`publicar-vercel.sh` + `instalar-servico.sh`); o token da Vercel não vai para o GitHub. O espelho escreve com chave SSH de deploy só do `PMF-projetos/clima-casa` (o dono autorizou ligar chaves de deploy na organização), não com o token pessoal amplo.
+- 22/11: sincronia passou a ser nos dois sentidos (sem forçar); a PMF-projetos também pode receber push (chave ORIGEM_CHAVE_SSH).

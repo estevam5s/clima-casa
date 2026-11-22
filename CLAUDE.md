@@ -149,7 +149,7 @@ Usuários: **dono**, **admin** (Deison) e papéis abaixo (seção 7.7). Sem cada
 |---|---|
 | Produção (web/PWA/API) | **https://app.zynio.com.br** — projeto Vercel `clima-casa` (região `cle1`, Python 3.12). O endereço antigo `clima-casa-lac.vercel.app` continua no ar (apps antigos) |
 | Site institucional | **https://zynio.com.br** (www redireciona) — Next.js em `site/`, projeto Vercel `clima-escritorio-site` (gru1) |
-| Código (privado) | https://github.com/estevam5s/clima-casa · releases com APK/DMG/EXE/AppImage |
+| Código (privado) | https://github.com/estevam5s/clima-casa (remoto `origin`) e https://github.com/PMF-projetos/clima-casa (remoto `organizacao`), **sincronizados nos dois sentidos** (seção 18) · releases com APK/DMG/EXE/AppImage só no primeiro |
 | Banco, Auth, cron, Storage | Supabase, projeto **Arcondicionado**, ref `elyqjdcsbfdvlsxomxen` (us-east-2) |
 | App celular | Expo, conta `estevam5s`, projeto `clima-casa` (SDK 58) |
 | Alexa/Google | Sinric Pro (dispositivo "Ar do escritório" `6af888eb7d04ce9fd64d6777`, plano grátis: 3 dispositivos) |
@@ -1069,27 +1069,27 @@ botões gravados no ar representante? O último comando de voz aparece? Ver seç
 ## 18. Repositórios e CI/CD
 
 ```
- estevam5s/clima-casa (origem: aqui se trabalha)          PMF-projetos/clima-casa (espelho, privado)
- git push ──► CI ────────────────────────────┐            ┌──► CI (mesmo ci.yml)
-          └─► Espelho na organização ── SSH ─┼──────────► │    (Espelho aparece "Skipped": a guarda `if` só roda na origem)
-                                             │            │
+ estevam5s/clima-casa (origin)  ◄── Sincronizar repositórios (SSH, sem forçar) ──►  PMF-projetos/clima-casa (organizacao)
+        └─► CI                                                                              └─► CI
  produção: ./publicar-vercel.sh + ./instalar-servico.sh, à mão, do Mac (não há CD no GitHub, decisão do dono em 22/11/2026)
 ```
 
-- **Sempre trabalhe e dê push na origem.** O espelho é cópia fiel: branches e tags vão com `--prune` (branch apagada aqui some
-  lá) e qualquer push direto nele é sobrescrito. Releases (APK/DMG/EXE) **não** são espelhadas, só as tags.
+- **Dá para trabalhar nos dois.** Push em qualquer um vai sozinho para o outro (`.github/workflows/sincronizar-repositorios.yml`,
+  o mesmo arquivo nos dois). Branch ou tag apagada num lado some no outro. Não entra em laço (o outro lado acha tudo igual).
+- **Nunca força.** Se as duas pessoas mexeram na mesma branch ao mesmo tempo, a sincronia falha com aviso e nada é sobrescrito:
+  `git fetch --all`, `git merge organizacao/main` (ou `origin/main`), push de novo. **Antes de começar: `git pull origin main`.**
+- **Clone local com os dois remotos**: `git remote add organizacao https://github.com/PMF-projetos/clima-casa.git` (este Mac já tem).
+  `git push origin main` basta; `git push organizacao main` também funciona (o segundo vira "já estava igual").
 - **`.github/workflows/ci.yml`** (push em qualquer branch, PR, botão): segredos no código (`scripts/verificar-segredos.sh`), backend
-  (ruff F821/E9, compila no 3.11, `import app.main` sem .env com `VERCEL=1`, pip-audit), painel (`npm ci` + vite build + npm audit
-  alta/crítica) e site (`npm ci` + next build + npm audit). Não há testes automatizados no projeto: o CI não finge que há.
-- **`.github/workflows/espelho-organizacao.yml`**: lê a origem com o `GITHUB_TOKEN` (só leitura) e escreve no destino com uma
-  **chave SSH de deploy** com escrita só no `PMF-projetos/clima-casa` (chave do servidor do GitHub fixada no workflow).
-- **Segredos**: origem `ESPELHO_CHAVE_SSH` (chave privada; a pública está em PMF-projetos/clima-casa → Settings → Deploy keys,
-  "Espelho de estevam5s/clima-casa"). Destino: nenhum. Trocar a chave: `ssh-keygen -t ed25519 -N '' -f /tmp/k`, cadastrar `/tmp/k.pub`
-  como deploy key com escrita no destino, `gh secret set ESPELHO_CHAVE_SSH -R estevam5s/clima-casa < /tmp/k`, apagar `/tmp/k*` e a
-  chave antiga. Chaves de deploy foram ligadas na organização (Settings → Member privileges) para isso, em 22/11/2026.
-- **Rodar à mão**: Actions → "Espelho na organização" → Run workflow (ou `gh workflow run espelho-organizacao.yml -R estevam5s/clima-casa`).
+  (ruff F821/E9, compila no 3.11, `import app.main` sem .env com `VERCEL=1`, pip-audit), painel e site (`npm ci` + build + npm audit
+  alta/crítica). Não há testes automatizados no projeto: o CI não finge que há.
+- **Segredos (chaves SSH de deploy, cada uma só escreve no outro repositório)**: na origem `ESPELHO_CHAVE_SSH` (deploy key
+  "Espelho de estevam5s/clima-casa" na PMF-projetos); na PMF-projetos `ORIGEM_CHAVE_SSH` (deploy key "Sincronia vinda de
+  PMF-projetos/clima-casa" na origem). Trocar: `ssh-keygen -t ed25519 -N '' -f /tmp/k`, cadastrar `/tmp/k.pub` como deploy key com
+  escrita no repositório de destino, `gh secret set <NOME> -R <repositório que envia> < /tmp/k`, apagar `/tmp/k*` e a chave antiga.
+  Chaves de deploy foram ligadas na organização (Settings → Member privileges) em 22/11/2026.
+- **Rodar à mão** (envia todas as branches e tags, sem forçar): `gh workflow run sincronizar-repositorios.yml -R <repositório>`.
 - **Antes de commitar**: `bash scripts/verificar-segredos.sh` (mostra só arquivo:linha). Achou algo: tirar do arquivo **e rotacionar**.
-- **Limites do plano Free (organização, repositório privado)**: sem branch protection/rulesets, sem environments com aprovação, sem
-  CodeQL/secret scanning nativos; a varredura do `verificar-segredos.sh` faz o papel do secret scanning. Minutos de Actions dos privados
-  contam no plano de cada dono (origem: conta estevam5s; espelho: PMF-projetos).
+- **Limites do plano Free (organização, privado)**: sem branch protection/rulesets, environments com aprovação, CodeQL/secret
+  scanning nativos (o `verificar-segredos.sh` faz esse papel). Releases (APK/DMG/EXE) não são copiadas, só as tags.
 - **Dependências**: há uma branch `renovate/configure` (Renovate) não mesclada. Não criar Dependabot junto, para não dobrar PRs.

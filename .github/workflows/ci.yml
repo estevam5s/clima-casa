@@ -1,4 +1,4 @@
-# CI do Clima Escritório. Roda nos dois repositórios (estevam5s/clima-casa e o espelho PMF-projetos/clima-casa)
+# CI do Clima Escritório. Roda nos dois repositórios (estevam5s/clima-casa e PMF-projetos/clima-casa, sincronizados)
 # a cada push e pull request. Não publica nada: a produção continua com ./publicar-vercel.sh (CLAUDE.md, seção 18).
 name: CI
 on:
