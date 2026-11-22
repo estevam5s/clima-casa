@@ -1,16 +1,25 @@
 #!/usr/bin/env bash
-# Clima Escritório: instala (ou atualiza) o agente num Linux do escritório (Raspberry Pi 3B/4/5 com o sistema de
-# 64 bits, mini PC, Ubuntu/Debian) com o código de instalação do painel.
+# Clima Escritório: instala (ou atualiza) o agente em qualquer Linux de 64 bits (x86_64 ou ARM64) com o código de
+# instalação do painel: Raspberry Pi 3B/4/5, mini PC, PC ou servidor com Debian, Ubuntu, Fedora, RHEL, Rocky, Alma,
+# CentOS Stream, openSUSE ou Arch. Com --docker roda num contêiner (servidor sem systemd ou que só aceita Docker).
 #
 # No painel: Infra → Agentes → "Gerar código de instalação". Depois, no terminal do Raspberry/Linux:
 #   curl -fsSL https://app.zynio.com.br/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh XXXX-XXXX-XXXX-XXXX
+#   ... sudo bash /tmp/ia.sh XXXX-XXXX-XXXX-XXXX --docker      (no lugar do serviço systemd, um contêiner Docker)
 #
 # O que ele faz: confere o código, baixa o sistema, recebe o .env cifrado (só o seu código decifra, aqui), instala o
 # Python 3.13 (pelo uv, sem mexer no Python do sistema) e chama o instalar-linux.sh (serviço systemd que liga sozinho).
 # Este arquivo não tem segredo.
 set -euo pipefail
-CODIGO="${1:-}"
-PASTA="${2:-/opt/clima-escritorio/ar-controle}"
+CODIGO=""; PASTA="/opt/clima-escritorio/ar-controle"; MODO=systemd
+for a in "$@"; do
+  case "$a" in
+    --docker) MODO=docker ;;
+    --pasta=*) PASTA="${a#--pasta=}" ;;
+    -*) printf 'Opção desconhecida: %s\n' "$a" >&2; exit 1 ;;
+    *) if [ -z "$CODIGO" ]; then CODIGO="$a"; else PASTA="$a"; fi ;;
+  esac
+done
 SERVIDOR="${CLIMA_SERVIDOR:-https://app.zynio.com.br}"
 titulo() { printf '\n== %s\n' "$1"; }
 ok() { printf '  [ok] %s\n' "$1"; }
@@ -25,9 +34,25 @@ case "$(uname -m)" in
 esac
 USUARIO="${SUDO_USER:-root}"
 
+# pacotes do sistema pelo gerenciador que existir (Debian/Ubuntu/Raspberry Pi OS, Fedora/RHEL/Rocky/Alma, openSUSE, Arch)
+instalar_pacotes() {
+  if command -v apt-get >/dev/null; then apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl python3 python3-venv unzip
+  elif command -v dnf >/dev/null; then dnf install -y -q curl python3 unzip
+  elif command -v yum >/dev/null; then yum install -y -q curl python3 unzip
+  elif command -v zypper >/dev/null; then zypper --non-interactive install -y curl python3 unzip
+  elif command -v pacman >/dev/null; then pacman -Sy --noconfirm --needed curl python unzip
+  elif command -v apk >/dev/null; then falha "Alpine (musl) não tem as bibliotecas prontas do agente. Use Debian/Ubuntu ou rode com --docker."
+  else falha "Não achei apt, dnf, yum, zypper nem pacman. Instale curl, python3 e unzip e rode de novo (ou use --docker)."
+  fi
+}
+[ -r /etc/os-release ] && . /etc/os-release && ok "sistema: ${PRETTY_NAME:-Linux} ($(uname -m))"
+
 titulo "1/5 Conferindo o código"
-for p in curl python3 unzip; do command -v "$p" >/dev/null || { apt-get update -qq && apt-get install -y -qq curl python3 python3-venv unzip; break; }; done
-python3 -c 'import venv' 2>/dev/null || apt-get install -y -qq python3-venv
+for p in curl python3 unzip; do command -v "$p" >/dev/null || { instalar_pacotes; break; }; done
+python3 -c 'import venv, ensurepip' 2>/dev/null || { command -v apt-get >/dev/null && apt-get install -y -qq python3-venv; } || true
+python3 -c 'import venv' 2>/dev/null || falha "O Python deste sistema não tem o módulo venv. Instale o pacote python3-venv (ou python3-virtualenv) e rode de novo."
+if [ "$MODO" = docker ]; then command -v docker >/dev/null || falha "Docker não encontrado. Instale (docs.docker.com/engine/install) ou rode sem --docker para usar o serviço do sistema."; fi
+if [ "$MODO" = systemd ] && ! command -v systemctl >/dev/null; then falha "Este Linux não usa systemd. Rode de novo com --docker (precisa do Docker instalado)."; fi
 NORM="$(printf '%s' "$CODIGO" | tr '[:lower:]' '[:upper:]' | tr -cd 'A-Z0-9')"
 [ "${#NORM}" = 16 ] || falha "O código tem 16 letras e números (ex.: ABCD-EFGH-JKMN-PQRS). Copie de novo do painel."
 ID="$(printf '%s' "$NORM" | sha256sum | cut -c1-16)"
@@ -80,8 +105,47 @@ titulo "4/5 Recebendo as chaves (.env)"
 chown "$USUARIO" "$PASTA/.env"; chmod 600 "$PASTA/.env"
 ok ".env gravado e protegido (só $USUARIO lê)"
 
-titulo "5/5 Instalando o agente"
-chmod +x "$PASTA/instalar-linux.sh"
-SUDO_USER="$USUARIO" bash "$PASTA/instalar-linux.sh"
+titulo "Rede: este computador alcança o banco e o painel?"
+# redes de órgão público costumam bloquear a porta 6543 (Postgres) ou interceptar o HTTPS; melhor saber agora
+"$PASTA/.venv/bin/python" - "$PASTA/.env" "$SERVIDOR" <<'PY' || true
+import socket, ssl, sys, urllib.request
+env = dict(l.split("=", 1) for l in open(sys.argv[1], encoding="utf-8").read().splitlines() if "=" in l and not l.startswith("#"))
+host, porta = env.get("SUPABASE_DB_HOST", ""), int(env.get("SUPABASE_DB_PORT", "6543") or 6543)
+def tcp(h, p):
+    try: socket.create_connection((h, p), timeout=6).close(); return True
+    except OSError: return False
+if host:
+    print(f"  [{'ok' if tcp(host, porta) else 'x'}] banco ({host.split('.')[0]}…:{porta})" + ("" if tcp(host, porta) else
+          " BLOQUEADO: peça à TI para liberar a saída TCP 6543 para *.pooler.supabase.com; sem isso o agente não funciona aqui"))
+try:
+    urllib.request.urlopen(sys.argv[2] + "/saude", timeout=8, context=ssl.create_default_context()); print("  [ok] painel (HTTPS)")
+except ssl.SSLError:
+    print("  [x] o certificado do painel foi trocado no caminho (inspeção SSL do firewall): peça à TI para liberar zynio.com.br da inspeção")
+except Exception as e:
+    print(f"  [x] painel sem resposta ({e.__class__.__name__}): confira proxy/firewall de saída 443")
+PY
+
+titulo "5/5 Instalando o agente ($MODO)"
+if [ "$MODO" = docker ]; then
+  # contêiner com o Python oficial, código e .env montados da pasta; rede do host para alcançar os transmissores (6668 e UDP 6666/6667)
+  cat > "$PASTA/docker-compose.agente.yml" <<YML
+# Gerado pelo instalar-agente.sh. Atualizar: gere um código novo e rode o instalador com --docker de novo.
+services:
+  agente:
+    image: python:3.13-slim
+    container_name: clima-escritorio-agente
+    restart: unless-stopped
+    network_mode: host
+    working_dir: /app/backend
+    environment: { CLIMA_PAPEL: agente, PYTHONUTF8: "1", PYTHONUNBUFFERED: "1" }
+    volumes: [ "$PASTA:/app" ]
+    command: sh -c "python -m venv /app/.venv-docker && /app/.venv-docker/bin/pip install -q -r /app/backend/requirements.txt && exec /app/.venv-docker/bin/python -m app.main"
+YML
+  ( cd "$PASTA" && docker compose -f docker-compose.agente.yml up -d --force-recreate ) || falha "O Docker não subiu o contêiner: docker compose -f $PASTA/docker-compose.agente.yml logs"
+  ok "contêiner clima-escritorio-agente no ar (reinicia sozinho; logs: docker logs -f clima-escritorio-agente)"
+else
+  chmod +x "$PASTA/instalar-linux.sh"
+  SUDO_USER="$USUARIO" bash "$PASTA/instalar-linux.sh"
+fi
 printf '\nPronto. Volte ao painel (Infra → Agentes): este computador aparece em alguns segundos.\n'
 printf 'Para atualizar no futuro: gere um código novo e rode o mesmo comando.\n'

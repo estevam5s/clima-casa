@@ -52,7 +52,7 @@ function paginaPortao({ host, chave, endpoint, volta }) {
 
 
 export const config = {
-  matcher: ['/((?!api/|\.well-known/|alexa/|oauth/|saude|assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js|tema\\.js|og\\.jpg|verificacao\\.js|instalar-agente\\.ps1|instalar-agente\\.sh|instalar-ia\\.sh|instalar-ia\\.ps1|clima-ia/|favicon).*)'],
+  matcher: ['/((?!api/|\.well-known/|alexa/|oauth/|saude|assets/|icone|apple-touch-icon|manifest\\.webmanifest|sw\\.js|tema\\.js|og\\.jpg|verificacao\\.js|instalar-agente\\.ps1|instalar-agente\\.sh|instalar-agente-mac\\.sh|instalar-ia\\.sh|instalar-ia\\.ps1|clima-ia/|favicon).*)'],
 }
 
 // iscas: caminhos que só robô pede (/wp-login.php, /.env, /.git/config…). Reescreve para /api/isca, que registra e

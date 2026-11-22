@@ -1172,6 +1172,39 @@ def _agenda_publica(r):
     return r
 
 
+class RegrasAgendaIn(BaseModel):
+    pular_feriados: bool = False
+    pausa_ate: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    pausa_motivo: str = Field("", max_length=80)
+    datas_extras: list[dict] = Field(default_factory=list, max_length=60)
+
+
+@api.get("/agendamentos/regras")
+def regras_agenda():
+    from .. import feriados
+    import datetime
+    return {"regras": feriados.regras(), "proximos": feriados.proximos(), "hoje": feriados.motivo_para_nao_rodar(datetime.date.today())}
+
+
+@api.put("/agendamentos/regras")
+def mudar_regras_agenda(d: RegrasAgendaIn):
+    """Feriados e férias valem para a agenda de todos: só dono ou admin."""
+    from .. import acesso
+    if (acesso.atual.get() or {}).get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Feriados e férias valem para a agenda de todos: só o dono ou um administrador mudam.")
+    extras = []
+    for e in d.datas_extras:
+        data, nome = str(e.get("data", "")), str(e.get("nome", ""))[:60]
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", data):
+            raise HTTPException(422, "Data extra inválida (use AAAA-MM-DD).")
+        extras.append({"data": data, "nome": nome or "Sem expediente"})
+    db.set_cfg("agenda_regras", {"pular_feriados": d.pular_feriados, "pausa_ate": d.pausa_ate, "pausa_motivo": d.pausa_motivo.strip(),
+                                 "datas_extras": sorted(extras, key=lambda x: x["data"])})
+    db.registrar("painel", "Regras da agenda alteradas", detalhe=("feriados pulados" if d.pular_feriados else "feriados rodam")
+                 + (f" · pausada até {d.pausa_ate}" if d.pausa_ate else ""))
+    return regras_agenda()
+
+
 @api.get("/agendamentos")
 def listar_agendamentos():
     return [_agenda_publica(r) for r in db.consultar(

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArchiveRestore, CheckCircle2, Database, DatabaseBackup, Download, FileArchive, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react'
+import { AlertTriangle, ArchiveRestore, CheckCircle2, Database, DatabaseBackup, Download, FileArchive, FileSearch, GitCompare, PenLine, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react'
+import { Agenda, Comparar, Conferir, Procurar, Uso, fmtData, fmtMB } from '../components/backup/Avancado'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
@@ -7,22 +8,21 @@ import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDa
 // Backup e restauração do sistema inteiro (só dono ou admin com acesso a todos os projetos).
 // Gerar: todas as tabelas (ou as escolhidas) num .zip com manifesto e sha256 de cada tabela, guardado no Storage
 // privado. Restaurar: envia o .zip, SIMULA (o que é novo, o que muda, o que sairia) e só grava com RESTAURAR.
-const fmtMB = (b) => (b == null ? '—' : b > 1048576 ? `${(b / 1048576).toFixed(2)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`)
-const fmtData = (v) => { const d = typeof v === 'number' ? new Date(v * 1000) : new Date(v); return isNaN(d) ? '—' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }
 
 function Gerar({ tabelas, grupos, aoGerar }) {
   const toast = useToast()
   const [sel, setSel] = useState(() => new Set(Object.keys(grupos)))
   const [gerando, setGerando] = useState(false)
   const [tudo, setTudo] = useState(true)
+  const [rotulo, setRotulo] = useState('')
   const lista = useMemo(() => (tudo ? null : tabelas.filter((t) => sel.has(t.grupo)).map((t) => t.nome)), [tudo, sel, tabelas])
   const gerar = async () => {
     setGerando(true)
     try {
-      const r = await api.post('/api/backup-sistema/gerar', { tabelas: lista })
+      const r = await api.post('/api/backup-sistema/gerar', { tabelas: lista, rotulo })
       const n = Object.values(r.tabelas).reduce((a, b) => a + b, 0)
       toast(`Backup pronto: ${Object.keys(r.tabelas).length} tabela(s), ${n.toLocaleString('pt-BR')} linha(s), ${fmtMB(r.tamanho)} em ${r.segundos} s.`)
-      aoGerar(r.arquivo)
+      aoGerar(r.arquivo); setRotulo('')
     } catch (e) { toast(e.message, 'erro') } finally { setGerando(false) }
   }
   return (
@@ -43,6 +43,8 @@ function Gerar({ tabelas, grupos, aoGerar }) {
           ))}
         </div>
       )}
+      <label className="mt-4 block text-sm"><span className="rotulo">Nota (opcional)</span>
+        <input className="campo" maxLength={120} placeholder="Ex.: antes de trocar os transmissores" value={rotulo} onChange={(e) => setRotulo(e.target.value)} /></label>
       <Botao className="mt-4" icone={DatabaseBackup} carregando={gerando} onClick={gerar} disabled={!tudo && !sel.size}>{gerando ? 'Gerando…' : 'Gerar backup'}</Botao>
     </section>
   )
@@ -58,6 +60,7 @@ function Restaurar({ tabelas, aoMudar, preArquivo, setPreArquivo }) {
   const [confirmar, setConfirmar] = useState(null)
   const [palavra, setPalavra] = useState('')
   const [gravando, setGravando] = useState(false)
+  const [seguranca, setSeguranca] = useState(true)
   const restauravel = useMemo(() => new Set(tabelas.filter((t) => t.restauravel).map((t) => t.nome)), [tabelas])
   const enviar = async (e) => {
     const f = e.target.files?.[0]; e.target.value = ''
@@ -80,9 +83,9 @@ function Restaurar({ tabelas, aoMudar, preArquivo, setPreArquivo }) {
   const gravar = async () => {
     setGravando(true)
     try {
-      const r = await api.post('/api/backup-sistema/restaurar', { arquivo: sim.arquivo, modo: confirmar, tabelas: [...escolha], confirmacao: palavra })
+      const r = await api.post('/api/backup-sistema/restaurar', { arquivo: sim.arquivo, modo: confirmar, tabelas: [...escolha], confirmacao: palavra, seguranca })
       const n = r.tabelas.reduce((a, t) => a + (t.gravadas || 0), 0)
-      toast(`Restaurado (${confirmar === 'mesclar' ? 'mesclando' : 'substituindo'}): ${n.toLocaleString('pt-BR')} linha(s) em ${r.tabelas.filter((t) => t.gravadas != null).length} tabela(s).`)
+      toast(`Restaurado (${confirmar === 'mesclar' ? 'mesclando' : 'substituindo'}): ${n.toLocaleString('pt-BR')} linha(s) em ${r.tabelas.filter((t) => t.gravadas != null).length} tabela(s).${r.seguranca ? ' Para desfazer, use o backup "antes de restaurar" da lista.' : ''}`); aoMudar()
       setConfirmar(null); setPalavra(''); simular(sim.arquivo)
     } catch (e) { toast(e.message, 'erro') } finally { setGravando(false) }
   }
@@ -128,7 +131,9 @@ function Restaurar({ tabelas, aoMudar, preArquivo, setPreArquivo }) {
           <div className="space-y-3 text-sm">
             <p>{confirmar === 'mesclar' ? 'Linhas novas entram e as que mudaram voltam ao que está no backup. Nada é apagado.' : 'As tabelas escolhidas são APAGADAS e regravadas com o conteúdo do backup. O que só existe hoje some.'}</p>
             <p className="font-mono text-xs text-muted-foreground">{[...escolha].join(', ')}</p>
-            <p>Faça um backup agora antes, se ainda não fez. Para continuar, digite <b>RESTAURAR</b>:</p>
+            <label className="flex items-start gap-2 rounded-lg border border-border p-2.5"><input type="checkbox" className="mt-0.5" checked={seguranca} onChange={(e) => setSeguranca(e.target.checked)} />
+              <span>Guardar antes um backup destas tabelas (para desfazer). <span className="text-muted-foreground">Fica na lista como “antes de restaurar”; guarda os 5 últimos.</span></span></label>
+            <p>Para continuar, digite <b>RESTAURAR</b>:</p>
             <input className="campo font-mono" value={palavra} onChange={(e) => setPalavra(e.target.value)} aria-label="Digite RESTAURAR" autoFocus />
             <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={() => { setConfirmar(null); setPalavra('') }}>Cancelar</Botao>
               <Botao variante={confirmar === 'substituir' ? 'perigo' : 'primario'} carregando={gravando} disabled={palavra !== 'RESTAURAR'} onClick={gravar}>{confirmar === 'mesclar' ? 'Mesclar agora' : 'Substituir agora'}</Botao></div>
@@ -147,6 +152,8 @@ export default function Backup() {
   const { dados, erro, recarregar } = useDados(() => (pode ? api.get('/api/backup-sistema') : Promise.resolve(null)), [pode])
   const [preArquivo, setPreArquivo] = useState(() => new URLSearchParams(location.search).get('aba') === 'restaurar' ? null : null)
   const [apagar, setApagar] = useState(null)
+  const [conferir, setConferir] = useState(null), [procurar, setProcurar] = useState(null), [comparar, setComparar] = useState([]), [verComparar, setVerComparar] = useState(false)
+  const [editando, setEditando] = useState(null)   // { arquivo, rotulo }
   if (!sessao) return <Carregando />
   if (!pode) return <Aviso tipo="alerta">Backup e restauração são só do dono ou de um administrador.</Aviso>
   if (erro || erroT) return <Aviso>{erro || erroT}</Aviso>
@@ -160,6 +167,8 @@ export default function Backup() {
       Object.assign(document.createElement('a'), { href: url, download: `backup-automatico-${b.id}.json` }).click(); setTimeout(() => URL.revokeObjectURL(url), 3000)
     } catch (e) { toast(e.message, 'erro') }
   }
+  const salvarRotulo = async () => { try { await api.put('/api/backup-sistema/rotulo', editando); setEditando(null); recarregar() } catch (e) { toast(e.message, 'erro') } }
+  const marcarComparar = (arquivo) => setComparar((c) => (c.includes(arquivo) ? c.filter((x) => x !== arquivo) : [...c, arquivo].slice(-2)))
   const confirmarApagar = async () => { try { await api.del(`/api/backup-sistema/${encodeURIComponent(apagar)}`); toast('Backup apagado.'); setApagar(null); recarregar() } catch (e) { toast(e.message, 'erro') } }
   return (
     <div className="w-full">
@@ -168,20 +177,39 @@ export default function Backup() {
         { rotulo: 'Tabelas no banco', valor: tb.tabelas.length, dica: `${tb.tabelas.filter((t) => t.restauravel).length} restauráveis` },
         { rotulo: 'Linhas (aprox.)', valor: linhas, dica: 'estimativa do Postgres' },
         { rotulo: 'Backups guardados', valor: dados.arquivos.length, dica: dados.arquivos[0] ? `último: ${fmtData(dados.arquivos[0].criado_em)}` : 'nenhum ainda' },
-        { rotulo: 'Automáticos diários', valor: dados.automaticos.length, dica: 'às 02h (Brasília), guarda 14' },
+        { rotulo: 'Backup agendado', valor: dados.agenda?.ativo ? 'Ligado' : 'Desligado', dica: dados.agenda?.ativo && dados.agenda.proximo ? `próximo ${fmtData(dados.agenda.proximo)}` : 'agende abaixo' },
       ]} />
+      {dados.agenda?.ativo && dados.agenda.ultimo && !dados.agenda.ultimo_ok && <div className="mt-4"><Aviso>O último backup agendado falhou: {dados.agenda.ultimo_erro}</Aviso></div>}
+      {!dados.arquivos.length || (Date.now() - new Date(dados.arquivos[0].criado_em).getTime()) > 7 * 86400000
+        ? <div className="mt-4"><Aviso tipo="alerta">{dados.arquivos.length ? 'O backup completo mais novo tem mais de 7 dias.' : 'Ainda não há backup completo.'} Gere um agora ou ligue o backup agendado.</Aviso></div> : null}
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Gerar tabelas={tb.tabelas} grupos={tb.grupos} aoGerar={() => recarregar()} />
         <Restaurar tabelas={tb.tabelas} aoMudar={recarregar} preArquivo={preArquivo} setPreArquivo={setPreArquivo} />
       </div>
+      <div className="mt-6"><Agenda agenda={dados.agenda} grupos={tb.grupos} aoSalvar={recarregar} /></div>
       <section className="cartao mt-6 p-5">
-        <h2 className="titulo-secao flex items-center gap-2"><FileArchive className="h-4 w-4 text-primary" />Backups guardados</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="titulo-secao flex items-center gap-2"><FileArchive className="h-4 w-4 text-primary" />Backups guardados</h2>
+          <Botao tamanho="sm" variante="secundario" icone={GitCompare} disabled={comparar.length !== 2} onClick={() => setVerComparar(true)}>{comparar.length === 2 ? 'Comparar os 2 marcados' : `Marque 2 para comparar (${comparar.length}/2)`}</Botao>
+        </div>
+        <Uso uso={dados.uso} />
         {!dados.arquivos.length ? <Vazio icone={Database} titulo="Nenhum backup ainda" texto="Gere o primeiro acima. Ele fica guardado aqui (Storage privado) e dá para baixar ou restaurar." /> : (
           <ul className="mt-3 divide-y divide-border">
             {dados.arquivos.map((a) => (
               <li key={a.arquivo} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
-                <FileArchive className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1"><span className="block truncate font-mono text-xs">{a.arquivo}</span><span className="text-xs text-muted-foreground">{fmtData(a.criado_em)} · {fmtMB(a.tamanho)} · {a.tipo === 'enviado' ? 'enviado por upload' : 'gerado aqui'}</span></span>
+                <input type="checkbox" aria-label={`Marcar ${a.arquivo} para comparar`} checked={comparar.includes(a.arquivo)} onChange={() => marcarComparar(a.arquivo)} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-mono text-xs">{a.arquivo}</span>
+                  <span className="text-xs text-muted-foreground">{fmtData(a.criado_em)} · {fmtMB(a.tamanho)} · {a.tipo}</span>
+                  {editando?.arquivo === a.arquivo ? (
+                    <form className="mt-1 flex gap-1.5" onSubmit={(e) => { e.preventDefault(); salvarRotulo() }}>
+                      <input className="campo h-7 text-xs" autoFocus maxLength={120} value={editando.rotulo} onChange={(e) => setEditando({ ...editando, rotulo: e.target.value })} aria-label="Nota do backup" />
+                      <Botao tamanho="sm" type="submit">Salvar</Botao>
+                    </form>
+                  ) : <button onClick={() => setEditando({ arquivo: a.arquivo, rotulo: a.rotulo || '' })} className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><PenLine className="h-3 w-3" />{a.rotulo || 'Adicionar nota'}</button>}
+                </span>
+                <Botao tamanho="sm" variante="secundario" icone={ShieldCheck} onClick={() => setConferir(a.arquivo)}>Conferir</Botao>
+                <Botao tamanho="sm" variante="secundario" icone={FileSearch} onClick={() => setProcurar(a.arquivo)}>Procurar</Botao>
                 <Botao tamanho="sm" variante="secundario" icone={Download} onClick={() => baixar(a.arquivo)}>Baixar</Botao>
                 <Botao tamanho="sm" variante="secundario" icone={ArchiveRestore} onClick={() => { setPreArquivo(a.arquivo); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Usar para restaurar</Botao>
                 <button onClick={() => setApagar(a.arquivo)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600" aria-label={`Apagar ${a.arquivo}`}><Trash2 className="h-4 w-4" /></button>
@@ -202,6 +230,9 @@ export default function Backup() {
           ))}
         </ul>
       </section>
+      {conferir && <Conferir arquivo={conferir} aoFechar={() => setConferir(null)} />}
+      {procurar && <Procurar arquivo={procurar} aoFechar={() => { setProcurar(null); recarregar() }} />}
+      {verComparar && comparar.length === 2 && (() => { const ordem = (x) => -dados.arquivos.findIndex((a) => a.arquivo === x); const [a, b] = [...comparar].sort((x, y) => ordem(x) - ordem(y)); return <Comparar a={a} b={b} aoFechar={() => setVerComparar(false)} /> })()}
       {apagar && (
         <Modal aberto titulo="Apagar este backup?" onFechar={() => setApagar(null)}>
           <p className="text-sm">{apagar} será apagado do Storage. Isso não desfaz.</p>

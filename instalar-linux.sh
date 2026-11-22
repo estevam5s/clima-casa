@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala o agente do Clima Escritório num Linux que fica no escritório (Raspberry Pi 3B/4/5 com o sistema de 64 bits, mini PC, PC com Ubuntu),
+# Instala o agente do Clima Escritório num Linux que fica no escritório (Raspberry Pi 3B/4/5 com o sistema de 64 bits, mini PC, PC ou servidor com Debian, Ubuntu, Fedora, RHEL, openSUSE ou Arch),
 # no mesmo Wi-Fi 2,4 GHz do transmissor. Roda como serviço systemd e reinicia sozinho.
 #   sudo ./instalar-linux.sh            instala ou atualiza
 #   sudo ./instalar-linux.sh status     mostra se está rodando
@@ -18,7 +18,13 @@ esac
 [ -f "$RAIZ/.env" ] || { echo "Falta o .env: copie o do Mac para $RAIZ."; exit 1; }
 chmod 600 "$RAIZ/.env"   # só o dono do arquivo lê as chaves
 echo "== Python e dependências"
-if ! command -v python3 >/dev/null; then apt-get update -qq && apt-get install -y -qq python3 python3-venv python3-pip; fi
+if ! command -v python3 >/dev/null; then
+  if command -v apt-get >/dev/null; then apt-get update -qq && apt-get install -y -qq python3 python3-venv python3-pip
+  elif command -v dnf >/dev/null; then dnf install -y -q python3 python3-pip
+  elif command -v zypper >/dev/null; then zypper --non-interactive install -y python3 python3-pip
+  elif command -v pacman >/dev/null; then pacman -Sy --noconfirm --needed python python-pip
+  else echo "Instale o Python 3.11+ e rode de novo."; exit 1; fi
+fi
 python3 -c 'import sys; assert sys.version_info >= (3, 11), "precisa de Python 3.11 ou mais novo"'
 [ -x "$RAIZ/.venv/bin/python" ] || sudo -u "$USUARIO" python3 -m venv "$RAIZ/.venv"
 sudo -u "$USUARIO" "$RAIZ/.venv/bin/pip" install -q --retries 8 --timeout 90 --upgrade pip

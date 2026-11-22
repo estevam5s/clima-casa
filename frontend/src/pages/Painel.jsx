@@ -4,13 +4,15 @@ import { motion } from 'framer-motion'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { AirVent, AlertTriangle, CheckCircle2, ChevronRight, Info, Map as MapaIcone, Minus, Plus, Power, Sparkles } from 'lucide-react'
 import { MODOS, VENTILACAO, api, haQuanto, rotuloOrigem } from '../api'
+import { lerCache, gravarCache } from '../cacheTela'
 import { comFiltro, useProjeto } from '../contexto'
 import { useTema } from '../tema'
 import { useMarca } from '../marca'
 import { Aviso, Botao, Carregando, Esqueleto, FaixaMetricas, Ponto, Selo, useToast } from '../components/ui'
 import { completar } from '../mapaUtil'
 
-const Cena3D = lazy(() => import('../components/Cena3D'))
+const carregarCena3D = () => import('../components/Cena3D')
+const Cena3D = lazy(carregarCena3D)
 const Mapa3D = lazy(() => import('../components/Mapa3D'))
 const Barras3D = lazy(() => import('../components/Barras3D'))
 import MapaUso from '../components/MapaUso'
@@ -244,9 +246,13 @@ function AresDaSala({ ares, aoMudar, aparencia = {}, titulo, fechar }) {
 export default function Painel() {
   const { filtro, projeto } = useProjeto()
   const { marca } = useMarca()
-  const [dados, setDados] = useState(null)
-  const [metricas, setMetricas] = useState([])
-  const [analise, setAnalise] = useState(null)
+  // abre com o que a pessoa viu da última vez (cacheTela) e troca quando o servidor responde
+  const [dados, setDadosBrutos] = useState(() => lerCache(`painel:${filtro}`))
+  const setDados = setDadosBrutos
+  const chegou = (d) => { gravarCache(`painel:${filtro}`, d); setDadosBrutos(d) }   // grava mesmo se a pessoa já saiu da tela
+  const [atualizado, setAtualizado] = useState(false)
+  const [metricas, setMetricas] = useState(() => lerCache('metricas14') || [])
+  const [analise, setAnalise] = useState(() => lerCache(`painel-analise:${filtro}`))
   const [vistaUso, setVistaUso] = useState(() => { try { return localStorage.getItem('clima-vista-uso') || 'grade' } catch { return 'grade' } })
   useEffect(() => { try { localStorage.setItem('clima-vista-uso', vistaUso) } catch { /* sem armazenamento */ } }, [vistaUso])
   const [planta, setPlanta] = useState(null)
@@ -255,16 +261,18 @@ export default function Painel() {
   useEffect(() => { setSalaLado(null) }, [filtro])
 
   useEffect(() => {
-    setDados(null)
-    api.get(comFiltro('/api/painel', filtro)).then(setDados).catch((e) => setErro(e.message))
-    api.get('/api/metricas?dias=14').then(setMetricas).catch(() => {})
-    setAnalise(null)
-    api.get(comFiltro('/api/painel/analise', filtro)).then(setAnalise).catch(() => setAnalise(false))
-  }, [filtro])
+    carregarCena3D()   // o 3D do ar começa a baixar junto com os dados, não depois deles
+    setAtualizado(false)
+    setDadosBrutos(lerCache(`painel:${filtro}`))
+    api.get(comFiltro('/api/painel', filtro)).then((d) => { chegou(d); setAtualizado(true) }).catch((e) => { setAtualizado(true); if (!lerCache(`painel:${filtro}`)) setErro(e.message) })
+    api.get('/api/metricas?dias=14').then((m) => { setMetricas(m); gravarCache('metricas14', m) }).catch(() => {})
+    setAnalise(lerCache(`painel-analise:${filtro}`))
+    api.get(comFiltro('/api/painel/analise', filtro)).then((a) => { setAnalise(a); gravarCache(`painel-analise:${filtro}`, a) }).catch(() => setAnalise((x) => x || false))
+  }, [filtro]) // eslint-disable-line react-hooks/exhaustive-deps
   // estado ao vivo: o que mudou pela Alexa, pelo celular, pela agenda ou por outra pessoa aparece sozinho (a cada 15 s,
   // só com a aba visível; volta a buscar na hora quando a aba volta)
   useEffect(() => {
-    const buscar = () => { if (!document.hidden) api.get(comFiltro('/api/painel', filtro)).then(setDados).catch(() => {}) }
+    const buscar = () => { if (!document.hidden) api.get(comFiltro('/api/painel', filtro)).then(chegou).catch(() => {}) }
     const t = setInterval(buscar, 15000)
     document.addEventListener('visibilitychange', buscar)
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', buscar) }
@@ -302,6 +310,7 @@ export default function Painel() {
           <p className="mt-1 text-sm text-muted-foreground">
             {totais.ligados} de {totais.aparelhos} aparelho{totais.aparelhos === 1 ? '' : 's'} ligado{totais.ligados === 1 ? '' : 's'} agora
             {dados.alertas > 0 && <> · <Link to="/supabase" className="text-amber-600 hover:underline dark:text-amber-400">{dados.alertas} alerta{dados.alertas > 1 ? 's' : ''}</Link></>}
+            {!atualizado && <span className="ml-2 inline-flex items-center gap-1 text-xs"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />atualizando</span>}
           </p>
         </div>
         <div className="flex gap-2">

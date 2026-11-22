@@ -121,6 +121,12 @@ def cumprir_ordens(papel: str):
 def info(papel: str) -> dict:
     sistema = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}.get(platform.system(), platform.system())
     versao = platform.mac_ver()[0] if sistema == "macOS" else platform.release()
+    if sistema == "Linux":   # nome da distribuição (Raspberry Pi OS, Ubuntu, Fedora…) diz mais que a versão do kernel
+        rel = {k: v.strip('"') for k, v in (l.split("=", 1) for l in (_ler("/etc/os-release") or "").splitlines() if "=" in l)}
+        if rel.get("PRETTY_NAME"):
+            sistema, versao = f"Linux · {rel['PRETTY_NAME']}", ""
+    if os.path.exists("/.dockerenv"):
+        versao = f"{versao} (Docker)".strip()
     return {"id": _eu(), "nome": socket.gethostname().split(".")[0], "sistema": f"{sistema} {versao}".strip(),
             "python": platform.python_version(), "papel": papel, "visto": int(time.time())}
 

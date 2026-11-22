@@ -169,12 +169,16 @@ export default function Integracoes() {
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="cartao p-5">
             <h2 className="flex items-center gap-2 titulo-secao"><Link2 className="h-4 w-4" /> Conectar outra Alexa</h2>
             {conexao && (
-              <div className="mt-4 flex flex-col items-center gap-3 rounded-lg border border-border bg-white p-4">
-                <img src={conexao.qr} alt="QR Code da skill Sinric Pro" className="h-40 w-40" />
+              <div className="mt-4 flex items-center gap-4 rounded-lg border border-border bg-muted/40 p-4">
+                {/* só o QR no quadrado branco (a câmera precisa de contraste); o resto segue o tema */}
+                <div className="shrink-0 rounded-md bg-white p-2"><img src={conexao.qr} alt="QR Code da skill Sinric Pro" className="h-28 w-28" /></div>
+                <div className="min-w-0 space-y-2">
+                  <p className="text-xs text-muted-foreground">Aponte a câmera do celular que tem o app Alexa da outra conta.</p>
                 <a href={conexao.skill_url} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-medium text-white hover:bg-zinc-800">
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:opacity-90">
                   <QrCode className="h-3.5 w-3.5" /> Abrir a skill na Amazon
                 </a>
+                </div>
               </div>
             )}
             <ol className="mt-4 space-y-4">

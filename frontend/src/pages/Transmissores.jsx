@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Check, CheckCircle2, ChevronDown, CloudDownload, KeyRound, Pencil, Plus, Power, Radio, RefreshCw, Search, Stethoscope, Trash2, Truck, Wand2, Wifi, XCircle } from 'lucide-react'
+import { Activity, ArrowRight, Check, CheckCircle2, ChevronDown, CloudDownload, Download, KeyRound, Pencil, Plus, Power, Radio, RefreshCw, Search, Stethoscope, Trash2, Truck, Wand2, Wifi, XCircle } from 'lucide-react'
+import { baixarArquivo, paraCsv } from '../components/FerramentasLista'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import PassoAPasso from '../components/PassoAPasso'
@@ -671,6 +672,36 @@ function PassosTransmissor({ hubs, abrir }) {
   return <PassoAPasso chave="transmissores" titulo="Passo a passo: instalar um transmissor" descricao="Do Smart IR na caixa até ele comandar os ares do escritório" passos={passos} />
 }
 
+// Testa a conexão de cada transmissor, um por vez (o SRW-004 aceita poucas conexões): rede, chave e protocolo, com o tempo
+function TestarTodos({ hubs, onFechar, aoTerminar }) {
+  const [res, setRes] = useState({}), [rodando, setRodando] = useState(false), [feito, setFeito] = useState(false)
+  const rodar = async () => {
+    setRodando(true); setRes({})
+    for (const h of hubs) {
+      setRes((r) => ({ ...r, [h.id]: { esperando: true } }))
+      try { const r = await api.post(`/api/hubs/${h.id}/testar`); setRes((x) => ({ ...x, [h.id]: r })) } catch (e) { setRes((x) => ({ ...x, [h.id]: { ok: false, mensagem: e.message } })) }
+    }
+    setRodando(false); setFeito(true); aoTerminar?.()
+  }
+  useEffect(() => { rodar() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const ok = Object.values(res).filter((r) => r.ok).length
+  return (
+    <Modal aberto titulo="Testar todos os transmissores" onFechar={onFechar}>
+      <div className="space-y-3 text-sm">
+        <p className="text-muted-foreground">Um por vez, pelo agente do escritório: chega na rede, aceita a chave e responde no protocolo certo? Não manda sinal para nenhum ar.</p>
+        <ul className="divide-y divide-border rounded-lg border border-border">{hubs.map((h) => { const r = res[h.id]; return (
+          <li key={h.id} className="flex items-start gap-3 px-3 py-2.5">
+            {!r ? <span className="mt-1 h-3 w-3 rounded-full border border-border" /> : r.esperando ? <span className="mt-1 h-3 w-3 animate-pulse rounded-full bg-primary motion-reduce:animate-none" /> : r.ok ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <XCircle className="h-4 w-4 shrink-0 text-red-600" />}
+            <span className="min-w-0 flex-1"><b className="block font-medium">{h.nome}</b><span className="text-xs text-muted-foreground">{!r ? 'na fila' : r.esperando ? 'testando…' : r.mensagem}</span></span>
+            {r?.ms != null && <span className="text-xs tabular text-muted-foreground">{r.ms} ms</span>}
+          </li>) })}</ul>
+        {feito && <p className={ok === hubs.length ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}>{ok} de {hubs.length} respondendo.</p>}
+        <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={onFechar}>Fechar</Botao><Botao icone={RefreshCw} carregando={rodando} onClick={rodar}>Testar de novo</Botao></div>
+      </div>
+    </Modal>
+  )
+}
+
 export default function Transmissores() {
   const { filtro } = useProjeto()
   const { dados: hubs, erro, recarregar, setDados } = useDados(() => api.get(comFiltro('/api/hubs', filtro)), [filtro])
@@ -719,6 +750,8 @@ export default function Transmissores() {
         acoes={<>
           <Botao variante="secundario" icone={RefreshCw} carregando={verificando} onClick={verificar}>Verificar</Botao>
           <Botao variante="secundario" icone={Wand2} carregando={reparando} onClick={reparar}>Reconectar agora</Botao>
+          {hubs.length > 0 && <Botao variante="secundario" icone={Activity} onClick={() => setModal({ tipo: 'testar-todos' })}>Testar todos</Botao>}
+          {hubs.length > 0 && <Botao variante="secundario" icone={Download} onClick={() => baixarArquivo('transmissores.csv', paraCsv(hubs, [['nome', 'Transmissor'], ['ip', 'IP'], ['versao', 'Protocolo'], [(h) => (h.online ? 'online' : 'sem resposta'), 'Estado'], ['aparelhos', 'Ares'], [(h) => (h.ares || []).map((a) => a.nome).join(', '), 'Quais ares'], [(h) => (h.tem_chave ? 'sim' : 'não'), 'Local Key'], [(h) => h.problema || '', 'Aviso']]), 'text/csv')}>CSV</Botao>}
           <Botao variante="secundario" icone={CloudDownload} onClick={async () => {
             try {
               const r = await api.post('/api/hubs/importar-todos')
@@ -807,6 +840,7 @@ export default function Transmissores() {
         </div>
       )}
 
+      {modal?.tipo === 'testar-todos' && <TestarTodos hubs={hubs} onFechar={() => setModal(null)} aoTerminar={recarregar} />}
       <Modal aberto={modal?.tipo === 'novo'} titulo="Adicionar transmissor" onFechar={() => setModal(null)} largura="max-w-xl">
         {modal?.tipo === 'novo' && <NovoTransmissor onFechar={() => setModal(null)} aoMudar={recarregar} />}
       </Modal>

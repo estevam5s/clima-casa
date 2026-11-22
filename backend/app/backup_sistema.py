@@ -11,6 +11,14 @@ Restauração: o .zip é enviado direto ao Storage (link assinado) e o servidor 
 - `mesclar`: insere as novas e atualiza as que mudaram, pela chave primária (não apaga nada);
 - `substituir`: apaga a tabela e grava a do backup (só tabelas escolhidas; pede a palavra RESTAURAR).
 Tabelas de sessão/login/OAuth nunca são restauradas (voltariam sessões antigas).
+
+Recursos avançados:
+- backup agendado (config `backup_agenda`): diário ou semanal num horário de Brasília, rodado pelo agente (`ciclo`),
+  com retenção dos N mais recentes, aviso na central de notificações se falhar;
+- backup de segurança automático ANTES de mesclar/substituir (arquivo `antes-restaurar-…`, guarda os 5 últimos);
+- conferir a integridade de um arquivo (sha256 de cada tabela), ver o manifesto, comparar dois backups;
+- procurar linhas dentro de um backup e restaurar só as escolhidas (ex.: um ar apagado por engano);
+- rótulo (nota) por arquivo em `config.backup_rotulos` e uso do Storage.
 """
 from __future__ import annotations
 
@@ -81,7 +89,18 @@ def _json(o) -> bytes:
     return json.dumps(o, ensure_ascii=False, default=str, separators=(",", ":")).encode()
 
 
-def gerar(quem: str, escolhidas: list[str] | None = None) -> dict:
+PREFIXOS = {"backup": "gerado aqui", "auto": "agendado", "antes": "antes de restaurar", "envio": "enviado por upload"}
+
+
+def _versao_sistema() -> str:
+    try:
+        import pathlib
+        return json.loads((pathlib.Path(__file__).with_name("novidades.json")).read_text(encoding="utf-8"))["versoes"][0]["versao"]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def gerar(quem: str, escolhidas: list[str] | None = None, prefixo: str = "backup", rotulo: str = "") -> dict:
     """Monta o .zip com as tabelas (todas, ou as escolhidas) e guarda no Storage privado. Devolve o registro."""
     garantir_bucket()
     validas = _nomes_validos()
@@ -102,16 +121,20 @@ def gerar(quem: str, escolhidas: list[str] | None = None) -> dict:
             arquivos3d = [{"nome": o["name"], "tamanho": (o.get("metadata") or {}).get("size")} for o in r.json()] if r.status_code == 200 else []
         except Exception:  # noqa: BLE001
             pass
-        manifesto = {"sistema": "Clima Escritório", "versao_backup": 2, "gerado_em": db.agora(), "gerado_por": quem, "tabelas": contagem, "sha256": hashes,
+        manifesto = {"sistema": "Clima Escritório", "versao_backup": 3, "versao_sistema": _versao_sistema(), "tipo": PREFIXOS.get(prefixo, prefixo),
+                     "rotulo": rotulo[:120], "gerado_em": db.agora(), "gerado_por": quem, "tabelas": contagem, "sha256": hashes,
                      "segredos": "os valores sensíveis da tabela config vão cifrados (precisam da mesma CLIMA_CHAVE_MESTRA para funcionar)",
                      "arquivos_3d": arquivos3d, "segundos": round(time.time() - t0, 1)}
         z.writestr("manifesto.json", json.dumps(manifesto, ensure_ascii=False, indent=2))
     conteudo = buf.getvalue()
-    nome = time.strftime("backup-%Y-%m-%d-%H%M%S", time.gmtime(time.time() - 3 * 3600)) + f"-{secrets.token_hex(3)}.zip"
+    nome = f"{prefixo}-" + time.strftime("%Y-%m-%d-%H%M%S", time.gmtime(time.time() - 3 * 3600)) + f"-{secrets.token_hex(3)}.zip"
     r = httpx.post(f"{_url()}/storage/v1/object/{BUCKET}/{nome}", headers={**_cab(), "Content-Type": "application/zip", "x-upsert": "false"}, content=conteudo, timeout=120)
     if r.status_code >= 300:
         raise RuntimeError(f"O Storage não aceitou o backup ({r.status_code}).")
-    db.registrar("painel", "Backup completo gerado", detalhe=f"{len(alvo)} tabela(s), {sum(contagem.values())} linha(s), {round(len(conteudo) / 1048576, 2)} MB · {quem}")
+    if rotulo:
+        _gravar_rotulo(nome, rotulo)
+    db.registrar("painel" if prefixo != "auto" else "agenda", f"Backup {PREFIXOS.get(prefixo, '')} gerado".replace("  ", " "),
+                 detalhe=f"{len(alvo)} tabela(s), {sum(contagem.values())} linha(s), {round(len(conteudo) / 1048576, 2)} MB · {quem}")
     return {"arquivo": nome, "tamanho": len(conteudo), "tabelas": contagem, "segundos": manifesto["segundos"]}
 
 
@@ -120,8 +143,35 @@ def listar() -> list[dict]:
     r = httpx.post(f"{_url()}/storage/v1/object/list/{BUCKET}", headers=_cab(), json={"prefix": "", "limit": 200, "sortBy": {"column": "created_at", "order": "desc"}}, timeout=20)
     if r.status_code != 200:
         return []
+    rotulos = db.cfg("backup_rotulos", {}) or {}
     return [{"arquivo": o["name"], "tamanho": (o.get("metadata") or {}).get("size"), "criado_em": o.get("created_at"),
-             "tipo": "enviado" if o["name"].startswith("envio-") else "gerado"} for o in r.json() if o.get("name", "").endswith(".zip")]
+             "tipo": PREFIXOS.get(o["name"].split("-", 1)[0], "gerado aqui"), "rotulo": rotulos.get(o["name"], "")}
+            for o in r.json() if o.get("name", "").endswith(".zip")]
+
+
+def _gravar_rotulo(nome: str, rotulo: str):
+    r = dict(db.cfg("backup_rotulos", {}) or {})
+    if rotulo.strip():
+        r[nome] = rotulo.strip()[:120]
+    else:
+        r.pop(nome, None)
+    db.set_cfg("backup_rotulos", r)
+
+
+def rotular(nome: str, rotulo: str):
+    _nome_ok(nome)
+    _gravar_rotulo(nome, rotulo)
+
+
+def _reter(prefixo: str, manter: int) -> list[str]:
+    """Apaga os arquivos mais antigos de um tipo (agendados, antes de restaurar), mantendo os `manter` mais novos."""
+    velhos = [a["arquivo"] for a in listar() if a["arquivo"].startswith(prefixo + "-")][max(1, manter):]
+    if velhos:
+        httpx.request("DELETE", f"{_url()}/storage/v1/object/{BUCKET}", headers=_cab(), json={"prefixes": velhos}, timeout=20)
+        r = dict(db.cfg("backup_rotulos", {}) or {})
+        if any(v in r for v in velhos):
+            db.set_cfg("backup_rotulos", {k: v for k, v in r.items() if k not in velhos})
+    return velhos
 
 
 def _nome_ok(nome: str) -> str:
@@ -141,6 +191,7 @@ def link(nome: str) -> str:
 def apagar(nome: str):
     _nome_ok(nome)
     httpx.request("DELETE", f"{_url()}/storage/v1/object/{BUCKET}", headers=_cab(), json={"prefixes": [nome]}, timeout=10)
+    _gravar_rotulo(nome, "")
     db.registrar("painel", "Backup apagado", detalhe=nome)
 
 
@@ -187,13 +238,24 @@ def _igual(a: dict, b: dict) -> bool:
     return json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
 
 
-def restaurar(nome: str, modo: str, escolhidas: list[str] | None, quem: str) -> dict:
+def restaurar(nome: str, modo: str, escolhidas: list[str] | None, quem: str, chaves: list[str] | None = None, seguranca: bool = True) -> dict:
+    """`chaves` (com UMA tabela): restaura só essas linhas, pela chave primária (texto; várias colunas separadas por |).
+    `seguranca`: antes de gravar, guarda um backup das tabelas que vão mudar (para desfazer)."""
     if modo not in ("simular", "mesclar", "substituir"):
         raise ValueError("Modo inválido.")
     man, z = _abrir(nome)
     info = {t["nome"]: t for t in tabelas()}
     no_zip = [n[8:-5] for n in z.namelist() if n.startswith("tabelas/") and n.endswith(".json")]
     alvo = [t for t in (escolhidas or no_zip) if t in no_zip]
+    if chaves is not None:
+        if len(alvo) != 1:
+            raise ValueError("Para restaurar linhas escolhidas, escolha uma tabela só.")
+        if modo == "substituir":
+            raise ValueError("Linhas escolhidas só podem ser mescladas (substituir apagaria o resto da tabela).")
+    antes = None
+    if modo != "simular" and seguranca and [t for t in alvo if t in info]:
+        antes = gerar(quem, [t for t in alvo if t in info], prefixo="antes", rotulo=f"antes de restaurar {nome}")["arquivo"]
+        _reter("antes", 5)
     resultado = []
     for t in alvo:
         meta = info.get(t)
@@ -201,6 +263,9 @@ def restaurar(nome: str, modo: str, escolhidas: list[str] | None, quem: str) -> 
             resultado.append({"tabela": t, "pulada": "não é restaurável (sessões/login, sem chave primária ou não existe mais)"}); continue
         linhas = _linhas_do_zip(man, z, t)
         pk = meta["pk"]
+        if chaves is not None:
+            quero = set(chaves)
+            linhas = [r for r in linhas if "|".join(_chave(r, pk)) in quero]
         atuais = {_chave(r, pk): r for r in _ler_tabela(t)}
         cols = {c["column_name"]: c["data_type"] for c in db.consultar("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='public' AND table_name = ?", (t,))}
         novas = [r for r in linhas if _chave(r, pk) not in atuais]
@@ -227,5 +292,141 @@ def restaurar(nome: str, modo: str, escolhidas: list[str] | None, quem: str) -> 
             item["gravadas"] = len(gravar)
         resultado.append(item)
     if modo != "simular":
-        db.registrar("painel", f"Backup restaurado ({modo})", detalhe=f"{nome} · {len(alvo)} tabela(s) · {quem}")
-    return {"manifesto": {k: man.get(k) for k in ("gerado_em", "gerado_por", "versao_backup", "segredos")}, "modo": modo, "tabelas": resultado}
+        db.registrar("painel", f"Backup restaurado ({modo}{', linhas escolhidas' if chaves is not None else ''})",
+                     detalhe=f"{nome} · {len(alvo)} tabela(s) · {quem}" + (f" · cópia de segurança {antes}" if antes else ""))
+    return {"manifesto": {k: man.get(k) for k in ("gerado_em", "gerado_por", "versao_backup", "versao_sistema", "rotulo", "segredos")},
+            "modo": modo, "tabelas": resultado, "seguranca": antes}
+
+
+# ---------- conferir, comparar e procurar dentro de um backup ----------
+def manifesto(nome: str) -> dict:
+    """Manifesto + conferência do sha256 de cada tabela (o arquivo está íntegro?)."""
+    man, z = _abrir(nome)
+    conferencia = []
+    for n in z.namelist():
+        if not (n.startswith("tabelas/") and n.endswith(".json")):
+            continue
+        t = n[8:-5]
+        dados = z.read(n)
+        esperado = (man.get("sha256") or {}).get(t)
+        conferencia.append({"tabela": t, "linhas": (man.get("tabelas") or {}).get(t), "bytes": len(dados),
+                            "ok": (hashlib.sha256(dados).hexdigest() == esperado) if esperado else None})
+    conferencia.sort(key=lambda c: -(c["bytes"]))
+    return {"arquivo": nome, "manifesto": {k: v for k, v in man.items() if k not in ("sha256", "tabelas")}, "tabelas": conferencia,
+            "integro": all(c["ok"] is not False for c in conferencia), "sem_hash": sum(1 for c in conferencia if c["ok"] is None)}
+
+
+def comparar(a: str, b: str) -> dict:
+    """O que mudou de um backup (a, mais antigo) para outro (b): por tabela, linhas que entraram, saíram e mudaram."""
+    ma, za = _abrir(a)
+    mb, zb = _abrir(b)
+    pks = {t["nome"]: t["pk"] for t in tabelas()}
+    nomes = lambda z: {n[8:-5] for n in z.namelist() if n.startswith("tabelas/") and n.endswith(".json")}  # noqa: E731
+    saida = []
+    for t in sorted(nomes(za) | nomes(zb)):
+        la = _linhas_do_zip(ma, za, t) if t in nomes(za) else []
+        lb = _linhas_do_zip(mb, zb, t) if t in nomes(zb) else []
+        pk = pks.get(t) or []
+        if not pk:
+            saida.append({"tabela": t, "a": len(la), "b": len(lb), "entraram": None, "sairam": None, "mudaram": None}); continue
+        da, dbb = {_chave(r, pk): r for r in la}, {_chave(r, pk): r for r in lb}
+        mud = sum(1 for k in da.keys() & dbb.keys() if not _igual(da[k], dbb[k]))
+        saida.append({"tabela": t, "a": len(la), "b": len(lb), "entraram": len(dbb.keys() - da.keys()), "sairam": len(da.keys() - dbb.keys()), "mudaram": mud})
+    saida.sort(key=lambda x: -((x["entraram"] or 0) + (x["sairam"] or 0) + (x["mudaram"] or 0)))
+    return {"a": {"arquivo": a, "gerado_em": ma.get("gerado_em")}, "b": {"arquivo": b, "gerado_em": mb.get("gerado_em")}, "tabelas": saida}
+
+
+def linhas(nome: str, tabela: str, busca: str = "", limite: int = 50) -> dict:
+    """Linhas de uma tabela dentro do backup (com busca por texto) e se cada uma existe hoje igual, diferente ou não existe."""
+    man, z = _abrir(nome)
+    info = {t["nome"]: t for t in tabelas()}
+    if f"tabelas/{tabela}.json" not in z.namelist():
+        raise KeyError("Esta tabela não está no backup.")
+    meta = info.get(tabela)
+    pk = (meta or {}).get("pk") or []
+    todas = _linhas_do_zip(man, z, tabela)
+    b = busca.strip().lower()
+    achadas = [r for r in todas if not b or b in " ".join(str(v) for v in r.values() if v is not None).lower()]   # só valores, não nomes de coluna
+    atuais = {_chave(r, pk): r for r in _ler_tabela(tabela)} if pk and meta else {}
+    saida = []
+    for r in achadas[:limite]:
+        k = _chave(r, pk) if pk else None
+        estado = None if not pk else ("nao_existe" if k not in atuais else "igual" if _igual(r, {c: v for c, v in atuais[k].items() if c in r}) else "diferente")
+        # valores longos (sinais IR em base64, JSON grandes) cortados para a tela
+        curta = {c: (v if not isinstance(v, str) or len(v) <= 160 else v[:157] + "…") for c, v in r.items()}
+        saida.append({"chave": "|".join(k) if k else None, "estado": estado, "linha": curta})
+    return {"tabela": tabela, "pk": pk, "restauravel": bool(meta and meta["restauravel"]), "total": len(todas), "achadas": len(achadas), "linhas": saida}
+
+
+# ---------- backup agendado (rodado pelo agente a cada ~5 min) ----------
+AGENDA_PADRAO = {"ativo": False, "frequencia": "diario", "hora": "03:00", "dia_semana": 0, "manter": 7, "grupos": None}
+
+
+def agenda() -> dict:
+    a = {**AGENDA_PADRAO, **(db.cfg("backup_agenda", {}) or {})}
+    a["proximo"] = _proximo(a) if a["ativo"] else None
+    return a
+
+
+def salvar_agenda(d: dict) -> dict:
+    atual = {**AGENDA_PADRAO, **(db.cfg("backup_agenda", {}) or {})}
+    for k in ("ativo", "frequencia", "hora", "dia_semana", "manter", "grupos"):
+        if k in d:
+            atual[k] = d[k]
+    atual.pop("devido", None)   # horário mudou: recalcula
+    db.set_cfg("backup_agenda", atual)
+    return agenda()
+
+
+def _agora_br() -> time.struct_time:
+    return time.gmtime(time.time() - 3 * 3600)
+
+
+def _proximo(a: dict) -> int:
+    """Próximo horário (epoch) em que o backup agendado deve rodar."""
+    h, m = (int(x) for x in a["hora"].split(":"))
+    agora = time.time()
+    br = _agora_br()
+    base = agora - (br.tm_hour * 3600 + br.tm_min * 60 + br.tm_sec) + h * 3600 + m * 60   # hoje, no horário, em Brasília
+    for d in range(0, 8):
+        quando = base + d * 86400
+        dia_semana = (time.gmtime(quando - 3 * 3600).tm_wday + 1) % 7   # 0 = domingo
+        if quando > agora and (a["frequencia"] == "diario" or dia_semana == int(a["dia_semana"])):
+            return int(quando)
+    return int(base + 86400)
+
+
+def ciclo():
+    """No agente: se o agendado venceu, gera, aplica a retenção e registra o resultado."""
+    a = {**AGENDA_PADRAO, **(db.cfg("backup_agenda", {}) or {})}
+    if not a.get("ativo"):
+        return
+    devido = a.get("devido") or _proximo(a)
+    if time.time() < devido:
+        if not a.get("devido"):
+            db.set_cfg("backup_agenda", {**a, "devido": devido})
+        return
+    grupos = a.get("grupos")
+    escolhidas = [t for g in grupos for t in GRUPOS.get(g, ("", []))[1]] if grupos else None
+    try:
+        r = gerar("agendado", escolhidas, prefixo="auto")
+        apagados = _reter("auto", int(a.get("manter") or 7))
+        a.update({"ultimo": int(time.time()), "ultimo_ok": True, "ultimo_arquivo": r["arquivo"], "ultimo_erro": "", "apagados": len(apagados)})
+    except Exception as e:  # noqa: BLE001
+        a.update({"ultimo": int(time.time()), "ultimo_ok": False, "ultimo_erro": str(e)[:200]})
+        try:
+            from . import notificacoes
+            notificacoes.notificar("backup_agendado", "sistema", "alta", "O backup agendado falhou", str(e)[:200], "/backup")
+        except Exception:  # noqa: BLE001
+            pass
+    a["devido"] = _proximo(a)
+    db.set_cfg("backup_agenda", a)
+
+
+def uso() -> dict:
+    """Espaço que os backups ocupam no Storage, por tipo."""
+    por = {}
+    for a in listar():
+        t = por.setdefault(a["tipo"], {"arquivos": 0, "bytes": 0})
+        t["arquivos"] += 1; t["bytes"] += a["tamanho"] or 0
+    return {"por_tipo": por, "bytes": sum(t["bytes"] for t in por.values())}

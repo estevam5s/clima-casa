@@ -26,7 +26,11 @@ if [ "$1" = "status" ]; then
 fi
 
 [ -f "$ORIGEM/.env" ] || { echo "Falta o arquivo .env em $ORIGEM"; exit 1; }
-[ -f "$ORIGEM/backend/static/index.html" ] || (cd "$ORIGEM/frontend" && npm install --silent && npm run build)
+# a tela local (http://127.0.0.1:8090) precisa do build; num Mac sem Node (instalado por código) o agente roda sem ela
+if [ ! -f "$ORIGEM/backend/static/index.html" ]; then
+  if command -v npm >/dev/null; then (cd "$ORIGEM/frontend" && npm install --silent && npm run build)
+  else echo "aviso: sem Node, a tela local do agente fica desligada (o painel em app.zynio.com.br funciona normal)."; fi
+fi
 
 echo "Copiando o agente para $DESTINO…"
 mkdir -p "$DESTINO/data" "$(dirname "$LOG")"

@@ -2,6 +2,39 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.5.2",
+   "data": "2026-11-22",
+   "titulo": "Agente em qualquer computador, backup avançado, feriados na agenda e qualidade do mapa até 8K",
+   "resumo": "O agente agora se instala por código em Windows, Mac, qualquer Linux, Raspberry Pi e servidor com Docker. O backup ganhou agenda, conferência, comparação e restauração de linhas. Agenda, cenas, automações, aparelhos e transmissores ficaram mais completos.",
+   "novo": [
+    "Infra → Agentes: instalação por código com uma aba para cada computador (Windows e Windows Server, Mac, Linux Debian/Ubuntu/Fedora/RHEL/openSUSE/Arch, Raspberry Pi e servidor com Docker) e a lista do que a rede da prefeitura precisa liberar",
+    "Instalador do Linux testa o banco e o HTTPS antes de terminar e avisa se a rede bloqueia a porta 6543 ou troca o certificado",
+    "Backup agendado: o agente gera o backup sozinho todo dia ou uma vez por semana e guarda os mais recentes; se falhar, aparece nas notificações",
+    "Backup: conferir a integridade de um arquivo, comparar dois backups, procurar dentro de um backup e trazer de volta só as linhas escolhidas (um ar ou uma cena apagada por engano)",
+    "Antes de restaurar, o sistema guarda sozinho uma cópia das tabelas que vão mudar (dá para desfazer)",
+    "Agenda: feriados (nacionais, Carnaval, Corpus Christi e aniversário de Florianópolis) e “pausar tudo até” para férias e recesso; a Atividade mostra por que um agendamento não rodou",
+    "Mapa 3D: escolha da qualidade da imagem, da mínima (360p) ao 8K, com o tamanho real e os quadros por segundo",
+    "Cenas: prévia do que muda em cada ar, aviso de ar sem transmissor, Desfazer a última cena e Agendar a cena num horário",
+    "Transmissores: Testar todos (rede, chave e protocolo de cada um, com o tempo de resposta)"
+   ],
+   "melhorias": [
+    "Painel abre na hora com os últimos dados vistos e atualiza em seguida (antes ficava uns 2 segundos em branco); o 3D do ar começa a baixar junto",
+    "Agendamentos e automações com busca, filtros, seleção em lote (ativar, pausar, apagar), exportar CSV e exportar/importar entre escritórios",
+    "Automações avisam problemas: ar ou cena que não existe mais, ar sem transmissor e duas regras no mesmo horário mandando coisas opostas",
+    "Aparelhos: aviso e filtro dos ares ligados há mais de 8 horas com “Desligar esses”, potência ligada agora, modo em lote, coluna “Ligado há” e inventário em CSV",
+    "Cenas e transmissores exportam CSV; backups ganham nota e uso do espaço por tipo",
+    "Mapa 3D no automático não desce mais abaixo da resolução da tela (a cidade ficava borrada)",
+    "Integrações: os QR Codes da Alexa e do Google seguem o tema escuro (só o QR fica no quadrado branco)"
+   ],
+   "seguranca": [
+    "O backup mostra o nome de quem gerou, não o e-mail"
+   ],
+   "correcoes": [
+    "Configurações → Marca: o painel lateral rola até o fim",
+    "Cancelar a newsletter pelo link do e-mail voltou a funcionar no agente com Python 3.11"
+   ]
+  },
+  {
    "versao": "0.5.1",
    "data": "2026-11-21",
    "titulo": "Infra mais completa: domínios da Vercel, visão geral da Cloudflare e placas IoT",

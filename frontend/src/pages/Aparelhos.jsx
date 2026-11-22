@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AirVent, ArrowDownUp, ChevronRight, LayoutGrid, Minus, Plus, Power, PowerOff, Rows3, Search, Table2, X } from 'lucide-react'
+import { AirVent, ArrowDownUp, ChevronRight, Download, LayoutGrid, Minus, Plus, Power, PowerOff, Rows3, Search, Table2, X } from 'lucide-react'
 import { MODOS, api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import ArCartao from '../components/ArCartao'
 import FormAparelho from '../components/FormAparelho'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Ponto, Selo, Vazio, useDados, useToast } from '../components/ui'
+import { baixarArquivo, paraCsv } from '../components/FerramentasLista'
 
 // Aparelhos: grade (controle rápido), por sala (cada projeto com ligar/desligar a sala inteira) e tabela (seleção e
 // ações em lote). Filtros por estado, problema, sala e transmissor; tudo lembrado neste navegador.
-const ESTADOS = [['todos', 'Todos'], ['ligados', 'Ligados'], ['desligados', 'Desligados'], ['problemas', 'Com problema']]
+const ESTADOS = [['todos', 'Todos'], ['ligados', 'Ligados'], ['desligados', 'Desligados'], ['esquecidos', 'Ligados há +8 h'], ['problemas', 'Com problema']]
+const OITO_HORAS = 8 * 3600
+const ligadoHa = (a) => (a.ligado && a.ligado_desde ? Date.now() / 1000 - a.ligado_desde : 0)
+const duracao = (s) => (s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : `${Math.floor(s / 3600)} h${Math.round((s % 3600) / 60) ? ` ${Math.round((s % 3600) / 60)} min` : ''}`)
 const ORDENS = [['sala', 'Sala'], ['nome', 'Nome'], ['ligados', 'Ligados primeiro'], ['temperatura', 'Temperatura']]
 
 // o que impede o ar de obedecer (ou de estar na voz), do mais grave para o menos
@@ -54,6 +58,7 @@ export default function Aparelhos() {
       if (hubF && (hubF === 'sem' ? a.hub_id : a.hub_id !== hubF)) return false
       if (estado === 'ligados') return a.ligado
       if (estado === 'desligados') return !a.ligado
+      if (estado === 'esquecidos') return ligadoHa(a) > OITO_HORAS
       if (estado === 'problemas') return problemasDoAr(a).some(([, c]) => c !== 'cinza')
       return true
     })
@@ -72,6 +77,13 @@ export default function Aparelhos() {
   const ligados = aparelhos.filter((a) => a.ligado)
   const comProblema = aparelhos.filter((a) => problemasDoAr(a).some(([, c]) => c !== 'cinza'))
   const naAlexa = aparelhos.filter((a) => a.sinric_device_id).length
+  const esquecidos = aparelhos.filter((a) => ligadoHa(a) > OITO_HORAS)
+  const potencia = ligados.reduce((n, a) => n + (Number(a.potencia_w) || 0), 0)
+  const semPotencia = ligados.filter((a) => !a.potencia_w).length
+  const exportarCsv = () => baixarArquivo('aparelhos.csv', paraCsv(filtrados, [['nome', 'Ar'], [(a) => a.projeto_nome || '', 'Sala'], ['comodo', 'Cômodo'], ['marca', 'Marca'],
+    [(a) => (a.ligado ? `${MODOS[a.modo] || ''} ${a.temperatura}°` : 'desligado'), 'Estado'], [(a) => (ligadoHa(a) ? duracao(ligadoHa(a)) : ''), 'Ligado há'],
+    [(a) => a.hub_nome || 'sem transmissor', 'Transmissor'], ['total_codigos', 'Botões'], [(a) => a.potencia_w || '', 'Potência (W)'], [(a) => (a.sinric_device_id ? 'sim' : 'não'), 'Na Alexa'],
+    [(a) => problemasDoAr(a).map(([t]) => t).join(', ') || 'pronto', 'Situação']]), 'text/csv')
   // aplica a resposta e os ares que mudaram junto (zona: mesmo sinal no mesmo transmissor)
   const atualizar = (novo) => setDados(([l, h]) => [l.map((a) => (a.id === novo.id ? { ...a, ...novo }
     : (novo.juntos || []).includes(a.id) ? { ...a, ligado: novo.ligado, modo: novo.modo ?? a.modo, temperatura: novo.temperatura ?? a.temperatura } : a)), h])
@@ -126,8 +138,15 @@ export default function Aparelhos() {
             { rotulo: 'Ligados agora', valor: ligados.length, sufixo: ` de ${aparelhos.length}`, dica: ligados.length ? ligados.map((a) => a.nome).slice(0, 2).join(', ') + (ligados.length > 2 ? '…' : '') : 'tudo desligado' },
             { rotulo: 'Prontos para comandar', valor: aparelhos.length - comProblema.length, sufixo: ` / ${aparelhos.length}`, tom: comProblema.length ? 'ruim' : 'bom', dica: comProblema.length ? `${comProblema.length} com problema: veja o filtro` : 'transmissor e botões em todos' },
             { rotulo: 'Na Alexa e Google', valor: naAlexa, sufixo: ` / ${aparelhos.length}`, dica: naAlexa === aparelhos.length ? 'todos disponíveis por voz' : 'veja Alexa e Google' },
-            { rotulo: 'Transmissores online', valor: hubs.filter((h) => h.online).length, sufixo: ` / ${hubs.length}`, tom: hubs.every((h) => h.online) ? 'bom' : 'ruim' },
+            { rotulo: 'Potência ligada agora', valor: potencia ? (potencia / 1000).toFixed(1).replace('.', ',') : '0', sufixo: ' kW', dica: semPotencia ? `${semPotencia} ligado(s) sem potência cadastrada` : `${hubs.filter((h) => h.online).length} de ${hubs.length} transmissores online` },
           ]} />
+          {esquecidos.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm">
+              <span className="flex-1"><b>{esquecidos.length} ar(es) ligado(s) há mais de 8 horas</b>: {esquecidos.slice(0, 3).map((a) => `${a.nome} (${duracao(ligadoHa(a))})`).join(', ')}{esquecidos.length > 3 ? '…' : ''}</span>
+              <Botao tamanho="sm" variante="secundario" onClick={() => setEstado('esquecidos')}>Ver</Botao>
+              <Botao tamanho="sm" variante="secundario" icone={PowerOff} carregando={ocupado === 'esquecidos'} disabled={!!ocupado} onClick={() => emLote(esquecidos, { ligado: false }, 'esquecidos')}>Desligar esses</Botao>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative w-full sm:w-64">
@@ -158,6 +177,7 @@ export default function Aparelhos() {
                 <select className="campo pl-9 sm:w-44" value={ordem} onChange={(e) => setOrdem(e.target.value)} aria-label="Ordenar por">{ORDENS.map(([k, r]) => <option key={k} value={k}>{r}</option>)}</select>
               </label>
             </div>
+            <Botao tamanho="sm" variante="secundario" icone={Download} onClick={exportarCsv} title="Inventário dos ares (planilha)">CSV</Botao>
             <div className="flex rounded-lg border border-border bg-card p-0.5 2xl:ml-auto" role="group" aria-label="Visualização">
               {[['grade', LayoutGrid, 'Grade'], ['salas', Rows3, 'Por sala'], ['tabela', Table2, 'Tabela']].map(([k, I, r]) => (
                 <button key={k} onClick={() => setVisao(k)} aria-pressed={visao === k} title={r} className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-xs ${visao === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}><I className="h-4 w-4" /><span className="hidden sm:inline">{r}</span></button>
@@ -205,18 +225,21 @@ export default function Aparelhos() {
                     <Botao tamanho="sm" variante="secundario" icone={Power} disabled={!!ocupado} carregando={ocupado === 'ligados'} onClick={() => emLote(selecionados, { ligado: true }, 'ligados')}>Ligar</Botao>
                     <Botao tamanho="sm" variante="secundario" icone={PowerOff} disabled={!!ocupado} carregando={ocupado === 'desligados'} onClick={() => emLote(selecionados, { ligado: false }, 'desligados')}>Desligar</Botao>
                     <span className="flex items-center gap-1">
+                      {[['frio', 'Frio'], ['ventilar', 'Ventilar'], ['seco', 'Seco']].map(([m, r]) => <button key={m} disabled={!!ocupado} onClick={() => emLote(selecionados, { ligado: true, modo: m }, `em ${r.toLowerCase()}`)} className="h-8 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-50">{r}</button>)}
+                    </span>
+                    <span className="flex items-center gap-1">
                       {[22, 23, 24, 25].map((t) => <button key={t} disabled={!!ocupado} onClick={() => emLote(selecionados, { ligado: true, temperatura: t }, `em ${t}°`)} className="h-8 rounded-md border border-border px-2 text-xs tabular hover:bg-muted disabled:opacity-50">{t}°</button>)}
                     </span>
                     <button onClick={() => setSel(new Set())} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Limpar seleção</button>
                   </div>
                 )}
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
+                  <table className="w-full min-w-[840px] text-sm">
                     <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
                       <tr>
                         <th className="w-10 px-4 py-2"><input type="checkbox" aria-label="Selecionar todos" checked={filtrados.length > 0 && selecionados.length === filtrados.length} onChange={(e) => setSel(e.target.checked ? new Set(filtrados.map((a) => a.id)) : new Set())} /></th>
                         <th className="px-2 py-2 font-medium">Ar</th><th className="px-2 py-2 font-medium">Sala</th><th className="px-2 py-2 font-medium">Estado</th>
-                        <th className="px-2 py-2 font-medium">Transmissor</th><th className="px-2 py-2 font-medium">Botões</th><th className="px-2 py-2 font-medium">Situação</th><th className="px-2 py-2 font-medium">Atualizado</th><th />
+                        <th className="px-2 py-2 font-medium">Transmissor</th><th className="px-2 py-2 font-medium">Botões</th><th className="px-2 py-2 font-medium">Situação</th><th className="px-2 py-2 font-medium">Ligado há</th><th className="px-2 py-2 font-medium">Atualizado</th><th />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -231,6 +254,7 @@ export default function Aparelhos() {
                             <td className="px-2 py-2"><span className="flex items-center gap-1.5 text-xs"><Ponto ativo={a.hub_online} />{a.hub_nome || 'Sem transmissor'}</span></td>
                             <td className="px-2 py-2 tabular">{a.total_codigos}</td>
                             <td className="px-2 py-2"><div className="flex flex-wrap gap-1">{pb.length ? pb.map(([t, c]) => <Selo key={t} cor={c}>{t}</Selo>) : <Selo cor="verde">Pronto</Selo>}</div></td>
+                            <td className={`px-2 py-2 text-xs tabular ${ligadoHa(a) > OITO_HORAS ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>{ligadoHa(a) ? duracao(ligadoHa(a)) : '—'}</td>
                             <td className="px-2 py-2 text-xs text-muted-foreground">{a.atualizado_em ? haQuanto(a.atualizado_em) : '—'}</td>
                             <td className="px-2 py-2">
                               <div className="flex items-center justify-end gap-1">

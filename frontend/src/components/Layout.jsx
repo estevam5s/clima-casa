@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { limparCache } from '../cacheTela'
 import IconeMarca from './IconeMarca'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -188,7 +189,7 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores,
   const { sessao } = useProjeto()
   const { marca } = useMarca()
   const navegar = useNavigate()
-  const sair = async () => { await (await supabase()).auth.signOut().catch(() => {}); navegar('/login') }
+  const sair = async () => { limparCache(); await (await supabase()).auth.signOut().catch(() => {}); navegar('/login') }
   const email = sessao?.email || ''
   const gruposTodos = useGrupos()
   const [busca, setBusca] = useState('')

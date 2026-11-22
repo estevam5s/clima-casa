@@ -1,12 +1,59 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Copy, Cpu, HardDrive, KeyRound, Laptop, MemoryStick, Monitor, Radio, RotateCw, Star, Thermometer, Trash2, Wifi } from 'lucide-react'
+import { Check, Container, Copy, Cpu, HardDrive, KeyRound, Laptop, MemoryStick, Monitor, Network, Radio, RotateCw, Server, Star, Thermometer, Trash2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Esqueleto, Selo, useToast, confirmar } from '../ui'
 
 // Computadores com o agente: quem fica no comando (preferido + regra "quem não enxerga os transmissores não manda")
 // e a instalação de um PC Windows com código de uso único (o .env vai cifrado; só o código decifra, no PC).
 const SERVIDOR = 'https://app.zynio.com.br'
-const comandoLinux = (codigo) => `curl -fsSL ${SERVIDOR}/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh ${codigo}`
+const comandoLinux = (codigo, extra = '') => `curl -fsSL ${SERVIDOR}/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh ${codigo}${extra}`
+const comandoMac = (codigo) => `curl -fsSL ${SERVIDOR}/instalar-agente-mac.sh -o /tmp/ia.sh && bash /tmp/ia.sh ${codigo}`
+// Onde o agente roda: qualquer computador de 64 bits que fique ligado na rede dos transmissores
+const PLATAFORMAS = [
+  { id: 'windows', rotulo: 'Windows', sub: 'PC ou servidor', icone: Monitor },
+  { id: 'mac', rotulo: 'Mac', sub: 'Apple Silicon ou Intel', icone: Laptop },
+  { id: 'linux', rotulo: 'Linux', sub: 'PC, mini PC ou servidor', icone: Server },
+  { id: 'raspberry', rotulo: 'Raspberry Pi', sub: '3B, 4 ou 5 (64 bits)', icone: Cpu },
+  { id: 'docker', rotulo: 'Docker', sub: 'servidor da prefeitura', icone: Container },
+]
+const PASSOS = {
+  windows: (c) => [
+    <>No computador (Windows 10, 11 ou Windows Server 2019+), abra o menu Iniciar, digite <b>PowerShell</b>, clique com o botão direito e escolha <b>Executar como administrador</b>.</>,
+    { texto: 'Cole este comando e aperte Enter (leva de 3 a 8 minutos na primeira vez):', cmd: comando(c) },
+    <>Se o Windows perguntar, deixe a rede como <b>Privada</b> (Configurações → Rede → Perfil de rede). Em rede Pública ele não acha os transmissores.</>,
+    'Não precisa deixar ninguém logado: o agente roda como tarefa do sistema e liga sozinho com o computador.',
+  ],
+  mac: (c) => [
+    <>No Mac (macOS 12 ou mais novo), abra o <b>Terminal</b> (Spotlight → Terminal). Não use sudo.</>,
+    { texto: 'Cole este comando e aperte Enter:', cmd: comandoMac(c) },
+    <>Em Ajustes do Sistema → Bateria (ou Energia), impeça o repouso automático com a tela desligada: Mac dormindo não manda comando.</>,
+    'O agente liga sozinho quando a pessoa entra no Mac.',
+  ],
+  linux: (c) => [
+    <>Funciona em <b>Debian, Ubuntu, Linux Mint, Fedora, RHEL, Rocky, Alma, CentOS Stream, openSUSE e Arch</b>, de 64 bits (x86_64 ou ARM64), com systemd. Abra o terminal (ou entre por SSH).</>,
+    { texto: 'Cole este comando:', cmd: comandoLinux(c) },
+    'O instalador instala o que faltar pelo gerenciador do sistema (apt, dnf, yum, zypper ou pacman), põe o Python 3.13 à parte e cria o serviço que liga sozinho.',
+    <>Servidor sem systemd ou que só aceita contêiner? Use a aba <b>Docker</b>.</>,
+  ],
+  raspberry: (c) => [
+    <>Grave o <b>Raspberry Pi OS Lite (64-bit)</b> pelo Raspberry Pi Imager, com o Wi-Fi 2,4 GHz do escritório e o SSH ligado (passo a passo no quadro acima).</>,
+    { texto: 'Entre por SSH no Raspberry e cole (leva de 10 a 20 minutos no Pi 3B):', cmd: comandoLinux(c) },
+    'O sistema de 32 bits não serve (faltam bibliotecas prontas): o instalador avisa e para.',
+  ],
+  docker: (c) => [
+    <>Para servidor Linux com <b>Docker</b> (e Docker Compose) na mesma rede dos transmissores. O contêiner usa a rede do servidor (<code>network_mode: host</code>) para falar com os transmissores.</>,
+    { texto: 'No servidor, como administrador:', cmd: comandoLinux(c, ' --docker') },
+    <>Ele cria <code>/opt/clima-escritorio/ar-controle/docker-compose.agente.yml</code> e sobe o contêiner <code>clima-escritorio-agente</code>, que reinicia sozinho. Logs: <code>docker logs -f clima-escritorio-agente</code>.</>,
+    'Docker Desktop no Windows ou no Mac não serve para isto: lá o contêiner não enxerga a rede dos transmissores. Use as abas Windows ou Mac.',
+  ],
+}
+// O que a rede precisa deixar passar (redes de órgão público costumam bloquear o banco ou inspecionar o HTTPS)
+const REDE = [
+  ['Saída TCP 443 (HTTPS)', 'app.zynio.com.br, *.supabase.co, api.sinric.pro e openapi.tuyaus.com, sem inspeção SSL (o firewall não pode trocar o certificado)'],
+  ['Saída TCP 6543', '*.pooler.supabase.com: é o banco de dados. Muitas redes corporativas bloqueiam esta porta; sem ela o agente não funciona'],
+  ['Rede local', 'TCP 6668 até cada transmissor e UDP 6666/6667 para achá-los (o computador precisa estar na mesma rede/VLAN dos transmissores)'],
+  ['Sempre ligado', 'sem hibernar nem dormir; cabo de rede é melhor que Wi-Fi'],
+]
 const comando = (codigo) => `powershell -ExecutionPolicy Bypass -Command "irm ${SERVIDOR}/instalar-agente.ps1 -OutFile $env:TEMP\\ia.ps1; & $env:TEMP\\ia.ps1 -Codigo ${codigo}"`
 const duracao = (s) => (s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`)
 // saúde do computador (o que ele mesmo informa a cada 10 s; "—" = o sistema não informa)
@@ -68,6 +115,8 @@ function Copiar({ texto, rotulo = 'Copiar' }) {
 function Instalar({ maquinas, aoConectar }) {
   const toast = useToast()
   const [convite, setConvite] = useState(null), [ocupado, setOcupado] = useState(false), [agora, setAgora] = useState(Math.floor(Date.now() / 1000))
+  const [plataforma, setPlataforma] = useState(() => { try { return localStorage.getItem('clima-agente-plataforma') || 'windows' } catch { return 'windows' } })
+  const escolher = (id) => { setPlataforma(id); try { localStorage.setItem('clima-agente-plataforma', id) } catch { /* sem armazenamento */ } }
   const antes = useRef(new Set())
   useEffect(() => { const t = setInterval(() => setAgora(Math.floor(Date.now() / 1000)), 1000); return () => clearInterval(t) }, [])
   const gerar = async () => {
@@ -82,8 +131,13 @@ function Instalar({ maquinas, aoConectar }) {
   const resta = convite ? convite.expira - agora : 0
   return (
     <section className="cartao p-5">
-      <h2 className="titulo-secao flex items-center gap-2"><Monitor className="h-4 w-4" />Instalar em um PC Windows ou Raspberry Pi</h2>
-      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Um computador que fica ligado no escritório (mesmo Wi-Fi dos transmissores) mantém tudo funcionando quando o Mac vai embora: um PC Windows, um Linux ou um Raspberry Pi 3B, 4 ou 5 com o sistema de 64 bits. O comando baixa o sistema, recebe as chaves cifradas e instala o serviço. As chaves só são decifradas no computador, com o código.</p>
+      <h2 className="titulo-secao flex items-center gap-2"><Monitor className="h-4 w-4" />Instalar o agente em outro computador</h2>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Qualquer computador de 64 bits que fique ligado na mesma rede dos transmissores serve: PC ou servidor Windows, Mac, Linux (Debian, Ubuntu, Fedora, RHEL, openSUSE, Arch), Raspberry Pi 3B, 4 ou 5, ou um servidor com Docker. Vários podem ficar instalados ao mesmo tempo: um manda e os outros ficam de reserva. O comando baixa o sistema, recebe as chaves cifradas e instala o serviço; as chaves só são decifradas no computador, com o código.</p>
+      <div className="mt-4 rounded-lg border border-border p-3">
+        <p className="flex items-center gap-1.5 text-sm font-medium"><Network className="h-4 w-4" />O que a rede precisa liberar (para a TI da prefeitura)</p>
+        <dl className="mt-2 grid gap-x-4 gap-y-1.5 text-xs sm:grid-cols-[11rem_1fr]">{REDE.map(([t, d]) => <div key={t} className="contents"><dt className="font-medium">{t}</dt><dd className="text-muted-foreground">{d}</dd></div>)}</dl>
+        <p className="mt-2 text-xs text-muted-foreground">O instalador testa o banco e o HTTPS antes de terminar e diz o que está bloqueado.</p>
+      </div>
       {!convite ? (
         <div className="mt-4"><Botao icone={KeyRound} carregando={ocupado} onClick={gerar}>Gerar código de instalação</Botao></div>
       ) : novo ? (
@@ -96,27 +150,27 @@ function Instalar({ maquinas, aoConectar }) {
             <code className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-lg font-semibold tracking-wider">{convite.codigo}</code>
             <Selo cor={resta < 300 ? 'ambar' : 'cinza'}>vale por {mmss(resta)} · uso único</Selo>
           </div>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5" role="tablist" aria-label="Tipo de computador">
+            {PLATAFORMAS.map(({ id, rotulo, sub, icone: I }) => (
+              <button key={id} role="tab" aria-selected={plataforma === id} onClick={() => escolher(id)}
+                className={`flex items-start gap-2 rounded-lg border p-2.5 text-left text-sm ${plataforma === id ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'}`}>
+                <I className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0"><b className="block font-medium">{rotulo}</b><span className="block text-[11px] text-muted-foreground">{sub}</span></span>
+              </button>
+            ))}
+          </div>
           <ol className="space-y-3 text-sm">
-            <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>1.</b><span>No PC do escritório, abra o menu Iniciar, digite <b>PowerShell</b>, clique com o botão direito e escolha <b>Executar como administrador</b>.</span></li>
-            <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>2.</b><div className="min-w-0 space-y-2"><span>Cole este comando e aperte Enter (leva de 3 a 8 minutos na primeira vez):</span>
-              <pre className="overflow-x-auto rounded-md bg-zinc-950 p-3 text-[11px] leading-relaxed text-zinc-100">{comando(convite.codigo)}</pre>
-              <Copiar texto={comando(convite.codigo)} rotulo="Copiar comando" /></div></li>
-            <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>3.</b><span>Se o Windows perguntar, deixe a rede como <b>Privada</b> (Configurações → Rede → Wi-Fi → Perfil de rede). Em rede Pública ele não acha os transmissores.</span></li>
-            <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>4.</b><span>Pronto: esta tela avisa quando o PC conectar. Não precisa deixar ninguém logado; o PC só tem que ficar ligado.</span></li>
+            {PASSOS[plataforma](convite.codigo).map((p, i) => (
+              <li key={i} className="grid grid-cols-[1.5rem_1fr] gap-2"><b>{i + 1}.</b>{p?.cmd ? (
+                <div className="min-w-0 space-y-2"><span>{p.texto}</span>
+                  <pre className="overflow-x-auto rounded-md bg-zinc-950 p-3 text-[11px] leading-relaxed text-zinc-100">{p.cmd}</pre>
+                  <Copiar texto={p.cmd} rotulo="Copiar comando" /></div>
+              ) : <span>{p}</span>}</li>
+            ))}
           </ol>
-          <details className="rounded-md border border-border p-3 text-sm">
-            <summary className="cursor-pointer font-medium">É um Raspberry Pi ou um Linux?</summary>
-            <div className="mt-3 space-y-2">
-              <p className="text-muted-foreground">Use o mesmo código. No Raspberry, grave antes o <b className="text-foreground">Raspberry Pi OS (64-bit)</b> pelo Raspberry Pi Imager e ligue no Wi-Fi 2,4 GHz do escritório. Abra o Terminal (ou entre por SSH) e cole (leva de 10 a 20 minutos no Pi 3B):</p>
-              <pre className="overflow-x-auto rounded-md bg-zinc-950 p-3 text-[11px] leading-relaxed text-zinc-100">{comandoLinux(convite.codigo)}</pre>
-              <Copiar texto={comandoLinux(convite.codigo)} rotulo="Copiar comando do Linux" />
-              <p className="text-xs text-muted-foreground">O sistema de 32 bits não serve (faltam bibliotecas prontas). Arduino, ESP32 e ESP8266 não rodam o agente: ele precisa de um Linux, Windows ou macOS.</p>
-            </div>
-          </details>
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><span className="h-2 w-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />Esperando o PC se conectar…</p>
         </div>
       )}
-      <p className="mt-4 text-xs text-muted-foreground">O mesmo comando, com um código novo, também atualiza o PC depois. Sem internet no PC? Copie a pasta e o .env por pendrive e rode o instalar-windows.ps1 (no Linux, sudo ./instalar-linux.sh).</p>
+      <p className="mt-4 text-xs text-muted-foreground">O mesmo comando, com um código novo, também atualiza o computador depois. Sem internet direta? Copie a pasta e o .env por pendrive e rode o instalar-windows.ps1 (Linux: sudo ./instalar-linux.sh; Mac: ./instalar-servico.sh). Arduino, ESP32 e ESP8266 não rodam o agente.</p>
     </section>
   )
 }
@@ -141,7 +195,7 @@ export default function Agentes({ dono, admin }) {
           <p className="mt-1 text-sm">{preferido ? <>Preferido agora: <b>{preferido.nome}</b>.</> : 'Sem preferido: fica quem já está no comando.'}</p></div>
         {!d.maquinas.length && <Aviso tipo="alerta">Nenhum computador com o agente ainda.</Aviso>}
         <div className="grid gap-3 md:grid-cols-2">
-          {d.maquinas.map((m) => { const I = /Windows/.test(m.sistema) ? Monitor : /Linux/.test(m.sistema) ? Cpu : Laptop; const ve = m.ve_transmissores, tot = m.total_transmissores; return (
+          {d.maquinas.map((m) => { const I = /Windows/.test(m.sistema) ? Monitor : /Docker/.test(m.sistema) ? Container : /Raspberry|Raspbian/i.test(`${m.sistema} ${m.saude?.modelo || ''}`) ? Cpu : /Linux/.test(m.sistema) ? Server : Laptop; const ve = m.ve_transmissores, tot = m.total_transmissores; return (
             <div key={m.id} className={`cartao p-4 ${m.principal ? 'border-primary/50' : ''}`}>
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border"><I className="h-5 w-5" /></span>

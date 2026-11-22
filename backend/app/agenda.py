@@ -4,7 +4,7 @@ import datetime
 import json
 import logging
 
-from . import automacao, clima, db, transmissor
+from . import automacao, clima, db, feriados, transmissor
 
 log = logging.getLogger("clima.agenda")
 
@@ -13,11 +13,16 @@ def _rodar_pendentes(agora: datetime.datetime):
     hoje = (agora.weekday() + 1) % 7
     hhmm = agora.strftime("%H:%M")
     marca = agora.strftime("%Y-%m-%d ") + hhmm
-    for ag in db.consultar("SELECT * FROM agendamentos WHERE ativo = 1 AND hora = ?", (hhmm,)):
+    pendentes = db.consultar("SELECT * FROM agendamentos WHERE ativo = 1 AND hora = ?", (hhmm,))
+    motivo = feriados.motivo_para_nao_rodar(agora.date()) if pendentes else None
+    for ag in pendentes:
         dias = {int(d) for d in ag["dias"].split(",") if d != ""}
         if hoje not in dias or ag["ultima_exec"] == marca:
             continue
         db.executar("UPDATE agendamentos SET ultima_exec = ? WHERE id = ?", (marca, ag["id"]))
+        if motivo:   # feriado ou férias: não manda o sinal, mas registra por que não ligou
+            db.registrar(f"agenda:{ag['nome']}", "Agendamento não rodou", aparelho_id=ag["aparelho_id"], detalhe=motivo)
+            continue
         acao = json.loads(ag["acao"])
         try:
             clima.aplicar(ag["aparelho_id"], f"agenda:{ag['nome']}", **acao)
@@ -53,6 +58,12 @@ async def laco():
                 await asyncio.to_thread(dispositivos.ciclo, ciclo)
             except Exception as e:  # noqa: BLE001
                 log.warning("aparelhos do escritório: %s", e)
+            if ciclo % 15 == 0:   # backup agendado (Backup → Agendar), a cada ~5 min confere se venceu
+                try:
+                    from . import backup_sistema
+                    await asyncio.to_thread(backup_sistema.ciclo)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("backup agendado: %s", e)
             if ciclo % 15 == 0:   # teste de velocidade agendado (Rede → Agendar), a cada ~5 min confere se venceu
                 try:
                     from . import rede

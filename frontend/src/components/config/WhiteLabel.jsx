@@ -579,7 +579,7 @@ export default function WhiteLabel() {
           </Bloco>
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-24 xl:h-fit">
+        <aside className="space-y-4 xl:sticky xl:top-24 xl:max-h-[calc(100dvh-7rem)] xl:overflow-y-auto xl:overscroll-contain xl:pr-1 rolagem-fina">
           <div className="cartao overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-4 py-2"><p className="text-xs font-medium text-muted-foreground">Pré-visualização</p>
               <div className="flex rounded-md border border-border p-0.5">{[['computador', Laptop], ['celular', Smartphone]].map(([k, I]) => <button key={k} onClick={() => setAparelho(k)} aria-label={k} className={`rounded p-1 ${aparelho === k ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}><I className="h-3.5 w-3.5" /></button>)}</div></div>

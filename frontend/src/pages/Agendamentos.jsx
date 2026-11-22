@@ -3,6 +3,9 @@ import { CalendarClock, CheckCircle2, Clock, Copy, History, Moon, Pencil, Plus, 
 import { DIAS, MODOS, VENTILACAO, api, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
 import { motion } from 'framer-motion'
+import FerramentasLista, { baixarArquivo, normalizar, paraCsv } from '../components/FerramentasLista'
+import RegrasAgenda from '../components/RegrasAgenda'
+import { useProjeto } from '../contexto'
 
 const ATALHOS = [['Todos os dias', [0, 1, 2, 3, 4, 5, 6]], ['Dias úteis', [1, 2, 3, 4, 5]], ['Fim de semana', [0, 6]]]
 
@@ -262,7 +265,13 @@ export default function Agendamentos() {
   const toast = useToast()
   const [apagar, setApagar] = useState(null)
   const [filtroAr, setFiltroAr] = useState('')
-  const ordenada = useMemo(() => (dados ? [...dados[0]].filter((g) => !filtroAr || String(g.aparelho_id) === filtroAr).sort((a, b) => a.hora.localeCompare(b.hora) || a.nome.localeCompare(b.nome)) : []), [dados, filtroAr])
+  const [busca, setBusca] = useState(''), [estado, setEstado] = useState('todos'), [sel, setSel] = useState(new Set()), [emLote, setEmLote] = useState(false)
+  const { sessao } = useProjeto()
+  const ordenada = useMemo(() => (dados ? [...dados[0]]
+    .filter((g) => !filtroAr || String(g.aparelho_id) === filtroAr)
+    .filter((g) => estado === 'todos' || (estado === 'ativos' ? g.ativo : estado === 'pausados' ? !g.ativo : estado === 'ligar' ? g.acao.ligado : !g.acao.ligado))
+    .filter((g) => !busca || normalizar(`${g.nome} ${g.aparelho_nome} ${g.hora}`).includes(normalizar(busca)))
+    .sort((a, b) => a.hora.localeCompare(b.hora) || a.nome.localeCompare(b.nome)) : []), [dados, filtroAr, estado, busca])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const [lista, aparelhos] = dados
@@ -273,6 +282,26 @@ export default function Agendamentos() {
   }
   const duplicar = async (g) => {
     try { await api.post('/api/agendamentos', corpo(g, { nome: `${g.nome} (cópia)`.slice(0, 60), ativo: false })); toast('Cópia criada, pausada: ajuste e ative.'); recarregar() } catch (e) { toast(e.message, 'erro') }
+  }
+  const lote = async (acao) => {
+    const alvo = lista.filter((g) => sel.has(g.id))
+    setEmLote(true); let ok = 0
+    for (const g of alvo) {
+      try { if (acao === 'apagar') await api.del(`/api/agendamentos/${g.id}`); else await api.put(`/api/agendamentos/${g.id}`, corpo(g, { ativo: acao === 'ativar' })); ok++ } catch (e) { toast(`${g.nome}: ${e.message}`, 'erro') }
+    }
+    setEmLote(false); setSel(new Set()); toast(`${ok} agendamento(s) ${acao === 'apagar' ? 'apagado(s)' : acao === 'ativar' ? 'ativado(s)' : 'pausado(s)'}.`); recarregar()
+  }
+  const exportarJson = () => baixarArquivo('agendamentos.json', JSON.stringify({ tipo: 'agendamentos', versao: 1, itens: lista.map((g) => ({ nome: g.nome, aparelho_id: g.aparelho_id, aparelho_nome: g.aparelho_nome, dias: g.dias, hora: g.hora, acao: g.acao, ativo: !!g.ativo })) }, null, 2), 'application/json')
+  const exportarCsv = () => baixarArquivo('agendamentos.csv', paraCsv(ordenada, [['hora', 'Hora'], ['nome', 'Nome'], ['aparelho_nome', 'Aparelho'], [(g) => descrever(g), 'Ação'], [(g) => dias(g.dias), 'Dias'], [(g) => (g.ativo ? 'ativo' : 'pausado'), 'Estado']]), 'text/csv')
+  const importar = async (j) => {
+    if (!j || j.tipo !== 'agendamentos' || !Array.isArray(j.itens)) return toast('Este arquivo não é uma exportação de agendamentos.', 'erro')
+    let ok = 0, pulados = 0
+    for (const it of j.itens) {
+      const ar = aparelhos.find((a) => a.id === it.aparelho_id) || aparelhos.find((a) => a.nome === it.aparelho_nome)
+      if (!ar) { pulados++; continue }
+      try { await api.post('/api/agendamentos', { ...it.acao, aparelho_id: ar.id, nome: String(it.nome).slice(0, 60), dias: it.dias, hora: it.hora, ativo: false }); ok++ } catch { pulados++ }
+    }
+    toast(`${ok} importado(s), pausados para você conferir e ativar${pulados ? `; ${pulados} pulado(s) (ar não encontrado)` : ''}.`); recarregar()
   }
   const descrever = (g) => (g.acao.ligado
     ? `Ligar${g.acao.modo ? ` em ${MODOS[g.acao.modo].toLowerCase()}` : ''}${g.acao.temperatura ? ` ${g.acao.temperatura}°C` : ''}`
@@ -297,7 +326,24 @@ export default function Agendamentos() {
           </div>
         )
       })()}
+      <div className="mb-6"><RegrasAgenda podeMudar={['dono', 'admin'].includes(sessao?.papel)} /></div>
       <div className="mb-6"><Modelos aparelhos={aparelhos} aoCriar={recarregar} /></div>
+      {lista.length > 0 && (
+        <div className="mb-3 space-y-2">
+          <FerramentasLista busca={busca} setBusca={setBusca} placeholder="Procurar agendamento ou ar" filtro={estado} setFiltro={setEstado}
+            filtros={[['todos', 'Todos', lista.length], ['ativos', 'Ativos', lista.filter((g) => g.ativo).length], ['pausados', 'Pausados', lista.filter((g) => !g.ativo).length], ['ligar', 'Ligam'], ['desligar', 'Desligam']]}
+            total={lista.length} mostrando={ordenada.length} exportarCsv={exportarCsv} exportarJson={exportarJson} importar={importar} />
+          {sel.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+              <b>{sel.size} selecionado(s)</b>
+              <Botao tamanho="sm" variante="secundario" carregando={emLote} onClick={() => lote('ativar')}>Ativar</Botao>
+              <Botao tamanho="sm" variante="secundario" carregando={emLote} onClick={() => lote('pausar')}>Pausar</Botao>
+              <Botao tamanho="sm" variante="perigo" carregando={emLote} onClick={() => lote('apagar')}>Apagar</Botao>
+              <button className="ml-auto text-xs text-muted-foreground hover:text-foreground" onClick={() => setSel(new Set())}>Limpar seleção</button>
+            </div>
+          )}
+        </div>
+      )}
       {lista.length === 0 ? (
         <Vazio icone={CalendarClock} titulo="Nenhum agendamento"
           texto={aparelhos.length ? 'Exemplo: ligar o ar da recepção às 7h30 em 23°C e desligar às 18h.' : 'Cadastre um aparelho primeiro.'}
@@ -312,10 +358,12 @@ export default function Agendamentos() {
                 {[...new Map(lista.map((g) => [g.aparelho_id, g.aparelho_nome])).entries()].map(([id, n]) => <option key={id} value={id}>{n}</option>)}
               </select>
               <span className="text-xs text-muted-foreground">{ordenada.length} agendamento(s), por horário</span>
+              <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={ordenada.length > 0 && ordenada.every((g) => sel.has(g.id))} onChange={(e) => setSel(e.target.checked ? new Set(ordenada.map((g) => g.id)) : new Set())} />Selecionar todos</label>
             </div>
           )}
           {ordenada.map((g) => (
-            <div key={g.id} className={`flex items-center gap-4 px-4 py-3 ${g.ativo ? '' : 'opacity-50'}`}>
+            <div key={g.id} className={`flex items-center gap-4 px-4 py-3 ${g.ativo ? '' : 'opacity-60'} ${sel.has(g.id) ? 'bg-primary/5' : ''}`}>
+              <input type="checkbox" aria-label={`Selecionar ${g.nome}`} checked={sel.has(g.id)} onChange={(e) => { const n = new Set(sel); if (e.target.checked) n.add(g.id); else n.delete(g.id); setSel(n) }} />
               <p className="w-14 text-lg font-semibold tabular-nums">{g.hora}</p>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{g.nome}</p>

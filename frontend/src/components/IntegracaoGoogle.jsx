@@ -96,12 +96,14 @@ export default function IntegracaoGoogle({ cfg, aparelhos }) {
           </div>
           <p className="text-xs text-muted-foreground">Luzes, cafeteira, persianas e fechadura do Smart Life também entram no Google: no mesmo “Funciona com o Google Home”, procure “Smart Life” e entre com a conta do app.</p>
         </div>
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-white p-3 text-center">
-          {qr ? <img alt="QR Code do app Google Home" className="h-36 w-36" src={qr} /> : <div className="h-36 w-36" />}
-          <p className="text-[11px] text-zinc-600">App Google Home (Android)</p>
-          <div className="flex gap-2 text-[11px]">
-            <a className="inline-flex items-center gap-1 text-zinc-800 underline" href={APP_GOOGLE.android} target="_blank" rel="noreferrer">Android<ExternalLink className="h-3 w-3" /></a>
-            <a className="inline-flex items-center gap-1 text-zinc-800 underline" href={APP_GOOGLE.ios} target="_blank" rel="noreferrer">iPhone<ExternalLink className="h-3 w-3" /></a>
+        <div className="flex flex-col items-center gap-2.5 self-start rounded-lg border border-border bg-muted/40 p-4 text-center xl:sticky xl:top-4">
+          <p className="text-xs font-medium">Baixar o app Google Home</p>
+          {/* o QR precisa de fundo claro para a câmera ler: só ele fica no quadrado branco */}
+          <div className="rounded-md bg-white p-2">{qr ? <img alt="QR Code do app Google Home" className="h-32 w-32" src={qr} /> : <div className="h-32 w-32" />}</div>
+          <p className="text-[11px] text-muted-foreground">Aponte a câmera do celular (Android)</p>
+          <div className="flex gap-3 text-xs">
+            <a className="inline-flex items-center gap-1 text-primary hover:underline" href={APP_GOOGLE.android} target="_blank" rel="noreferrer">Android<ExternalLink className="h-3 w-3" /></a>
+            <a className="inline-flex items-center gap-1 text-primary hover:underline" href={APP_GOOGLE.ios} target="_blank" rel="noreferrer">iPhone<ExternalLink className="h-3 w-3" /></a>
           </div>
         </div>
       </div>

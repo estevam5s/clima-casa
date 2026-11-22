@@ -98,11 +98,11 @@ const CAPITULOS = [
     ],
   },
   {
-    id: 'windows', icone: Monitor, titulo: 'Ir para casa com o Mac: agente no PC Windows',
+    id: 'windows', icone: Monitor, titulo: 'Agente em outro computador (Windows, Mac, Linux, Raspberry Pi, Docker)',
     resumo: 'Um PC que fica no escritório assume os comandos quando o Mac vai embora, sem perder nada.',
     passos: [
       { t: 'Por que precisa', d: 'O transmissor só recebe comandos pela rede do escritório. Quem manda é o agente, que precisa estar num computador ligado LÁ. O Windows de casa não serve para isso; um PC que fica no escritório, sim.' },
-      { t: 'Escolha o PC do escritório', d: 'Um PC Windows 10/11 que fique sempre ligado na tomada, no mesmo Wi-Fi 2,4 GHz do transmissor (ou no cabo do mesmo roteador). Também serve um Linux, mini PC ou Raspberry Pi 3B, 4 ou 5 com o Raspberry Pi OS de 64 bits (Infra → Agentes → “É um Raspberry Pi ou um Linux?” mostra o comando). Arduino, ESP32 e ESP8266 não rodam o agente.' },
+      { t: 'Escolha o PC do escritório', d: 'Um computador de 64 bits que fique sempre ligado, na mesma rede do transmissor: PC ou servidor Windows, Mac, Linux (Debian, Ubuntu, Fedora, RHEL, openSUSE, Arch), Raspberry Pi 3B, 4 ou 5 com o sistema de 64 bits ou um servidor Linux com Docker. Em Infra → Agentes, gere o código e escolha a aba do seu computador: cada uma mostra o comando. A rede precisa liberar a saída HTTPS (443) e a porta 6543 do banco; o quadro da tela diz o que pedir à TI. Arduino, ESP32 e ESP8266 não rodam o agente.' },
       { t: 'Gere o código de instalação', d: 'No painel: Infra → Agentes → “Gerar código de instalação” (só o dono). Vale 30 minutos e serve uma vez. As chaves do sistema vão cifradas: só o código decifra, lá no PC.', link: ['/infra', 'Abrir Infra'] },
       { t: 'Cole o comando no PC, como administrador', d: 'No PC do escritório: menu Iniciar → PowerShell → botão direito → Executar como administrador. Copie o comando que o painel mostra e cole. Ele baixa o sistema, instala o Python, recebe as chaves e cria o serviço que liga junto com o Windows (não precisa ninguém logado). Leva de 3 a 8 minutos.' },
       { t: 'Deixe a rede como Privada', d: 'Configurações do Windows → Rede e Internet → propriedades do Wi-Fi → Perfil de rede: Privada. Em rede Pública o Windows bloqueia a busca do transmissor.' },

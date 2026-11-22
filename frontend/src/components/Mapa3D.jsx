@@ -5,7 +5,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
-import { Box, Building2, Clock, CloudRain, DoorOpen, Eye, MapPinned, Maximize2, Minimize2, Moon, Pause, PenLine, Play, RotateCcw, Sun } from 'lucide-react'
+import { Box, Building2, Clock, CloudRain, DoorOpen, Eye, MapPinned, Maximize2, Minimize2, MonitorCog, Moon, Pause, PenLine, Play, RotateCcw, Sun } from 'lucide-react'
 import { api } from '../api'
 import { BarraControle, CartaoMapa, RascunhoEscrita } from './CartoesMapa3D'
 import { animarDispositivos, montarDispositivo } from './dispositivos3d'
@@ -457,6 +457,20 @@ function etiqueta(texto, cor = '#ffffff', fundo = 'rgba(15,23,42,0.82)') {
 // roda depois de um atraso e quando o navegador estiver ocioso (cargas pesadas que não podem segurar o 1º quadro)
 const quandoOcioso = (atraso, fn) => setTimeout(() => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 3000 }) : fn()), atraso)
 
+// Qualidade do mapa escolhida pela pessoa (lembrada neste navegador). "auto" mede os quadros por segundo e ajusta sozinho.
+export const RESOLUCOES_MAPA = {
+  auto: { rotulo: 'Automática', altura: 0 },
+  minima: { rotulo: 'Mínima (360p)', altura: 360 },
+  '480p': { rotulo: '480p', altura: 480 },
+  '720p': { rotulo: '720p (HD)', altura: 720 },
+  '1080p': { rotulo: '1080p (Full HD)', altura: 1080 },
+  '1440p': { rotulo: '1440p (2K)', altura: 1440 },
+  '4k': { rotulo: '4K (2160p)', altura: 2160 },
+  '8k': { rotulo: '8K (4320p)', altura: 4320 },
+}
+const CHAVE_RESOLUCAO = 'clima-mapa-resolucao'
+function lerResolucao() { try { const r = localStorage.getItem(CHAVE_RESOLUCAO); return RESOLUCOES_MAPA[r] ? r : 'auto' } catch { return 'auto' } }
+
 export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecionado, aoSelecionar, compacto = false, comPredio = !compacto, acoes = null, perm = {}, extra = null }) {
   const { marca } = useMarca()
   const ref = useRef(null)
@@ -469,6 +483,18 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
   useEffect(() => { estado.current.naIlha = ilha }, [ilha])
   const [pronto, setPronto] = useState(false)
   const [hora, setHora] = useState('agora')   // agora | dia | noite
+  const [resolucao, setResolucao] = useState(lerResolucao)
+  const [infoQ, setInfoQ] = useState(null)   // { fps, largura, altura, limite, auto }
+  const [verQualidade, setVerQualidade] = useState(false)
+  useEffect(() => {
+    try { localStorage.setItem(CHAVE_RESOLUCAO, resolucao) } catch { /* sem armazenamento */ }
+    estado.current?.mudarResolucao?.(resolucao)
+  }, [resolucao])
+  useEffect(() => {
+    if (!verQualidade) return undefined
+    const t = setInterval(() => setInfoQ(estado.current?.infoQualidade || null), 1000)
+    return () => clearInterval(t)
+  }, [verQualidade])
   // tempo no 3D: previsão real (Open-Meteo pelo backend) ou pré-visualização escolhida
   const [clima, setClima] = useState(null)
   const [tempoVista, setTempoVista] = useState('agora')   // agora | limpo | nublado | chuva | trovoada
@@ -618,7 +644,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // as funções ligadas ao React (barra de controle, cartões, elevador) foram registradas por outro efeito antes deste:
     // recriar o objeto sem elas deixava a barra de controle (e as teclas F/R/C) sem resposta até a tela re-renderizar
     const antes = estado.current || {}
-    estado.current = { cena, camera, controles, renderer, setControle: antes.setControle, setNivel: antes.setNivel, setViagem: antes.setViagem,
+    estado.current = { cena, camera, controles, renderer, resolucao: lerResolucao(), setControle: antes.setControle, setNivel: antes.setNivel, setViagem: antes.setViagem,
       abrirCartao: antes.abrirCartao, escrevendo: antes.escrevendo, estadoLuzes: antes.estadoLuzes }
     try { if (localStorage.getItem('clima-debug-3d') === '1') window.__mapa3d = estado }   // só para testes (Playwright): liga à mão no navegador
     catch { /* sem armazenamento */ }
@@ -633,15 +659,31 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       { dpr: Math.min(dprMax, 1.5), sombra: 1, cada: 1 },
       { dpr: Math.min(dprMax, 1.25), sombra: 0.5, cada: 2 },
       { dpr: 1, sombra: 0.5, cada: 3 },
-      { dpr: 0.85, sombra: 0.25, cada: 4 },
-      { dpr: 0.7, sombra: 0.25, cada: 6 },
+      { dpr: 1, sombra: 0.25, cada: 4 },   // não desce abaixo de 1 pixel por ponto: abaixo disso a cidade ficava borrada
+      { dpr: 1, sombra: 0.25, cada: 6 },
     ]
+    // Qualidade escolhida à mão (estado.current.resolucao): altura da imagem em pixels, da mínima (360p) ao 8K (4320p).
+    // A largura segue a proporção da tela. O máximo real depende da placa de vídeo (MAX_VIEWPORT_DIMS / renderbuffer).
+    const gl = renderer.getContext()
+    const limiteGpu = (() => { try { const v = gl.getParameter(gl.MAX_VIEWPORT_DIMS); return Math.min(v[0], v[1], gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)) } catch { return 4096 } })()
+    const dprFixo = () => {
+      const alvo = RESOLUCOES_MAPA[estado.current.resolucao]?.altura
+      if (!alvo || compacto) return null   // o 3D pequeno do Painel fica sempre no automático
+      const w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight)
+      return Math.max(0.2, Math.min(alvo / h, limiteGpu / Math.max(w, h)))
+    }
     const CHAVE_Q = 'clima-mapa-qualidade'
     let nivel = 0
     try { nivel = Math.min(NIVEIS.length - 1, Math.max(0, parseInt(localStorage.getItem(CHAVE_Q) || '0', 10) || 0)) } catch { /* sem armazenamento */ }
     let tetoSubida = -1   // depois de descer por lentidão, não volta a subir além do nível que já falhou
     const aplicarQualidade = () => {
-      const q = NIVEIS[nivel], E = estado.current
+      const E = estado.current, fixo = dprFixo()
+      const q = fixo ? { dpr: fixo, sombra: RESOLUCOES_MAPA[E.resolucao].altura >= 1080 ? 1 : 0.5, cada: 1 } : NIVEIS[nivel]
+      if (fixo && RESOLUCOES_MAPA[E.resolucao].altura >= 1080 && !E.anisoMax) {   // texturas nítidas de longe (chão, fachadas)
+        E.anisoMax = true
+        const max = renderer.capabilities.getMaxAnisotropy()
+        cena.traverse((o) => [].concat(o.material || []).forEach((m) => { if (m.map && m.map.anisotropy < max) { m.map.anisotropy = max; m.map.needsUpdate = true } }))
+      }
       if (Math.abs(renderer.getPixelRatio() - q.dpr) > 0.01) { renderer.setPixelRatio(q.dpr); ajustar() }
       if (E.sol && E.sombraMax) {
         const tam = Math.max(512, Math.round(E.sombraMax * q.sombra))
@@ -649,9 +691,19 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       }
       renderer.shadowMap.autoUpdate = q.cada === 1
       renderer.shadowMap.needsUpdate = true
-      E.qualidade = { nivel, ...q }
+      E.qualidade = { nivel: fixo ? -1 : nivel, ...q }
     }
     estado.current.aplicarQualidade = aplicarQualidade
+    estado.current.mudarResolucao = (r) => { estado.current.resolucao = r; aplicarQualidade() }
+    // o que a tela mostra: tamanho real da imagem e quadros por segundo
+    let fpsN = 0, fpsDesde = performance.now()
+    const medirFps = (agora) => {
+      fpsN++
+      if (agora - fpsDesde < 1000) return
+      const E = estado.current, buf = renderer.getDrawingBufferSize(new THREE.Vector2())
+      E.infoQualidade = { fps: Math.round((fpsN * 1000) / (agora - fpsDesde)), largura: buf.x, altura: buf.y, limite: limiteGpu, auto: !dprFixo() }
+      fpsN = 0; fpsDesde = agora
+    }
     let somaQ = 0, nQ = 0, ultimoQ = 0, bons = 0, carenciaQ = 0, quadroN = 0
     const medirQualidade = (agora) => {
       if (!ultimoQ) { ultimoQ = agora; return }
@@ -661,6 +713,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (somaQ < 1500) return
       const media = somaQ / nQ; somaQ = 0; nQ = 0
       if (carenciaQ > 0) { carenciaQ--; return }   // espera a troca anterior assentar
+      if (dprFixo()) return   // qualidade escolhida à mão: não muda sozinha
       if (media > 26 && nivel < NIVEIS.length - 1) {   // abaixo de ~38 quadros/s: desce um nível
         tetoSubida = nivel; nivel++; bons = 0; carenciaQ = 1; aplicarQualidade()
         try { localStorage.setItem(CHAVE_Q, String(nivel)) } catch { /* sem armazenamento */ }
@@ -681,11 +734,15 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const q = NIVEIS[nivel]
         if (q.cada > 1 && ++quadroN % q.cada === 0) renderer.shadowMap.needsUpdate = true
         renderer.render(cena, camera)
-        if (agora) medirQualidade(agora)
+        if (agora) { medirQualidade(agora); medirFps(agora) }
       } else ultimoQ = 0
       estado.current.rotulos?.()
     }
-    function ajustar() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix() }
+    function ajustar() {
+      const w = el.clientWidth, h = el.clientHeight, fixo = dprFixo()
+      if (fixo && Math.abs(renderer.getPixelRatio() - fixo) > 0.01) renderer.setPixelRatio(fixo)   // mudou o tamanho: mantém a altura escolhida
+      renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix()
+    }
     ajustar()
     aplicarQualidade()
     laco()
@@ -2813,10 +2870,30 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         title={cheia ? 'Sair da tela cheia (Esc)' : 'Expandir o escritório para a tela inteira'} aria-pressed={!!cheia}>
         {cheia ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{cheia ? 'Reduzir' : 'Expandir'}
       </button>
-      <div className="absolute right-3 top-3 flex overflow-hidden rounded-lg border border-border bg-card/90 backdrop-blur" role="group" aria-label="Iluminação">
-        {[['agora', Clock, 'Agora'], ['dia', Sun, 'Dia'], ['noite', Moon, 'Noite']].map(([k, I, r], i) => (
-          <button key={k} onClick={() => setHora(k)} className={`${botao} ${i ? 'border-l border-border' : ''} ${hora === k ? 'bg-black/5 font-medium dark:bg-white/10' : ''}`} title={k === 'agora' ? 'Luz da hora real (Brasília)' : `Simular ${r.toLowerCase()}`}><I className="h-3.5 w-3.5" />{r}</button>
-        ))}
+      <div className="absolute right-3 top-3 flex flex-col items-end gap-2">
+        <div className="flex overflow-hidden rounded-lg border border-border bg-card/90 backdrop-blur" role="group" aria-label="Iluminação">
+          {[['agora', Clock, 'Agora'], ['dia', Sun, 'Dia'], ['noite', Moon, 'Noite']].map(([k, I, r], i) => (
+            <button key={k} onClick={() => setHora(k)} className={`${botao} ${i ? 'border-l border-border' : ''} ${hora === k ? 'bg-black/5 font-medium dark:bg-white/10' : ''}`} title={k === 'agora' ? 'Luz da hora real (Brasília)' : `Simular ${r.toLowerCase()}`}><I className="h-3.5 w-3.5" />{r}</button>
+          ))}
+          {!compacto && <button onClick={() => setVerQualidade((v) => !v)} className={`${botao} border-l border-border ${verQualidade ? 'bg-black/5 font-medium dark:bg-white/10' : ''}`} title="Qualidade da imagem" aria-expanded={verQualidade}>
+            <MonitorCog className="h-3.5 w-3.5" />{resolucao === 'auto' ? 'Auto' : RESOLUCOES_MAPA[resolucao].rotulo.split(' ')[0]}
+          </button>}
+        </div>
+        {verQualidade && !compacto && (
+          <div className="z-10 w-60 rounded-lg border border-border bg-card/95 p-2 text-xs backdrop-blur">
+            <p className="px-1 pb-1.5 font-medium">Qualidade da imagem</p>
+            <div className="grid grid-cols-2 gap-1">
+              {Object.entries(RESOLUCOES_MAPA).map(([k, r]) => (
+                <button key={k} onClick={() => setResolucao(k)} aria-pressed={resolucao === k}
+                  className={`rounded-md border px-2 py-1.5 text-left ${resolucao === k ? 'border-primary bg-primary/10 font-medium' : 'border-border hover:bg-muted'}`}>{r.rotulo}</button>
+              ))}
+            </div>
+            {infoQ && <p className="mt-2 px-1 text-muted-foreground">Agora: {infoQ.largura}×{infoQ.altura} px · {infoQ.fps} quadros/s{infoQ.auto ? ' · ajuste automático' : ''}</p>}
+            {infoQ && RESOLUCOES_MAPA[resolucao].altura > 0 && infoQ.altura + 2 < Math.min(RESOLUCOES_MAPA[resolucao].altura, infoQ.limite) && <p className="mt-1 px-1 text-amber-600 dark:text-amber-400">Limitado pela placa de vídeo deste computador.</p>}
+            {infoQ && RESOLUCOES_MAPA[resolucao].altura > infoQ.limite && <p className="mt-1 px-1 text-amber-600 dark:text-amber-400">Esta placa de vídeo vai até {infoQ.limite} px.</p>}
+            <p className="mt-1.5 px-1 leading-snug text-muted-foreground">4K e 8K pedem placa de vídeo forte; se travar, volte para Automática.</p>
+          </div>
+        )}
       </div>
       {comPredio && !compacto && !controle && (
         <div className="absolute left-3 top-14 z-[5] w-[min(260px,calc(100%-24px))] rounded-lg border border-border bg-card/90 text-xs backdrop-blur">

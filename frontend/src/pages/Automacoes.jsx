@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, LayoutTemplate, Pencil, Play, Plus, Search, Trash2, Workflow, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Copy, LayoutTemplate, Pencil, Play, Plus, Trash2, Workflow, X } from 'lucide-react'
+import FerramentasLista, { baixarArquivo, normalizar, paraCsv } from '../components/FerramentasLista'
 import { DIAS, MODOS, VENTILACAO, api, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../components/ui'
 
@@ -17,6 +18,31 @@ const MODELOS = [
   { nome: 'Fim do expediente às 18h', gatilho: { tipo: 'horario', hora: '18:00' }, condicoes: { dias: [1, 2, 3, 4, 5] }, acoes: [{ tipo: 'aparelho', ligado: false }] },
   { nome: 'Ligado há 2 h: modo economia', gatilho: { tipo: 'ligado_ha', minutos: 120 }, condicoes: {}, acoes: [{ tipo: 'aparelho', ligado: true, temperatura: 24, ventilador: 'baixa' }] },
 ]
+
+// O que pode dar errado numa regra: ar ou cena que não existe mais, ar sem transmissor, duas regras no mesmo horário
+// mandando coisas opostas para o mesmo ar
+function problemas(a, autos, aparelhos, cenas) {
+  const ares = new Map(aparelhos.map((x) => [x.id, x])), idsCenas = new Set(cenas.map((c) => c.id)), lista = []
+  if (a.gatilho.aparelho_id && !ares.has(a.gatilho.aparelho_id)) lista.push('o ar do gatilho não existe mais')
+  for (const ac of a.acoes) {
+    if (ac.tipo === 'cena' && !idsCenas.has(ac.cena_id)) lista.push('a cena desta ação não existe mais')
+    if (ac.tipo === 'aparelho' && ac.aparelho_id) {
+      const ar = ares.get(ac.aparelho_id)
+      if (!ar) lista.push('o ar desta ação não existe mais')
+      else if (!ar.hub_id) lista.push(`${ar.nome} está sem transmissor: não vai obedecer`)
+    }
+  }
+  if (a.ativo && a.gatilho.tipo === 'horario') {
+    const dias = (x) => new Set(x.condicoes?.dias?.length ? x.condicoes.dias : [0, 1, 2, 3, 4, 5, 6])
+    const meus = dias(a)
+    for (const o of autos) {
+      if (o.id === a.id || !o.ativo || o.gatilho.tipo !== 'horario' || o.gatilho.hora !== a.gatilho.hora || ![...dias(o)].some((d) => meus.has(d))) continue
+      const choca = a.acoes.some((x) => x.tipo === 'aparelho' && o.acoes.some((y) => y.tipo === 'aparelho' && y.aparelho_id === x.aparelho_id && !!y.ligado !== !!x.ligado))
+      if (choca) lista.push(`conflita com “${o.nome}” no mesmo horário (uma liga, a outra desliga)`)
+    }
+  }
+  return lista
+}
 
 // como uma regra funciona (quando → se → então), sempre visível no topo
 function ComoFunciona() {
@@ -184,18 +210,56 @@ export default function Automacoes() {
   const [modelos, setModelos] = useState(false)
   const [busca, setBusca] = useState('')
   const [situacao, setSituacao] = useState('todas')
+  const [sel, setSel] = useState(new Set()), [emLote, setEmLote] = useState(false), [ordem, setOrdem] = useState('nome')
   const toast = useToast()
   const visiveis = useMemo(() => {
     if (!dados) return []
-    const q = busca.trim().toLowerCase()
-    return dados[0].filter((a) => (situacao === 'todas' || (situacao === 'ativas' ? a.ativo : !a.ativo)) && (!q || a.nome.toLowerCase().includes(q)))
-  }, [dados, busca, situacao])
+    const q = normalizar(busca.trim())
+    const [autos, aparelhos, cenas] = dados
+    const passa = (a) => {
+      if (situacao === 'ativas' && !a.ativo) return false
+      if (situacao === 'pausadas' && a.ativo) return false
+      if (situacao === 'problemas' && !problemas(a, autos, aparelhos, cenas).length) return false
+      if (GATILHOS[situacao] && a.gatilho.tipo !== situacao) return false
+      if (!q) return true
+      const [quando, acoes] = resumo(a, aparelhos, cenas)
+      return normalizar(`${a.nome} ${quando} ${acoes.join(' ')}`).includes(q)
+    }
+    const chave = { nome: (a) => a.nome.toLowerCase(), disparos: (a) => -(a.disparos || 0), ultimo: (a) => -(a.ultimo_disparo || 0) }[ordem]
+    return autos.filter(passa).sort((x, y) => (chave(x) > chave(y) ? 1 : chave(x) < chave(y) ? -1 : 0))
+  }, [dados, busca, situacao, ordem])
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const [autos, aparelhos, cenas, timers] = dados
   // toda ação mostra o erro (antes, ligar/pausar, rodar e apagar falhavam em silêncio)
   const agir = async (fn, ok) => { try { await fn(); if (ok) toast(ok); recarregar() } catch (e) { toast(e.message, 'erro') } }
   const ultimo = Math.max(0, ...autos.map((a) => a.ultimo_disparo || 0))
+  const corpoDe = (a, extra = {}) => ({ nome: a.nome, ativo: !!a.ativo, gatilho: a.gatilho, condicoes: a.condicoes || {}, acoes: a.acoes, ...extra })
+  const lote = async (acao) => {
+    setEmLote(true); let ok = 0
+    for (const a of autos.filter((x) => sel.has(x.id))) {
+      try { if (acao === 'apagar') await api.del(`/api/automacoes/${a.id}`); else await api.put(`/api/automacoes/${a.id}`, corpoDe(a, { ativo: acao === 'ativar' })); ok++ } catch (e) { toast(`${a.nome}: ${e.message}`, 'erro') }
+    }
+    setEmLote(false); setSel(new Set()); toast(`${ok} automação(ões) ${acao === 'apagar' ? 'apagada(s)' : acao === 'ativar' ? 'ativada(s)' : 'pausada(s)'}.`); recarregar()
+  }
+  const exportarJson = () => baixarArquivo('automacoes.json', JSON.stringify({ tipo: 'automacoes', versao: 1, itens: autos.map((a) => ({ ...corpoDe(a),
+    nomes: { gatilho: aparelhos.find((x) => x.id === a.gatilho.aparelho_id)?.nome, aparelhos: Object.fromEntries(a.acoes.filter((x) => x.aparelho_id).map((x) => [x.aparelho_id, aparelhos.find((y) => y.id === x.aparelho_id)?.nome])), cenas: Object.fromEntries(a.acoes.filter((x) => x.cena_id).map((x) => [x.cena_id, cenas.find((c) => c.id === x.cena_id)?.nome])) } })) }, null, 2), 'application/json')
+  const exportarCsv = () => baixarArquivo('automacoes.csv', paraCsv(visiveis, [['nome', 'Nome'], [(a) => resumo(a, aparelhos, cenas)[0], 'Quando'], [(a) => resumo(a, aparelhos, cenas)[1].join(' · '), 'Faz'], [(a) => (a.ativo ? 'ativa' : 'pausada'), 'Estado'], ['disparos', 'Disparos'], [(a) => (a.ultimo_disparo ? new Date(a.ultimo_disparo * 1000).toLocaleString('pt-BR') : ''), 'Último disparo']]), 'text/csv')
+  const importar = async (j) => {
+    if (!j || j.tipo !== 'automacoes' || !Array.isArray(j.itens)) return toast('Este arquivo não é uma exportação de automações.', 'erro')
+    const arPor = (id, nome) => (aparelhos.find((x) => x.id === id) || aparelhos.find((x) => x.nome === nome))?.id
+    const cenaPor = (id, nome) => (cenas.find((x) => x.id === id) || cenas.find((x) => x.nome === nome))?.id
+    let ok = 0, pulados = 0
+    for (const it of j.itens) {
+      const n = it.nomes || {}
+      const gatilho = { ...it.gatilho, aparelho_id: it.gatilho.aparelho_id ? arPor(it.gatilho.aparelho_id, n.gatilho) : undefined }
+      const acoes = it.acoes.map((x) => ({ ...x, aparelho_id: x.aparelho_id ? arPor(x.aparelho_id, n.aparelhos?.[x.aparelho_id]) : undefined, cena_id: x.cena_id ? cenaPor(x.cena_id, n.cenas?.[x.cena_id]) : undefined }))
+      if ((it.gatilho.aparelho_id && !gatilho.aparelho_id) || acoes.some((x) => (x.tipo === 'cena' && !x.cena_id))) { pulados++; continue }
+      try { await api.post('/api/automacoes', { nome: String(it.nome).slice(0, 80), ativo: false, gatilho, condicoes: it.condicoes || {}, acoes }); ok++ } catch { pulados++ }
+    }
+    toast(`${ok} importada(s), pausadas para você conferir${pulados ? `; ${pulados} pulada(s)` : ''}.`); recarregar()
+  }
+  const comProblema = autos.filter((a) => problemas(a, autos, aparelhos, cenas).length).length
   const salvar = async (f) => {
     if (modal?.id) await api.put(`/api/automacoes/${modal.id}`, f); else await api.post('/api/automacoes', f)
     toast('Automação salva.'); recarregar()
@@ -245,34 +309,42 @@ export default function Automacoes() {
         </>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,20rem)_auto] sm:justify-between">
-            <label className="relative">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <input className="campo h-9 pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar automação" type="search" name="busca-automacoes" autoComplete="off" aria-label="Buscar automações" />
-            </label>
-            <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5" role="group" aria-label="Situação">
-              {[['todas', 'Todas'], ['ativas', 'Ativas'], ['pausadas', 'Pausadas']].map(([k, r]) => (
-                <button key={k} onClick={() => setSituacao(k)} aria-pressed={situacao === k} className={`rounded-md px-3 py-1.5 text-sm ${situacao === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}>{r}</button>
-              ))}
-            </div>
+          {comProblema > 0 && <Aviso tipo="alerta"><b>{comProblema} automação(ões) com problema</b> (ar ou cena que não existe, ar sem transmissor ou conflito de horário). <button className="underline" onClick={() => setSituacao('problemas')}>Ver só elas</button></Aviso>}
+          <FerramentasLista busca={busca} setBusca={setBusca} placeholder="Procurar por nome, ar ou ação" filtro={situacao} setFiltro={setSituacao}
+            filtros={[['todas', 'Todas', autos.length], ['ativas', 'Ativas', autos.filter((a) => a.ativo).length], ['pausadas', 'Pausadas', autos.filter((a) => !a.ativo).length],
+              ['horario', 'Horário'], ['ligou', 'Ao ligar'], ['desligou', 'Ao desligar'], ['ligado_ha', 'Ligado há'], ...(comProblema ? [['problemas', 'Com problema', comProblema]] : [])]}
+            total={autos.length} mostrando={visiveis.length} exportarCsv={exportarCsv} exportarJson={exportarJson} importar={importar}
+            extra={<select className="campo h-8 w-auto text-xs" value={ordem} onChange={(e) => setOrdem(e.target.value)} aria-label="Ordenar"><option value="nome">Nome</option><option value="disparos">Mais disparos</option><option value="ultimo">Disparo mais recente</option></select>} />
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={visiveis.length > 0 && visiveis.every((a) => sel.has(a.id))} onChange={(e) => setSel(e.target.checked ? new Set(visiveis.map((a) => a.id)) : new Set())} />Selecionar todas as mostradas</label>
+            {sel.size > 0 && <>
+              <b className="ml-2">{sel.size} selecionada(s)</b>
+              <Botao tamanho="sm" variante="secundario" carregando={emLote} onClick={() => lote('ativar')}>Ativar</Botao>
+              <Botao tamanho="sm" variante="secundario" carregando={emLote} onClick={() => lote('pausar')}>Pausar</Botao>
+              <Botao tamanho="sm" variante="perigo" carregando={emLote} onClick={() => lote('apagar')}>Apagar</Botao>
+            </>}
           </div>
           {visiveis.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Nenhuma automação com esse filtro.</p>}
           {visiveis.map((a, i) => {
             const [quando, acoes] = resumo(a, aparelhos, cenas)
+            const pb = problemas(a, autos, aparelhos, cenas)
             return (
-              <motion.div key={a.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                className={`cartao flex flex-col gap-3 p-4 sm:flex-row sm:items-center ${a.ativo ? '' : 'opacity-60'}`}>
+              <motion.div key={a.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 10) * 0.03 }}
+                className={`cartao flex flex-col gap-3 p-4 sm:flex-row sm:items-center ${a.ativo ? '' : 'opacity-70'} ${sel.has(a.id) ? 'border-primary/50' : ''}`}>
+                <input type="checkbox" className="self-start sm:self-center" aria-label={`Selecionar ${a.nome}`} checked={sel.has(a.id)} onChange={(e) => { const n = new Set(sel); if (e.target.checked) n.add(a.id); else n.delete(a.id); setSel(n) }} />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{a.nome}</p>
                   <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
                     <span>{quando}</span><ArrowRight className="h-3.5 w-3.5" /><span className="text-foreground">{acoes.join(' · ')}</span>
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">{a.disparos} disparo(s){a.ultimo_disparo ? ` · último ${haQuanto(a.ultimo_disparo)}` : ''}</p>
+                  {pb.map((t) => <p key={t} className="mt-1 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400"><AlertTriangle className="h-3.5 w-3.5 shrink-0" />{t}</p>)}
                 </div>
                 <div className="flex items-center gap-1">
                   <Interruptor ligado={!!a.ativo} rotulo="Ativa" onChange={(v) => agir(() => api.put(`/api/automacoes/${a.id}`, { ...a, ativo: v }), v ? 'Automação ativada.' : 'Automação pausada.')} />
                   <button className="rounded-md p-2 text-muted-foreground hover:bg-muted" title="Rodar agora" aria-label="Rodar agora" onClick={() => agir(() => api.post(`/api/automacoes/${a.id}/executar`), `${a.nome}: executada.`)}><Play className="h-4 w-4" /></button>
                   <button className="rounded-md p-2 text-muted-foreground hover:bg-muted" onClick={() => setModal(a)} aria-label="Editar"><Pencil className="h-4 w-4" /></button>
+                  <button className="rounded-md p-2 text-muted-foreground hover:bg-muted" title="Duplicar" aria-label="Duplicar" onClick={() => agir(() => api.post('/api/automacoes', corpoDe(a, { nome: `${a.nome} (cópia)`.slice(0, 80), ativo: false })), 'Cópia criada, pausada.')}><Copy className="h-4 w-4" /></button>
                   <button className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-red-600" onClick={() => setApagar(a)} aria-label="Apagar"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </motion.div>

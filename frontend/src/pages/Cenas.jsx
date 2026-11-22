@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Copy, Coffee, History, Moon, Pencil, Play, Plus, Power, Search, Snowflake, Sparkles, Sun, Trash2, Wand2, X, XCircle } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Copy, Coffee, History, Moon, Pencil, Play, Plus, Power, Search, Snowflake, Sparkles, Sun, Trash2, Undo2, Wand2, X, XCircle } from 'lucide-react'
+import { AgendarCena, desfazer, fotografia, previa } from '../components/CenasExtras'
+import { baixarArquivo, paraCsv } from '../components/FerramentasLista'
 import { MODOS, VENTILACAO, api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { useRef } from 'react'
 
 const ICONES = { sparkles: Sparkles, moon: Moon, sun: Sun, snowflake: Snowflake, coffee: Coffee, power: Power }
 
@@ -152,6 +155,10 @@ export default function Cenas() {
   const [apagar, setApagar] = useState(null)
   const [busca, setBusca] = useState('')
   const [ordem, setOrdem] = useState('recentes')
+  const [agendar, setAgendar] = useState(null)
+  const [ultima, setUltima] = useState(null)   // { nome, foto, em } para Desfazer
+  const [desfazendo, setDesfazendo] = useState(false)
+  const arq = useRef(null)
   const toast = useToast()
   const visiveis = useMemo(() => {
     if (!dados) return []
@@ -175,8 +182,10 @@ export default function Cenas() {
 
   const executar = async (c) => {
     setRodando(c.id)
+    const foto = fotografia(c, aparelhos)
     try {
       const r = await api.post(`/api/cenas/${c.id}/executar`)
+      setUltima({ nome: c.nome, foto, em: Date.now() })
       const falhas = r.resultados.filter((x) => !x.ok)
       if (falhas.length) toast(`${c.nome}: ${falhas.length} de ${r.resultados.length} falharam. ${falhas[0].erro}`, 'erro')
       else toast(`${c.nome} executada.`)
@@ -184,8 +193,36 @@ export default function Cenas() {
     } catch (e) { toast(e.message, 'erro') } finally { setRodando(null) }
   }
 
+  const voltar = async () => {
+    setDesfazendo(true)
+    const n = await desfazer(ultima.foto)
+    setDesfazendo(false); setUltima(null); toast(`${n} de ${ultima.foto.length} ar(es) de volta ao que estavam antes de "${ultima.nome}".`); recarregar()
+  }
+  const exportarJson = () => baixarArquivo('cenas.json', JSON.stringify({ tipo: 'cenas', versao: 1, itens: cenas.map((c) => ({ nome: c.nome, icone: c.icone, projeto_id: c.projeto_id, acoes: c.acoes.map(({ aparelho_id, aparelho_nome, ligado, modo, temperatura, ventilador }) => ({ aparelho_id, aparelho_nome, ligado, modo, temperatura, ventilador })) })) }, null, 2), 'application/json')
+  const exportarCsv = () => baixarArquivo('cenas.csv', paraCsv(cenas.flatMap((c) => c.acoes.map((a) => ({ cena: c.nome, projeto: c.projeto_nome || '', ar: a.aparelho_nome, acao: a.ligado ? `${MODOS[a.modo] || 'Ligar'}${a.temperatura ? ` ${a.temperatura}°` : ''}` : 'Desligar' }))), [['cena', 'Cena'], ['projeto', 'Projeto'], ['ar', 'Ar'], ['acao', 'Ação']]), 'text/csv')
+  const importar = async (e) => {
+    const f = e.target.files?.[0]; e.target.value = ''
+    if (!f) return
+    let j; try { j = JSON.parse(await f.text()) } catch { j = null }
+    if (!j || j.tipo !== 'cenas' || !Array.isArray(j.itens)) return toast('Este arquivo não é uma exportação de cenas.', 'erro')
+    let ok = 0, pulados = 0
+    for (const c of j.itens) {
+      const acoes = c.acoes.map((a) => { const ar = aparelhos.find((x) => x.id === a.aparelho_id) || aparelhos.find((x) => x.nome === a.aparelho_nome); return ar ? { aparelho_id: ar.id, ligado: a.ligado, modo: a.modo, temperatura: a.temperatura, ventilador: a.ventilador } : null }).filter(Boolean)
+      if (!acoes.length) { pulados++; continue }
+      try { await api.post('/api/cenas', { nome: String(c.nome).slice(0, 60), icone: c.icone || 'sparkles', projeto_id: c.projeto_id ?? null, acoes }); ok++ } catch { pulados++ }
+    }
+    toast(`${ok} cena(s) importada(s)${pulados ? `, ${pulados} pulada(s) (ares não encontrados)` : ''}.`); recarregar()
+  }
+
   return (
     <div className="w-full">
+      {ultima && Date.now() - ultima.em < 10 * 60000 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-2.5 text-sm">
+          <span className="flex-1"><b>{ultima.nome}</b> executada. Mudou algo que não devia?</span>
+          <Botao tamanho="sm" variante="secundario" icone={Undo2} carregando={desfazendo} onClick={voltar}>Desfazer (voltar {ultima.foto.length} ar(es))</Botao>
+          <button onClick={() => setUltima(null)} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Fechar"><X className="h-4 w-4" /></button>
+        </div>
+      )}
       <Cabecalho titulo="Cenas" descricao="Um toque executa vários comandos: ligar a sala de reunião em 23° e desligar a recepção, por exemplo."
         acoes={<Botao icone={Plus} disabled={!aparelhos.length} onClick={() => setModal({})}>Nova cena</Botao>} />
       {cenas.length > 0 && (
@@ -203,9 +240,15 @@ export default function Cenas() {
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <input className="campo h-9 pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cena, projeto ou ar" type="search" name="busca-cenas" autoComplete="off" aria-label="Buscar cenas" />
             </label>
-            <select className="campo h-9 w-auto" value={ordem} onChange={(e) => setOrdem(e.target.value)} aria-label="Ordenar">
-              <option value="recentes">Usadas por último</option><option value="nome">Nome</option><option value="comandos">Mais comandos</option>
-            </select>
+            <div className="flex flex-wrap gap-1.5">
+              <select className="campo h-9 w-auto" value={ordem} onChange={(e) => setOrdem(e.target.value)} aria-label="Ordenar">
+                <option value="recentes">Usadas por último</option><option value="nome">Nome</option><option value="comandos">Mais comandos</option>
+              </select>
+              <Botao tamanho="sm" variante="secundario" onClick={exportarCsv}>CSV</Botao>
+              <Botao tamanho="sm" variante="secundario" onClick={exportarJson}>Exportar</Botao>
+              <input ref={arq} type="file" accept=".json,application/json" className="hidden" onChange={importar} />
+              <Botao tamanho="sm" variante="secundario" onClick={() => arq.current?.click()}>Importar</Botao>
+            </div>
           </div>
         </>
       )}
@@ -232,21 +275,29 @@ export default function Cenas() {
                     <button className="rounded-md p-1.5 hover:bg-muted hover:text-red-600" aria-label="Apagar" onClick={() => setApagar(c)}><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </div>
+                {(() => { const pv = previa(c, aparelhos); const muda = pv.filter((p) => p.situacao === 'muda').length, sem = pv.filter((p) => p.situacao === 'sem_tx' || p.situacao === 'sumiu').length; return (<>
                 <ul className="mt-4 flex-1 space-y-1.5 text-sm">
-                  {c.acoes.map((a, n) => (
+                  {pv.map((a, n) => (
                     <li key={n} className="flex items-center justify-between gap-2">
-                      <span className="truncate text-muted-foreground">{a.aparelho_nome}</span>
-                      <span className="shrink-0 font-medium">{a.ligado ? `${MODOS[a.modo] || 'Ligar'}${a.temperatura ? ` ${a.temperatura}°` : ''}` : 'Desligar'}</span>
+                      <span className="min-w-0"><span className="block truncate text-muted-foreground">{a.aparelho_nome}</span>
+                        <span className={`block text-[11px] ${a.situacao === 'sem_tx' || a.situacao === 'sumiu' ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground/80'}`}>{a.texto}</span></span>
+                      <span className={`shrink-0 font-medium ${a.situacao === 'igual' ? 'text-muted-foreground' : ''}`}>{a.ligado ? `${MODOS[a.modo] || 'Ligar'}${a.temperatura ? ` ${a.temperatura}°` : ''}` : 'Desligar'}</span>
                     </li>
                   ))}
                 </ul>
-                <Botao className="mt-4 w-full" icone={Play} carregando={rodando === c.id} onClick={() => executar(c)}>Executar</Botao>
+                <p className="mt-3 text-xs text-muted-foreground">{muda ? `${muda} ar(es) mudam agora` : 'Nada muda agora: tudo já está assim'}{sem ? ` · ${sem} não obedece(m)` : ''}</p>
+                </>) })()}
+                <div className="mt-3 flex gap-2">
+                  <Botao className="flex-1" icone={Play} carregando={rodando === c.id} onClick={() => executar(c)}>Executar</Botao>
+                  <Botao variante="secundario" icone={CalendarClock} onClick={() => setAgendar(c)} title="Executar sozinha num horário">Agendar</Botao>
+                </div>
               </motion.div>
             )
           })}
         </div>
       )}
       <HistoricoCenas />
+      {agendar && <AgendarCena cena={agendar} aoFechar={() => setAgendar(null)} />}
       <Modal aberto={!!apagar} titulo={`Apagar a cena ${apagar?.nome || ''}?`} onFechar={() => setApagar(null)}>
         <p className="text-sm text-muted-foreground">Os ares não mudam. Se alguma automação ou frase da Alexa usa esta cena, ela deixa de funcionar.</p>
         <div className="mt-5 flex justify-end gap-2">
