@@ -1,5 +1,21 @@
 [
  {
+  "versao": "0.5.3",
+  "data": "2026-11-22",
+  "titulo": "Infra → Agentes mostra quem está ativo na rede dos transmissores",
+  "resumo": "Cada computador com o agente mostra se está ativo de verdade (ligado e na mesma rede dos transmissores), com animação, e o topo da tela diz se os ares estão sob controle agora.",
+  "novo": [
+   "Quadro no topo de Infra → Agentes: qual computador está mandando nos ares agora, se ele está na rede dos transmissores e há quanto tempo está rodando"
+  ],
+  "melhorias": [
+   "Cada agente mostra Ativo (verde, animado) só quando está ligado e na rede dos transmissores; Rodando fora da rede (âmbar) quando está ligado mas não alcança os ares; Desligado (cinza)",
+   "Computador desligado mostra os transmissores que enxergava “da última vez”",
+   "Ícone do tipo de computador (Raspberry Pi, PC, Mac, Linux, Docker) com o ponto de situação"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
   "versao": "0.5.2",
   "data": "2026-11-22",
   "titulo": "Agente em qualquer computador, backup avançado, feriados na agenda e qualidade do mapa até 8K",
