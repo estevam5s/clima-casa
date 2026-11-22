@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+const Raspberry3D = lazy(() => import('../Raspberry3D'))
 import { Check, Container, Copy, Cpu, HardDrive, KeyRound, Laptop, MemoryStick, Monitor, Network, Radio, RotateCw, Server, Star, Thermometer, Trash2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Esqueleto, Selo, useToast, confirmar } from '../ui'
@@ -275,8 +276,25 @@ export default function Agentes({ dono, admin }) {
                     : ve > 0 ? <span>{m.online ? '' : 'da última vez, '}enxerga {ve} de {tot} transmissor{tot > 1 ? 'es' : ''}</span> : <span className="text-amber-700 dark:text-amber-400">não enxerga os transmissores (fora do escritório?)</span>}</p>
                   <p className="text-xs text-muted-foreground">{m.online ? 'visto agora' : `visto ${haQuanto(m.visto)}`} · id {m.id}</p>
                   {m.online && <Saude s={m.saude} />}
+                  {m.online && (m.saude?.subtensao || (m.saude?.subtensao_em && Date.now() / 1000 - m.saude.subtensao_em < 3600)) && (
+                    <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">Fonte fraca {m.saude.subtensao ? 'agora' : `há ${haQuanto(m.saude.subtensao_em).replace('há ', '')}`}: troque pela fonte oficial (Pi 3B: 5 V, 2,5 A). Pode travar ou estragar o cartão.</p>
+                  )}
                 </div>
               </div>
+              {tipoAgente(m) === 'Raspberry Pi' && (
+                <div className="-mx-1 mt-3 overflow-hidden rounded-lg border border-border bg-muted/30">
+                  <Suspense fallback={<div className="h-[260px] animate-pulse bg-muted/40" />}>
+                    <Raspberry3D estado={situacaoAgente(m).chave} temperatura={m.saude?.temperatura ?? null} rede={m.saude?.rede || 'cabo'}
+                      subtensao={!!m.online && (!!m.saude?.subtensao || (!!m.saude?.subtensao_em && Date.now() / 1000 - m.saude.subtensao_em < 600))} />
+                  </Suspense>
+                  <p className="flex flex-wrap gap-x-3 gap-y-1 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+                    <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />LED verde: atividade</span>
+                    <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" />LED vermelho: energia</span>
+                    <span>{situacaoAgente(m).chave === 'ativo' ? `Dados saindo pelo ${m.saude?.rede === 'wifi' ? 'Wi-Fi' : 'cabo'}` : situacaoAgente(m).chave === 'desligado' ? 'Desligado' : 'Fora da rede dos transmissores'}</span>
+                    <span className="ml-auto">Arraste para girar · passe o mouse nas peças</span>
+                  </p>
+                </div>
+              )}
               {pode && (
                 <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
                   {d.preferido === m.id ? <Botao tamanho="sm" variante="secundario" icone={Star} onClick={() => preferir(null)}>Tirar preferência</Botao> : <Botao tamanho="sm" variante="secundario" icone={Star} onClick={() => preferir(m.id)}>Preferir este</Botao>}

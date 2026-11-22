@@ -16,6 +16,7 @@ rotinas de música. Os outros ficam de RESERVA e assumem sozinhos quando o princ
 """
 import json
 import logging
+import glob
 import os
 import platform
 import socket
@@ -66,6 +67,9 @@ def _ler(caminho: str) -> str:
         return ""
 
 
+_SUBTENSAO_EM: int | None = None
+
+
 def saude() -> dict:
     """Como está este computador: modelo (Raspberry Pi informa), IP na rede local, temperatura do processador, memória,
     disco e carga. Só leitura do próprio sistema; o que não der para saber fica None (a tela mostra "—")."""
@@ -94,6 +98,22 @@ def saude() -> dict:
             d["carga"] = round(os.getloadavg()[0], 2)
         except OSError:
             pass
+    # por onde sai para a internet: cabo (eth/en) ou Wi-Fi (wl), pela rota padrão (Linux)
+    for linha in (_ler("/proc/net/route") or "").splitlines()[1:]:
+        c = linha.split()
+        if len(c) > 2 and c[1] == "00000000":
+            d["rede"] = "wifi" if c[0].startswith("wl") else "cabo" if c[0].startswith(("eth", "en")) else c[0]
+            break
+    # Raspberry Pi: sensor de tensão (rpi_volt). Fonte fraca agora e a última vez que aconteceu (desde que o agente ligou)
+    global _SUBTENSAO_EM
+    for h in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
+        if _ler(f"{h}/name") == "rpi_volt":
+            agora_baixa = _ler(f"{h}/in0_lcrit_alarm") == "1"
+            if agora_baixa:
+                _SUBTENSAO_EM = int(time.time())
+            d["subtensao"] = agora_baixa
+            d["subtensao_em"] = _SUBTENSAO_EM
+            break
     return d
 
 

@@ -261,7 +261,7 @@ export default function Painel() {
   useEffect(() => { setSalaLado(null) }, [filtro])
 
   useEffect(() => {
-    carregarCena3D()   // o 3D do ar começa a baixar junto com os dados, não depois deles
+    carregarCena3D().catch(() => {})   // só adianta o download; se falhar, o lazy() tenta de novo (e recarrega se a versão mudou)
     setAtualizado(false)
     setDadosBrutos(lerCache(`painel:${filtro}`))
     api.get(comFiltro('/api/painel', filtro)).then((d) => { chegou(d); setAtualizado(true) }).catch((e) => { setAtualizado(true); if (!lerCache(`painel:${filtro}`)) setErro(e.message) })

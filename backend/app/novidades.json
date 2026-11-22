@@ -2,6 +2,22 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.5.4",
+   "data": "2026-11-22",
+   "titulo": "Raspberry Pi em 3D em Infra → Agentes e atualização sem erro depois de cada versão",
+   "resumo": "O cartão do Raspberry Pi mostra a placa em 3D, com os LEDs, o calor do processador e os dados saindo pelo cabo ou pelo Wi-Fi conforme o estado real do agente. E uma aba aberta durante uma publicação passa a se atualizar sozinha em vez de mostrar erro.",
+   "novo": [
+    "Placa do Raspberry Pi 3 Model B em 3D no cartão do agente: LED verde de atividade, LED vermelho de energia, processador que esquenta de cor com a temperatura real e pacotes de dados saindo pelo cabo ou pela antena quando ele está ativo na rede dos transmissores; arraste para girar e passe o mouse nas peças para ver o que cada uma é",
+    "Aviso de fonte fraca do Raspberry Pi (o sensor de tensão da placa), no cartão e no LED vermelho do 3D, que pisca como na placa de verdade",
+    "O cartão do agente mostra se ele está no cabo ou no Wi-Fi"
+   ],
+   "melhorias": [],
+   "seguranca": [],
+   "correcoes": [
+    "Depois de uma publicação, uma tela aberta antes (ex.: Painel) podia dar erro ao carregar o 3D do ar; agora a página se atualiza sozinha para a versão nova"
+   ]
+  },
+  {
    "versao": "0.5.3",
    "data": "2026-11-22",
    "titulo": "Infra → Agentes mostra quem está ativo na rede dos transmissores",
