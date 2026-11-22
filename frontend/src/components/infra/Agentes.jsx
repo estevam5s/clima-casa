@@ -102,6 +102,67 @@ function GuiaRaspberry() {
 
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
+// Situação de um agente: só fica "Ativo" (verde e animado) quem está ligado E enxerga os transmissores, ou seja, está na
+// mesma rede deles e consegue mandar nos ares. Ligado fora dessa rede = "Rodando, fora da rede" (âmbar, parado).
+export function situacaoAgente(m) {
+  if (!m.online) return { chave: 'desligado', rotulo: 'Desligado', texto: `visto ${haQuanto(m.visto)}`, cor: 'cinza' }
+  if (m.ve_transmissores > 0) return { chave: 'ativo', rotulo: m.principal ? 'Ativo · no comando' : 'Ativo · reserva pronta', texto: `na rede dos transmissores (${m.ve_transmissores} de ${m.total_transmissores})`, cor: 'verde' }
+  if (m.ve_transmissores == null) return { chave: 'rodando', rotulo: 'Rodando', texto: 'versão antiga do agente: não informa os transmissores', cor: 'ambar' }
+  return { chave: 'fora', rotulo: 'Rodando · fora da rede', texto: 'ligado, mas não alcança os transmissores', cor: 'ambar' }
+}
+
+// Indicador animado: ondas saindo do ponto quando ativo (respeita "reduzir movimento"); parado nos outros estados
+function Pulso({ chave, tamanho = 'h-3 w-3' }) {
+  const cor = { ativo: 'bg-emerald-500', fora: 'bg-amber-500', rodando: 'bg-amber-500', desligado: 'bg-zinc-400 dark:bg-zinc-600' }[chave]
+  return (
+    <span className={`relative inline-flex ${tamanho} shrink-0`} aria-hidden="true">
+      {chave === 'ativo' && <>
+        <span className={`absolute inset-0 rounded-full ${cor} opacity-60 animate-ping motion-reduce:animate-none`} />
+        <span className={`absolute -inset-1 rounded-full border border-emerald-500/40 animate-pulse motion-reduce:animate-none`} />
+      </>}
+      <span className={`relative inline-flex ${tamanho} rounded-full ${cor}`} />
+    </span>
+  )
+}
+
+// Barras que "transmitem" (só no ativo): um sinal visual de que os comandos estão passando por este computador
+function Transmitindo() {
+  return (
+    <span className="inline-flex h-3.5 items-end gap-[2px]" aria-hidden="true">
+      {[0, 1, 2, 3].map((i) => <span key={i} className="w-[3px] origin-bottom rounded-sm bg-emerald-500 animate-[barra_1.1s_ease-in-out_infinite] motion-reduce:animate-none" style={{ height: `${40 + i * 20}%`, animationDelay: `${i * 0.15}s` }} />)}
+      <style>{'@keyframes barra{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}'}</style>
+    </span>
+  )
+}
+
+const tipoAgente = (m) => (/Docker/.test(m.sistema) ? 'Docker' : /Raspberry|Raspbian/i.test(`${m.sistema} ${m.saude?.modelo || ''}`) ? 'Raspberry Pi' : /Windows/.test(m.sistema) ? 'PC Windows' : /Linux/.test(m.sistema) ? 'Linux' : 'Mac')
+
+// Quadro do topo: quem está mandando nos ares agora e se isso funciona (alguém ativo na rede dos transmissores)
+function NoComando({ maquinas }) {
+  const principal = maquinas.find((m) => m.principal && m.online)
+  const ativos = maquinas.filter((m) => situacaoAgente(m).chave === 'ativo')
+  const sit = principal ? situacaoAgente(principal) : null
+  const ok = sit?.chave === 'ativo'
+  return (
+    <div className={`flex flex-wrap items-center gap-4 rounded-xl border p-4 ${ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5'}`} role="status" aria-live="polite">
+      <Pulso chave={ok ? 'ativo' : principal ? 'fora' : 'desligado'} tamanho="h-4 w-4" />
+      <div className="min-w-0 flex-1">
+        {ok ? <>
+          <p className="flex flex-wrap items-center gap-2 font-medium">Ares sob controle: <b>{principal.nome}</b> ({tipoAgente(principal)}) está ativo<Transmitindo /></p>
+          <p className="text-sm text-muted-foreground">Na rede dos transmissores ({principal.ve_transmissores} de {principal.total_transmissores}). Painel, celular, Alexa e agenda funcionam de qualquer lugar.{principal.saude?.ligado_ha_s != null ? ` Rodando há ${duracao(principal.saude.ligado_ha_s)}.` : ''}</p>
+        </> : principal ? <>
+          <p className="font-medium">{principal.nome} está rodando, mas fora da rede dos transmissores</p>
+          <p className="text-sm text-muted-foreground">Os comandos não chegam aos ares. Ligue um agente no escritório (Raspberry, PC) na mesma rede dos transmissores: ele assume sozinho em até 1 minuto.</p>
+        </> : <>
+          <p className="font-medium">Nenhum agente ligado</p>
+          <p className="text-sm text-muted-foreground">Sem agente, nenhum comando chega aos ares. Ligue o Raspberry ou um PC do escritório.</p>
+        </>}
+      </div>
+      {ativos.length > 1 && <Selo cor="verde">{ativos.length} ativos na rede (com reserva)</Selo>}
+    </div>
+  )
+}
+
 function Copiar({ texto, rotulo = 'Copiar' }) {
   const [ok, setOk] = useState(false)
   return (
@@ -190,20 +251,28 @@ export default function Agentes({ dono, admin }) {
   return (
     <div className="space-y-6">
       <section className="space-y-3">
+        <NoComando maquinas={d.maquinas} />
         <div><h2 className="titulo-secao">Quem fica no comando</h2>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Só um computador é o <b className="text-foreground">principal</b> e manda os comandos para os ares; os outros ficam de <b className="text-foreground">reserva</b>. Quem não enxerga os transmissores (fora do Wi-Fi do escritório) passa o comando para quem enxerga. O <b className="text-foreground">preferido</b> retoma sozinho quando volta ao escritório.</p>
           <p className="mt-1 text-sm">{preferido ? <>Preferido agora: <b>{preferido.nome}</b>.</> : 'Sem preferido: fica quem já está no comando.'}</p></div>
         {!d.maquinas.length && <Aviso tipo="alerta">Nenhum computador com o agente ainda.</Aviso>}
         <div className="grid gap-3 md:grid-cols-2">
           {d.maquinas.map((m) => { const I = /Windows/.test(m.sistema) ? Monitor : /Docker/.test(m.sistema) ? Container : /Raspberry|Raspbian/i.test(`${m.sistema} ${m.saude?.modelo || ''}`) ? Cpu : /Linux/.test(m.sistema) ? Server : Laptop; const ve = m.ve_transmissores, tot = m.total_transmissores; return (
-            <div key={m.id} className={`cartao p-4 ${m.principal ? 'border-primary/50' : ''}`}>
+            <div key={m.id} className={`cartao p-4 transition-colors ${situacaoAgente(m).chave === 'ativo' ? 'border-emerald-500/50' : m.principal ? 'border-primary/50' : ''}`}>
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border"><I className="h-5 w-5" /></span>
+                <span className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${situacaoAgente(m).chave === 'ativo' ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'border-border'}`}>
+                  <I className="h-5 w-5" />
+                  <span className="absolute -right-1 -top-1"><Pulso chave={situacaoAgente(m).chave} /></span>
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-1.5 font-medium">{m.nome}{m.principal ? <Selo cor="verde">Principal</Selo> : m.online ? <Selo>Reserva</Selo> : <Selo cor="cinza">Desligado</Selo>}{d.preferido === m.id && <Selo cor="ambar">Preferido</Selo>}</p>
+                  {(() => { const st = situacaoAgente(m); return (
+                    <p className={`mt-0.5 flex flex-wrap items-center gap-1.5 text-xs font-medium ${st.chave === 'ativo' ? 'text-emerald-700 dark:text-emerald-400' : st.chave === 'desligado' ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'}`}>
+                      {st.chave === 'ativo' && <Transmitindo />}{st.rotulo}<span className="font-normal text-muted-foreground">· {st.texto}</span>
+                    </p>) })()}
                   <p className="text-xs text-muted-foreground">{m.sistema} · Python {m.python}</p>
                   <p className="mt-1 flex items-center gap-1.5 text-xs"><Radio className="h-3.5 w-3.5 text-muted-foreground" />{ve == null ? <span className="text-muted-foreground">visão dos transmissores: atualize o agente</span>
-                    : ve > 0 ? <span>enxerga {ve} de {tot} transmissor{tot > 1 ? 'es' : ''}</span> : <span className="text-amber-700 dark:text-amber-400">não enxerga os transmissores (fora do escritório?)</span>}</p>
+                    : ve > 0 ? <span>{m.online ? '' : 'da última vez, '}enxerga {ve} de {tot} transmissor{tot > 1 ? 'es' : ''}</span> : <span className="text-amber-700 dark:text-amber-400">não enxerga os transmissores (fora do escritório?)</span>}</p>
                   <p className="text-xs text-muted-foreground">{m.online ? 'visto agora' : `visto ${haQuanto(m.visto)}`} · id {m.id}</p>
                   {m.online && <Saude s={m.saude} />}
                 </div>

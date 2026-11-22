@@ -2,6 +2,22 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.5.3",
+   "data": "2026-11-22",
+   "titulo": "Infra → Agentes mostra quem está ativo na rede dos transmissores",
+   "resumo": "Cada computador com o agente mostra se está ativo de verdade (ligado e na mesma rede dos transmissores), com animação, e o topo da tela diz se os ares estão sob controle agora.",
+   "novo": [
+    "Quadro no topo de Infra → Agentes: qual computador está mandando nos ares agora, se ele está na rede dos transmissores e há quanto tempo está rodando"
+   ],
+   "melhorias": [
+    "Cada agente mostra Ativo (verde, animado) só quando está ligado e na rede dos transmissores; Rodando fora da rede (âmbar) quando está ligado mas não alcança os ares; Desligado (cinza)",
+    "Computador desligado mostra os transmissores que enxergava “da última vez”",
+    "Ícone do tipo de computador (Raspberry Pi, PC, Mac, Linux, Docker) com o ponto de situação"
+   ],
+   "seguranca": [],
+   "correcoes": []
+  },
+  {
    "versao": "0.5.2",
    "data": "2026-11-22",
    "titulo": "Agente em qualquer computador, backup avançado, feriados na agenda e qualidade do mapa até 8K",
