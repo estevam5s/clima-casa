@@ -6,3 +6,4 @@
 - Site: home, novidades, versão, escritório inteligente, luzes, newsletter e baixar em 1440 e 375 sem rolagem lateral; menu em painel, seletor de idioma, menu do celular, rodapé.
 - Apps: Android `tsc` ok e build EAS; iOS `xcodebuild` ok e .ipa; desktop electron-builder (mac x2, windows, linux x2).
 - Não testado: envio real de campanha para inscritos (não há inscritos); PageSpeed (depende da cota do Google); auditoria de SEO em produção antes da publicação do site.
+- 0.5.0: varredura de 41 telas em 1440 e 375 sem erro de JS, 4xx/5xx ou rolagem lateral (corrigida a de Configurações → Segurança); transcrição real (2 s); conversa com e sem Pensar mais (6 s e 16 s); teste de conexão em produção pelo agente (4 s, "rede": Mac fora do escritório); análise dos 301 botões (todos Gree, todos conferem); instalador do clima-ia num HOME temporário no macOS; xícara conferida no Chrome com GPU.
