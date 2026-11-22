@@ -110,7 +110,7 @@ titulo "Rede: este computador alcança o banco e o painel?"
 "$PASTA/.venv/bin/python" - "$PASTA/.env" "$SERVIDOR" <<'PY' || true
 import socket, ssl, sys, urllib.request
 env = dict(l.split("=", 1) for l in open(sys.argv[1], encoding="utf-8").read().splitlines() if "=" in l and not l.startswith("#"))
-host, porta = env.get("SUPABASE_DB_HOST", ""), int(env.get("SUPABASE_DB_PORT", "6543") or 6543)
+host, porta = env.get("SUPABASE_DB_HOST") or "aws-1-us-east-2.pooler.supabase.com", int(env.get("SUPABASE_DB_PORT", "6543") or 6543)
 def tcp(h, p):
     try: socket.create_connection((h, p), timeout=6).close(); return True
     except OSError: return False

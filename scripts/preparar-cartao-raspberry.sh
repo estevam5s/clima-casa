@@ -72,6 +72,7 @@ cat > "$BOOT/user-data" <<EOF
 #cloud-config
 # Clima Escritório: Raspberry Pi como agente fixo do escritório.
 hostname: clima-agente
+manage_etc_hosts: true
 timezone: America/Sao_Paulo
 locale: pt_BR.UTF-8
 keyboard:
@@ -121,6 +122,22 @@ write_files:
     [Install]
     WantedBy=multi-user.target
 # atualizações de segurança automáticas (sem reiniciar sozinho)
+# instalação do agente: só começa com a rede pronta e, se falhar (Wi-Fi demorou, DNS, queda), tenta de novo a cada minuto
+- path: /etc/systemd/system/clima-primeiro-boot.service
+  content: |
+    [Unit]
+    Description=Instala o agente do Clima Escritório (primeiro boot, tenta até conseguir)
+    After=network-online.target time-sync.target
+    Wants=network-online.target time-sync.target
+    ConditionPathExists=/boot/firmware/clima/codigo.tar.gz
+    StartLimitIntervalSec=0
+    [Service]
+    Type=oneshot
+    ExecStart=/bin/bash -c 'bash /boot/firmware/clima/primeiro-boot.sh >> /var/log/clima-primeiro-boot.log 2>&1'
+    Restart=on-failure
+    RestartSec=60
+    [Install]
+    WantedBy=multi-user.target
 - path: /etc/apt/apt.conf.d/20auto-upgrades
   content: |
     APT::Periodic::Update-Package-Lists "1";
@@ -130,7 +147,7 @@ runcmd:
 - [ systemctl, enable, --now, avahi-daemon ]
 - [ systemctl, daemon-reload ]
 - [ systemctl, enable, --now, clima-wifi-sempre.service ]
-- [ bash, -c, "bash /boot/firmware/clima/primeiro-boot.sh >> /var/log/clima-primeiro-boot.log 2>&1" ]
+- [ systemctl, enable, --now, --no-block, clima-primeiro-boot.service ]
 EOF
 {
   echo "network:"
@@ -167,7 +184,16 @@ PASTA=/opt/clima-escritorio/ar-controle
 USUARIO=clima
 echo "== $(date) primeiro boot do agente"
 [ -f "$ORIGEM/codigo.tar.gz" ] || { echo "sem código no cartão"; exit 1; }
-for i in $(seq 1 36); do curl -fsS -o /dev/null --max-time 5 https://app.zynio.com.br/saude && break; sleep 5; done
+# espera DNS, relógio certo (o Pi não tem bateria de relógio: hora errada quebra o HTTPS) e o painel; sem isso sai com erro
+# e o serviço tenta de novo em 1 minuto (antes seguia sem rede e a instalação ficava pela metade)
+ok=0
+for i in $(seq 1 60); do
+  if getent hosts pypi.org >/dev/null && [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] \
+     && curl -fsS -o /dev/null --max-time 5 https://app.zynio.com.br/saude; then ok=1; break; fi
+  sleep 5
+done
+[ "$ok" = 1 ] || { echo "rede, DNS ou relógio ainda não prontos: tento de novo em 1 minuto"; exit 1; }
+grep -q "clima-agente" /etc/hosts || echo "127.0.1.1 clima-agente" >> /etc/hosts
 mkdir -p "$PASTA" && tar -xzf "$ORIGEM/codigo.tar.gz" -C "$PASTA"
 chown -R root:root "$PASTA"; chmod 755 /opt/clima-escritorio "$PASTA"
 if [ -f "$ORIGEM/.env" ]; then
@@ -181,6 +207,7 @@ mkdir -p "$PASTA/data"; chown -R "$USUARIO" "$PASTA/.venv" "$PASTA/data"
 chmod +x "$PASTA/instalar-linux.sh"
 SUDO_USER="$USUARIO" bash "$PASTA/instalar-linux.sh"
 rm -f "$ORIGEM/codigo.tar.gz"
+systemctl disable clima-primeiro-boot.service 2>/dev/null || true
 echo "== $(date) pronto: agente instalado"
 EOF
 sync
