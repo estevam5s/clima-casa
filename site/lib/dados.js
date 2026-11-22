@@ -240,7 +240,7 @@ export const NUMEROS = [
   { onde: 'API', o_que: '426 rotas, todas com regra de permissão', quando: '0.4.9' },
   { onde: 'Supabase', o_que: '47 tabelas com RLS em todas', quando: '0.4.9' },
   { onde: 'Telegram', o_que: '1.114 comandos em 28 categorias, com as permissões de cada pessoa', quando: '0.4.9' },
-  { onde: 'Versões', o_que: '50 versões publicadas, 445 mudanças registradas', quando: '0.4.9' },
+  { onde: 'Versões', o_que: '51 versões publicadas, 462 mudanças registradas', quando: '0.4.9' },
   { onde: 'Treinamento', o_que: '1.017 perguntas de segurança e ISO', quando: '1.24' },
   { onde: 'Idiomas', o_que: 'Site em 6 idiomas: português, inglês, espanhol, francês, russo e coreano', quando: '0.4.9' },
   { onde: 'Relatórios', o_que: '8 formatos de exportação', quando: '1.0' },
@@ -250,7 +250,7 @@ export const CONTADORES = [
   { n: 426, sufixo: '', rotulo: 'rotas de API' },
   { n: 47, sufixo: '', rotulo: 'tabelas no banco' },
   { n: 1114, sufixo: '', rotulo: 'comandos no Telegram' },
-  { n: 50, sufixo: '', rotulo: 'versões publicadas' },
+  { n: 51, sufixo: '', rotulo: 'versões publicadas' },
   { n: 6, sufixo: '', rotulo: 'idiomas no site' },
 ]
 

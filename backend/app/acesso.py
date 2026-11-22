@@ -81,6 +81,11 @@ REGRAS = [
     ("*", r"^/api/telegram/", None),
     ("*", r"^/api/bugs", None),
     ("POST", r"^/api/ia/(conversar|confirmar)$", None),   # as ferramentas da IA checam as permissões de quem pergunta
+    ("POST", r"^/api/ia/transcrever$", None),             # mensagem de voz da própria pessoa
+    ("PUT", r"^/api/ia/preferencias$", None),             # estilo e instruções da própria pessoa
+    ("PUT", r"^/api/ia/conversas/\{cid\}/feedback$", None),   # avaliação nas próprias conversas
+    ("GET", r"^/api/conta/", None),                       # a própria conta (segurança, meus dados)
+    ("PUT", r"^/api/conta/seguranca/prefs$", None),
     ("PUT", r"^/api/ia/config$", None),                    # a rota exige o papel de dono
     ("PUT", r"^/api/ia/limites$", None),                   # a rota exige o papel de dono
     ("PUT", r"^/api/ia/conversas/\d+$", None),            # só as conversas da própria pessoa

@@ -33,7 +33,7 @@ export function FormNovidades() {
         <Botao type="submit" disabled={estado?.tipo === 'enviando'}>{estado?.tipo === 'enviando' ? 'Enviando' : 'Assinar'}</Botao>
       </div>
       <Turnstile ref={roboRef} aoMudar={setRobo} acao="novidades" />
-      {estado?.msg && <p style={{ marginTop: 10, fontSize: 14, color: estado.tipo === 'ok' ? 'var(--primaria)' : '#ff6b6b' }}>{estado.msg}</p>}
+      {estado?.msg && <p style={{ marginTop: 10, fontSize: 14, color: estado.tipo === 'ok' ? 'var(--primaria)' : '#ff6b6b' }}>{estado.msg}{estado.tipo === 'ok' && <> <a href="/newsletter#sair" style={{ textDecoration: 'underline' }}>Mudou de ideia? Cancelar</a></>}</p>}
     </form>
   )
 }

@@ -256,8 +256,19 @@ def _executar_item(item):
             codigo, tipo = _aprender_local(h, dados.get("timeout", 30))
             if not h["control_type"]:
                 db.executar("UPDATE hubs SET control_type = ? WHERE id = ?", (tipo, h["id"]))
-            _salvar_codigo(dados["aparelho_id"], dados["chave"], dados.get("rotulo", ""), codigo)
-            resultado = {"tipo": tipo}
+            # reconhece o sinal: no Gree lê o estado e, se a pessoa gravou outro ajuste sem querer, salva no botão certo
+            from . import ir_analise
+            analise = ir_analise.analisar(codigo, dados["chave"])
+            chave = analise.get("chave_certa") or dados["chave"]
+            if chave != dados["chave"] and analise.get("estado", {}).get("temperatura") is not None:
+                a = db.um("SELECT temp_min, temp_max, modos FROM aparelhos WHERE id = ?", (dados["aparelho_id"],)) or {}
+                t, m = analise["estado"]["temperatura"], analise["estado"]["modo"]
+                if not (a and a["temp_min"] <= t <= a["temp_max"] and m in (a["modos"] or "").split(",")):
+                    chave = dados["chave"]   # fora da faixa do ar: guarda onde foi pedido (o aviso continua)
+            _salvar_codigo(dados["aparelho_id"], chave, dados.get("rotulo", ""), codigo)
+            resultado = {"tipo": tipo, "analise": analise, "chave_salva": chave}
+        elif item["tipo"] == "testar":
+            resultado = testar_local(hub(item["hub_id"]))
         elif item["tipo"] == "evento":
             from . import automacao
             automacao.processar_evento(dados["aparelho_id"], dados["origem"], dados["ligado"])
@@ -365,8 +376,47 @@ def job(job_id: int) -> dict:
     estado = {"pendente": "iniciando", "executando": "escutando"}.get(f["estado"], f["estado"])
     if f["estado"] == "pendente" and f["criado_em"] < db.agora() - 20:
         estado, f["erro"] = "erro", sem_agente()
-    return {"id": f["id"], "estado": estado, "erro": f["erro"], "tipo": (res or {}).get("tipo"),
+    return {"id": f["id"], "estado": estado, "erro": f["erro"], "tipo": (res or {}).get("tipo"), "analise": (res or {}).get("analise"),
+            "chave_pedida": dados.get("chave"), "chave_salva": (res or {}).get("chave_salva"),
             "restante": max(0, int(inicio + dados.get("duracao", 30) - time.time()))}
+
+
+def testar_local(h: dict) -> dict:
+    """Teste de conexão de um transmissor (no agente): chega na rede? a chave e o protocolo estão certos?
+    Se outro protocolo funcionar, grava o certo. Devolve o que a tela precisa para dizer o próximo passo."""
+    t0 = time.time()
+    if not h.get("ip"):
+        return {"etapa": "ip", "ok": False, "mensagem": "Sem IP cadastrado: use Procurar na rede ou importe da conta Smart Life."}
+    if not h.get("local_key"):
+        return {"etapa": "chave", "ok": False, "mensagem": "Falta a Local Key: importe da conta Smart Life (traz a chave sozinho) ou cole em Editar."}
+    if not porta_aberta(h["ip"], timeout=3):
+        return {"etapa": "rede", "ok": False, "ms": round((time.time() - t0) * 1000),
+                "mensagem": f"Nada respondeu em {h['ip']}: confira se o transmissor está na tomada, no Wi-Fi 2,4 GHz do escritório e se este agente está na mesma rede. "
+                            "Se ele mudou de IP, “Reconectar agora” procura sozinho."}
+    diag = diagnosticar(h)
+    versao = h.get("versao")
+    if diag != "ok":
+        novo = _acertar_versao(h)
+        if novo:
+            diag, versao = "ok", novo["versao"]
+    ms = round((time.time() - t0) * 1000)
+    if diag == "ok":
+        db.executar("UPDATE hubs SET online = 1, visto_em = ?, problema = NULL WHERE id = ?", (db.agora(), h["id"]))
+        return {"etapa": "ok", "ok": True, "versao": versao, "ms": ms, "mensagem": f"Transmissor respondendo (protocolo {versao}, {ms} ms). Pronto para gravar botões."}
+    if diag == "chave":
+        return {"etapa": "chave", "ok": False, "ms": ms, "mensagem": "Está na rede, mas recusou a chave: ele foi pareado de novo no Smart Life. Importe de novo da conta (traz a chave nova) ou use “Reconectar agora”."}
+    return {"etapa": "rede", "ok": False, "ms": ms, "mensagem": "A porta respondeu, mas o transmissor não completou a conversa. Tire da tomada por 10 segundos e teste de novo."}
+
+
+def testar(hub_id: str) -> dict:
+    if PAPEL == "agente":
+        return testar_local(hub(hub_id))
+    if not agente_online():
+        return {"etapa": "agente", "ok": False, "mensagem": sem_agente()}
+    f = aguardar(enfileirar("testar", hub_id, {}), 25)
+    if f["estado"] != "ok":
+        return {"etapa": "agente", "ok": False, "mensagem": f["erro"] or "O agente não respondeu a tempo. " + sem_agente()}
+    return f["resultado"] if isinstance(f["resultado"], dict) else json.loads(f["resultado"])
 
 
 def descobrir(segundos=8) -> list[dict]:

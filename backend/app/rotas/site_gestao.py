@@ -91,6 +91,23 @@ async def news_sair(request: Request, t: str = ""):
     return {"ok": ok}
 
 
+class PedirSaidaIn(BaseModel):
+    email: str = Field(max_length=200, pattern=EMAIL)
+    turnstile: str | None = Field(None, max_length=4096)
+
+
+@publico_site.post("/newsletter/pedir-saida")
+def news_pedir_saida(d: PedirSaidaIn, request: Request):
+    from .. import firewall, turnstile
+    ip = firewall.ip_do_pedido(request)
+    if firewall.falhas_recentes(ip, ("newsletter_saida",), 60) >= 5:
+        raise HTTPException(429, "Muitos pedidos em pouco tempo. Tente de novo em uma hora.")
+    turnstile.exigir(d.turnstile, ip, "/api/site/newsletter/pedir-saida")
+    firewall.registrar(ip, "newsletter_saida", "/api/site/newsletter/pedir-saida", "")
+    newsletter.pedir_saida(d.email)
+    return {"ok": True}
+
+
 @publico_site.get("/newsletter/ver/{cid}", response_class=HTMLResponse)
 def news_ver(cid: int):
     c = newsletter.um(cid)

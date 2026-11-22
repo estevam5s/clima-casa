@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowUp, Check, ChevronDown, Copy, Download, KeyRound, Menu, MessageSquare, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
-  Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Settings, Slash, Sparkles, Square, Terminal, Trash2, X,
+  ArrowUp, AudioLines, Brain, Check, ChevronDown, Copy, Download, Image as ImagemIcone, KeyRound, Menu, MessageSquare, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
+  Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Settings, SlidersHorizontal, Slash, Sparkles, Square, Terminal, ThumbsDown, ThumbsUp, Trash2, Volume2, VolumeX, X,
 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import MiniMarkdown from '../components/MiniMarkdown'
 import IconeIA, { EMPRESAS } from '../components/IconeIA'
 import { Aviso, Botao, Carregando, Interruptor, Modal, useDados, useToast } from '../components/ui'
+import { MAX_SEGUNDOS, imagemReduzida, iniciarGravacao } from '../gravadorVoz'
 
 // Assistente de IA (NVIDIA) no formato de chat com histórico: conversas salvas por pessoa (fixar, renomear, apagar,
 // procurar), comandos com "/", anexar arquivo de texto, ditado por voz, escolha do modelo por mensagem, copiar,
@@ -38,8 +39,8 @@ const AJUDA = `**O que dá para fazer aqui**
 - Perguntar sobre ares, salas, zonas, transmissores, agentes, luzes, persianas, cafeteira, notificações e relatórios.
 - Pedir para ligar, desligar, mudar modo, temperatura e ventilação de um ar, ou programar um timer (executa na hora).
 - Desligar todos e executar cenas: só depois de você tocar em **Confirmar**.
-- Comandos com \`/\` (digite / no começo), anexar arquivo de texto (clipe), ditar por voz (microfone) e escolher o modelo.
-- Atalhos: **Enter** envia, **Shift+Enter** quebra linha, **Esc** para de esperar, **Ctrl/⌘+K** procura conversas.`
+- Comandos com \`/\` (digite / no começo), anexar arquivo de texto ou imagem (+), **mensagem de voz** (ondas), ditar (microfone) e escolher o modelo.\n- **Estilo** da resposta (normal, conciso, explicativo, formal) e **Pensar mais** (raciocínio estendido) na caixa de mensagem; instruções suas em **Personalizar**.\n- Em cada resposta: copiar, ouvir em voz alta, avaliar (gostei/não gostei) e tentar de novo.
+- Atalhos: **Enter** envia, **Shift+Enter** quebra linha, **Esc** para de esperar, **Ctrl/⌘+K** procura conversas, **Ctrl/⌘+Shift+O** nova conversa, **Ctrl/⌘+Shift+V** mensagem de voz.`
 
 function saudacao(nome) {
   const h = new Date().getHours()
@@ -63,7 +64,7 @@ function Acoes({ m }) {
   )
 }
 
-function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar, sessao, executar, recolher }) {
+function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar, sessao, executar, recolher, personalizar }) {
   const [menuConta, setMenuConta] = useState(false)
   const toast = useToast()
   const [menu, setMenu] = useState(null)
@@ -123,6 +124,7 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
         {menuConta && (
           <div className="absolute bottom-full left-2 right-2 z-20 mb-1 rounded-xl border border-[var(--ia-borda)] bg-[var(--ia-caixa)] p-1 text-sm shadow-lg">{/* marca: menu da conta flutua */}
             <p className="truncate px-3 pb-1 pt-2 text-xs text-[var(--ia-suave)]">{sessao?.email}</p>
+            <button onClick={() => { setMenuConta(false); personalizar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><SlidersHorizontal className="h-4 w-4" />Personalizar respostas</button>
             <button onClick={() => { setMenuConta(false); configurar() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Settings className="h-4 w-4" />Configurações e capacidades</button>
             <button onClick={() => { setMenuConta(false); executar?.('ajuda'); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><MessageSquare className="h-4 w-4" />O que dá para fazer</button>
             <button onClick={() => { setMenuConta(false); executar?.('exportar') }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Download className="h-4 w-4" />Baixar a conversa</button>
@@ -286,11 +288,79 @@ function Configuracao({ dados, dono, recarregar, fechar }) {
   )
 }
 
-function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, setModelo, modelos, executar, grande, escopo }) {
+const ESTILOS = [['normal', 'Normal'], ['conciso', 'Conciso'], ['explicativo', 'Explicativo'], ['formal', 'Formal']]
+
+// Personalizar: instruções suas (como quer as respostas), estilo padrão, Pensar mais e ler as respostas em voz alta
+function Personalizar({ prefs, salvar, fechar }) {
+  const [f, setF] = useState(prefs)
+  return (
+    <Modal aberto titulo="Personalizar o assistente" onFechar={fechar} largura="max-w-lg">
+      <div className="space-y-4 text-sm">
+        <label className="block"><span className="rotulo">Instruções para as respostas</span>
+          <textarea className="campo mt-1 min-h-28 w-full py-2" maxLength={1500} value={f.instrucoes} onChange={(e) => setF({ ...f, instrucoes: e.target.value })}
+            placeholder="Ex.: sou do setor de manutenção; prefiro respostas com o nome da sala primeiro; sempre sugira a temperatura econômica." />
+          <span className="ajuda">Vale para todas as suas conversas. As regras de segurança do assistente continuam valendo.</span></label>
+        <div><span className="rotulo">Estilo padrão</span>
+          <div className="mt-1 flex flex-wrap gap-1.5">{ESTILOS.map(([k, n]) => <button key={k} type="button" onClick={() => setF({ ...f, estilo: k })} className={`rounded-lg border px-3 py-1.5 ${f.estilo === k ? 'border-primary bg-primary/10 font-medium' : 'border-border'}`}>{n}</button>)}</div></div>
+        <label className="flex items-center justify-between gap-3"><span>Pensar mais por padrão <span className="block text-xs text-muted-foreground">Raciocínio estendido: respostas melhores em perguntas difíceis, mas mais lentas.</span></span><Interruptor ligado={!!f.pensar} onChange={(v) => setF({ ...f, pensar: v })} rotulo="Pensar mais" /></label>
+        <label className="flex items-center justify-between gap-3"><span>Ler as respostas em voz alta <span className="block text-xs text-muted-foreground">Usa a voz em português do próprio aparelho.</span></span><Interruptor ligado={!!f.voz} onChange={(v) => setF({ ...f, voz: v })} rotulo="Ler em voz alta" /></label>
+        <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={fechar}>Cancelar</Botao><Botao onClick={() => salvar(f)}>Salvar</Botao></div>
+      </div>
+    </Modal>
+  )
+}
+
+function falar(texto) {
+  try {
+    const s = window.speechSynthesis
+    if (!s) return false
+    if (s.speaking) { s.cancel(); return false }
+    const u = new SpeechSynthesisUtterance(String(texto).replace(/[*_`#>|]/g, '').slice(0, 2000))
+    u.lang = 'pt-BR'
+    const voz = s.getVoices().find((v) => v.lang?.toLowerCase().startsWith('pt-br')) || s.getVoices().find((v) => v.lang?.toLowerCase().startsWith('pt'))
+    if (voz) u.voice = voz
+    s.speak(u); return true
+  } catch { return false }
+}
+
+function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, setModelo, modelos, executar, grande, escopo, prefs, mudarPrefs }) {
   const toast = useToast()
   const ta = useRef(null), arq = useRef(null)
   const [anexo, setAnexo] = useState(null)
+  const [imagens, setImagens] = useState([])
+  const [gravacao, setGravacao] = useState(null)   // { rec, seg, nivel, transcrevendo }
+  const gravRef = useRef(null)
   const [ouvindo, setOuvindo] = useState(false)
+  const temDitado = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  useEffect(() => () => { gravRef.current?.rec?.cancelar() }, [])
+  // mensagem de voz: grava, transcreve no servidor e envia (a gravação fica tocável na conversa)
+  const gravar = async () => {
+    if (gravRef.current) return
+    try {
+      const rec = await iniciarGravacao((nivel) => setGravacao((g) => (g ? { ...g, nivel } : g)))
+      gravRef.current = { rec }
+      setGravacao({ seg: 0, nivel: 0 })
+      gravRef.current.t = setInterval(() => { const seg = rec.segundos(); setGravacao((g) => (g ? { ...g, seg } : g)); if (seg >= MAX_SEGUNDOS) terminarGravacao(true) }, 200)
+    } catch (e) { toast(e.name === 'NotAllowedError' ? 'Permita o microfone para este site (cadeado na barra de endereço).' : e.message, 'erro') }
+  }
+  const terminarGravacao = async (enviarAgora) => {
+    const g = gravRef.current
+    if (!g) return
+    clearInterval(g.t); gravRef.current = null
+    if (!enviarAgora) { g.rec.cancelar(); setGravacao(null); return }
+    setGravacao((x) => ({ ...(x || {}), transcrevendo: true }))
+    try {
+      const a = await g.rec.parar()
+      if (a.duracao < 0.6) { setGravacao(null); return toast('Gravação curta demais.', 'erro') }
+      const r = await api.post('/api/ia/transcrever', { audio: a.base64, formato: 'wav' })
+      setGravacao(null)
+      enviar(r.texto, { voz: { url: a.url, segundos: a.segundos } })
+    } catch (e) { setGravacao(null); toast(e.message, 'erro') }
+  }
+  useEffect(() => {
+    const tecla = (e) => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'v' && ativo) { e.preventDefault(); if (gravRef.current) terminarGravacao(true); else gravar() } }
+    window.addEventListener('keydown', tecla); return () => window.removeEventListener('keydown', tecla)
+  }, [ativo]) // eslint-disable-line react-hooks/exhaustive-deps
   const [sel, setSel] = useState(0)
   const reconhecer = useRef(null)
   useEffect(() => { const t = ta.current; if (!t) return; t.style.height = 'auto'; t.style.height = `${Math.min(240, t.scrollHeight)}px` }, [texto])
@@ -300,12 +370,17 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
   const mandar = () => {
     if (barra.length) return escolher(barra[sel] || barra[0])
     const corpo = anexo ? `${texto.trim()}\n\nArquivo anexado: ${anexo.nome}\n\`\`\`\n${anexo.conteudo}\n\`\`\`` : texto
-    if (!corpo.trim()) return
-    enviar(corpo); setAnexo(null)
+    if (!corpo.trim() && !imagens.length) return
+    enviar(corpo.trim() || 'O que você vê nesta imagem?', imagens.length ? { imagens } : undefined); setAnexo(null); setImagens([])
   }
   const anexar = async (e) => {
     const f = e.target.files?.[0]; e.target.value = ''
     if (!f) return
+    if (f.type.startsWith('image/')) {
+      if (imagens.length >= 2) return toast('Até 2 imagens por mensagem.', 'erro')
+      try { const url = await imagemReduzida(f); setImagens((l) => [...l, url]); toast('Imagem anexada: a resposta usa o modelo que enxerga imagens.') } catch { toast('Não deu para abrir a imagem.', 'erro') }
+      return
+    }
     if (f.size > 60000) return toast('Arquivo grande demais (até 60 KB de texto).', 'erro')
     const conteudo = (await f.text()).slice(0, 3000)
     setAnexo({ nome: f.name, conteudo }); toast(`${f.name} anexado (até 3 mil caracteres vão para a IA).`)
@@ -332,11 +407,25 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
         </ul>
       )}
       <div className="rounded-[20px] border border-[var(--ia-borda)] bg-[var(--ia-caixa)] shadow-[0_2px_10px_rgba(0,0,0,0.05)] transition-[border-color,box-shadow] focus-within:border-[var(--ia-suave)] focus-within:shadow-[0_2px_14px_rgba(0,0,0,0.09)]">{/* marca: caixa de mensagem flutua */}
+        {imagens.length > 0 && (
+          <div className="flex gap-2 px-4 pt-3">{imagens.map((u, i) => (
+            <span key={i} className="relative"><img src={u} alt="" className="h-14 w-14 rounded-lg border border-border object-cover" />
+              <button onClick={() => setImagens((l) => l.filter((_, j) => j !== i))} aria-label="Tirar a imagem" className="absolute -right-1.5 -top-1.5 rounded-full bg-[var(--ia-texto)] p-0.5 text-[var(--ia-fundo)]"><X className="h-3 w-3" /></button></span>))}
+          </div>
+        )}
+        {gravacao && (
+          <div className="flex items-center gap-3 px-4 pt-4" role="status" aria-live="polite">
+            <span className={`h-2.5 w-2.5 rounded-full ${gravacao.transcrevendo ? 'bg-[var(--ia-suave)]' : 'animate-pulse bg-red-500'}`} />
+            <span className="w-12 text-sm tabular">{Math.floor((gravacao.seg || 0) / 60)}:{String(Math.floor((gravacao.seg || 0) % 60)).padStart(2, '0')}</span>
+            <span className="flex h-6 flex-1 items-center gap-[3px]" aria-hidden="true">{Array.from({ length: 28 }, (_, i) => <span key={i} className="w-[3px] rounded-full bg-[var(--ia-acento)]" style={{ height: `${Math.max(12, Math.min(100, (gravacao.nivel || 0) * 100 * (0.5 + Math.abs(Math.sin(i * 1.7 + (gravacao.seg || 0) * 6)))))}%` }} />)}</span>
+            <span className="text-xs text-[var(--ia-suave)]">{gravacao.transcrevendo ? 'Transcrevendo…' : `até ${MAX_SEGUNDOS} s`}</span>
+          </div>
+        )}
         {anexo && (
           <div className="flex items-center gap-2 px-4 pt-3 text-xs"><span className="flex items-center gap-1.5 rounded-md bg-muted px-2 py-1"><Paperclip className="h-3.5 w-3.5" />{anexo.nome}</span>
             <button onClick={() => setAnexo(null)} aria-label="Tirar o anexo" className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button></div>
         )}
-        <textarea ref={ta} value={texto} onChange={(e) => setTexto(e.target.value)} rows={grande ? 2 : 1} maxLength={4000} disabled={!ativo}
+        <textarea hidden={!!gravacao} ref={ta} value={texto} onChange={(e) => setTexto(e.target.value)} rows={grande ? 2 : 1} maxLength={4000} disabled={!ativo}
           onKeyDown={(e) => {
             if (barra.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); setSel((s) => (s + (e.key === 'ArrowDown' ? 1 : barra.length - 1)) % barra.length); return }
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); mandar() }
@@ -345,15 +434,25 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
           placeholder={ativo ? (grande ? 'Como posso ajudar você hoje?' : 'Responder…') : 'O assistente está desligado ou sem chave'} aria-label="Mensagem para a IA"
           className="campo-embutido block w-full resize-none bg-transparent px-4 pt-4 text-[15px] leading-relaxed outline-none placeholder:text-[var(--ia-suave)]" />
         <div className="flex items-center gap-1 px-2.5 pb-2.5 pt-1">
-          <input ref={arq} type="file" accept=".txt,.md,.csv,.json,.log,.py,.js,.jsx,.ts,.sql,.yml,.yaml,.xml,.html" className="hidden" onChange={anexar} />
-          <button onClick={() => arq.current?.click()} disabled={!ativo} title="Anexar arquivo de texto" aria-label="Anexar arquivo de texto" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Plus className="h-4 w-4" /></button>
+          <input ref={arq} type="file" accept="image/*,.txt,.md,.csv,.json,.log,.py,.js,.jsx,.ts,.sql,.yml,.yaml,.xml,.html" className="hidden" onChange={anexar} />
+          {gravacao ? (
+            <><button onClick={() => terminarGravacao(false)} disabled={gravacao.transcrevendo} className="rounded-lg px-2.5 py-1.5 text-sm text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]">Cancelar</button><div className="flex-1" />
+              <button onClick={() => terminarGravacao(true)} disabled={gravacao.transcrevendo} aria-label="Enviar a mensagem de voz" title="Enviar a mensagem de voz" className="rounded-xl bg-[var(--ia-acento)] p-2 text-[var(--ia-acento-texto)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button></>
+          ) : (<>
+          <button onClick={() => arq.current?.click()} disabled={!ativo} title="Anexar imagem ou arquivo de texto" aria-label="Anexar imagem ou arquivo de texto" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Plus className="h-4 w-4" /></button>
           <button onClick={() => { setTexto('/'); ta.current?.focus() }} disabled={!ativo} title="Comandos" aria-label="Comandos" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Slash className="h-4 w-4" /></button>
+          <select value={prefs?.estilo || 'normal'} onChange={(e) => mudarPrefs?.({ estilo: e.target.value })} disabled={!ativo} aria-label="Estilo da resposta" title="Estilo da resposta"
+            className="h-8 rounded-lg border-0 bg-transparent px-1.5 text-xs text-[var(--ia-suave)] outline-none hover:bg-[var(--ia-realce)]">{ESTILOS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
+          <button onClick={() => mudarPrefs?.({ pensar: !prefs?.pensar })} disabled={!ativo} aria-pressed={!!prefs?.pensar} title="Pensar mais (raciocínio estendido)" aria-label="Pensar mais"
+            className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs ${prefs?.pensar ? 'bg-[var(--ia-realce)] text-[var(--ia-acento)]' : 'text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]'}`}><Brain className="h-4 w-4" /><span className="hidden sm:inline">Pensar mais</span></button>
           <div className="flex-1" />
           {!grande && seletor}
-          <button onClick={ditar} disabled={!ativo} title={ouvindo ? 'Parar o ditado' : 'Ditar por voz'} aria-label="Ditar por voz" className={`rounded-lg p-2 hover:bg-[var(--ia-realce)] ${ouvindo ? 'text-red-500' : 'text-[var(--ia-suave)]'}`}><Mic className="h-4 w-4" /></button>
+          {temDitado && <button onClick={ditar} disabled={!ativo} title={ouvindo ? 'Parar o ditado' : 'Ditar (vira texto na caixa)'} aria-label="Ditar por voz" className={`rounded-lg p-2 hover:bg-[var(--ia-realce)] ${ouvindo ? 'text-red-500' : 'text-[var(--ia-suave)]'}`}><Mic className="h-4 w-4" /></button>}
+          <button onClick={gravar} disabled={!ativo || pensando} title="Mensagem de voz (Ctrl/⌘+Shift+V)" aria-label="Gravar mensagem de voz" className="rounded-lg p-2 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]"><AudioLines className="h-4 w-4" /></button>
           {pensando
             ? <button onClick={parar} aria-label="Parar" title="Parar (Esc)" className="rounded-xl bg-[var(--ia-texto)] p-2 text-[var(--ia-fundo)]"><Square className="h-4 w-4" /></button>
-            : <button onClick={mandar} disabled={!ativo || (!texto.trim() && !anexo)} aria-label="Enviar" title="Enviar (Enter)" className="rounded-xl bg-[var(--ia-acento)] p-2 text-[var(--ia-acento-texto)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>}
+            : <button onClick={mandar} disabled={!ativo || (!texto.trim() && !anexo && !imagens.length)} aria-label="Enviar" title="Enviar (Enter)" className="rounded-xl bg-[var(--ia-acento)] p-2 text-[var(--ia-acento-texto)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>}
+          </>)}
         </div>
       </div>
       {grande && (
@@ -435,6 +534,11 @@ export default function Ia() {
   const [lateral, setLateral] = useState(true)
   const [gaveta, setGaveta] = useState(false)
   const [config, setConfig] = useState(false)
+  const [prefs, setPrefs] = useState({ estilo: 'normal', pensar: false, voz: false, instrucoes: '' })
+  const [personalizar, setPersonalizar] = useState(false)
+  const [falando, setFalando] = useState(null)
+  useEffect(() => { api.get('/api/ia/preferencias').then(setPrefs).catch(() => {}) }, [])
+  const mudarPrefs = async (m) => { setPrefs((p) => ({ ...p, ...m })); try { setPrefs(await api.put('/api/ia/preferencias', m)) } catch (e) { toast(e.message, 'erro') } }
   const pedido = useRef(0), fim = useRef(null)
   const carregarLista = () => api.get(`/api/ia/conversas${busca ? `?q=${encodeURIComponent(busca)}` : ''}`).then(setLista).catch(() => {})
   useEffect(() => { const t = setTimeout(carregarLista, busca ? 250 : 0); return () => clearTimeout(t) }, [busca])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -446,7 +550,10 @@ export default function Ia() {
   }, [atual])
   useEffect(() => { fim.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }) }, [msgs, pensando])
   useEffect(() => {
-    const tecla = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setLateral(true); setTimeout(() => document.getElementById('ia-busca')?.focus(), 30) } }
+    const tecla = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setLateral(true); setTimeout(() => document.getElementById('ia-busca')?.focus(), 30) }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); pedido.current++; setPensando(false); setAtual(null); setMsgs([]); setTexto('') }
+    }
     window.addEventListener('keydown', tecla); return () => window.removeEventListener('keydown', tecla)
   }, [])
   const nome = useMemo(() => (sessao?.nome || '').split(' ')[0], [sessao])
@@ -455,16 +562,18 @@ export default function Ia() {
   const ativo = dados.configurada && dados.ativo
 
   const nova = () => { pedido.current++; setPensando(false); setAtual(null); setMsgs([]); setTexto('') }
-  const enviar = async (pergunta, base = msgs) => {
+  const enviar = async (pergunta, extra, base = msgs) => {
     const q = (pergunta || '').trim()
     if (!q || pensando) return
-    const hist = [...base, { role: 'user', content: q }]
+    const hist = [...base, { role: 'user', content: q, ...(extra?.voz ? { voz: extra.voz } : {}), ...(extra?.imagens ? { imagens: extra.imagens } : {}) }]
     setMsgs(hist); setTexto(''); setPensando(true)
     const meu = ++pedido.current
     try {
-      const r = await api.post('/api/ia/conversar', { mensagens: hist.filter((m) => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content: String(content).slice(0, 4000) })).slice(-20), conversa_id: atual, modelo })
+      const r = await api.post('/api/ia/conversar', { mensagens: hist.filter((m) => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content: String(content).slice(0, 4000) })).slice(-20), conversa_id: atual, modelo,
+        estilo: prefs.estilo, pensar: !!prefs.pensar, imagens: extra?.imagens || [] })
       if (meu !== pedido.current) return   // parou ou trocou de conversa
       setMsgs([...hist, { role: 'assistant', content: r.texto, acoes: r.acoes, confirmacoes: r.confirmacoes, modelo: r.modelo }])
+      if (prefs.voz) { falar(r.texto); setFalando(hist.length) }
       if (r.conversa_id && r.conversa_id !== atual) { pedido.current++; setAtual(r.conversa_id); pedido.current-- }
       carregarLista()
     } catch (e) {
@@ -489,24 +598,30 @@ export default function Ia() {
   }
   const cancelar = (i, c) => setMsgs((m) => m.map((x, j) => j === i ? { ...x, confirmacoes: x.confirmacoes.map((y) => y === c ? { ...y, feito: 'Cancelado.' } : y) } : x))
   const ultimaPergunta = [...msgs].reverse().find((m) => m.role === 'user')
-  const deNovo = () => { const i = msgs.lastIndexOf(ultimaPergunta); if (i >= 0) enviar(ultimaPergunta.content, msgs.slice(0, i)) }
+  const deNovo = () => { const i = msgs.lastIndexOf(ultimaPergunta); if (i >= 0) enviar(ultimaPergunta.content, ultimaPergunta.imagens ? { imagens: ultimaPergunta.imagens } : undefined, msgs.slice(0, i)) }
   const editar = (i) => { setTexto(msgs[i].content); setMsgs(msgs.slice(0, i)) }
   const copiar = (t) => { navigator.clipboard?.writeText(t); toast('Copiado.') }
+  const avaliar = async (i, valor) => {
+    const novo = msgs[i].feedback === valor ? 0 : valor
+    setMsgs((l) => l.map((x, j) => (j === i ? { ...x, feedback: novo } : x)))
+    if (atual) { try { await api.put(`/api/ia/conversas/${atual}/feedback`, { conteudo: msgs[i].content.slice(0, 200), valor: novo }); if (novo) toast(novo > 0 ? 'Obrigado pela avaliação.' : 'Anotado: isso ajuda a melhorar o assistente.') } catch { /* sem conversa salva */ } }
+  }
+  const ouvir = (i) => { if (falando === i && window.speechSynthesis?.speaking) { window.speechSynthesis.cancel(); setFalando(null); return } if (falar(msgs[i].content)) setFalando(i) }
   const titulo = lista.find((c) => c.id === atual)?.titulo
   const escopo = projeto ? `Contexto: ${projeto.nome}` : 'Contexto: todos os projetos'
-  const compositor = (grande) => <Compositor texto={texto} setTexto={setTexto} enviar={(q) => enviar(q)} parar={parar} pensando={pensando} ativo={ativo} modelo={modelo} setModelo={setModelo} modelos={dados.modelos} executar={executar} grande={grande} escopo={escopo} />
+  const compositor = (grande) => <Compositor texto={texto} setTexto={setTexto} enviar={(q, extra) => enviar(q, extra)} parar={parar} pensando={pensando} ativo={ativo} modelo={modelo} setModelo={setModelo} modelos={dados.modelos} executar={executar} grande={grande} escopo={escopo} prefs={prefs} mudarPrefs={mudarPrefs} />
 
   return (
     <div className="tela-ia -mx-4 -mb-16 -mt-6 flex h-[calc(100dvh-4rem)] min-h-[32rem] overflow-hidden bg-[var(--ia-fundo)] text-[var(--ia-texto)] sm:-mx-6 lg:-mx-8 2xl:-mx-10">
       {lateral && (
         <aside className="hidden w-72 shrink-0 border-r border-[var(--ia-borda)] bg-[var(--ia-lateral)] md:block">
-          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} />
+          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} personalizar={() => setPersonalizar(true)} />
         </aside>
       )}
       {gaveta && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Fechar a lista" onClick={() => setGaveta(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} /></aside>
+          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} personalizar={() => { setGaveta(false); setPersonalizar(true) }} /></aside>
         </div>
       )}
       <main className="flex min-w-0 flex-1 flex-col">
@@ -533,7 +648,9 @@ export default function Ia() {
               <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
                 {msgs.map((m, i) => m.role === 'user' ? (
                   <div key={i} className="group flex flex-col items-end">
-                    <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-[var(--ia-bolha)] px-4 py-2.5 text-[15px]">{m.content}</div>
+                    {m.imagens?.length > 0 && <div className="mb-1.5 flex gap-1.5">{m.imagens.map((u, k) => <img key={k} src={u} alt="Imagem enviada" className="h-28 max-w-[12rem] rounded-xl border border-[var(--ia-borda)] object-cover" />)}</div>}
+                    {m.voz && <div className="mb-1.5 flex items-center gap-2 rounded-2xl bg-[var(--ia-bolha)] px-3 py-2"><AudioLines className="h-4 w-4 text-[var(--ia-acento)]" /><audio controls src={m.voz.url} className="h-8 max-w-[14rem]" /><span className="text-xs text-[var(--ia-suave)]">{m.voz.segundos}s</span></div>}
+                    <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-[var(--ia-bolha)] px-4 py-2.5 text-[15px]">{m.voz && <span className="mb-0.5 block text-[11px] text-[var(--ia-suave)]">Transcrição da mensagem de voz</span>}{m.content}</div>
                     <div className="mt-1 flex gap-1 opacity-0 transition group-hover:opacity-100">
                       <button onClick={() => copiar(m.content)} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Copiar"><Copy className="h-3.5 w-3.5" /></button>
                       <button onClick={() => editar(i)} disabled={pensando} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Editar e enviar de novo"><Pencil className="h-3.5 w-3.5" /></button>
@@ -554,6 +671,10 @@ export default function Ia() {
                     {!m.local && (
                       <div className="mt-1.5 flex items-center gap-1 text-muted-foreground">
                         <button onClick={() => copiar(m.content)} className="rounded p-1 hover:bg-muted" aria-label="Copiar a resposta" title="Copiar"><Copy className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => ouvir(i)} className="rounded p-1 hover:bg-muted" aria-label={falando === i ? 'Parar a leitura' : 'Ouvir a resposta'} title={falando === i ? 'Parar a leitura' : 'Ouvir'}>{falando === i ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}</button>
+                        {!m.erro && <>
+                          <button onClick={() => avaliar(i, 1)} aria-pressed={m.feedback === 1} className={`rounded p-1 hover:bg-muted ${m.feedback === 1 ? 'text-[var(--ia-acento)]' : ''}`} aria-label="Boa resposta" title="Boa resposta"><ThumbsUp className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => avaliar(i, -1)} aria-pressed={m.feedback === -1} className={`rounded p-1 hover:bg-muted ${m.feedback === -1 ? 'text-red-500' : ''}`} aria-label="Resposta ruim" title="Resposta ruim"><ThumbsDown className="h-3.5 w-3.5" /></button></>}
                         {i === msgs.length - 1 && <button onClick={deNovo} disabled={pensando} className="rounded p-1 hover:bg-muted" aria-label="Tentar de novo" title="Tentar de novo"><RotateCcw className="h-3.5 w-3.5" /></button>}
                         {m.modelo && <span className="ml-1 text-[11px]">{dados.modelos.find((x) => x.id === m.modelo)?.nome || m.modelo}</span>}
                       </div>
@@ -570,6 +691,7 @@ export default function Ia() {
         )}
       </main>
       {config && <Configuracao dados={dados} dono={sessao.papel === 'dono'} recarregar={recarregar} fechar={() => setConfig(false)} />}
+      {personalizar && <Personalizar prefs={prefs} fechar={() => setPersonalizar(false)} salvar={async (p) => { try { setPrefs(await api.put('/api/ia/preferencias', p)); toast('Preferências salvas.'); setPersonalizar(false) } catch (e) { toast(e.message, 'erro') } }} />}
     </div>
   )
 }

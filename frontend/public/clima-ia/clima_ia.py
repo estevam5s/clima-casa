@@ -41,6 +41,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout import Layout, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.styles import Style
 from rich.console import Console, Group
 from rich.markdown import Markdown
@@ -48,7 +49,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-VERSAO = "1.6.0"
+VERSAO = "1.7.0"
 API = os.environ.get("CLIMA_URL", "https://app.zynio.com.br")
 PASTA = Path.home() / ".clima-ia"
 SESSAO = PASTA / "sessao.json"
@@ -76,6 +77,8 @@ COMANDOS = [
     ("/analisar", "A IA analisa os ataques das últimas 24 h"), ("/integridade", "Selo de integridade dos registros"),
     ("/diagnostico", "Confere TLS, permissões, relógio, versão e conexão"), ("/atualizar", "Baixa a versão nova do clima-ia"),
     ("/auditoria", "O que você fez por aqui (registro local)"), ("/novidades", "O que mudou na última versão"),
+    ("/config", "Cores, tema do código, modo padrão, dicas e som"), ("/tema", "Tema e cor de destaque"),
+    ("/retomar", "Voltar a uma conversa anterior"), ("/atalhos", "Teclas e atalhos"),
     ("/limpar", "Começa uma conversa nova"), ("/conta", "Quem está logado"), ("/login", "Entrar com a sua conta"),
     ("/logout", "Sair desta conta neste computador"), ("/sair", "Fechar o clima-ia"),
 ]
@@ -90,6 +93,52 @@ SEGREDOS = re.compile(r"(ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|github_pat_[A
                       r"sb_secret_[A-Za-z0-9_-]{10,}|sbp_[A-Za-z0-9]{20,}|vcp_[A-Za-z0-9]{10,}|whsec_[A-Za-z0-9+/=]{10,}|re_[A-Za-z0-9]{20,}|"
                       r"AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|"
                       r"-----BEGIN [A-Z ]*PRIVATE KEY-----|\b\d{8,10}:[A-Za-z0-9_-]{35}\b|(?i:(?:senha|password|passwd|secret|token)\s*[:=]\s*\S{6,}))")
+
+
+# ---------------- configurações (~/.clima-ia/config.json): tema, cor de destaque, tema do código, modo, dicas, som ----------------
+CONFIG = PASTA / "config.json"
+TEMAS = {  # texto, apagado, régua, fundo da pergunta
+    "escuro": ("#c0caf5", "#949494", "#808080", "#3a3a3a"), "claro": ("#24292f", "#6e7781", "#afb8c1", "#eaeef2"),
+    "escuro-daltonico": ("#e6e6e6", "#9e9e9e", "#808080", "#3a3a3a"), "claro-daltonico": ("#1f1f1f", "#5f5f5f", "#a0a0a0", "#e8e8e8"),
+    "contraste": ("#ffffff", "#c8c8c8", "#9e9e9e", "#303030"),
+}
+NOMES_TEMA = {"escuro": "Escuro", "claro": "Claro", "escuro-daltonico": "Escuro para daltônicos", "claro-daltonico": "Claro para daltônicos", "contraste": "Alto contraste"}
+CORES = {"verde": ("#2fbf9b", "#0f766a"), "laranja": ("#d77757", "#9a4a2f"), "azul": ("#7aa2f7", "#3d59a1"), "roxo": ("#bb9af7", "#6d4bb3"),
+         "rosa": ("#f7768e", "#a3364c"), "ciano": ("#7dcfff", "#2a7fa6"), "amarelo": ("#e0af68", "#9a7337"), "branco": ("#e6e6e6", "#8a8a8a")}
+TEMAS_CODIGO = {"monokai": "Monokai", "dracula": "Dracula", "one-dark": "One Dark", "github-dark": "GitHub escuro", "nord": "Nord",
+                "gruvbox-dark": "Gruvbox escuro", "solarized-dark": "Solarized escuro", "solarized-light": "Solarized claro", "vs": "Visual Studio claro", "friendly": "Claro suave"}
+PADRAO_CFG = {"tema": "escuro", "cor": "verde", "codigo": "monokai", "modo": 0, "dicas": True, "som": False, "tokens": True}
+
+
+def ler_config() -> dict:
+    try:
+        return {**PADRAO_CFG, **json.loads(CONFIG.read_text())}
+    except (OSError, ValueError):
+        return dict(PADRAO_CFG)
+
+
+def gravar_config(c: dict):
+    try:
+        PASTA.mkdir(mode=0o700, exist_ok=True)
+        CONFIG.write_text(json.dumps(c, ensure_ascii=False, indent=1))
+    except OSError:
+        pass
+
+
+CFG = ler_config()
+
+
+def aplicar_config():
+    """Recalcula a paleta (as funções leem as cores na hora, então a troca vale na mesma sessão)."""
+    global VERDE, VERDE_ESCURO, LAVANDA, CINZA, REGUA, FUNDO_PERGUNTA, MODOS
+    VERDE, VERDE_ESCURO = CORES.get(CFG.get("cor"), CORES["verde"])
+    LAVANDA, CINZA, REGUA, FUNDO_PERGUNTA = TEMAS.get(CFG.get("tema"), TEMAS["escuro"])
+    MODOS = [("manual", "⏸", "modo manual ligado", CINZA, "· ? para atalhos · pede o seu sim antes de agir"),
+             ("aceitar", "⏵⏵", "aceitar ações ligado", "#afafd7", "(shift+tab para alternar)"),
+             ("plano", "⏸", "modo plano ligado", "#5fafaf", "(shift+tab para alternar) · só leitura")]
+
+
+FUNDO_PERGUNTA = "#3a3a3a"
 
 
 # ---------------- logo do sistema em pixels (meio-bloco: 2 pixels por caractere) ----------------
@@ -228,17 +277,28 @@ def _nome_modelo() -> str:
     return next((m["nome"] for m in EST["modelos"] if m["id"] == EST["modelo"]), EST["modelo"].split("/")[-1] or "modelo padrão")
 
 
+def _ha(ep) -> str:
+    d = max(0, time.time() - (ep or 0))
+    return f"{int(d // 60)}min" if d < 3600 else f"{int(d // 3600)}h" if d < 86400 else f"{int(d // 86400)}d"
+
+
 def cabecalho(novidades: list[str] | None = None, pasta: str | None = None, linha_conta: str | None = None):
-    """Caixa de boas-vindas: título na borda, à esquerda saudação + logo + modelo/conta/pasta, à direita dicas e novidades."""
+    """Caixa de boas-vindas no jeito do Claude Code: à esquerda saudação + logo + modelo/conta/pasta; à direita a atividade
+    recente (últimas conversas, /retomar) e as novidades da versão do sistema."""
     u = EST["usuario"]
     nome = (u.get("nome") or "").strip().split(" ")[0]   # sem nome no perfil, não usa o e-mail na saudação
     if novidades is None:
         novidades = []
         try:
             v = chamar("GET", "/api/novidades", timeout=20)["versoes"][0]
-            novidades = (v.get("novo") or [])[:2]
+            novidades = ((v.get("novo") or []) + (v.get("melhorias") or []))[:3]
         except Exception:  # noqa: BLE001
             pass
+    recentes = []
+    try:
+        recentes = chamar("GET", "/api/ia/conversas", timeout=15)[:4]
+    except Exception:  # noqa: BLE001
+        pass
     papel = u.get("papel_rotulo") or (u.get("papel") or "").capitalize()
     esq = Group(Text(f"Bem-vindo de volta, {nome}!" if nome else "Bem-vindo de volta!", style=f"bold {LAVANDA}", justify="center"), Text(""), *logo(), Text(""),
                 Text(f"{_nome_modelo()} · {MODOS[EST['modo']][0]}", style=CINZA, justify="center"),
@@ -246,18 +306,29 @@ def cabecalho(novidades: list[str] | None = None, pasta: str | None = None, linh
                 Text(f"Clima Escritório · {papel}" if papel else "Clima Escritório", style=CINZA, justify="center"),
                 Text(pasta or f"~/{Path.cwd().name}", style=CINZA, justify="center"))
     larg = max(30, (con.width - 16) // 2 - 2)
-    cortar = lambda s: s if len(s) <= larg else s[:larg - 1] + "…"  # noqa: E731
-    dir_ = Group(Text("Dicas para começar", style=f"bold {VERDE}"), Text(cortar("Pergunte: quais ares estão ligados?"), style=LAVANDA),
-                 Text(cortar("/ para comandos · /modelo troca a IA"), style=LAVANDA), Text("─" * larg, style=VERDE),
+    cortar = lambda s, n=larg: s if len(s) <= n else s[:n - 1] + "…"  # noqa: E731
+    ativ = [Text.assemble((f"{_ha(c.get('atualizado_em')):<6}", CINZA), (cortar(c.get("titulo") or "Conversa", larg - 6), LAVANDA)) for c in recentes]
+    if not ativ:
+        ativ = [Text("Nenhuma conversa ainda", style=CINZA)]
+    dir_ = Group(Text("Atividade recente", style=f"bold {VERDE}"), *ativ, Text("… /retomar para mais", style=f"italic {CINZA}"),
+                 Text("─" * larg, style=VERDE_ESCURO),
                  Text("Novidades", style=f"bold {VERDE}"), *[Text(cortar(n), style=LAVANDA) for n in novidades],
-                 Text("/novidades para mais", style=f"italic {CINZA}"))
-    altura = 7 + len(logo())
+                 Text("… /novidades para mais", style=f"italic {CINZA}"))
+    altura = max(7 + len(logo()), 5 + len(ativ) + len(novidades))
     t = Table.grid(padding=(0, 2))
     t.add_column(justify="center", ratio=1)
     t.add_column(width=1)
     t.add_column(ratio=1)
     t.add_row(esq, Text("\n".join("│" for _ in range(altura)), style=VERDE_ESCURO), dir_)
     con.print(Panel(t, title=Text.assemble(("clima-ia ", VERDE), (f"v{VERSAO}", CINZA)), title_align="left", border_style=VERDE, padding=(1, 2)))
+    if CFG.get("dicas", True):
+        con.print(Text(f"  Dica: {random.choice(DICAS)}", style=CINZA))
+
+
+DICAS = ["Shift+Tab troca entre manual, aceitar ações e modo plano.", "Digite / para ver os comandos; setas escolhem, Tab completa.",
+         "/config muda as cores, o tema do código e o modo padrão.", "/retomar volta a uma conversa anterior.",
+         "Ctrl+C interrompe a resposta; Ctrl+D fecha o clima-ia.", "? mostra todos os atalhos.",
+         "clima-ia \"pergunta\" responde direto, sem abrir a conversa.", "/uso mostra o quanto falta do limite da sessão e da semana."]
 
 
 def ferramenta(nome: str, alvo: str, resultado: str, ok: bool = True):
@@ -267,7 +338,7 @@ def ferramenta(nome: str, alvo: str, resultado: str, ok: bool = True):
 
 def eco(q: str):
     """A pergunta enviada, numa faixa cinza da largura da tela (como no Claude Code)."""
-    t = Text(f"❯ {q}", style=f"{LAVANDA} on #3a3a3a")
+    t = Text(f"❯ {q}", style=f"{LAVANDA} on {FUNDO_PERGUNTA}")
     t.pad_right(max(0, con.width - len(t.plain)))
     con.print(t)
 
@@ -310,7 +381,7 @@ class Pensando:
             gl, i = "✻✽✶✳✢·", 0
             while not self.parar.wait(0.12):
                 s = int(time.time() - self.t0)
-                tk = f" · ↑ {self.tokens / 1000:.1f}k tokens".replace(".", ",") if self.tokens else ""
+                tk = f" · ↑ {self.tokens / 1000:.1f}k tokens".replace(".", ",") if self.tokens and CFG.get("tokens", True) else ""
                 sys.stdout.write(f"\r\033[38;2;{r};{g};{b}m{gl[i % len(gl)]} {self.palavra}…\033[0m \033[38;2;148;148;148m({s}s{tk} · ctrl+c para interromper)\033[0m   ")
                 sys.stdout.flush()
                 i += 1
@@ -468,7 +539,9 @@ def perguntar(q: str):
     mostrar_acoes(r.get("acoes"))
     texto = r.get("texto") or ""
     con.print(Text("● ", style=LAVANDA), end="")
-    con.print(Markdown(texto))
+    con.print(Markdown(texto, code_theme=CFG.get("codigo") or "monokai"))
+    if CFG.get("som"):
+        sys.stdout.write("\a"); sys.stdout.flush()
     EST["hist"].append({"role": "assistant", "content": texto[:4000]})
     for c in r.get("confirmacoes") or []:
         if permissao(c.get("descricao") or "Confirmar ação?"):
@@ -513,7 +586,7 @@ def _ler_pref():
         EST["modelo"] = p.get("modelo") or EST["modelo"]
         EST["modo"] = int(p.get("modo") or 0) % len(MODOS)
     except (OSError, ValueError):
-        pass
+        EST["modo"] = int(CFG.get("modo") or 0) % len(MODOS)
 
 
 # ---------------- cibersegurança ----------------
@@ -790,8 +863,111 @@ class Completa(Completer):
         t = doc.text_before_cursor
         if t.startswith("/") and " " not in t:
             for c, d in COMANDOS:
-                if c.startswith(t):
-                    yield Completion(c, start_position=-len(t), display=c, display_meta=d)
+                if c.startswith(t.lower()):
+                    yield Completion(c, start_position=-len(t), display=f"{c:<16}", display_meta=d)
+
+
+def estilo_prompt() -> Style:
+    """Lista de comandos do "/" sem o bloco cinza do prompt_toolkit: o item escolhido fica na cor de destaque."""
+    cor = VERDE
+    return Style.from_dict({
+        "bottom-toolbar": "noreverse bg:default", "placeholder": f"fg:{CINZA}",
+        "completion-menu": "bg:default", "completion-menu.completion": "bg:default fg:default", "completion-menu.completion.current": f"bg:default fg:{cor} bold",
+        "completion-menu.meta.completion": "bg:default fg:#808080", "completion-menu.meta.completion.current": f"bg:default fg:{cor}",
+        "completion-menu.multi-column-meta": "bg:default", "scrollbar.background": "bg:default", "scrollbar.button": "bg:default",
+    })
+
+
+ATALHOS = [("/", "comandos"), ("Tab", "completa o comando"), ("↑ / ↓", "pergunta anterior / seguinte"), ("Shift+Tab", "manual → aceitar ações → plano"),
+           ("Ctrl+C", "interrompe a resposta"), ("Ctrl+D", "fecha o clima-ia"), ("Ctrl+L", "limpa a tela"), ("Esc Esc", "apaga o que você digitou"),
+           ("Alt+Enter", "quebra linha na pergunta"), ("?", "esta lista")]
+
+
+def mostrar_atalhos():
+    for k, d in ATALHOS:
+        con.print(Text.assemble((f"  {k:<12}", VERDE), (d, CINZA)))
+
+
+def configurar(so: str | None = None) -> bool:
+    """Configurações com setas (o /config do Claude Code). so = um item só (ex.: "tema"). Devolve True se mudou algo."""
+    mudou = False
+    itens_cfg = [("tema", "Tema", lambda: NOMES_TEMA.get(CFG["tema"])), ("cor", "Cor de destaque", lambda: CFG["cor"]),
+                 ("codigo", "Tema do código", lambda: TEMAS_CODIGO.get(CFG["codigo"])), ("modo", "Modo padrão", lambda: MODOS[int(CFG.get("modo") or 0)][0]),
+                 ("dicas", "Dicas ao abrir", lambda: "ligadas" if CFG["dicas"] else "desligadas"), ("som", "Som ao terminar a resposta", lambda: "ligado" if CFG["som"] else "desligado"),
+                 ("tokens", "Mostrar tokens enquanto pensa", lambda: "sim" if CFG.get("tokens", True) else "não")]
+    while True:
+        k = so or escolher("Configurações do clima-ia", [(c, n, v()) for c, n, v in itens_cfg] + [("sair", "Pronto", "")], "")
+        if not k or k == "sair":
+            return mudou
+        if k == "tema":
+            v = escolher("Tema", [(t, n, "") for t, n in NOMES_TEMA.items()], CFG["tema"])
+        elif k == "cor":
+            v = escolher("Cor de destaque", [(c, c.capitalize(), h[0]) for c, h in CORES.items()], CFG["cor"])
+        elif k == "codigo":
+            v = escolher("Tema do código (blocos de código nas respostas)", [(c, n, "") for c, n in TEMAS_CODIGO.items()], CFG["codigo"])
+            if v:
+                from rich.syntax import Syntax
+                con.print(Syntax('def ligar(ar: str, temperatura: int = 23) -> dict:\n    """Liga o ar no modo frio."""\n    return {"ar": ar, "modo": "frio", "temperatura": temperatura}',
+                                 "python", theme=v, line_numbers=True, background_color="default" if v in ("vs", "friendly", "solarized-light") else None))
+        elif k == "modo":
+            v = escolher("Modo padrão ao abrir", [("0", "Manual", "pede o seu sim antes de agir"), ("1", "Aceitar ações", "faz sem perguntar (as de segurança sempre perguntam)"), ("2", "Plano", "só leitura")], str(CFG.get("modo") or 0))
+            v = int(v) if v is not None else None
+        else:
+            v = escolher(dict((c, n) for c, n, _ in itens_cfg)[k], [("1", "Ligado", ""), ("0", "Desligado", "")], "1" if CFG.get(k, True) else "0")
+            v = (v == "1") if v is not None else None
+        if v is not None:
+            CFG[k] = v
+            gravar_config(CFG)
+            aplicar_config()
+            if k == "modo":
+                EST["modo"] = int(v)
+            mudou = True
+            con.print(Text(f"  ⎿  {dict((c, n) for c, n, _ in itens_cfg)[k]}: ok", style=OK))
+        if so:
+            return mudou
+
+
+def primeira_vez():
+    """Primeira execução neste computador: escolhe o visual e o jeito de trabalhar antes de entrar (como o Claude Code)."""
+    con.print(Panel(Text.assemble(("Bem-vindo ao clima-ia!\n\n", f"bold {VERDE}"), ("Vamos deixar o terminal do seu jeito. Dá para mudar tudo depois com /config.", LAVANDA)),
+                    border_style=VERDE, padding=(1, 2)))
+    if not sys.stdin.isatty():
+        gravar_config(CFG)
+        return
+    for k in ("tema", "cor", "codigo", "modo"):
+        configurar(k)
+    v = escolher("Mostrar uma dica ao abrir?", [("1", "Sim", ""), ("0", "Não", "")], "1")
+    CFG["dicas"] = v != "0"
+    v = escolher("Tocar um som quando a resposta terminar?", [("1", "Sim", "útil quando você troca de janela"), ("0", "Não", "")], "0")
+    CFG["som"] = v == "1"
+    gravar_config(CFG)
+    aplicar_config()
+    con.print(Panel(Text.assemble(("Pronto. ", f"bold {OK}"), ("Seguro por padrão: ", LAVANDA), ("as ações nos ares pedem o seu sim no modo manual, ações de segurança sempre perguntam e "
+                                   "segredos colados na pergunta são ocultados antes de ir para a IA.", CINZA)), border_style=VERDE_ESCURO, padding=(0, 2)))
+
+
+def retomar():
+    try:
+        lista = chamar("GET", "/api/ia/conversas", timeout=20)[:20]
+    except RuntimeError as e:
+        con.print(f"[{ERRO}]  {e}[/]")
+        return
+    if not lista:
+        con.print(f"[{CINZA}]  Nenhuma conversa salva ainda.[/]")
+        return
+    cid = escolher("Retomar uma conversa", [(str(c["id"]), (c.get("titulo") or "Conversa")[:60], f"há {_ha(c.get('atualizado_em'))}") for c in lista], "")
+    if not cid:
+        return
+    c = chamar("GET", f"/api/ia/conversas/{cid}", timeout=20)
+    EST["conversa"] = int(cid)
+    EST["hist"] = [{"role": m["role"], "content": str(m.get("content", ""))[:4000]} for m in (c.get("mensagens") or []) if m.get("role") in ("user", "assistant")]
+    for m in EST["hist"][-4:]:
+        if m["role"] == "user":
+            eco(m["content"][:200])
+        else:
+            con.print(Text("● ", style=LAVANDA), end="")
+            con.print(Markdown(m["content"], code_theme=CFG.get("codigo") or "monokai"))
+    con.print(Text(f"  ⎿  Conversa retomada ({len(EST['hist'])} mensagens). Continue de onde parou.", style=OK))
 
 
 def chip() -> Text:
@@ -819,6 +995,14 @@ def comando_local(q: str) -> bool:
             con.print(f"[{CINZA}]  Shift+Tab: manual → aceitar ações → plano. Ctrl+C interrompe. Ações de segurança sempre pedem o seu sim.[/]")
         elif c == "/modelo":
             escolher_modelo()
+        elif c == "/config":
+            configurar()
+        elif c == "/tema":
+            configurar("tema") | configurar("cor")
+        elif c == "/retomar":
+            retomar()
+        elif c in ("/atalhos", "?"):
+            mostrar_atalhos()
         elif c == "/uso":
             mostrar_uso()
         elif c == "/plano":
@@ -922,6 +1106,13 @@ def main():
         i = args.index("--modelo")
         EST["modelo"] = args[i + 1] if i + 1 < len(args) else ""
         args = args[:i] + args[i + 2:]
+    if args[:1] == ["config"]:
+        aplicar_config()
+        configurar()
+        return
+    aplicar_config()
+    if not CONFIG.exists():
+        primeira_vez()
     if not _ler_sessao() and not login():
         return
     try:
@@ -942,14 +1133,23 @@ def main():
         ev.app.invalidate()
 
     PASTA.mkdir(mode=0o700, exist_ok=True)
+    @kb.add("c-l")
+    def _(ev):
+        ev.app.renderer.clear()
+
+    @kb.add("escape", "escape")
+    def _(ev):
+        ev.app.current_buffer.reset()
+
+    exemplos = ["liga o ar do diretor em 23", "quais ares estão ligados?", "por que os comandos não chegam?", "resumo do uso desta semana", "/seguranca"]
     sess = PromptSession(history=FileHistory(str(PASTA / "historico")), completer=Completa(), complete_while_typing=True, key_bindings=kb,
-                         bottom_toolbar=rodape, style=Style.from_dict({"bottom-toolbar": "noreverse bg:default"}))
+                         bottom_toolbar=rodape, style=estilo_prompt(), complete_style=CompleteStyle.COLUMN, reserve_space_for_menu=10)
     while True:
         try:
             con.print()
             con.print(chip(), justify="right")
             con.rule(style=REGUA)
-            q = sess.prompt(HTML(f'<style fg="{LAVANDA}">❯ </style>')).strip()
+            q = sess.prompt(HTML(f'<style fg="{LAVANDA}">❯ </style>'), placeholder=HTML(f'<style fg="#6c6c6c">Tente "{random.choice(exemplos)}"</style>'), style=estilo_prompt()).strip()
         except KeyboardInterrupt:
             continue
         except EOFError:
@@ -962,6 +1162,9 @@ def main():
         EST["ativo_em"] = time.time()
         eco(q)
         try:
+            if q == "?":
+                mostrar_atalhos()
+                continue
             if q.startswith("/") and comando_local(q):
                 continue
         except EOFError:

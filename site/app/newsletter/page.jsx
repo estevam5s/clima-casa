@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { meta } from '@/lib/seo'
 import { BannerPagina, Titulo } from '@/components/Secoes'
-import { EstadoNewsletter } from '@/components/Newsletter'
+import { EstadoNewsletter, PedirSaida } from '@/components/Newsletter'
 import { FormNovidades } from '@/components/Formularios'
 import Icone from '@/components/Icone'
 import VERSOES from '@/lib/versoes.json'
@@ -43,6 +43,7 @@ export default function Newsletter() {
           <div className="grade-como-news">
             {COMO.map(([i, t, x]) => <div key={t} className="cartao-passo pf_fadeup"><div className="icone"><Icone nome={i} tamanho={36} traco={1.2} /></div><h5>{t}</h5><p>{x}</p></div>)}
           </div>
+          <div className="pt-70 pf_fadeup"><PedirSaida /></div>
           <div className="pt-70">
             <Titulo sub="Exemplo do que chega" className="mb-30">As últimas versões</Titulo>
             <div className="linha">

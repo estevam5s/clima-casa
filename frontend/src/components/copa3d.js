@@ -53,9 +53,21 @@ export function cafeteiraVermelha({ ligada = true } = {}) {
     desenho.forEach((o) => { o.visible = false })
     g.add(m)
     const fz = (tam.z * k) / 2
-    xic.position.set(0, 0.03, fz * 0.45); vapor.forEach((v) => { v.userData.z = fz * 0.45 })
+    // pousa a xícara EM CIMA da grelha do modelo e afastada do corpo: antes ela ficava a 3 cm do chão, afundada na grelha
+    // e encostada na coluna (parecia grudada). Um raio de cima acha a grelha; um raio de frente para trás acha o corpo.
+    g.updateMatrixWorld(true)
+    const malhas = []; m.traverse((o) => { if (o.isMesh) malhas.push(o) })
+    const ray = new THREE.Raycaster(), alvoZ = fz * 0.5
+    const raioXic = 0.034
+    ray.set(new THREE.Vector3(0, altura * 0.45, alvoZ), new THREE.Vector3(0, -1, 0))
+    const chao = ray.intersectObjects(malhas, false).find((h) => h.point.y < altura * 0.35)
+    const yBase = chao ? chao.point.y + 0.002 : 0.03
+    ray.set(new THREE.Vector3(0, yBase + 0.035, fz + 0.2), new THREE.Vector3(0, 0, -1))
+    const frente = ray.intersectObjects(malhas, false)[0]
+    const zXic = frente ? Math.min(fz + 0.02, Math.max(alvoZ, frente.point.z + raioXic + 0.012)) : alvoZ
+    xic.position.set(0, yBase, zXic); vapor.forEach((v) => { v.userData.z = zXic })
     luz.position.set(tam.x * k * 0.32, altura * 0.82, fz + 0.004)
-    zV = fz * 0.45; yV = altura * 0.42
+    zV = zXic; yV = Math.max(altura * 0.42, yBase + 0.18)
   }
   let zV = 0.09, yV = 0.12
   const animarBase = animar

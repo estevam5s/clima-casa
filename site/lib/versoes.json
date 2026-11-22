@@ -1,5 +1,36 @@
 [
  {
+  "versao": "0.5.0",
+  "data": "2026-11-21",
+  "titulo": "Mensagem de voz na IA, Google Home completo, transmissor testado na hora e segurança da conta",
+  "resumo": "O assistente ouve mensagens de voz, enxerga imagens e escreve no estilo que você escolher; adicionar um transmissor ficou guiado e com teste de conexão; a gravação de botões reconhece o sinal; e a sua conta ganhou nota de segurança, histórico de entradas e alertas.",
+  "novo": [
+   "Assistente de IA: mensagem de voz (grava, transcreve e responde), em qualquer navegador",
+   "Assistente de IA: imagens anexadas, estilos de resposta (conciso, explicativo, formal), Pensar mais, instruções suas em Personalizar, ouvir a resposta e avaliar com gostei/não gostei",
+   "Transmissores: assistente Adicionar transmissor (importar, procurar na rede ou cadastrar à mão) com teste de conexão que acha o protocolo certo sozinho",
+   "Botões gravados: o sistema reconhece o controle e, no Gree, confere se o ajuste gravado é o do botão (e grava no botão certo se não for)",
+   "Integrações: Google Home e Google Assistente completos, com passo a passo, QR do app, frases, rotinas e teste ao vivo",
+   "Configurações → Segurança: nota de segurança da conta, entradas e tentativas na sua conta, alerta por e-mail de senhas erradas e cópia dos seus dados",
+   "Cafeteira, luzes, persianas e fechadura: código da placa própria direto na página, com o Wi-Fi preenchido no navegador e a espera da primeira conexão ao vivo",
+   "Site: cancelar a newsletter pelo próprio site, sem precisar do e-mail antigo",
+   "clima-ia 1.7.0 no terminal: configurações (tema, cor, tema do código, modo, dicas, som), primeira execução guiada, atividade recente e /retomar, e instaladores para macOS, Linux (inclusive Arch) e Windows"
+  ],
+  "melhorias": [
+   "Painel: mapa de uso em grade (dia × hora) com pico, totais e legenda; o 3D continua como opção",
+   "Menu de comandos do clima-ia sem o bloco cinza, no jeito do Claude Code",
+   "Respostas do assistente mais rápidas quando o Pensar mais está desligado"
+  ],
+  "seguranca": [
+   "Alerta por e-mail quando alguém erra a senha da sua conta 3 vezes em 1 hora (dá para desligar)",
+   "Microfone liberado só para o próprio sistema (mensagem de voz)"
+  ],
+  "correcoes": [
+   "Foto da conta Google aparecia quebrada em Configurações → Segurança",
+   "Na cafeteira 3D, a xícara ficava afundada e encostada na máquina",
+   "Rolagem lateral no celular em Configurações → Segurança"
+  ]
+ },
+ {
   "versao": "0.4.9",
   "data": "2026-11-21",
   "titulo": "Site em 6 idiomas, acessos e SEO, newsletter com IA e site mais completo",

@@ -24,6 +24,43 @@ function Segmentos({ opcoes, valor, onChange, disabled }) {
 }
 
 // ---------- gravação de botão ----------
+const rotuloChave = (c) => {
+  if (c === 'desligar') return 'Desligar'
+  if (c.startsWith('extra_')) return c.slice(6).replace(/_/g, ' ')
+  const [m, t, v] = c.split('_')
+  return `${MODOS[m] || m} ${t}° · ventilação ${(VENTILACAO[v] || v || '').toLowerCase()}`
+}
+
+// Reconhece os botões gravados: controle de cada sinal, força do sinal e, no Gree, se o ajuste confere com o nome do botão.
+function ReconhecerBotoes({ ar, gravar }) {
+  const [r, setR] = useState(null)
+  const [carregando, setCarregando] = useState(false)
+  const toast = useToast()
+  const ler = async () => { setCarregando(true); try { setR(await api.get(`/api/aparelhos/${ar.id}/botoes/analise`)) } catch (e) { toast(e.message, 'erro') } finally { setCarregando(false) } }
+  const ruins = r ? r.itens.filter((i) => i.confere === false || !i.ok) : []
+  return (
+    <div className="cartao p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><p className="font-medium">Reconhecer os botões gravados</p><p className="text-xs text-muted-foreground">Identifica o controle de cada sinal e confere se o ajuste gravado é o que o nome diz.</p></div>
+        <Botao tamanho="sm" variante="secundario" icone={Radio} carregando={carregando} onClick={ler}>{r ? 'Conferir de novo' : 'Conferir agora'}</Botao>
+      </div>
+      {r && (
+        <div className="mt-3 space-y-2 text-sm">
+          <p>{r.itens.length} botões · controle: {Object.entries(r.protocolos).map(([k, n]) => `${k === 'desconhecido' ? 'não identificado' : k} (${n})`).join(', ')}</p>
+          {!ruins.length ? <p className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="h-4 w-4" />Todos os sinais estão completos{r.itens.some((i) => i.confere) ? ' e conferem com o nome' : ''}.</p> : (
+            <ul className="space-y-1.5">{ruins.slice(0, 20).map((i) => (
+              <li key={i.chave} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">
+                <span><b className="font-medium">{i.rotulo}</b> <span className="text-xs text-muted-foreground">{i.aviso || i.motivo}</span></span>
+                <Botao tamanho="sm" variante="secundario" onClick={() => gravar(i.chave)}>Gravar de novo</Botao>
+              </li>))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Gravar({ ar, preset, onFechar, aoGravar }) {
   const modos = ar.modos.split(',')
   const [tipo, setTipo] = useState(preset?.tipo || 'estado')
@@ -62,7 +99,7 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
             setJob(null)
             // próximos passos: Gree com Desligar gravado gera o resto; e o próximo ar que ainda não tem botões
             const ares = await api.get('/api/aparelhos').catch(() => [])
-            setFeito({ chave, semBotoes: (Array.isArray(ares) ? ares : ares.aparelhos || []).filter((x) => x.id !== ar.id && !x.total_codigos) })
+            setFeito({ chave, analise: j.analise, chaveSalva: j.chave_salva || chave, semBotoes: (Array.isArray(ares) ? ares : ares.aparelhos || []).filter((x) => x.id !== ar.id && !x.total_codigos) })
           } else if (j.estado === 'erro') {
             clearInterval(timer.current)
             setErro(j.erro)
@@ -83,7 +120,20 @@ function Gravar({ ar, preset, onFechar, aoGravar }) {
     const gree = pronto?.gree && feito.chave === 'desligar'
     return (
       <div className="space-y-4">
-        <Aviso tipo="ok">Botão gravado em {ar.nome}.</Aviso>
+        <Aviso tipo={feito.analise?.confere === false || feito.analise?.ok === false ? 'alerta' : 'ok'}>Botão gravado em {ar.nome}{feito.chaveSalva !== feito.chave ? <> como <b>{rotuloChave(feito.chaveSalva)}</b></> : ''}.</Aviso>
+        {feito.analise && (
+          <div className="rounded-lg border border-border p-3 text-sm">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Sinal reconhecido</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              <span>Controle: <b className="font-medium">{feito.analise.protocolo === 'desconhecido' ? 'não identificado' : feito.analise.protocolo}</b></span>
+              <span>{feito.analise.pulsos} pulsos · {feito.analise.duracao_ms} ms</span>
+              {feito.analise.estado && <span>Manda: <b className="font-medium">{feito.analise.estado.ligado ? `${MODOS[feito.analise.estado.modo] || feito.analise.estado.modo} ${feito.analise.estado.temperatura}°C · ventilação ${(VENTILACAO[feito.analise.estado.ventilacao] || '?').toLowerCase()}` : 'desligar'}</b></span>}
+            </div>
+            {feito.analise.confere === true && <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" />Confere com o botão escolhido.</p>}
+            {feito.analise.aviso && <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">{feito.analise.aviso}{feito.chaveSalva !== feito.chave ? ' Gravado no botão certo; se quiser o outro ajuste, grave de novo.' : ''}</p>}
+            {feito.analise.motivo && <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">{feito.analise.motivo}</p>}
+          </div>
+        )}
         {gree && <p className="text-sm">Ar Gree com o Desligar gravado: na aba Botões, use <b>Controle Gree → Conferir → Testar → Gerar</b> para criar os 300 ajustes sem gravar um por um.</p>}
         {feito.semBotoes.length > 0 ? (
           <div>
@@ -527,6 +577,7 @@ export default function Aparelho() {
             })}
           </div>
 
+          {ar.codigos.length > 0 && <ReconhecerBotoes ar={ar} gravar={(c) => setGravar(c === 'desligar' ? { tipo: 'desligar' } : c.startsWith('extra_') ? { tipo: 'extra' } : { tipo: 'estado', modo: c.split('_')[0], temp: +c.split('_')[1], vent: c.split('_')[2] })} />}
           {ar.codigos.length > 0 && (
             <div className="cartao overflow-x-auto">
               <table className="tabela w-full">

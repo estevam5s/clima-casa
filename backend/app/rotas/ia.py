@@ -20,6 +20,9 @@ class ConversaIn(BaseModel):
     conversa_id: int | None = None      # com id, a conversa fica salva (lista à esquerda em /ia)
     modelo: str | None = Field(None, max_length=80)
     leitura: bool = False               # modo plano (terminal): só consulta, nenhuma ferramenta que muda algo
+    estilo: str | None = Field(None, pattern="^(normal|conciso|explicativo|formal)$")
+    pensar: bool = False                # raciocínio estendido ("Pensar mais")
+    imagens: list[str] = Field(default_factory=list, max_length=2)   # data:image/… (prints, foto do controle)
 
 
 class ConversaEditIn(BaseModel):
@@ -56,7 +59,7 @@ def conversar(d: ConversaIn):
     if d.mensagens[-1].role != "user":
         raise HTTPException(400, "A última mensagem precisa ser a sua pergunta.")
     try:
-        r = ia.conversar([m.model_dump() for m in d.mensagens], "painel", modelo=d.modelo, leitura=d.leitura)
+        r = ia.conversar([m.model_dump() for m in d.mensagens], "painel", modelo=d.modelo, leitura=d.leitura, estilo=d.estilo, pensar=d.pensar, imagens=d.imagens)
     except (PermissionError, RuntimeError) as e:
         _erro(e)
     # salva a conversa (nova ou existente) com a resposta; o título nasce da primeira pergunta
@@ -77,6 +80,70 @@ def conversar(d: ConversaIn):
 def _uid() -> str:
     from .. import acesso
     return str((acesso.atual.get() or {}).get("id") or "")
+
+
+class AudioIn(BaseModel):
+    audio: str = Field(min_length=100, max_length=3_000_000)   # base64 do WAV (até ~90 s em 16 kHz mono)
+    formato: str = Field("wav", pattern="^(wav|mp3)$")
+
+
+@rotas_ia.post("/transcrever")
+def transcrever(d: AudioIn):
+    """Mensagem de voz: o áudio gravado no navegador vira texto (a IA responde ao texto)."""
+    from .. import ia_uso
+    u = ia._u()
+    ia_uso.checar(u)
+    ia._limite(str(u.get("id") or "anon"))
+    try:
+        return {"texto": ia.transcrever(d.audio, d.formato)}
+    except RuntimeError as e:
+        _erro(e)
+
+
+class PrefIn(BaseModel):
+    estilo: str | None = Field(None, pattern="^(normal|conciso|explicativo|formal)$")
+    instrucoes: str | None = Field(None, max_length=1500)
+    pensar: bool | None = None
+    voz: bool | None = None
+
+
+@rotas_ia.get("/preferencias")
+def ver_preferencias():
+    return ia.preferencias(_uid())
+
+
+@rotas_ia.put("/preferencias")
+def mudar_preferencias(d: PrefIn):
+    from .. import defesa
+    if d.instrucoes and defesa.prompt_injection(d.instrucoes):
+        raise HTTPException(400, "As instruções tentam mudar as regras do assistente. Escreva só como você quer as respostas.")
+    return ia.salvar_preferencias(_uid(), d.model_dump())
+
+
+class FeedbackIn(BaseModel):
+    conteudo: str = Field(min_length=1, max_length=4000)   # o começo da resposta avaliada (acha a mensagem na conversa)
+    valor: int = Field(ge=-1, le=1)
+    motivo: str = Field("", max_length=300)
+
+
+@rotas_ia.put("/conversas/{cid}/feedback")
+def feedback(cid: int, d: FeedbackIn):
+    """Gostei / não gostei de uma resposta (fica na conversa e na Atividade, para o dono ver o que melhorar)."""
+    uid = _uid()
+    c = db.um("SELECT mensagens FROM ia_conversas WHERE id = ? AND usuario_id = ?", (cid, uid))
+    if not c:
+        raise HTTPException(404, "Conversa não encontrada.")
+    msgs = c["mensagens"] if isinstance(c["mensagens"], list) else json.loads(c["mensagens"] or "[]")
+    alvo = next((m for m in reversed(msgs) if m.get("role") == "assistant" and str(m.get("content", "")).startswith(d.conteudo[:200])), None)
+    if not alvo:
+        raise HTTPException(404, "Resposta não encontrada nesta conversa.")
+    alvo["feedback"] = d.valor
+    if d.motivo:
+        alvo["feedback_motivo"] = d.motivo
+    db.executar("UPDATE ia_conversas SET mensagens = CAST(? AS jsonb) WHERE id = ?", (json.dumps(msgs, ensure_ascii=False), cid))
+    if d.valor:
+        db.registrar("ia", f"Resposta da IA avaliada: {'boa' if d.valor > 0 else 'ruim'}", ok=d.valor > 0, detalhe=d.motivo[:200])
+    return {"ok": True}
 
 
 @rotas_ia.get("/conversas")

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { CalendarClock, Link2, Plug, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { CalendarClock, Cpu, Link2, Plug, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { useProjeto } from '../../contexto'
 import Placa from './Placa'
@@ -22,23 +22,27 @@ export function Estado({ d }) {
 export function SemAparelho({ d, aoConectar, compacto = false }) {
   if (compacto) return (   // vários cartões lado a lado (Luzes): uma linha só, a explicação inteira fica no topo da tela
     <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-      Sem aparelho: nenhum comando sai. <button onClick={aoConectar} className="font-medium text-primary hover:underline">Conectar</button>
+      Sem aparelho: nenhum comando sai. <button onClick={() => aoConectar()} className="font-medium text-primary hover:underline">Conectar</button> · <button onClick={() => aoConectar('placa')} className="font-medium text-primary hover:underline">Código da placa</button>
     </p>
   )
   return (
     <Aviso tipo="alerta">
-      <b>{d.nome}</b> ainda não tem aparelho conectado: o que aparece aqui é só o cadastro, nenhum comando sai. Para controlar de verdade, use {HARDWARE[d.tipo]} (pareie no app Smart Life, a mesma conta já conectada ao sistema) ou uma <b>placa própria</b> (Arduino UNO R4 WiFi, GIGA R1 WiFi, Opta, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, ESP32 ou ESP8266) com relé. Depois,{' '}
-      <button onClick={aoConectar} className="font-medium underline">conecte aqui</button>.
+      <b>{d.nome}</b> ainda não tem aparelho conectado: o que aparece aqui é só o cadastro, nenhum comando sai. Para controlar de verdade, use {HARDWARE[d.tipo]} (pareie no app Smart Life, a mesma conta já conectada ao sistema) ou uma <b>placa própria</b> (Arduino UNO R4 WiFi, GIGA R1 WiFi, Opta, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, ESP32 ou ESP8266) com relé.
+      <span className="mt-2.5 flex flex-wrap gap-2">
+        <button onClick={() => aoConectar()} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-current/30 px-3 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10"><Plug className="h-3.5 w-3.5" />Conectar aparelho Smart Life</button>
+        <button onClick={() => aoConectar('placa')} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-current/30 px-3 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10"><Cpu className="h-3.5 w-3.5" />Código da placa própria (Arduino / ESP)</button>
+      </span>
     </Aviso>
   )
 }
 
 // escolhe na conta Smart Life o aparelho de verdade para este item
-export function ConectarAparelho({ d, aberto, aoFechar, aoConectar }) {
+export function ConectarAparelho({ d, aberto, aoFechar, aoConectar, abaInicial }) {
   const toast = useToast()
   const { dados, erro, recarregar } = useDados(() => (aberto ? api.get('/api/dispositivos/disponiveis') : Promise.resolve(null)), [aberto])
   const [ocupado, setOcupado] = useState('')
-  const [aba, setAba] = useState(d.driver === 'placa' ? 'placa' : 'tuya')
+  const [aba, setAba] = useState(abaInicial || (d.driver === 'placa' ? 'placa' : 'tuya'))
+  useEffect(() => { if (aberto && abaInicial) setAba(abaInicial) }, [aberto, abaInicial])
   const lista = (dados?.aparelhos || []).filter((a) => (a.tipos || [a.tipo]).includes(d.tipo))
   const [teclas, setTeclas] = useState(null)   // interruptor de várias teclas: qual tecla esta luz usa
   const conectar = async (tid, tecla) => {

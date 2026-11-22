@@ -45,6 +45,14 @@ CATALOGO = [
 ]
 MODELOS = {m[0]: m[1] for m in CATALOGO}
 COM_FERRAMENTAS = {m[0] for m in CATALOGO if m[4]}
+COM_VISAO = {"nvidia/nemotron-3.5-super-vl-120b-a12b", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"}
+OUVE = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"   # entende áudio: transcreve as mensagens de voz
+ESTILOS = {
+    "normal": "",
+    "conciso": "\nEstilo pedido: CONCISO. Responda no menor número de frases possível, sem introdução.",
+    "explicativo": "\nEstilo pedido: EXPLICATIVO. Explique o porquê de cada passo, com exemplos curtos, como para alguém aprendendo.",
+    "formal": "\nEstilo pedido: FORMAL. Linguagem formal e técnica, adequada a relatório para a direção.",
+}
 PADRAO = "nvidia/nemotron-3-ultra-550b-a55b"
 RESERVA = "nvidia/nemotron-3.5-lightning-30b-a3b"
 LIMITE_HORA = 40
@@ -409,17 +417,23 @@ def _sistema(canal: str) -> str:
 ACOES_IA = {"comandar_ar", "temporizador", "desligar_todos", "executar_cena"}   # o que muda algo (fora no modo plano)
 
 
-def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False) -> dict:
+def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False, pensar: bool = False) -> dict:
     k = chave()
     if not k:
         raise RuntimeError("O assistente de IA não está configurado (falta a chave da NVIDIA em IA → Configuração).")
     ultimo = None
     for m in (modelo, RESERVA) if modelo != RESERVA else (modelo,):
-        corpo = {"model": m, "messages": msgs, "temperature": 0.2, "max_tokens": 900}
+        # raciocínio estendido só quando a pessoa liga ("Pensar mais"): sem ele a resposta sai mais rápido e não gasta
+        # os tokens pensando (os modelos que pensam por padrão devolviam resposta vazia com finish_reason "length")
+        corpo = {"model": m, "messages": msgs, "temperature": 0.2, "max_tokens": 3500 if pensar else 1200,
+                 "chat_template_kwargs": {"enable_thinking": bool(pensar)}}
         if m in COM_FERRAMENTAS:   # modelo sem function calling recusa "tools" (400): responde só em texto
             corpo["tools"] = [f for f in FERRAMENTAS if not (leitura and f["function"]["name"] in ACOES_IA)]
         try:
             r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, json=corpo, timeout=50)
+            if r.status_code == 400 and "chat_template" in r.text:   # modelo que não aceita o ajuste: manda sem ele
+                corpo.pop("chat_template_kwargs", None)
+                r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, json=corpo, timeout=50)
             if r.status_code == 200:
                 j = r.json()
                 msg = j["choices"][0]["message"]
@@ -432,6 +446,46 @@ def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False) -> dict
         except httpx.HTTPError as e:
             ultimo = str(e)[:160]
     raise RuntimeError(f"A IA da NVIDIA não respondeu agora ({ultimo}). Tente de novo.")
+
+
+def preferencias(uid: str) -> dict:
+    return {"estilo": "normal", "instrucoes": "", "pensar": False, "voz": False, **(db.cfg(f"ia_pref:{uid}") or {})} if uid else {"estilo": "normal", "instrucoes": ""}
+
+
+def salvar_preferencias(uid: str, d: dict) -> dict:
+    p = preferencias(uid)
+    for k in ("estilo", "instrucoes", "pensar", "voz"):
+        if d.get(k) is not None:
+            p[k] = d[k]
+    if p["estilo"] not in ESTILOS:
+        p["estilo"] = "normal"
+    p["instrucoes"] = str(p.get("instrucoes") or "")[:1500]
+    db.set_cfg(f"ia_pref:{uid}", p)
+    return p
+
+
+def transcrever(audio_b64: str, formato: str = "wav") -> str:
+    """Mensagem de voz → texto, pelo modelo da NVIDIA que entende áudio (funciona em qualquer navegador, inclusive no Brave,
+    que não tem o reconhecimento de voz do Chrome)."""
+    k = chave()
+    if not k:
+        raise RuntimeError("A IA não está configurada (falta a chave da NVIDIA).")
+    corpo = {"model": OUVE, "temperature": 0, "max_tokens": 600, "chat_template_kwargs": {"enable_thinking": False},
+             "messages": [{"role": "user", "content": [
+                 {"type": "text", "text": "Transcreva literalmente este áudio em português do Brasil. Escreva números como algarismos (vinte e três = 23). "
+                                          "Responda SÓ com a transcrição, sem comentários. Se não houver fala, responda exatamente: [sem fala]"},
+                 {"type": "input_audio", "input_audio": {"data": audio_b64, "format": formato}}]}]}
+    try:
+        r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, json=corpo, timeout=55)
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"A transcrição não respondeu agora ({str(e)[:80]}). Tente de novo.") from e
+    if r.status_code != 200:
+        raise RuntimeError(f"A transcrição falhou ({r.status_code}). Tente de novo ou digite a mensagem.")
+    txt = (r.json()["choices"][0]["message"].get("content") or "").strip()
+    txt = re.sub(r"<think>.*?</think>", "", txt, flags=re.S).strip().strip('"')
+    if not txt or txt == "[sem fala]":
+        raise RuntimeError("Não deu para entender a fala. Grave de novo, mais perto do microfone.")
+    return txt[:3000]
 
 
 def gerar(sistema: str, pedido: str, modelo: str | None = None, max_tokens: int = 3000, temperatura: float = 0.3, sem_pensar: bool = True) -> str:
@@ -485,7 +539,8 @@ def msg_lista_txt(msgs: list[dict]) -> list[str]:
     return [str(m.get("content") or "") for m in msgs]
 
 
-def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None, leitura: bool = False) -> dict:
+def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None, leitura: bool = False,
+              estilo: str | None = None, pensar: bool = False, imagens: list[str] | None = None) -> dict:
     """Uma rodada de conversa. `historico` = [{role: user|assistant, content}] (o último é a pergunta).
     Devolve {texto, acoes: [...feitas], confirmacoes: [{confirmacao, descricao}]}."""
     u = _u()
@@ -506,21 +561,31 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", 
         db.registrar(origem, "Pedido recusado pelo Assistente (tentativa de mudar as regras)", ok=False, detalhe=trecho[:120])
         return {"texto": "Não posso fazer isso: o pedido tenta mudar as minhas regras ou pede informações protegidas. Posso ajudar com os ares, as salas e os relatórios.",
                 "acoes": [], "confirmacoes": [], "modelo": modelo, "recusado": True}
-    msgs = [{"role": "system", "content": _sistema(canal) + ("\n- MODO PLANO (só leitura): você NÃO pode mudar nada; consulte, explique e proponha um plano passo a passo." if leitura else "")}]
+    prefs = preferencias(str(u.get("id") or ""))
+    extra = ESTILOS.get(estilo or prefs.get("estilo") or "normal", "")
+    if prefs.get("instrucoes"):
+        extra += "\nInstruções de quem pergunta (siga se não conflitarem com as regras acima): " + prefs["instrucoes"][:1500]
+    msgs = [{"role": "system", "content": _sistema(canal) + ("\n- MODO PLANO (só leitura): você NÃO pode mudar nada; consulte, explique e proponha um plano passo a passo." if leitura else "") + extra}]
     for h in historico[-16:]:
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
             msgs.append({"role": h["role"], "content": h["content"][:3000]})
+    # imagens (prints da tela, foto do controle): vão junto da última pergunta; modelo sem visão troca para o que enxerga
+    imgs = [i for i in (imagens or []) if isinstance(i, str) and i.startswith("data:image/") and len(i) < 2_200_000][:2]
+    if imgs and msgs[-1]["role"] == "user":
+        msgs[-1] = {"role": "user", "content": [{"type": "text", "text": msgs[-1]["content"]}, *({"type": "image_url", "image_url": {"url": i}} for i in imgs)]}
+        if modelo not in COM_VISAO:
+            modelo = "nvidia/nemotron-3.5-super-vl-120b-a12b"
     acoes, confirmacoes = [], []
     gasto = {"tokens": 0}
     try:
-        return _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto)
+        return _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar)
     finally:
         ia_uso.registrar(u, gasto["tokens"], modelo, canal)
 
 
-def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto) -> dict:
+def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar=False) -> dict:
     for _ in range(RODADAS):
-        m = _chamar_modelo(msgs, modelo, leitura)
+        m = _chamar_modelo(msgs, modelo, leitura, pensar)
         gasto["tokens"] += int(m.pop("_tokens", 0) or 0)
         m.pop("_modelo", None)
         chamadas = m.get("tool_calls") or []

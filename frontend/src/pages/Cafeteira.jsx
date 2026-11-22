@@ -71,7 +71,7 @@ function Painel({ d0, aoMudar, podeGerenciar, podeControlar }) {
           <div className="bg-red-50/60 dark:bg-red-950/20"><Maquina3D ligada={!!ligada} /></div>
           <div className="space-y-4 p-5">
             <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">{d.nome}</h2><Estado d={d} />{d.conectado && <span className="text-xs text-muted-foreground">{d.produto}</span>}</div>
-            {!d.conectado && <SemAparelho d={d} aoConectar={() => setConectar(true)} />}
+            {!d.conectado && <SemAparelho d={d} aoConectar={(aba) => setConectar(aba || true)} />}
             <p className="text-sm text-muted-foreground">A cafeteira de cápsulas fica numa tomada inteligente: o sistema liga (para aquecer) e desliga. Colocar a cápsula e apertar para passar o café continuam sendo na máquina.</p>
             <div className="flex flex-wrap gap-2">
               <Botao icone={Power} disabled={!podeControlar || !d.conectado || ligada === true} carregando={ocupado === 'ligar'} onClick={() => acao('ligar')}>Ligar e aquecer</Botao>
@@ -104,7 +104,7 @@ function Painel({ d0, aoMudar, podeGerenciar, podeControlar }) {
         <Travas d={d} aoMudar={atualizar} />
         <Historico d={d} versao={versao} />
       </div>
-      <ConectarAparelho d={d} aberto={conectar} aoFechar={() => setConectar(false)} aoConectar={atualizar} />
+      <ConectarAparelho d={d} aberto={!!conectar} abaInicial={conectar === 'placa' ? 'placa' : undefined} aoFechar={() => setConectar(false)} aoConectar={atualizar} />
     </div>
   )
 }

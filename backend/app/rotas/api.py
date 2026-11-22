@@ -861,6 +861,22 @@ def andamento(job_id: int):
         _erro(e)
 
 
+@api.get("/aparelhos/{aid}/botoes/analise")
+def analisar_botoes(aid: int):
+    """Reconhece cada botão gravado (protocolo e, no Gree, o estado que ele manda) e aponta os que não conferem com o nome."""
+    from .. import ir_analise
+    clima.aparelho(aid)
+    itens = []
+    for c in db.consultar("SELECT chave, rotulo, codigo FROM codigos WHERE aparelho_id = ? ORDER BY chave", (aid,)):
+        r = ir_analise.analisar(c["codigo"], c["chave"])
+        itens.append({"chave": c["chave"], "rotulo": c["rotulo"] or clima.rotulo_chave(c["chave"]), **{k: r.get(k) for k in ("ok", "pulsos", "duracao_ms", "protocolo", "confianca", "estado", "confere", "aviso", "motivo")}})
+    protos = {}
+    for i in itens:
+        protos[i["protocolo"]] = protos.get(i["protocolo"], 0) + 1
+    return {"itens": itens, "protocolos": protos, "nao_conferem": sum(1 for i in itens if i.get("confere") is False),
+            "fracos": sum(1 for i in itens if not i.get("ok"))}
+
+
 @api.delete("/aparelhos/{aid}/botoes/{chave}")
 def apagar_botao(aid: int, chave: str):
     db.executar("DELETE FROM codigos WHERE aparelho_id = ? AND chave = ?", (aid, chave))
@@ -1018,6 +1034,16 @@ def verificar_hubs():
         principal_ok = transmissor.agente_online() and "não respondeu a tempo" in aviso
         lista[0]["agente_aviso"] = "" if principal_ok else aviso
     return lista
+
+
+@api.post("/hubs/{hub_id}/testar")
+def testar_hub(hub_id: str):
+    """Teste de conexão de um transmissor pelo agente (rede, chave e protocolo; corrige o protocolo sozinho)."""
+    if not db.um("SELECT 1 FROM hubs WHERE id = ?", (hub_id,)):
+        raise HTTPException(404, "Transmissor não encontrado.")
+    r = transmissor.testar(hub_id)
+    db.registrar("painel", f"Teste de conexão do transmissor: {'ok' if r.get('ok') else r.get('etapa')}", detalhe=r.get("mensagem", "")[:300])
+    return r
 
 
 @api.get("/hubs/descobrir")
@@ -2160,7 +2186,8 @@ def qr_app(alvo: str = "android", request: Request = None):
     import io
     import qrcode
     destinos = {"android": f"https://{request.headers.get('host', 'app.zynio.com.br')}/apps?baixar=android",   # pede login e baixa pelo token
-                "site": f"https://{request.headers.get('host', 'clima-casa-lac.vercel.app')}/"}
+                "site": f"https://{request.headers.get('host', 'clima-casa-lac.vercel.app')}/",
+                "google_home": "https://play.google.com/store/apps/details?id=com.google.android.apps.chromecast.app"}   # app Google Home (Android; o iPhone tem o link na tela)
     if alvo.startswith("ar:") and alvo[3:].isdigit():   # placa da sala: abre o controle daquele ar (pede login)
         if not db.um("SELECT 1 FROM aparelhos WHERE id = ?", (int(alvo[3:]),)):
             raise HTTPException(404, "Ar não encontrado.")
@@ -3817,6 +3844,32 @@ class EntrarIn(BaseModel):
     turnstile: str | None = Field(None, max_length=4096)
 
 
+def _avisar_tentativas(email: str, marca: str, ip: str, pais: str, request: Request):
+    """3 senhas erradas numa conta em 1 hora: e-mail para o dono da conta (se ele não desligou o alerta). Nunca derruba o login."""
+    try:
+        from .. import correio, firewall
+        if firewall.falhas_da_conta(marca, 60) != 3 or not correio.configurado():
+            return
+        u = db.um("SELECT id, nome, email FROM usuarios WHERE lower(email) = lower(?) AND ativo", (email.strip(),))
+        if not u or not ({"alerta_falhas": True, **(db.cfg(f"seg_conta:{u['id']}") or {})}).get("alerta_falhas"):
+            return
+        from urllib.parse import unquote
+        m = correio.marca()
+        local = ", ".join(x for x in (unquote(request.headers.get("x-vercel-ip-city", "")), pais) if x)
+        blocos = [correio._p(f"Olá{', ' + correio._e(u['nome'].split()[0]) if u.get('nome') else ''},"),
+                  correio._p(f"Alguém errou a senha da sua conta <b>{correio._e(u['email'])}</b> 3 vezes na última hora."),
+                  correio._caixa([("Último IP", ip), ("Local aproximado", local), ("Quando", correio._quando())]),
+                  correio._alerta_cor("Não foi você? Troque a senha agora e ligue a verificação em duas etapas. Depois de várias tentativas, o sistema bloqueia o IP sozinho."),
+                  correio._botao("Revisar a segurança da conta", f"{correio.APP}/configuracoes?aba=seguranca", m["cor"])]
+        assunto = f"Tentativas de entrar na sua conta do {m['nome']}"
+        html = correio._base("Tentativas de entrar na sua conta", "3 senhas erradas na última hora.", blocos, m,
+                             "Alerta de segurança da sua conta. Desligue em Configurações → Segurança → Alertas.")
+        correio.enviar(u["email"], "tentativas_login", assunto=assunto, html_=html,
+                       texto=f"Alguém errou a senha da sua conta 3 vezes na última hora (IP {ip}, {local}). Não foi você? Troque a senha: {correio.APP}/configuracoes?aba=seguranca")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _hash_email(email: str) -> str:
     import hashlib
     return hashlib.sha256(email.strip().lower().encode()).hexdigest()[:24]
@@ -3854,6 +3907,7 @@ def entrar(d: EntrarIn, request: Request):
         raise HTTPException(400, "A verificação contra robôs falhou ou expirou. Recarregue a página e tente de novo.")
     if r.status_code != 200 or not dados.get("access_token"):
         firewall.registrar(ip, "login_falhou", "/api/auth/entrar", marca, pais, agente)
+        _avisar_tentativas(d.email, marca, ip, pais, request)
         falhas_ip = firewall.falhas_recentes(ip, ("login_falhou",), janela)
         if falhas_ip >= limite * 2:
             firewall.bloqueio_automatico(ip, "tentativas de login em excesso")
@@ -3878,7 +3932,8 @@ def entrar(d: EntrarIn, request: Request):
         local = ", ".join(x for x in (unquote(cidade), pais) if x)
         try:
             from .. import correio
-            correio.enviar_quieto(u["email"], "acesso_novo", {**correio.contexto(request), "nome": u.get("nome"), "email": u["email"]})
+            if ({"alerta_ip_novo": True, **(db.cfg(f"seg_conta:{u.get('id')}") or {})}).get("alerta_ip_novo"):   # a pessoa pode desligar
+                correio.enviar_quieto(u["email"], "acesso_novo", {**correio.contexto(request), "nome": u.get("nome"), "email": u["email"]})
         except Exception:  # noqa: BLE001
             pass
         notificacoes.notificar(f"login-{ip}", "seguranca", "media", "Entrada do administrador por um IP novo",

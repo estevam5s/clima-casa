@@ -88,7 +88,7 @@ function CartaoLuz({ d0, sol, podeControlar, podeGerenciar, aoRemover }) {
         </div>
       </div>
       <div className="space-y-3 border-t border-border p-4">
-        {!d.conectado ? <SemAparelho compacto d={d} aoConectar={() => setConectar(true)} /> : (
+        {!d.conectado ? <SemAparelho compacto d={d} aoConectar={(aba) => setConectar(aba || true)} /> : (
           <>
             <div className="flex flex-wrap gap-2">
               <Botao tamanho="sm" icone={Lightbulb} disabled={!podeControlar || acesa} carregando={ocupado === 'ligar'} onClick={() => comando('ligar')}>Acender</Botao>
@@ -109,7 +109,7 @@ function CartaoLuz({ d0, sol, podeControlar, podeGerenciar, aoRemover }) {
           {podeGerenciar && <Botao tamanho="sm" variante="fantasma" icone={Trash2} onClick={remover}>Remover</Botao>}
         </div>
       </div>
-      <ConectarAparelho d={d} aberto={conectar} aoFechar={() => setConectar(false)} aoConectar={atualizar} />
+      <ConectarAparelho d={d} aberto={!!conectar} abaInicial={conectar === 'placa' ? 'placa' : undefined} aoFechar={() => setConectar(false)} aoConectar={atualizar} />
       <Modal aberto={aberto} titulo={d.nome} onFechar={() => setAberto(false)} largura="max-w-2xl">
         {aberto && (
           <div className="space-y-4">

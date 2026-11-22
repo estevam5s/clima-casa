@@ -63,7 +63,7 @@ function Detalhes({ d: d0, aoFechar, podeGerenciar, conectarAgora, aoMudar }) {
         <Historico d={d} versao={0} />
         {podeGerenciar && <Botao variante="secundario" icone={Link2} onClick={() => setConectar(true)}>{d.conectado ? 'Trocar motor' : 'Conectar motor'}</Botao>}
       </div>
-      <ConectarAparelho d={d} aberto={conectar} aoFechar={() => setConectar(false)} aoConectar={aoMudar} />
+      <ConectarAparelho d={d} aberto={!!conectar} abaInicial={conectar === 'placa' ? 'placa' : undefined} aoFechar={() => setConectar(false)} aoConectar={aoMudar} />
     </Modal>
   )
 }

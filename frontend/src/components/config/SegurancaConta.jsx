@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Copy, Fingerprint, KeyRound, Laptop, Pencil, RefreshCw, ShieldCheck, ShieldOff, Smartphone, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckCircle2, Copy, Download, Fingerprint, KeyRound, Laptop, LogIn, Pencil, RefreshCw, ShieldAlert, ShieldCheck, ShieldOff, Smartphone, Trash2, X, XCircle } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { supabase } from '../../supabase'
 import { biometriaDisponivel, cadastrarBiometria, temBiometriaNoAparelho } from '../../webauthn'
-import { Aviso, Botao, Secao, useToast, confirmar } from '../ui'
+import { Aviso, Botao, Interruptor, Secao, useToast, confirmar } from '../ui'
 
 const traduzir = (m = '') => (/invalid|expired/i.test(m) ? 'Código errado ou vencido. Confira a hora do celular e use o código novo.'
   : /aal2|AAL2/.test(m) ? 'Confirme um código do autenticador atual antes desta ação.' : m)
@@ -323,6 +323,52 @@ function Sessoes() {
   )
 }
 
+// Visão da segurança da própria conta: nota com o que falta, histórico de entradas e tentativas, alertas e cópia dos dados.
+function PainelConta() {
+  const toast = useToast()
+  const [d, setD] = useState(null)
+  const carregar = () => api.get('/api/conta/seguranca').then(setD).catch((e) => toast(e.message, 'erro'))
+  useEffect(() => { carregar() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const pref = async (k, v) => { try { const p = await api.put('/api/conta/seguranca/prefs', { [k]: v }); setD((x) => ({ ...x, prefs: p })); carregar() } catch (e) { toast(e.message, 'erro') } }
+  if (!d) return <div className="cartao h-48 animate-pulse xl:col-span-2" />
+  const cor = d.nota >= 80 ? 'text-emerald-600 border-emerald-500' : d.nota >= 50 ? 'text-amber-600 border-amber-500' : 'text-red-600 border-red-500'
+  const rot = { login_ok: ['Entrou', LogIn, 'text-emerald-600'], login_falhou: ['Senha errada', XCircle, 'text-red-600'], login_negado: ['Acesso negado', ShieldAlert, 'text-amber-600'] }
+  return (
+    <Secao className="xl:col-span-2" titulo="Segurança da sua conta" contexto="O que já protege a sua conta, o que falta e quem tentou entrar nela"
+      acao={<Botao tamanho="sm" variante="secundario" icone={Download} onClick={() => api.baixar('/api/conta/meus-dados').then(() => toast('Cópia dos seus dados baixada.')).catch((e) => toast(e.message, 'erro'))}>Baixar meus dados</Botao>}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div>
+          <div className="mb-4 flex items-center gap-4">
+            <span className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-[3px] text-xl font-semibold tabular ${cor}`}>{d.nota}</span>
+            <div className="text-sm"><p className="font-medium">{d.nota >= 80 ? 'Conta bem protegida' : d.nota >= 50 ? 'Dá para proteger mais' : 'Conta vulnerável'}</p>
+              <p className="text-xs text-muted-foreground">{d.resumo.falhas_30d} senha(s) errada(s) em 30 dias · {d.resumo.ips} IP(s) de entrada · {d.resumo.sessoes} sessão(ões){d.resumo.paises.length ? ` · ${d.resumo.paises.join(', ')}` : ''}</p></div>
+          </div>
+          <ul className="space-y-2">{d.itens.map((i) => (
+            <li key={i.chave} className="flex gap-2.5 text-sm">{i.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />}
+              <span><b className="font-medium">{i.titulo}</b> <span className="text-muted-foreground">· {i.detalhe}</span>{!i.ok && <span className="ml-1 text-[11px] text-muted-foreground">(+{i.peso})</span>}</span></li>))}
+          </ul>
+          <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+            <p className="text-xs font-medium text-muted-foreground">Alertas por e-mail</p>
+            <label className="flex items-center justify-between gap-3 text-sm"><span className="min-w-0">Quando errarem a minha senha 3 vezes em 1 hora</span><Interruptor ligado={d.prefs.alerta_falhas} onChange={(v) => pref('alerta_falhas', v)} rotulo="Alerta de senhas erradas" /></label>
+            <label className="flex items-center justify-between gap-3 text-sm"><span>Quando eu entrar por um IP novo</span><Interruptor ligado={d.prefs.alerta_ip_novo} onChange={(v) => pref('alerta_ip_novo', v)} rotulo="Alerta de IP novo" /></label>
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Entradas e tentativas na sua conta</p>
+          {!d.historico.length ? <p className="text-sm text-muted-foreground">Nada registrado ainda.</p> : (
+            <ul className="max-h-80 divide-y divide-border overflow-y-auto pr-1">{d.historico.map((e, i) => { const [t, I, c] = rot[e.tipo] || [e.tipo, LogIn, '']; return (
+              <li key={i} className="flex items-center gap-2.5 py-2 text-sm"><I className={`h-4 w-4 shrink-0 ${c}`} />
+                <div className="min-w-0 flex-1"><p className="font-medium">{t}</p><p className="truncate text-xs text-muted-foreground">{e.ip}{e.pais ? ` · ${e.pais}` : ''}{e.agente ? ` · ${e.agente.replace(/Mozilla\/5\.0 \(|\).*$/g, '').slice(0, 50)}` : ''}</p></div>
+                <span className="shrink-0 text-xs text-muted-foreground">{haQuanto(e.quando)}</span></li>) })}
+            </ul>
+          )}
+          <p className="mt-2 text-[11px] text-muted-foreground">Não reconhece uma entrada? Encerre as outras sessões abaixo e troque a senha em Perfil.</p>
+        </div>
+      </div>
+    </Secao>
+  )
+}
+
 export default function SegurancaConta() {
-  return <div className="grid gap-6 xl:grid-cols-2"><ContaGoogle /><Autenticador /><Biometria /><Sessoes /></div>
+  return <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><PainelConta /><ContaGoogle /><Autenticador /><Biometria /><Sessoes /></div>
 }

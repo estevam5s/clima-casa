@@ -79,7 +79,7 @@ async def cabecalhos(request: Request, chamar):
     origem_site = request.headers.get("origin", "")
     caminho = request.url.path
     rota_site = caminho in ("/api/site/contato", "/api/site/cookies", "/api/site/cookies/consentimento", "/api/site/status", "/api/apps/versao",
-                            "/api/site/coletar", "/api/site/newsletter/sair") or caminho.startswith("/api/site/idiomas/")
+                            "/api/site/coletar", "/api/site/newsletter/sair", "/api/site/newsletter/pedir-saida") or caminho.startswith("/api/site/idiomas/")
     if rota_site and origem_site in SITE_ORIGENS:
         cors = {"Access-Control-Allow-Origin": origem_site, "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600", "Vary": "Origin"}
@@ -127,13 +127,13 @@ async def cabecalhos(request: Request, chamar):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "same-origin"
-    resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    resp.headers["Permissions-Policy"] = "camera=(), microphone=(self), geolocation=(), payment=(), usb=()"   # microfone: mensagem de voz do Assistente
     resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     resp.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     if dinamica and "cache-control" not in resp.headers:
         resp.headers["Cache-Control"] = "no-store"
     resp.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data: blob: https://challenges.cloudflare.com https://*.scdn.co https://*.spotifycdn.com; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; img-src 'self' data: blob: https://challenges.cloudflare.com https://*.scdn.co https://*.spotifycdn.com https://*.googleusercontent.com; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; "
         "script-src 'self' https://challenges.cloudflare.com https://sdk.scdn.co; frame-src https://challenges.cloudflare.com https://sdk.scdn.co; "
         "font-src 'self'; connect-src 'self' blob: data: https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://api.pwnedpasswords.com https://speed.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests")
     if request.url.scheme == "https":

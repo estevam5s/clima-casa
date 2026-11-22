@@ -949,3 +949,9 @@ html.i18n-carregando #smooth-content, html.i18n-carregando .cabecalho { opacity:
 .faixa-apps { position: relative; z-index: 2; background: var(--preto); }
 .faixa-apps-texto { flex: 1 1 240px; min-width: 0; }
 @media (min-width: 1200px) { .faixa-apps { flex-wrap: nowrap; } .faixa-apps-texto { flex: 0 0 220px; } .lista-apps { flex-wrap: wrap; justify-content: center; } }
+.sair-news { max-width: 560px; padding: 30px; border-radius: 18px; border: 1px solid var(--borda); background: var(--cinza-escuro); }
+.sair-news h4 { margin-bottom: 8px; }
+.sair-news p { font-size: 15px; line-height: 1.6; margin-bottom: 16px; }
+.sair-news .grupo-form { max-width: none; }
+.sair-news .aviso-sair { margin: 12px 0 0; }
+.sair-news .aviso-sair.ok { color: var(--primaria); } .sair-news .aviso-sair.erro { color: #ff6b6b; }

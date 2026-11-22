@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowLeftRight, CheckCircle2, ExternalLink, Link2, Plus, QrCode, RefreshCw, Smartphone, XCircle } from 'lucide-react'
 import { api, haQuanto } from '../api'
+import IntegracaoGoogle from '../components/IntegracaoGoogle'
 import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Modal, Ponto, Selo, useDados, useToast } from '../components/ui'
 
 const PASSOS_ALEXA = [
@@ -70,7 +71,7 @@ export default function Integracoes() {
 
   return (
     <>
-      <Cabecalho titulo="Alexa e Google Home" descricao="Pelo Sinric Pro: funciona em qualquer conta Alexa ou Google Home, sem criar skill própria." />
+      <Cabecalho titulo="Alexa e Google Home" descricao="Alexa e Google Home (Google Assistente, Nest, Android) pelo Sinric Pro: qualquer conta, sem criar skill própria." />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
@@ -108,6 +109,8 @@ export default function Integracoes() {
               <div className="flex justify-end sm:col-span-2"><Botao type="submit" disabled={!form}>Salvar credenciais</Botao></div>
             </form>
           </motion.div>
+
+          <IntegracaoGoogle cfg={cfg} aparelhos={aparelhos} />
 
           {semSinric.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }} className="cartao">
@@ -190,10 +193,6 @@ export default function Integracoes() {
           <TrocarContaAlexa conexao={conexao} aparelhos={aparelhos} />
           <ZonasAlexa />
           <DiagnosticoAlexa />
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="cartao p-5">
-            <h2 className="flex items-center gap-2 titulo-secao"><Smartphone className="h-4 w-4" /> Google Home</h2>
-            <p className="mt-2 text-sm text-muted-foreground">App Google Home → Adicionar → Funciona com o Google → "Sinric Pro" → entrar com a mesma conta. Os mesmos aparelhos aparecem, e os novos entram sozinhos.</p>
-          </motion.div>
         </div>
       </div>
     </>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Copy, Cpu, Download, KeyRound, RefreshCw, Wifi, Zap } from 'lucide-react'
+import { Check, CheckCircle2, Copy, Cpu, Download, Eye, EyeOff, KeyRound, Loader2, Power, PowerOff, RefreshCw, Wifi, Zap } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Selo, useToast, confirmar } from '../ui'
 import { ISRG_ROOT_X1 } from './isrgRootX1'
@@ -230,7 +230,26 @@ export default function Placa({ d, aoMudar }) {
   const [ocupado, setOcupado] = useState(false)
   const [copiado, setCopiado] = useState(false)
   const p = PLACAS.find((x) => x.id === placa) || PLACAS[0]
-  const codigo = useMemo(() => gerarCodigo(d.tipo, placa, token, d.nome), [d.tipo, placa, token, d.nome])
+  const [wifi, setWifi] = useState({ nome: '', senha: '' })
+  const [verSenha, setVerSenha] = useState(false)
+  const [vivo, setVivo] = useState(d)
+  const [testando, setTestando] = useState('')
+  // Wi-Fi entra no código aqui no navegador: nome e senha nunca vão para o servidor
+  const strC = (t) => `"${String(t).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  const codigo = useMemo(() => {
+    let c = gerarCodigo(d.tipo, placa, token, d.nome)
+    if (wifi.nome) c = c.replace('"NOME_DA_REDE_WIFI"', strC(wifi.nome))
+    if (wifi.senha) c = c.replace('"SENHA_DO_WIFI"', strC(wifi.senha))
+    return c
+  }, [d.tipo, placa, token, d.nome, wifi.nome, wifi.senha]) // eslint-disable-line react-hooks/exhaustive-deps
+  // depois de gerar o token: acompanha a placa até ela aparecer (a 1ª sincronização chega em ~3 s depois de ligar)
+  useEffect(() => {
+    if (!token && vivo.driver !== 'placa') return undefined
+    const t = setInterval(() => { if (!document.hidden) api.get(`/api/dispositivos/um/${d.id}`).then((n) => { setVivo(n); if (n.online && !vivo.online) { toast('A placa conectou.'); aoMudar?.(n) } }).catch(() => {}) }, 3000)
+    return () => clearInterval(t)
+  }, [token, vivo.online, vivo.driver]) // eslint-disable-line react-hooks/exhaustive-deps
+  const testar = async (acao) => { setTestando(acao); try { const n = await api.post(`/api/dispositivos/${d.id}/comando`, { acao }); setVivo(n); toast('Comando na fila: a placa busca em até 3 s.') } catch (e) { toast(e.message, 'erro') } finally { setTestando('') } }
+  const acoesTeste = d.tipo === 'persiana' ? [['abrir', Power], ['fechar', PowerOff]] : d.tipo === 'fechadura' ? [['trancar', PowerOff]] : [['ligar', Power], ['desligar', PowerOff]]
   const gerar = async () => {
     if (d.placa_configurada && !await confirmar('Gerar um token novo desliga a placa que já está usando o token atual (até você enviar o código novo para ela). Continuar?')) return
     setOcupado(true)
@@ -264,6 +283,15 @@ export default function Placa({ d, aoMudar }) {
         <p className="flex items-center gap-1.5 text-sm font-medium"><Zap className="h-4 w-4 text-muted-foreground" />Ligação</p>
         <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs text-muted-foreground">{LIGACAO[d.tipo].map((t) => <li key={t}>{t}</li>)}</ol>
       </div>
+      <div className="rounded-md border border-border p-3">
+        <p className="flex items-center gap-1.5 text-sm font-medium"><Wifi className="h-4 w-4 text-muted-foreground" />Wi-Fi do escritório (2,4 GHz)</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <input className="campo h-9" placeholder="Nome da rede" autoComplete="off" value={wifi.nome} onChange={(e) => setWifi({ ...wifi, nome: e.target.value })} aria-label="Nome da rede Wi-Fi" />
+          <div className="relative"><input className="campo h-9 pr-9" type={verSenha ? 'text' : 'password'} autoComplete="new-password" placeholder="Senha" value={wifi.senha} onChange={(e) => setWifi({ ...wifi, senha: e.target.value })} aria-label="Senha do Wi-Fi" />
+            <button type="button" onClick={() => setVerSenha((v) => !v)} className="absolute right-2 top-2 text-muted-foreground" aria-label={verSenha ? 'Esconder senha' : 'Mostrar senha'}>{verSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+        </div>
+        <p className="ajuda mt-1">Vai direto para o código aqui no seu navegador: o nome e a senha do Wi-Fi não são enviados ao sistema.</p>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <Botao icone={KeyRound} carregando={ocupado} onClick={gerar}>{d.placa_configurada ? 'Gerar token novo' : 'Gerar token e código'}</Botao>
         {token && <span className="text-xs text-emerald-700 dark:text-emerald-400">Token no código abaixo: copie agora.</span>}
@@ -276,6 +304,22 @@ export default function Placa({ d, aoMudar }) {
           <Botao tamanho="sm" variante="secundario" icone={Download} onClick={baixar}>Baixar .ino</Botao>
           {d.driver === 'placa' && <Botao tamanho="sm" variante="fantasma" icone={RefreshCw} onClick={async () => { try { aoMudar?.(await api.post(`/api/dispositivos/${d.id}/tuya`)); toast('Voltou para aparelho Smart Life.') } catch (e) { toast(e.message, 'erro') } }}>Usar Smart Life em vez da placa</Botao>}
         </div>
+      </div>
+      <div className="rounded-md border border-border p-3 text-sm">
+        <p className="font-medium">Enviar para a placa</p>
+        <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs text-muted-foreground">
+          <li>Instale o Arduino IDE 2 e, em Placas, o pacote da sua placa ({p.fam === 'esp32' ? 'esp32' : p.fam === 'esp8266' ? 'esp8266' : 'Arduino'}).</li>
+          <li>Em Bibliotecas, instale ArduinoJson{p.fam === 'arduino' ? ' e ArduinoHttpClient' : ''}.</li>
+          <li>Abra o .ino baixado, escolha a placa e a porta USB e clique em Carregar.</li>
+          <li>Abra o Monitor Serial (115200): aparece “Wi-Fi conectado” e, a cada 3 s, a sincronização com o servidor.</li>
+        </ol>
+        {(token || vivo.driver === 'placa') && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+            {vivo.online ? <span className="inline-flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="h-4 w-4" />Placa conectada{vivo.info_placa?.ip ? ` (${vivo.info_placa.ip})` : ''}</span>
+              : <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Esperando a placa se conectar…</span>}
+            {vivo.online && acoesTeste.map(([a2, I]) => <Botao key={a2} tamanho="sm" variante="secundario" icone={I} carregando={testando === a2} onClick={() => testar(a2)}>Testar: {a2}</Botao>)}
+          </div>
+        )}
       </div>
       <Aviso tipo="alerta">Bibliotecas no Arduino IDE: <b>ArduinoJson</b>{p.fam === 'arduino' ? <> e <b>ArduinoHttpClient</b></> : null}. Preencha o nome e a senha do Wi-Fi no código antes de enviar. A placa só conversa por HTTPS com {SERVIDOR}, conferindo o certificado.</Aviso>
     </div>

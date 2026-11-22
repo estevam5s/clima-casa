@@ -1,8 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, MailX, TriangleAlert } from 'lucide-react'
 import Botao from './Botao'
+import Turnstile from './Turnstile'
 import { SISTEMA_URL } from '@/lib/dados'
 
 // Volta dos links dos e-mails: ?confirmado=1 (inscrição confirmada), ?erro=link, ?sair=<token> (cancelar com um clique).
@@ -35,4 +36,33 @@ export function EstadoNewsletter() {
     )
   }
   return null
+}
+
+// Cancelar sem o e-mail antigo: manda o link de cancelamento para o endereço (a resposta é igual para qualquer e-mail)
+export function PedirSaida() {
+  const [email, setEmail] = useState('')
+  const [robo, setRobo] = useState('')
+  const [estado, setEstado] = useState(null)
+  const roboRef = useRef(null)
+  const enviar = async (e) => {
+    e.preventDefault(); setEstado('enviando')
+    try {
+      const r = await fetch(`${SISTEMA_URL}/api/site/newsletter/pedir-saida`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, turnstile: robo }) })
+      const j = await r.json().catch(() => ({}))
+      setEstado(r.ok ? 'ok' : j.detail || 'Não deu para enviar agora. Tente de novo.')
+    } catch { setEstado('Não deu para enviar agora. Tente de novo.') } finally { roboRef.current?.reiniciar() }
+  }
+  return (
+    <form onSubmit={enviar} className="sair-news" id="sair">
+      <h4>Cancelar a inscrição</h4>
+      <p>Escreva o e-mail inscrito. Se ele estiver na lista, chega um link para sair com um clique.</p>
+      <div className="grupo-form">
+        <input type="email" required maxLength={200} placeholder="E-mail inscrito" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="E-mail inscrito" />
+        <Botao type="submit" disabled={estado === 'enviando'}>{estado === 'enviando' ? 'Enviando' : 'Pedir link'}</Botao>
+      </div>
+      <Turnstile ref={roboRef} aoMudar={setRobo} acao="newsletter_sair" />
+      {estado === 'ok' && <p className="aviso-sair ok">Pronto. Se esse e-mail estiver inscrito, o link de cancelamento chega em instantes.</p>}
+      {estado && estado !== 'ok' && estado !== 'enviando' && <p className="aviso-sair erro">{estado}</p>}
+    </form>
+  )
 }

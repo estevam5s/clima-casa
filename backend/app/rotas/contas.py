@@ -655,3 +655,79 @@ def entrar_com_passkey(d: LoginPasskeyIn, request: Request):
     firewall.registrar(ip, "login_ok", "/api/auth/passkey/entrar", "biometria")
     db.registrar("sistema", "Login com biometria", detalhe=f"{u['email']} · {pk['nome']}")
     return {k: sessao.get(k) for k in ("access_token", "refresh_token", "expires_in", "expires_at", "token_type")}
+
+
+# ---------------- segurança da própria conta (Configurações → Segurança) ----------------
+def _marca_email(email: str) -> str:
+    import hashlib
+    return hashlib.sha256(email.strip().lower().encode()).hexdigest()[:24]
+
+
+def _prefs_seg(uid: str) -> dict:
+    return {"alerta_falhas": True, "alerta_ip_novo": True, **(db.cfg(f"seg_conta:{uid}") or {})}
+
+
+@contas.get("/conta/seguranca")
+def seguranca_da_conta(request: Request):
+    """Nota de segurança da conta (com o que falta), histórico de entradas e tentativas nesta conta e as preferências de alerta."""
+    u, bruto = request.state.u, getattr(request.state, "usuario", {}) or {}
+    email = u.get("email", "")
+    marca = _marca_email(email)
+    agora = db.agora()
+    eventos = db.consultar("SELECT quando, tipo, ip, pais, agente, rota FROM seguranca_eventos WHERE (detalhe = ? OR detalhe = ?) "
+                           "AND tipo IN ('login_ok', 'login_falhou', 'login_negado') ORDER BY quando DESC LIMIT 60", (marca, email))
+    falhas_30d = sum(1 for e in eventos if e["tipo"] == "login_falhou" and e["quando"] > agora - 30 * 86400)
+    ips = {e["ip"] for e in eventos if e["tipo"] == "login_ok"}
+    paises = sorted({e["pais"] for e in eventos if e["pais"]})
+    identidades = [i.get("provider") for i in (bruto.get("identities") or [])]
+    passkeys = (db.um("SELECT count(*) AS n FROM passkeys WHERE usuario_id = ?", (u["id"],)) or {}).get("n") or 0
+    from .. import sessoes
+    try:
+        n_sessoes = len(sessoes.listar(u["id"], ""))
+    except Exception:  # noqa: BLE001
+        n_sessoes = 0
+    totp = bool(tem_totp(bruto)) if bruto else False
+    itens = [
+        {"chave": "totp", "ok": totp, "peso": 35, "titulo": "Verificação em duas etapas", "detalhe": "Ativa (Google Authenticator)" if totp else "Desligada: com ela, a senha sozinha não basta para entrar."},
+        {"chave": "passkey", "ok": passkeys > 0, "peso": 20, "titulo": "Chave de acesso (biometria)", "detalhe": f"{passkeys} aparelho(s)" if passkeys else "Nenhuma: entre com digital ou rosto, sem digitar senha."},
+        {"chave": "google", "ok": "google" in identidades, "peso": 10, "titulo": "Conta Google ligada", "detalhe": "Ligada" if "google" in identidades else "Opcional: um jeito a mais de entrar se esquecer a senha."},
+        {"chave": "falhas", "ok": falhas_30d < 5, "peso": 15, "titulo": "Tentativas erradas na sua conta", "detalhe": f"{falhas_30d} nos últimos 30 dias" + (": alguém pode estar tentando a sua senha. Troque a senha e ligue as duas etapas." if falhas_30d >= 5 else "")},
+        {"chave": "sessoes", "ok": n_sessoes <= 4, "peso": 10, "titulo": "Sessões abertas", "detalhe": f"{n_sessoes} aparelho(s)" + (": encerre as que você não reconhece." if n_sessoes > 4 else "")},
+        {"chave": "alertas", "ok": _prefs_seg(u["id"])["alerta_falhas"], "peso": 10, "titulo": "Alertas por e-mail", "detalhe": "Ligados" if _prefs_seg(u["id"])["alerta_falhas"] else "Desligados: você não fica sabendo de tentativas na sua conta."},
+    ]
+    nota = sum(i["peso"] for i in itens if i["ok"])
+    return {"nota": nota, "itens": itens, "historico": eventos, "resumo": {"falhas_30d": falhas_30d, "ips": len(ips), "paises": paises, "sessoes": n_sessoes},
+            "prefs": _prefs_seg(u["id"]), "ultimo_login": bruto.get("last_sign_in_at")}
+
+
+class PrefsSegIn(BaseModel):
+    alerta_falhas: bool | None = None
+    alerta_ip_novo: bool | None = None
+
+
+@contas.put("/conta/seguranca/prefs")
+def prefs_seguranca(d: PrefsSegIn, request: Request):
+    uid = request.state.u["id"]
+    p = {**_prefs_seg(uid), **{k: v for k, v in d.model_dump().items() if v is not None}}
+    db.set_cfg(f"seg_conta:{uid}", p)
+    db.registrar("painel", "Alertas de segurança da conta alterados", detalhe=f"{request.state.u.get('email')}: {p}")
+    return p
+
+
+@contas.get("/conta/meus-dados")
+def meus_dados(request: Request):
+    """Cópia dos dados pessoais da própria conta (LGPD, art. 18): perfil, sessões, entradas, notificações e conversas com a IA."""
+    from fastapi.responses import JSONResponse
+    u, bruto = request.state.u, getattr(request.state, "usuario", {}) or {}
+    email = u.get("email", "")
+    perfil = db.um("SELECT id, email, nome, papel, cargo, telefone, criado_em FROM usuarios WHERE id = ?", (u["id"],)) or {}
+    dados = {
+        "gerado_em": db.agora(), "perfil": perfil, "ultimo_login": bruto.get("last_sign_in_at"),
+        "identidades": [i.get("provider") for i in (bruto.get("identities") or [])],
+        "sessoes": db.consultar("SELECT criado_em, visto_em, ip, cidade, pais, agente FROM sessoes_uso WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT 200", (u["id"],)),
+        "entradas": db.consultar("SELECT quando, tipo, ip, pais, agente FROM seguranca_eventos WHERE (detalhe = ? OR detalhe = ?) AND tipo LIKE 'login%' ORDER BY quando DESC LIMIT 500", (_marca_email(email), email)),
+        "conversas_ia": db.consultar("SELECT id, titulo, criado_em, atualizado_em FROM ia_conversas WHERE usuario_id = ? ORDER BY atualizado_em DESC", (str(u["id"]),)),
+        "preferencias_seguranca": _prefs_seg(u["id"]),
+    }
+    db.registrar("painel", "Cópia dos dados pessoais baixada", detalhe=email)
+    return JSONResponse(dados, headers={"Content-Disposition": 'attachment; filename="meus-dados-clima-escritorio.json"'})

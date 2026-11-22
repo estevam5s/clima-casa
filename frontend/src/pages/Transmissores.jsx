@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Check, ChevronDown, CloudDownload, Pencil, Plus, Power, Radio, RefreshCw, Search, Trash2, Truck, Wand2, Wifi } from 'lucide-react'
+import { ArrowRight, Check, CheckCircle2, ChevronDown, CloudDownload, KeyRound, Pencil, Plus, Power, Radio, RefreshCw, Search, Stethoscope, Trash2, Truck, Wand2, Wifi, XCircle } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import PassoAPasso from '../components/PassoAPasso'
@@ -27,8 +27,8 @@ function Importar({ onFechar, aoImportar }) {
     try {
       await api.post(`/api/hubs/importar/${d.id}${sala ? `?projeto_id=${sala}` : ''}`)
       toast(`${d.nome} importado com Local Key.`)
-      aoImportar()
-      onFechar()
+      aoImportar(d.id)
+      if (!aoImportar.length) onFechar()
     } catch (e) {
       toast(e.message, 'erro')
       setImportando(null)
@@ -74,10 +74,10 @@ function Procurar({ onFechar, aoCadastrar }) {
     const salvar = async (e) => {
       e.preventDefault()
       try {
-        await api.post('/api/hubs', { id: manual.id, ip: manual.ip, versao: manual.versao || '3.5', ...f })
+        await api.post('/api/hubs', { id: manual.id, ip: manual.ip, versao: manual.versao || '3.3', ...f })
         toast('Transmissor cadastrado.')
-        aoCadastrar()
-        onFechar()
+        aoCadastrar(manual.id)
+        if (!aoCadastrar.length) onFechar()
       } catch (e) { toast(e.message, 'erro') }
     }
     return (
@@ -106,6 +106,103 @@ function Procurar({ onFechar, aoCadastrar }) {
           {d.cadastrado ? <Selo cor="verde">Cadastrado</Selo> : <Botao tamanho="sm" onClick={() => setManual(d)}>Cadastrar</Botao>}
         </div>
       ))}
+    </div>
+  )
+}
+
+// Teste de conexão pelo agente: rede, chave e protocolo (o protocolo certo é gravado sozinho). Mostra o próximo passo.
+export function TesteConexao({ hubId, nome, aoTerminar, proximo = true }) {
+  const [r, setR] = useState(null)
+  const [rodando, setRodando] = useState(false)
+  const testar = async () => {
+    setRodando(true); setR(null)
+    try { setR(await api.post(`/api/hubs/${hubId}/testar`)) } catch (e) { setR({ ok: false, etapa: 'erro', mensagem: e.message }) } finally { setRodando(false); aoTerminar?.() }
+  }
+  useEffect(() => { testar() }, [hubId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const passos = [['agente', 'Agente no escritório'], ['ip', 'Endereço na rede'], ['rede', 'Transmissor responde'], ['chave', 'Chave e protocolo']]
+  const ordem = ['agente', 'ip', 'rede', 'chave', 'ok']
+  const ate = r ? ordem.indexOf(r.etapa === 'erro' ? 'agente' : r.etapa) : -1
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">Testando <b className="text-foreground">{nome || hubId}</b> pelo computador do escritório…</p>
+      <ul className="space-y-2">{passos.map(([k, t], i) => {
+        const estado = rodando || !r ? 'esperando' : r.ok || i < ate ? 'ok' : i === ate ? 'falhou' : 'pulado'
+        return (
+          <li key={k} className="flex items-center gap-2 text-sm">
+            {estado === 'ok' ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : estado === 'falhou' ? <XCircle className="h-4 w-4 text-red-600" /> : <span className={`h-4 w-4 rounded-full border ${rodando ? 'animate-pulse border-primary' : 'border-border'}`} />}
+            <span className={estado === 'pulado' ? 'text-muted-foreground' : ''}>{t}</span>
+          </li>)
+      })}</ul>
+      {r && <Aviso tipo={r.ok ? 'ok' : 'alerta'}>{r.mensagem}</Aviso>}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Botao variante="secundario" icone={RefreshCw} carregando={rodando} onClick={testar}>Testar de novo</Botao>
+        {r?.ok && proximo && <Link to="/aparelhos" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground">Vincular um ar e gravar botões<ArrowRight className="h-4 w-4" /></Link>}
+      </div>
+    </div>
+  )
+}
+
+// Cadastro à mão (quando o transmissor não está na conta Smart Life conectada): ID, IP, Local Key e sala.
+function CadastroManual({ aoCadastrar, voltar }) {
+  const { projetos } = useProjeto()
+  const [f, setF] = useState({ id: '', ip: '', local_key: '', nome: 'Transmissor IR', versao: '3.3', projeto_id: '' })
+  const [salvando, setSalvando] = useState(false)
+  const toast = useToast()
+  const idOk = /^[A-Za-z0-9]{10,40}$/.test(f.id.trim()), ipOk = !f.ip || /^(\d{1,3}\.){3}\d{1,3}$/.test(f.ip.trim()), chaveOk = f.local_key.trim().length >= 16
+  const salvar = async (e) => {
+    e.preventDefault(); setSalvando(true)
+    try { await api.post('/api/hubs', { ...f, id: f.id.trim(), ip: f.ip.trim(), local_key: f.local_key.trim(), projeto_id: f.projeto_id ? +f.projeto_id : null }); toast('Transmissor cadastrado.'); aoCadastrar(f.id.trim()) }
+    catch (x) { toast(x.message, 'erro') } finally { setSalvando(false) }
+  }
+  return (
+    <form onSubmit={salvar} className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="sm:col-span-2"><span className="rotulo">Nome</span><input className="campo mt-1" value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} required maxLength={60} /></label>
+        <label><span className="rotulo">ID do aparelho (Device ID)</span><input className={`campo mt-1 font-mono ${f.id && !idOk ? 'border-red-500' : ''}`} value={f.id} onChange={(e) => setF({ ...f, id: e.target.value })} required placeholder="eb3f5451cddd399055p54z" /></label>
+        <label><span className="rotulo">IP na rede (opcional)</span><input className={`campo mt-1 font-mono ${!ipOk ? 'border-red-500' : ''}`} value={f.ip} onChange={(e) => setF({ ...f, ip: e.target.value })} placeholder="192.168.0.50" /></label>
+        <label className="sm:col-span-2"><span className="rotulo">Local Key</span><input className={`campo mt-1 font-mono ${f.local_key && !chaveOk ? 'border-red-500' : ''}`} value={f.local_key} onChange={(e) => setF({ ...f, local_key: e.target.value })} required autoComplete="off" placeholder="16 caracteres" /></label>
+        <label><span className="rotulo">Sala</span><select className="campo mt-1" value={f.projeto_id} onChange={(e) => setF({ ...f, projeto_id: e.target.value })}><option value="">Primeira sala</option>{projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></label>
+        <label><span className="rotulo">Protocolo</span><select className="campo mt-1" value={f.versao} onChange={(e) => setF({ ...f, versao: e.target.value })}>{['3.3', '3.4', '3.5', '3.1'].map((v) => <option key={v}>{v}</option>)}</select></label>
+      </div>
+      <p className="ajuda">O SRW-004 costuma ser 3.3. Se estiver errado, o teste de conexão acha o certo e corrige sozinho. Sem IP, “Reconectar agora” procura na rede pelo ID.</p>
+      <div className="flex justify-end gap-2"><Botao type="button" variante="secundario" onClick={voltar}>Voltar</Botao><Botao type="submit" carregando={salvando} disabled={!idOk || !ipOk || !chaveOk}>Cadastrar e testar</Botao></div>
+    </form>
+  )
+}
+
+// Assistente "Adicionar transmissor": confere o que precisa antes, oferece os 3 caminhos e testa a conexão no fim.
+function NovoTransmissor({ onFechar, aoMudar }) {
+  const [via, setVia] = useState(null)
+  const [cadastrado, setCadastrado] = useState(null)
+  const { dados: pre } = useDados(() => Promise.all([api.get('/api/agentes').catch(() => null), api.get('/api/config').catch(() => null)]))
+  const [agentes, config] = pre || []
+  const tuya = config?.tuya
+  const principal = (agentes?.maquinas || []).find((m) => m.principal) || null
+  const pronto = (id) => { aoMudar(); setCadastrado(id) }
+  if (cadastrado) return <TesteConexao hubId={cadastrado} aoTerminar={aoMudar} />
+  if (via === 'importar') return <Importar onFechar={onFechar} aoImportar={pronto} />
+  if (via === 'procurar') return <Procurar onFechar={onFechar} aoCadastrar={pronto} />
+  if (via === 'manual') return <CadastroManual aoCadastrar={pronto} voltar={() => setVia(null)} />
+  const caminhos = [
+    ['importar', CloudDownload, 'Importar da conta Smart Life', 'Recomendado. Traz o ID, a Local Key e o formato sozinho.', tuya && tuya.conectada === false ? 'Conecte a conta Smart Life em Configurações → Contas antes.' : ''],
+    ['procurar', Search, 'Procurar na rede do escritório', 'O agente varre o Wi-Fi e lista os aparelhos Tuya; você cola a Local Key.', ''],
+    ['manual', KeyRound, 'Cadastrar à mão', 'Quando você já tem o ID e a Local Key (por exemplo, de outro sistema).', ''],
+  ]
+  return (
+    <div className="space-y-4">
+      <ol className="space-y-1.5 rounded-lg border border-border p-3 text-sm">
+        <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />Pareie o SRW-004 no app <b className="font-medium">Smart Life</b>, no Wi-Fi <b className="font-medium">2,4 GHz</b> do escritório.</li>
+        <li className="flex gap-2">{principal ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />}
+          <span>Agente no escritório{principal ? <span className="text-muted-foreground"> · {principal.nome || principal.id}{principal.ve_transmissores != null ? `, enxerga ${principal.ve_transmissores} de ${principal.total_transmissores}` : ''}</span> : <span className="text-muted-foreground"> · sem agente: dá para cadastrar, mas o teste e a gravação de botões esperam um computador do escritório ligado.</span>}</span></li>
+        <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />Um transmissor alcança até ~4 ares à vista (8 a 10 m, sem parede no caminho).</li>
+      </ol>
+      <div className="grid gap-2">{caminhos.map(([k, I, t, d, aviso]) => (
+        <button key={k} onClick={() => setVia(k)} className="flex items-start gap-3 rounded-lg border border-border p-3 text-left hover:border-primary/50 hover:bg-muted/40">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-primary"><I className="h-4 w-4" /></span>
+          <span className="min-w-0"><b className="block text-sm font-medium">{t}</b><span className="text-xs text-muted-foreground">{d}</span>{aviso && <span className="mt-1 block text-xs text-amber-700 dark:text-amber-400">{aviso}</span>}</span>
+          <ArrowRight className="ml-auto mt-2 h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>))}
+      </div>
     </div>
   )
 }
@@ -622,9 +719,7 @@ export default function Transmissores() {
         acoes={<>
           <Botao variante="secundario" icone={RefreshCw} carregando={verificando} onClick={verificar}>Verificar</Botao>
           <Botao variante="secundario" icone={Wand2} carregando={reparando} onClick={reparar}>Reconectar agora</Botao>
-          <Botao variante="secundario" icone={Search} onClick={() => setModal({ tipo: 'procurar' })}>Procurar na rede</Botao>
-          <Botao variante="secundario" icone={CloudDownload} onClick={() => setModal({ tipo: 'importar' })}>Importar um</Botao>
-          <Botao icone={CloudDownload} onClick={async () => {
+          <Botao variante="secundario" icone={CloudDownload} onClick={async () => {
             try {
               const r = await api.post('/api/hubs/importar-todos')
               const ok = r.importados.filter((x) => x.ok).length
@@ -632,6 +727,7 @@ export default function Transmissores() {
               recarregar()
             } catch (e) { toast(e.message, 'erro') }
           }}>Importar todos</Botao>
+          <Botao icone={Plus} onClick={() => setModal({ tipo: 'novo' })}>Adicionar transmissor</Botao>
         </>}
       />
 
@@ -681,6 +777,7 @@ export default function Transmissores() {
                   <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{h.projeto_nome ? `${h.projeto_nome} · ` : ''}{h.id}</p>
                 </div>
                 <div className="flex shrink-0 gap-1">
+                  <button className="rounded p-1.5 text-muted-foreground hover:bg-muted" onClick={() => setModal({ tipo: 'testar', hub: h })} aria-label="Testar conexão" title="Testar conexão"><Stethoscope className="h-4 w-4" /></button>
                   <button className="rounded p-1.5 text-muted-foreground hover:bg-muted" onClick={() => setModal({ tipo: 'editar', hub: h })} aria-label="Editar"><Pencil className="h-4 w-4" /></button>
                   <button className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600 " onClick={() => setModal({ tipo: 'remover', hub: h })} aria-label="Remover"><Trash2 className="h-4 w-4" /></button>
                 </div>
@@ -710,6 +807,12 @@ export default function Transmissores() {
         </div>
       )}
 
+      <Modal aberto={modal?.tipo === 'novo'} titulo="Adicionar transmissor" onFechar={() => setModal(null)} largura="max-w-xl">
+        {modal?.tipo === 'novo' && <NovoTransmissor onFechar={() => setModal(null)} aoMudar={recarregar} />}
+      </Modal>
+      <Modal aberto={modal?.tipo === 'testar'} titulo={`Testar conexão · ${modal?.hub?.nome || ''}`} onFechar={() => setModal(null)}>
+        {modal?.tipo === 'testar' && <TesteConexao hubId={modal.hub.id} nome={modal.hub.nome} aoTerminar={recarregar} proximo={!(modal.hub.ares || []).length} />}
+      </Modal>
       <Modal aberto={modal?.tipo === 'importar'} titulo="Importar da conta Smart Life" onFechar={() => setModal(null)}>
         {modal?.tipo === 'importar' && <Importar onFechar={() => setModal(null)} aoImportar={recarregar} />}
       </Modal>

@@ -47,7 +47,7 @@ function Painel({ d0, pode }) {
           <Cadeado trancada={r.trancada} />
           <div><p className="text-xl font-semibold">{r.trancada === true ? 'Trancada' : r.trancada === false ? 'Destrancada' : 'Estado desconhecido'}</p>
             <p className="mt-1 text-sm text-muted-foreground">{d.nome}</p><div className="mt-2 flex justify-center"><Estado d={d} /></div></div>
-          {!d.conectado && <div className="text-left"><SemAparelho d={d} aoConectar={() => setConectar(true)} /></div>}
+          {!d.conectado && <div className="text-left"><SemAparelho d={d} aoConectar={(aba) => setConectar(aba || true)} /></div>}
           <div className="flex flex-wrap justify-center gap-2">
             <Botao icone={Lock} disabled={!pode || !d.conectado} carregando={ocupado === 'trancar'} onClick={() => cmd('trancar')}>Trancar</Botao>
             <Botao variante="secundario" icone={LockOpen} disabled={!pode || !d.conectado} onClick={() => setPedir(true)}>Destrancar…</Botao>
@@ -87,7 +87,7 @@ function Painel({ d0, pode }) {
           <div className="flex justify-end gap-2"><Botao variante="secundario" type="button" onClick={() => setPedir(false)}>Cancelar</Botao><Botao type="submit" icone={DoorOpen} carregando={ocupado === 'destrancar'} disabled={!senha}>Destrancar</Botao></div>
         </form>
       </Modal>
-      <ConectarAparelho d={d} aberto={conectar} aoFechar={() => setConectar(false)} aoConectar={atualizar} />
+      <ConectarAparelho d={d} aberto={!!conectar} abaInicial={conectar === 'placa' ? 'placa' : undefined} aoFechar={() => setConectar(false)} aoConectar={atualizar} />
     </div>
   )
 }

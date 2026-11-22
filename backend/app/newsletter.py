@@ -139,6 +139,26 @@ def cancelar(token: str) -> bool:
     return True
 
 
+def pedir_saida(email: str) -> None:
+    """Quem quer sair e não tem o e-mail antigo: manda o link de cancelamento para o endereço (se ele estiver na lista).
+    A resposta é sempre a mesma (não revela quem está inscrito). No máximo 2 pedidos por endereço por dia."""
+    r = db.um("SELECT token, estado FROM newsletter_inscritos WHERE email = ?", (email.strip().lower(),))
+    if not r or r["estado"] in ("cancelado",) or not correio.configurado():
+        return
+    n = (db.um("SELECT count(*) AS n FROM email_envios WHERE para = ? AND tipo = 'newsletter_sair' AND criado_em > ?", (email.strip().lower(), db.agora() - 86400)) or {}).get("n") or 0
+    if n >= 2:
+        return
+    m = correio.marca()
+    link = _link_sair(r["token"])
+    blocos = [correio._p("Recebemos um pedido para cancelar a sua inscrição nas novidades do sistema."), correio._botao("Cancelar inscrição", link, m["cor"]),
+              correio._p("Não pediu? Ignore este e-mail: a inscrição continua como está."), correio._link_bruto(link)]
+    h = correio._base("Cancelar a inscrição", "Um clique para sair da lista.", blocos, m, "Você recebeu este e-mail porque alguém pediu para cancelar a inscrição deste endereço no site.")
+    try:
+        correio.enviar(email.strip().lower(), "newsletter_sair", assunto=f"Cancelar a inscrição nas novidades do {m['nome']}", html_=h, texto=f"Para cancelar a inscrição: {link}")
+    except RuntimeError:
+        pass
+
+
 def contagem() -> dict:
     r = db.um("SELECT count(*) FILTER (WHERE estado = 'ativo') AS ativos, count(*) FILTER (WHERE estado = 'pendente') AS pendentes, "
               "count(*) FILTER (WHERE estado = 'cancelado') AS cancelados, count(*) FILTER (WHERE estado = 'devolvido') AS devolvidos, "

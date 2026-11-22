@@ -13,6 +13,7 @@ import { completar } from '../mapaUtil'
 const Cena3D = lazy(() => import('../components/Cena3D'))
 const Mapa3D = lazy(() => import('../components/Mapa3D'))
 const Barras3D = lazy(() => import('../components/Barras3D'))
+import MapaUso from '../components/MapaUso'
 const CORES_ORIGEM = ['hsl(var(--primary))', '#2563a8', '#c2410c', '#7c3aed', '#0891b2', '#71717a']
 const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const NOMES_ORIGEM = { painel: 'Painel', alexa: 'Alexa', sinric: 'Alexa/Google', agenda: 'Agenda', automacao: 'Automação', cena: 'Cena', sistema: 'Sistema', app: 'App' }
@@ -246,6 +247,8 @@ export default function Painel() {
   const [dados, setDados] = useState(null)
   const [metricas, setMetricas] = useState([])
   const [analise, setAnalise] = useState(null)
+  const [vistaUso, setVistaUso] = useState(() => { try { return localStorage.getItem('clima-vista-uso') || 'grade' } catch { return 'grade' } })
+  useEffect(() => { try { localStorage.setItem('clima-vista-uso', vistaUso) } catch { /* sem armazenamento */ } }, [vistaUso])
   const [planta, setPlanta] = useState(null)
   const [erro, setErro] = useState('')
   const [salaLado, setSalaLado] = useState(null)   // projeto cujos ares aparecem lado a lado (pedido no destaque)
@@ -475,10 +478,15 @@ export default function Painel() {
 
       {analise && (
         <motion.div custom={12} variants={entrar} initial="hidden" animate="show" className="cartao overflow-hidden">
-          <div className="flex items-end justify-between border-b border-border px-5 py-3.5">
-            <div><h2 className="titulo-secao">Mapa de uso em 3D</h2><p className="text-xs text-muted-foreground">Cada barra é um dia da semana numa hora; a altura é o número de comandos (7 dias). Passe o mouse para ver o valor.</p></div>
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border px-5 py-3.5">
+            <div><h2 className="titulo-secao">Mapa de uso</h2><p className="text-xs text-muted-foreground">Comandos por dia da semana e hora, nos últimos 7 dias: quando o escritório mais mexe nos ares.</p></div>
+            <div className="flex rounded-lg border border-border p-0.5 text-xs" role="group" aria-label="Vista do mapa de uso">
+              {[['grade', 'Grade'], ['3d', '3D']].map(([k, r]) => <button key={k} onClick={() => setVistaUso(k)} aria-pressed={vistaUso === k} className={`rounded-md px-2.5 py-1 ${vistaUso === k ? 'bg-muted font-medium' : 'text-muted-foreground'}`}>{r}</button>)}
+            </div>
           </div>
-          <div className="h-[300px] sm:h-[340px]"><QuandoVisivel fallback={<Esqueleto className="h-full rounded-none" />}><Suspense fallback={<Esqueleto className="h-full rounded-none" />}><Barras3D mapa={analise.semana.mapa_calor} /></Suspense></QuandoVisivel></div>
+          {vistaUso === '3d'
+            ? <div className="h-[300px] sm:h-[340px]"><QuandoVisivel fallback={<Esqueleto className="h-full rounded-none" />}><Suspense fallback={<Esqueleto className="h-full rounded-none" />}><Barras3D mapa={analise.semana.mapa_calor} /></Suspense></QuandoVisivel></div>
+            : <MapaUso mapa={analise.semana.mapa_calor} />}
         </motion.div>
       )}
 
