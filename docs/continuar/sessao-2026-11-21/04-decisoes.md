@@ -5,3 +5,5 @@
 - Medição de acessos própria (sem Google Analytics): sem IP; identificador entre visitas só com consentimento de "estatísticas"; 90 dias.
 - Newsletter com dupla confirmação (LGPD); devolvido/reclamado sai da lista sozinho; envio pela API de lote do Resend; agendadas pelo agente.
 - Auditoria de SEO passa pelo portão do site com HMAC do mesmo `VERIFICACAO_SEGREDO` (vale 5 min).
+- Logs de execução em tempo real da Vercel (`/v1/projects/{id}/deployments/{id}/runtime-logs`) testados: a API não responde no plano atual. Não entram na tela; o README diz isso.
+- Arduino/ESP32 na Infra = placa própria dos aparelhos (relé/PWM). Não rodam o agente; infravermelho por ESP32 seria integração nova.
