@@ -1,0 +1,102 @@
+# CI do Clima Escritório. Roda nos dois repositórios (estevam5s/clima-casa e o espelho PMF-projetos/clima-casa)
+# a cada push e pull request. Não publica nada: a produção continua com ./publicar-vercel.sh (CLAUDE.md, seção 18).
+name: CI
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  segredos:
+    name: Segredos no código
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Procurar chaves reais nos arquivos versionados
+        run: bash scripts/verificar-segredos.sh
+      - run: echo "- Nenhuma chave real nos arquivos versionados" >> "$GITHUB_STEP_SUMMARY"
+
+  backend:
+    name: Backend (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'          # a mesma da Vercel
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - uses: astral-sh/setup-uv@v6
+      - name: Instalar dependências da nuvem
+        run: pip install -r requirements.txt
+      - name: Nomes não definidos e erros de sintaxe (ruff)
+        run: uvx ruff check --select F821,E9 backend/app api
+      - name: Compila no Python 3.11 (Raspberry Pi e PCs antigos)
+        run: uv run --python 3.11 --no-project python -m compileall -q backend/app api
+      - name: Importar o app sem .env (papel nuvem)
+        working-directory: backend
+        env:
+          VERCEL: '1'
+        run: python -c "import app.main; print('import ok')"
+      - name: Vulnerabilidades nas dependências
+        run: uvx pip-audit -r requirements.txt
+      - run: |
+          {
+            echo "### Backend"
+            echo "- ruff (F821, E9) sem achados"
+            echo "- compila no Python 3.11 e 3.12"
+            echo "- \`import app.main\` sem .env"
+            echo "- pip-audit sem vulnerabilidades conhecidas"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  frontend:
+    name: Painel (frontend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Build (vite)
+        run: npx vite build
+      - name: Vulnerabilidades altas ou críticas
+        run: npm audit --omit=dev --audit-level=high
+      - name: Resumo
+        run: echo "- Painel - build e npm audit (alta e crítica) ok" >> "$GITHUB_STEP_SUMMARY"
+
+  site:
+    name: Site (zynio.com.br)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Build (next)
+        run: npx next build
+      - name: Vulnerabilidades altas ou críticas
+        run: npm audit --omit=dev --audit-level=high
+      - name: Resumo
+        run: echo "- Site - build e npm audit (alta e crítica) ok" >> "$GITHUB_STEP_SUMMARY"

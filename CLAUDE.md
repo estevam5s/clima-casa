@@ -1,7 +1,7 @@
 # CLAUDE.md — Clima Escritório (marca zynio)
 
 Guia do projeto para quem (pessoa ou agente) for mexer nele. **Leia as seções 0 a 2 antes da primeira mudança**;
-o resto é consulta. Problema em produção? Vá direto aos roteiros da **seção 17**. Vai publicar? **Seção 16** (novidades). Tudo em **pt-BR**: código, nomes, rotas, textos de interface e mensagens de erro.
+o resto é consulta. Problema em produção? Vá direto aos roteiros da **seção 17**. Vai publicar? **Seção 16** (novidades). Repositórios, espelho na PMF-projetos e CI: **seção 18**. Tudo em **pt-BR**: código, nomes, rotas, textos de interface e mensagens de erro.
 O repositório e alguns nomes técnicos ainda se chamam "clima-casa" (nome antigo): não renomeie (quebra apps,
 caminhos de serviço e o projeto da Vercel).
 
@@ -13,6 +13,7 @@ caminhos de serviço e o projeto da Vercel).
    nas variáveis da Vercel ou **cifrados no banco** (`db.set_cfg` com a chave em `db.CHAVES_SENSIVEIS`). Arquivos de
    credenciais em `docs/credentials/` (gitignored): ler só quando preciso e **sempre mascarando** ao exibir.
    Antes de todo commit: `git diff --cached | grep -E "sb_secret_|sbp_|vcp_|ghp_|re_[A-Za-z0-9]{20}|whsec_|spak_"` deve voltar vazio.
+   E `bash scripts/verificar-segredos.sh` (o mesmo que o CI roda).
    Nunca `git add -A` às cegas: liste os arquivos. E-mails pessoais também não entram em arquivos versionados.
 2. **Produção**: publicar com `./publicar-vercel.sh` (nunca `vercel deploy` na pasta com `.git`) e atualizar o agente com
    `./instalar-servico.sh`. Ação irreversível (apagar publicações, mudar configuração de conta, enviar mensagem a terceiros)
@@ -1062,3 +1063,33 @@ botões gravados no ar representante? O último comando de voz aparece? Ver seç
 **Transmissor levado para outra sala** → cartão do transmissor → "Ares deste transmissor": desmarque os que ficaram para trás.
 
 **Publicação deu erro** → seção 13 (BLOCKED, 100 MB, import). Nunca `vercel deploy` na pasta com `.git`.
+
+---
+
+## 18. Repositórios e CI/CD
+
+```
+ estevam5s/clima-casa (origem: aqui se trabalha)          PMF-projetos/clima-casa (espelho, privado)
+ git push ──► CI ────────────────────────────┐            ┌──► CI (mesmo ci.yml)
+          └─► Espelho na organização ── SSH ─┼──────────► │    (Espelho aparece "Skipped": a guarda `if` só roda na origem)
+                                             │            │
+ produção: ./publicar-vercel.sh + ./instalar-servico.sh, à mão, do Mac (não há CD no GitHub, decisão do dono em 22/11/2026)
+```
+
+- **Sempre trabalhe e dê push na origem.** O espelho é cópia fiel: branches e tags vão com `--prune` (branch apagada aqui some
+  lá) e qualquer push direto nele é sobrescrito. Releases (APK/DMG/EXE) **não** são espelhadas, só as tags.
+- **`.github/workflows/ci.yml`** (push em qualquer branch, PR, botão): segredos no código (`scripts/verificar-segredos.sh`), backend
+  (ruff F821/E9, compila no 3.11, `import app.main` sem .env com `VERCEL=1`, pip-audit), painel (`npm ci` + vite build + npm audit
+  alta/crítica) e site (`npm ci` + next build + npm audit). Não há testes automatizados no projeto: o CI não finge que há.
+- **`.github/workflows/espelho-organizacao.yml`**: lê a origem com o `GITHUB_TOKEN` (só leitura) e escreve no destino com uma
+  **chave SSH de deploy** com escrita só no `PMF-projetos/clima-casa` (chave do servidor do GitHub fixada no workflow).
+- **Segredos**: origem `ESPELHO_CHAVE_SSH` (chave privada; a pública está em PMF-projetos/clima-casa → Settings → Deploy keys,
+  "Espelho de estevam5s/clima-casa"). Destino: nenhum. Trocar a chave: `ssh-keygen -t ed25519 -N '' -f /tmp/k`, cadastrar `/tmp/k.pub`
+  como deploy key com escrita no destino, `gh secret set ESPELHO_CHAVE_SSH -R estevam5s/clima-casa < /tmp/k`, apagar `/tmp/k*` e a
+  chave antiga. Chaves de deploy foram ligadas na organização (Settings → Member privileges) para isso, em 22/11/2026.
+- **Rodar à mão**: Actions → "Espelho na organização" → Run workflow (ou `gh workflow run espelho-organizacao.yml -R estevam5s/clima-casa`).
+- **Antes de commitar**: `bash scripts/verificar-segredos.sh` (mostra só arquivo:linha). Achou algo: tirar do arquivo **e rotacionar**.
+- **Limites do plano Free (organização, repositório privado)**: sem branch protection/rulesets, sem environments com aprovação, sem
+  CodeQL/secret scanning nativos; a varredura do `verificar-segredos.sh` faz o papel do secret scanning. Minutos de Actions dos privados
+  contam no plano de cada dono (origem: conta estevam5s; espelho: PMF-projetos).
+- **Dependências**: há uma branch `renovate/configure` (Renovate) não mesclada. Não criar Dependabot junto, para não dobrar PRs.

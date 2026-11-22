@@ -7,3 +7,4 @@
 - Auditoria de SEO passa pelo portão do site com HMAC do mesmo `VERIFICACAO_SEGREDO` (vale 5 min).
 - Logs de execução em tempo real da Vercel (`/v1/projects/{id}/deployments/{id}/runtime-logs`) testados: a API não responde no plano atual. Não entram na tela; o README diz isso.
 - Arduino/ESP32 na Infra = placa própria dos aparelhos (relé/PWM). Não rodam o agente; infravermelho por ESP32 seria integração nova.
+- 22/11: espelho na PMF-projetos sem CD: a produção continua à mão (`publicar-vercel.sh` + `instalar-servico.sh`); o token da Vercel não vai para o GitHub. O espelho escreve com chave SSH de deploy só do `PMF-projetos/clima-casa` (o dono autorizou ligar chaves de deploy na organização), não com o token pessoal amplo.

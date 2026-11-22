@@ -76,7 +76,8 @@ def news_confirmar(t: str = ""):
 @publico_site.get("/newsletter/sair")
 def news_sair_link(t: str = ""):
     # link do e-mail: só mostra a página com o botão (verificadores de link não cancelam ninguém sozinhos)
-    return RedirectResponse(f"{newsletter.SITE}/newsletter?sair={t if re.match(r'^[\w-]{16,64}$', t) else ''}", status_code=303)
+    token = t if re.match(r"^[\w-]{16,64}$", t) else ""   # fora da f-string: com "\" dentro ela não compila no 3.11
+    return RedirectResponse(f"{newsletter.SITE}/newsletter?sair={token}", status_code=303)
 
 
 @publico_site.post("/newsletter/sair")
