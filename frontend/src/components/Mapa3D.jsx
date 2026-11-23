@@ -14,12 +14,12 @@ import { horaBR, noExpediente } from '../mapaUtil'
 import { salasPrivativas } from '../mapaUtil'
 import { useMarca } from '../marca'
 import { TIPOS_TRANSITO, caminho, carro as carroTransito, criarGrade, celulaLivre, livreProxima, montarPredio, visaoLivre } from './predio3d'
-import { ELEV, montarElevador, montarTerreo } from './elevador3d'
+import { ELEV, carroAtende, montarElevador, montarTerreo } from './elevador3d'
 import MiniMapa from './MiniMapa'
 import PainelCarro from './PainelCarro'
 import { colisorCidade, criarMarcas, criarSom, criarVeiculo } from './veiculo3d'
 import { conectarMultijogador } from './multijogador'
-import { cafeteiraVermelha, montarBanheiro, montarCozinha, xicara } from './copa3d'
+import { acessoriosCafe, cafeteiraVermelha, montarBanheiros, montarCozinha, montarSalaMultiuso, xicara } from './copa3d'
 import { caixaReal, carregarAvatar } from './avatares/AvatarViewer'
 import { clone as clonarComOssos } from 'three/examples/jsm/utils/SkeletonUtils.js'
 const VistaIlha3D = lazy(() => import('./VistaIlha3D'))
@@ -1012,7 +1012,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const andar = Number.isFinite(+mapa.andar) ? +mapa.andar : 9
     const andares = Number.isFinite(+mapa.andares) ? +mapa.andares : 11
     const MARGEM = comPredio ? 4.2 : 0   // corredor largo dos lados (antes 2,5 m: o avatar enroscava)
-    const fx0 = W(x0) - 0.35 - MARGEM, fx1 = W(x1) + 0.35 + MARGEM, fz0 = Z(y0) - 0.35 - MARGEM, fz1 = Z(y1) + 0.35 + MARGEM
+    // do lado da porta de entrada o andar é mais fundo: elevador e copa encostados na parede do escritório, corredor no
+    // meio e, do outro lado, os banheiros e a sala multiuso encostados na fachada
+    const MARGEM_E = comPredio && entrada ? 7.8 : MARGEM
+    const mg = (ld) => (entrada?.lado === ld ? MARGEM_E : MARGEM)
+    const fx0 = W(x0) - 0.35 - mg('oeste'), fx1 = W(x1) + 0.35 + mg('leste'), fz0 = Z(y0) - 0.35 - mg('norte'), fz1 = Z(y1) + 0.35 + mg('sul')
     E.limitesAndar = comPredio ? [fx0 + 0.32, fz0 + 0.32, fx1 - 0.32, fz1 - 0.32] : null
     // minimapa (estilo jogo): salas com a cor do projeto e o contorno do prédio, em metros do mundo
     E.mini = { salas: salas.map((s) => ({ x0: W(s.x), z0: Z(s.y), x1: W(s.x + s.w), z1: Z(s.y + s.h), cor: s.p.cor || '#0f766a', nome: s.p.nome })),
@@ -1043,55 +1047,89 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       }
       const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, altF, 0.06), matM, montantes.length)
       const m4 = new THREE.Matrix4(); montantes.forEach(([x, z], i) => { m4.makeTranslation(x, altF / 2, z); im.setMatrixAt(i, m4) }); fachada.add(im)
-      // elevadores: núcleo encostado na parede de fora, ao lado da porta de entrada e saindo para o corredor, com as
-      // portas viradas para o mesmo lado da porta. Funciona: chama, entra, escolhe o andar (térreo ou o escritório).
+      // hall do lado da porta de entrada (pedido do dono, 22/11/2026). Olhando da avenida para o prédio:
+      //   parede do escritório:  [ elevador, 3 portas ]  porta de entrada  [ copa ]      (os dois virados para a avenida)
+      //   corredor
+      //   fachada:                          [ banheiros M, F e acessível ]  [ sala multiuso ]   (virados para a copa)
+      // O 1º carro do elevador (à esquerda) atende só andares pares; o 2º e o 3º, só os ímpares.
       if (entrada && !compacto) {
         const n = { sul: [0, 1], norte: [0, -1], leste: [1, 0], oeste: [-1, 0] }[entrada.lado]
         const t = [Math.abs(n[1]), Math.abs(n[0])]   // ao longo da parede
-        const sobra = (s) => s > 0 ? (n[0] ? fz1 - entrada.z : fx1 - entrada.x) : (n[0] ? entrada.z - fz0 : entrada.x - fx0)
-        // posição do elevador: mapa.elevador = { lado: 1 | -1, distancia: m do meio da porta ao meio do núcleo } (Editar planta)
-        const cfgE = mapa.elevador || {}
-        const COZ = { L: 3.6, D: 2.8 }, BAN = { L: 3.2, D: 2.8 }
-        const lado = cfgE.lado === 1 || cfgE.lado === -1 ? cfgE.lado : sobra(1) >= sobra(-1) ? 1 : -1
-        // parede do escritório (não a laje): até onde dá para encostar as salas do corredor
+        // "esquerda" de quem olha da avenida para o prédio (olhando na direção -n), escrita no sentido de t
+        const esq = Math.sign((-n[1]) * t[0] + n[0] * t[1]) || -1
         const parede = n[0] ? [Z(y0), Z(y1)] : [W(x0), W(x1)], cPorta = n[0] ? entrada.z : entrada.x
         const ateFim = (sg) => (sg > 0 ? parede[1] - cPorta : cPorta - parede[0]) - 0.2
-        const alPadrao = 0.75 + COZ.L + 0.3 + ELEV.larg / 2   // a copa cabe entre a porta e o elevador
-        const al = Math.max(0.55 + 0.4 + ELEV.larg / 2, Math.min(Number(cfgE.distancia) || alPadrao, Math.max(1.5, ateFim(lado) - ELEV.larg / 2)))
-        const ox = entrada.x + t[0] * lado * al + n[0] * (ESP / 2 + 0.02), oz = entrada.z + t[1] * lado * al + n[1] * (ESP / 2 + 0.02)
-        const el = montarElevador({ rotuloAndar: String(andar), escuro })
-        el.grupo.position.set(ox, 0, oz); el.grupo.rotation.y = Math.atan2(n[0], n[1]); mundo.add(el.grupo)
+        const laje = n[0] ? [fz0, fz1] : [fx0, fx1]
+        const ateLaje = (sg) => (sg > 0 ? laje[1] - cPorta : cPorta - laje[0]) - 0.4
+        const cfgE = mapa.elevador || {}
+        const COZ = { L: 3.6, D: 2.8 }
+        const rot = Math.atan2(n[0], n[1])
+        // ponto do mundo a "d" metros da porta ao longo da parede (lado sg) e "v" metros para fora da parede do escritório
+        const pto = (sg, d, v = 0) => [entrada.x + t[0] * sg * d + n[0] * (ESP / 2 + 0.02 + v), entrada.z + t[1] * sg * d + n[1] * (ESP / 2 + 0.02 + v)]
+        // elevador à esquerda da porta (mapa.elevador.lado/distancia, do Editar planta, ainda mandam se estiverem definidos)
+        const lado = cfgE.lado === 1 || cfgE.lado === -1 ? cfgE.lado : esq
+        const alPadrao = 0.9 + ELEV.larg / 2
+        const al = Math.max(0.55 + 0.4 + ELEV.larg / 2, Math.min(Number(cfgE.distancia) || alPadrao, Math.max(1.5, ateLaje(lado) - ELEV.larg / 2)))
+        const [ox, oz] = pto(lado, al)
+        const el = montarElevador({ rotuloAndar: String(andar), escuro, andar })
+        el.grupo.position.set(ox, 0, oz); el.grupo.rotation.y = rot; mundo.add(el.grupo)
         const fr = ELEV.prof
         bloquear(ox + n[0] * fr / 2, oz + n[1] * fr / 2, n[0] ? fr : ELEV.larg, n[0] ? ELEV.larg : fr)
-        // pontos de cada carro no mundo: frente (onde se chama) e meio da cabine
         const mundoDe = (u, v) => { const vv = new THREE.Vector3(u, 0, v); el.grupo.updateMatrixWorld(true); el.grupo.localToWorld(vv); return [vv.x, vv.z] }
-        E.elevAndar = { el, nivel: 'andar', yBase: 0, frenteYaw: Math.atan2(n[0], n[1]),
-          carros: el.carros.map((c) => ({ c, frente: mundoDe(c.cx, fr + 0.75), cabine: mundoDe(c.cx, 0.85), porta: mundoDe(c.cx, fr + 0.2) })) }
+        E.elevAndar = { el, nivel: 'andar', yBase: 0, frenteYaw: rot,
+          carros: el.carros.map((c, i) => ({ c, i, atende: carroAtende(i, andar), frente: mundoDe(c.cx, fr + 0.75), cabine: mundoDe(c.cx, 0.85), porta: mundoDe(c.cx, fr + 0.2) })) }
         E.elevInfo = { ox, oz, n, lado, andar, al }
-        // copa (cozinha) do lado da porta e banheiro do outro lado do elevador; sem espaço, vão para o outro lado da porta
-        const rot = Math.atan2(n[0], n[1])
-        const salaCorredor = (montar, cfg, dist, sg) => {
-          const r2 = montar({ ...cfg, ALT: Math.max(ALT, 2.4), matParede, matVidro: matVidroParede, ligada: true })
-          r2.grupo.position.set(entrada.x + t[0] * sg * dist + n[0] * (ESP / 2 + 0.02), 0, entrada.z + t[1] * sg * dist + n[1] * (ESP / 2 + 0.02))
-          r2.grupo.rotation.y = rot; mundo.add(r2.grupo); r2.grupo.updateMatrixWorld(true)
+        const salaEm = (r2, x, z, ry) => {
+          r2.grupo.position.set(x, 0, z); r2.grupo.rotation.y = ry; mundo.add(r2.grupo); r2.grupo.updateMatrixWorld(true)
           const vv = new THREE.Vector3()
-          for (const o of r2.obst) { vv.set(o.u, 0, o.v); r2.grupo.localToWorld(vv); bloquear(vv.x, vv.z, o.w, o.d, rot) }
+          for (const o of r2.obst) { vv.set(o.u, 0, o.v); r2.grupo.localToWorld(vv); bloquear(vv.x, vv.z, o.w, o.d, ry) }
           return r2
         }
-        const livreDaPorta = al - ELEV.larg / 2 - 0.75
-        const cozDist = livreDaPorta >= COZ.L + 0.1 ? 0.75 + COZ.L / 2 : 0.75 + COZ.L / 2
-        const cozLado = livreDaPorta >= COZ.L + 0.1 ? lado : -lado
-        const banDistLado = al + ELEV.larg / 2 + 0.3 + BAN.L / 2
-        const banNoLado = banDistLado + BAN.L / 2 <= ateFim(lado)
-        if (cozDist + COZ.L / 2 <= ateFim(cozLado)) {
-          const coz = salaCorredor(montarCozinha, COZ, cozDist, cozLado)
+        // copa do outro lado da porta, também encostada na parede do escritório e virada para a avenida
+        const cozLado = -lado, cozDist = 0.75 + COZ.L / 2
+        let copaEm = null
+        if (cozDist + COZ.L / 2 <= ateLaje(cozLado)) {
+          const [cx3, cz3] = pto(cozLado, cozDist)
+          const coz = salaEm(montarCozinha({ ...COZ, ALT: Math.max(ALT, 2.4), matParede, matVidro: matVidroParede, ligada: true }), cx3, cz3, rot)
           cafeteiras.push(coz.cafeteira)
           const pc = new THREE.Vector3(coz.pontos.cafe.u, 0, coz.pontos.cafe.v); coz.grupo.localToWorld(pc)
           const pm = new THREE.Vector3(-0.45, 1.0, 0.35); coz.grupo.localToWorld(pm)
           E.pontoCafe = { x: pc.x, z: pc.z, olhar: [pm.x, pm.z], maquina: coz.cafeteira }
+          copaEm = cozDist
         }
-        const banDist = banNoLado ? banDistLado : (cozLado === -lado ? 0.75 + COZ.L + 0.3 + BAN.L / 2 : 0.75 + BAN.L / 2)
-        if (banDist + BAN.L / 2 <= ateFim(banNoLado ? lado : -lado)) salaCorredor(montarBanheiro, BAN, banDist, banNoLado ? lado : -lado)
+        // do outro lado do corredor, encostados na fachada e virados para a copa: banheiros e sala multiuso
+        const fundoCorr = (n[0] ? Math.abs((n[0] < 0 ? fx0 : fx1) - entrada.x) : Math.abs((n[1] < 0 ? fz0 : fz1) - entrada.z)) - ESP / 2 - 0.02 - 0.3
+        const rotFachada = rot + Math.PI
+        const BAN_D = 2.4
+        if (fundoCorr - BAN_D - COZ.D >= 2.0) {
+          const ban = montarBanheiros({ D: BAN_D, ALT: Math.max(ALT, 2.4), matParede })
+          const bDist = copaEm ?? cozDist
+          if (bDist + ban.L / 2 <= ateLaje(cozLado) + 0.4) {
+            const [bx, bz] = pto(cozLado, bDist, fundoCorr)
+            salaEm(ban, bx, bz, rotFachada)
+            // sala multiuso depois dos banheiros, em direção ao canto do andar
+            const MU = { L: 5.6, D: 3.2 }
+            const mDist = bDist + ban.L / 2 + 0.25 + MU.L / 2
+            if (mDist + MU.L / 2 <= ateLaje(cozLado) + 0.4 && fundoCorr - MU.D - COZ.D >= 1.6) {
+              const [mx3, mz3] = pto(cozLado, mDist, fundoCorr)
+              salaEm(montarSalaMultiuso({ ...MU, ALT: Math.max(ALT, 2.4), matParede, matVidro: matVidroParede }), mx3, mz3, rotFachada)
+            }
+          }
+        }
+        // corredor: faixa de pedra escura no piso, de uma ponta à outra do lado da entrada, entre as duas fileiras
+        {
+          const meio = (COZ.D + (fundoCorr - BAN_D)) / 2, larg = Math.max(1.2, fundoCorr - BAN_D - COZ.D - 0.6)
+          const comp = (n[0] ? fz1 - fz0 : fx1 - fx0) - 1.2
+          const [cxC, czC] = pto(1, 0, meio)
+          const centro = n[0] ? [cxC, (fz0 + fz1) / 2] : [(fx0 + fx1) / 2, czC]
+          const faixa = new THREE.Mesh(new THREE.PlaneGeometry(n[0] ? larg : comp, n[0] ? comp : larg), new THREE.MeshStandardMaterial({ color: escuro ? 0x44403c : 0x78716c, roughness: 0.45 }))
+          faixa.rotation.x = -Math.PI / 2; faixa.position.set(centro[0], 0.003, centro[1]); faixa.receiveShadow = true; mundo.add(faixa)
+          for (const sgn of [-1, 1]) {   // frisos claros nas bordas da faixa
+            const fr2 = new THREE.Mesh(new THREE.PlaneGeometry(n[0] ? 0.06 : comp, n[0] ? comp : 0.06), new THREE.MeshStandardMaterial({ color: 0xe7e5e4, roughness: 0.4 }))
+            fr2.rotation.x = -Math.PI / 2; fr2.position.set(centro[0] + (n[0] ? sgn * larg / 2 : 0), 0.004, centro[1] + (n[0] ? 0 : sgn * larg / 2)); mundo.add(fr2)
+          }
+          E.corredorHall = { centro, larg, comp, n }
+        }
       }
       // placa do andar do escritório, visível com o prédio fechado
       const pl = etiqueta(`${marca?.nome || 'Escritório'} · ${andar}º andar`, '#ffffff', 'rgba(15,118,106,0.92)')
@@ -1132,8 +1170,8 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     }
     // corredor, hall e copa: uma luz no meio de cada lado do anel em volta das salas (só com o prédio, à noite)
     if (noiteOuTarde && comPredio && ALT > 2) {
-      const cx = (W(x0) + W(x1)) / 2, cz = (Z(y0) + Z(y1)) / 2, m = 0.35 + MARGEM / 2
-      const lados = [[cx, Z(y0) - m], [cx, Z(y1) + m], [W(x0) - m, cz], [W(x1) + m, cz]]
+      const cx = (W(x0) + W(x1)) / 2, cz = (Z(y0) + Z(y1)) / 2, m = (ld) => 0.35 + mg(ld) / 2
+      const lados = [[cx, Z(y0) - m('norte')], [cx, Z(y1) + m('sul')], [W(x0) - m('oeste'), cz], [W(x1) + m('leste'), cz]]
       E.luzCorredor = lados.map(([lx, lz]) => {
         const l = new THREE.PointLight(0xfff1dc, ceu.noite ? 7 : 3, Math.max(W(x1) - W(x0), Z(y1) - Z(y0)) * 0.8, 1.2)
         l.position.set(lx, ALT - 0.3, lz); mundo.add(l); paineis.push(l); return l
@@ -1330,8 +1368,24 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         bloquear(x, z, w, d, ry)
         caixa(w, 1.0, d, e.cor ? new THREE.MeshStandardMaterial({ color: e.cor, roughness: 0.6 }) : matMadeira, x, 0.5, z, ry)
         caixa(w * 0.95, 0.03, d * 0.95, matMesa, x, 1.015, z, ry)
-        const cf = cafeteiraVermelha({ ligada: e.ligado !== false }); cf.g.position.set(x, 1.03, z); cf.g.rotation.y = ry; mundo.add(cf.g); cafeteiras.push(cf)   // cafeteira de cápsulas
-        cafesArmario.push({ x, z, w, d, ry, maquina: cf })   // dá para fazer café encostado em qualquer lado livre do armário
+        // cafeteira de cápsulas virada para dentro da sala (de costas para a parede mais perto do armário), na beirada da
+        // frente do tampo, com açúcar, cápsulas, xícaras e mexedores ao lado. Antes ela seguia a rotação do armário e
+        // podia ficar de frente para a parede.
+        const salaA = salas.find((sl) => x >= W(sl.x) - 0.05 && x <= W(sl.x + sl.w) + 0.05 && z >= Z(sl.y) - 0.05 && z <= Z(sl.y + sl.h) + 0.05)
+        let ryCafe = ry
+        if (salaA) {
+          const dist = [[x - W(salaA.x), Math.PI / 2], [W(salaA.x + salaA.w) - x, -Math.PI / 2], [z - Z(salaA.y), 0], [Z(salaA.y + salaA.h) - z, Math.PI]]
+          ryCafe = dist.sort((p1, p2) => p1[0] - p2[0])[0][1]
+        }
+        const girado = Math.abs(Math.sin(ry)) > 0.7, sx = girado ? d : w, sz = girado ? w : d
+        const meiaFrente = Math.abs(Math.sin(ryCafe)) > 0.7 ? sx / 2 : sz / 2, meiaLado = Math.abs(Math.sin(ryCafe)) > 0.7 ? sz / 2 : sx / 2
+        const balcaoCafe = new THREE.Group(); balcaoCafe.position.set(x, 1.03, z); balcaoCafe.rotation.y = ryCafe; mundo.add(balcaoCafe)
+        const avanco = Math.max(0, meiaFrente - 0.2)
+        const desloc = meiaLado > 0.55 ? -Math.min(0.3, meiaLado - 0.3) : 0   // máquina um pouco de lado para caber o resto
+        const cf = cafeteiraVermelha({ ligada: e.ligado !== false }); cf.g.position.set(desloc, 0, avanco); balcaoCafe.add(cf.g); cafeteiras.push(cf)
+        if (meiaLado > 0.45) { const ac = acessoriosCafe(); ac.position.set(desloc, 0, avanco - 0.02); balcaoCafe.add(ac) }
+        balcaoCafe.updateMatrixWorld(true); const frenteCafe = new THREE.Vector3(desloc, 0, avanco); balcaoCafe.localToWorld(frenteCafe)
+        cafesArmario.push({ x, z, w, d, ry, maquina: cf, alvo: [frenteCafe.x, frenteCafe.z] })   // dá para fazer café encostado em qualquer lado livre do armário
         alvoItem(e.id, x, z, w, d, 1.1, ry)
       } else if (e.tipo === 'sofa') {
         bloquear(x, z, w, d, ry)
@@ -1721,7 +1775,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       // caminho dos figurantes pesado e o térreo engasgava
       const gradeT = criarGrade(LF[0], LF[1], LF[2], LF[3], [...obT, ...T.paredes], () => true, 0.22, 0.2)
       E.terreo = T
-      E.elevTerreo = { el: elT, nivel: 'terreo', yBase: yT, carros: elT.carros.map((c, i) => ({ c, frente: E.elevAndar.carros[i].frente, cabine: E.elevAndar.carros[i].cabine, porta: E.elevAndar.carros[i].porta })) }
+      E.elevTerreo = { el: elT, nivel: 'terreo', yBase: yT, carros: elT.carros.map((c, i) => ({ c, i, atende: E.elevAndar.carros[i].atende, frente: E.elevAndar.carros[i].frente, cabine: E.elevAndar.carros[i].cabine, porta: E.elevAndar.carros[i].porta })) }
       // recepcionista sentada atrás do balcão, segurança em pé perto das catracas, duas pessoas andando
       const rec = pessoa(r, true); cadeira(T.grupo, T.posRecep.x, T.posRecep.z, T.ryFrente + Math.PI)
       rec.position.set(T.posRecep.x, 0, T.posRecep.z); rec.rotation.y = T.ryFrente; T.grupo.add(rec); genteT.recep = rec
@@ -2082,7 +2136,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (E.viagem) { E.viagem = null; E.setViagem?.(null) }
       if (E.nivel === 'terreo') {   // largou no térreo: a pessoa sobe e fica na frente do elevador do andar
         E.trocarNivel?.('andar')
-        const k = E.elevAndar?.carros[0]; if (k) c.av.position.set(k.frente[0], 0, k.frente[1])
+        const k = E.elevAndar?.carros.find((x) => x.atende !== false); if (k) c.av.position.set(k.frente[0], 0, k.frente[1])
         E.elevAndar?.carros.forEach((x) => { x.c.alvo = 0 }); E.elevTerreo?.carros.forEach((x) => { x.c.alvo = 0 })
       }
       E.ctrl = null
@@ -2174,7 +2228,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const cs = Math.cos(a.ry), sn = Math.sin(a.ry), dx = P.x - a.x, dz = P.z - a.z
         const u = dx * cs - dz * sn, v = dx * sn + dz * cs   // no sistema do armário
         const d1 = Math.hypot(Math.max(0, Math.abs(u) - a.w / 2), Math.max(0, Math.abs(v) - a.d / 2))
-        if (d1 <= 1 && d1 < dm) { dm = d1; pc = { x: P.x, z: P.z, olhar: [a.x, a.z], maquina: a.maquina } }
+        if (d1 <= 1 && d1 < dm) { dm = d1; pc = { x: P.x, z: P.z, olhar: a.alvo || [a.x, a.z], maquina: a.maquina } }
       }
       if (!pc) { aviso(cafesArmario.length ? 'Encoste numa cafeteira (copa ou armário, até 1 m) e aperte C.' : 'Vá até a cafeteira da copa e aperte C.'); return }
       E.cafeAtual = pc
@@ -2192,9 +2246,10 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       if (!c || !lv || E.viagem || c.assento) return
       const P = c.av.position
       let i = 0, dm = Infinity
-      lv.carros.forEach((k, j) => { const d = Math.hypot(k.frente[0] - P.x, k.frente[1] - P.z); if (d < dm) { dm = d; i = j } })
+      // só os carros que param no andar do escritório (o 1º atende os pares; o 2º e o 3º, os ímpares)
+      lv.carros.forEach((k, j) => { if (E.elevAndar.carros[j]?.atende === false) return; const d = Math.hypot(k.frente[0] - P.x, k.frente[1] - P.z); if (d < dm) { dm = d; i = j } })
       const destino = E.nivel === 'terreo' ? 'andar' : 'terreo'
-      lv.el.chamar(true)
+      lv.el.chamar(true, i)
       E.viagem = { fase: 'abrir', t: 0, i, lv, destino, de: null, trocou: false, andares: destino === 'terreo' ? Array.from({ length: andar + 1 }, (_, k) => andar - k) : Array.from({ length: andar + 1 }, (_, k) => k) }
       E.setControle?.({ modo: c.modo, info: c.info, sentado: false, elevador: null, viajando: true })
     }
@@ -2583,7 +2638,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       // perto da porta de um elevador: a barra mostra o botão para descer/subir
       const lv = nivelElev()
       if (lv) {
-        const perto = lv.carros.some((x) => Math.hypot(x.frente[0] - P.x, x.frente[1] - P.z) < 1.5)
+        const perto = lv.carros.some((x) => Math.hypot(x.frente[0] - P.x, x.frente[1] - P.z) < 1.8)
         if (perto !== !!c.pertoElev) { c.pertoElev = perto; E.setControle?.({ modo: c.modo, info: c.info, sentado: false, elevador: perto ? E.nivel : null, carro: c.pertoCarro || null }) }
       }
       av.rotation.y = c.yaw

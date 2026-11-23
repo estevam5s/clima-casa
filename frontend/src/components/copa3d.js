@@ -75,6 +75,37 @@ export function cafeteiraVermelha({ ligada = true } = {}) {
     definirLigada: (l) => { ligada = l }, trocar }
 }
 
+// o que fica em volta da cafeteira: açucareiro com colher, porta-cápsulas com cápsulas de várias cores, pilha de
+// xícaras, adoçante e copo de mexedores. Origem no tampo, à direita da máquina; frente para +z, como a cafeteira.
+export function acessoriosCafe() {
+  const g = new THREE.Group()
+  const branco = M({ color: 0xf8fafc, roughness: 0.3 }), inox = M({ color: 0xc8ccd2, roughness: 0.3, metalness: 0.45 })
+  // açucareiro de louça com tampa e colher
+  const acu = new THREE.Group(); acu.position.set(0.2, 0, 0.02); g.add(acu)
+  const pote = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.038, 0.075, 20), branco); pote.position.y = 0.038; pote.castShadow = true; acu.add(pote)
+  const tampa = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.012, 20), branco); tampa.position.y = 0.081; acu.add(tampa)
+  const pegador = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), branco); pegador.position.y = 0.093; acu.add(pegador)
+  const colher = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.09, 0.004), inox); colher.position.set(0.03, 0.095, 0.01); colher.rotation.z = -0.5; acu.add(colher)
+  // porta-cápsulas: caixa de acrílico escuro com 3 fileiras de cápsulas coloridas
+  const porta = new THREE.Group(); porta.position.set(-0.24, 0, 0.0); g.add(porta)
+  caixa(porta, 0.16, 0.012, 0.11, M({ color: 0x18181b, roughness: 0.4 }), 0, 0.006, 0)
+  const cores = [0x7c2d12, 0x1d4ed8, 0xb45309, 0x15803d, 0x6b21a8, 0xb91c1c, 0x0f766e, 0x374151, 0xca8a04]
+  const geoC = new THREE.CylinderGeometry(0.014, 0.018, 0.018, 14)
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
+    const c = new THREE.Mesh(geoC, M({ color: cores[(i * 3 + j) % cores.length], roughness: 0.25, metalness: 0.5 }))
+    c.position.set(-0.054 + i * 0.036, 0.021, -0.034 + j * 0.034); porta.add(c)
+  }
+  // duas cápsulas soltas ao lado, uma deitada
+  for (const [x, z, rot, cor] of [[-0.1, 0.09, 0, 0x1d4ed8], [-0.06, 0.1, 1.4, 0x7c2d12]]) { const c = new THREE.Mesh(geoC, M({ color: cor, roughness: 0.25, metalness: 0.5 })); c.position.set(x, 0.01, z); c.rotation.z = rot; g.add(c) }
+  // pilha de xícaras de cabeça para baixo
+  for (let k = 0; k < 3; k++) { const x = xicara(); x.rotation.x = Math.PI; x.position.set(0.33, 0.066 + k * 0.05, -0.02); g.add(x) }
+  // copo com mexedores e caixinha de adoçante
+  const copo = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.022, 0.08, 14, 1, true), M({ color: 0x94a3b8, roughness: 0.2, metalness: 0.4, side: THREE.DoubleSide })); copo.position.set(0.12, 0.04, -0.08); g.add(copo)
+  for (let k = 0; k < 5; k++) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.11, 0.002), M({ color: 0xd6b98c, roughness: 0.7 })); m.position.set(0.12 + Math.sin(k * 1.3) * 0.01, 0.07, -0.08 + Math.cos(k * 1.3) * 0.01); m.rotation.z = (k - 2) * 0.08; g.add(m) }
+  caixa(g, 0.07, 0.04, 0.05, M({ color: 0x0ea5e9, roughness: 0.5 }), 0.02, 0.02, 0.1)
+  return g
+}
+
 // xícara branca com café (também vai na mão das pessoas)
 export function xicara() {
   const g = new THREE.Group()
@@ -86,9 +117,10 @@ export function xicara() {
   return g
 }
 
-function paredes(g, { L, D, ALT, porta, matParede, vidroFrente = false, matVidro }) {
+function paredes(g, { L, D, ALT, porta, matParede, vidroFrente = false, matVidro, fundo = false }) {
   const E = 0.1, obst = []
-  // fundo é a parede do escritório (já existe); laterais e frente com o vão da porta
+  // fundo: a parede do escritório (já existe); na sala encostada na fachada de vidro, a parede do fundo é desenhada aqui
+  if (fundo) { caixa(g, L, ALT, E, matParede, 0, ALT / 2, E / 2); obst.push({ u: 0, v: E / 2, w: L, d: E }) }
   for (const s of [-1, 1]) { caixa(g, E, ALT, D, matParede, s * (L / 2 - E / 2), ALT / 2, D / 2); obst.push({ u: s * (L / 2 - E / 2), v: D / 2, w: E, d: D }) }
   const [p0, p1] = porta
   const frente = vidroFrente ? matVidro : matParede
@@ -99,10 +131,10 @@ function paredes(g, { L, D, ALT, porta, matParede, vidroFrente = false, matVidro
   return obst
 }
 
-function placa(texto) {
+function placa(texto, fundo = '#1f2937') {
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96
-  const c = cv.getContext('2d'); c.fillStyle = '#1f2937'; c.fillRect(0, 0, 256, 96)
-  c.fillStyle = '#f8fafc'; c.font = '600 40px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(texto, 128, 50)
+  const c = cv.getContext('2d'); c.fillStyle = fundo; c.fillRect(0, 0, 256, 96)
+  c.fillStyle = '#f8fafc'; c.font = `600 ${texto.length > 9 ? 30 : 40}px system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(texto, 128, 50)
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace
   return new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.16), M({ map: t, roughness: 0.5 }))
 }
@@ -123,6 +155,7 @@ export function montarCozinha({ L = 3.6, D = 2.8, ALT = 2.7, matParede, matVidro
   caixa(g, 0.48, 0.28, 0.36, M({ color: 0x18181b, roughness: 0.4 }), 0.25, 1.06, 0.3)   // micro-ondas
   caixa(g, bw, 0.6, 0.35, branco, -0.5, 1.85, 0.18)   // armário alto
   const cafe = cafeteiraVermelha({ ligada }); cafe.g.position.set(-0.45, 0.92, 0.35); g.add(cafe.g)
+  const ace = acessoriosCafe(); ace.position.set(-0.45, 0.92, 0.36); g.add(ace)
   pontos.cafe = { u: -0.45, v: 0.95, ry: Math.PI }   // em pé de frente para a máquina
   // geladeira no canto da frente, ao lado da porta? fica no fundo, à direita
   caixa(g, 0.7, 1.85, 0.68, M({ color: 0xd4d4d8, roughness: 0.35, metalness: 0.3 }), L / 2 - 0.45, 0.925, 0.4)
@@ -166,5 +199,74 @@ export function montarBanheiro({ L = 3.2, D = 2.8, ALT = 2.7, matParede }) {
   caixa(g, 0.25, 0.3, 0.12, M({ color: 0xe5e7eb, roughness: 0.4 }), -L / 2 + 0.12, 1.3, 1.85)   // secador
   obst.push({ u: -L / 2 + 0.3, v: 0.85, w: 0.55, d: 1.45 })
   const pl = placa('Banheiro'); pl.position.set((porta[0] + porta[1]) / 2, 2.25, D + 0.001); g.add(pl)
+  return { grupo: g, obst }
+}
+
+// banheiros do andar, encostados na fachada e virados para a copa: masculino, feminino e acessível (PcD), cada um
+// com porta própria, vaso, pia e espelho. O acessível é mais largo, com barras de apoio e pia mais baixa.
+// Coordenadas como as outras salas: u ao longo da parede, v para fora (0 = fundo, D = frente com as portas).
+export function montarBanheiros({ D = 2.4, ALT = 2.7, matParede }) {
+  const g = new THREE.Group(), obst = []
+  const tipos = [['Masculino', 1.7, '#1e3a8a'], ['Feminino', 1.7, '#9d174d'], ['Acessível', 2.3, '#0f766e']]
+  const L = tipos.reduce((s, t) => s + t[1], 0)
+  const E = 0.1
+  const branco = M({ color: 0xffffff, roughness: 0.25 }), inox = M({ color: 0xc8ccd2, roughness: 0.3, metalness: 0.45 })
+  const piso = new THREE.Mesh(new THREE.PlaneGeometry(L, D), M({ color: 0xcbd5e1, roughness: 0.4 })); piso.rotation.x = -Math.PI / 2; piso.position.set(0, 0.012, D / 2); piso.receiveShadow = true; g.add(piso)
+  // fundo e laterais externas
+  caixa(g, L, ALT, E, matParede, 0, ALT / 2, E / 2); obst.push({ u: 0, v: E / 2, w: L, d: E })
+  let u0 = -L / 2
+  tipos.forEach(([nome, w, cor], i) => {
+    const uc = u0 + w / 2
+    // parede lateral (entre os banheiros e nas pontas)
+    caixa(g, E, ALT, D, matParede, u0 + (i === 0 ? E / 2 : 0), ALT / 2, D / 2); obst.push({ u: u0, v: D / 2, w: E, d: D })
+    // frente com a porta (vão de 0,9 m; 1,0 m no acessível) e a folha entreaberta
+    const vao = i === 2 ? 1.0 : 0.85, p0 = uc - vao / 2 + 0.15, p1 = p0 + vao
+    if (p0 > u0) { caixa(g, p0 - u0, ALT, E, matParede, (u0 + p0) / 2, ALT / 2, D - E / 2); obst.push({ u: (u0 + p0) / 2, v: D - E / 2, w: p0 - u0, d: E }) }
+    if (p1 < u0 + w) { caixa(g, u0 + w - p1, ALT, E, matParede, (p1 + u0 + w) / 2, ALT / 2, D - E / 2); obst.push({ u: (p1 + u0 + w) / 2, v: D - E / 2, w: u0 + w - p1, d: E }) }
+    caixa(g, vao, ALT - 2.1, E, matParede, (p0 + p1) / 2, 2.1 + (ALT - 2.1) / 2, D - E / 2)
+    const folha = new THREE.Group(); folha.position.set(p0, 0, D - E); folha.rotation.y = 1.2; g.add(folha)
+    caixa(folha, vao - 0.02, 2.05, 0.04, M({ color: 0xe7e5e4, roughness: 0.5 }), (vao - 0.02) / 2, 1.03, -0.02)
+    caixa(folha, 0.03, 0.12, 0.05, inox, vao - 0.12, 1.0, 0.0, false)
+    const pl = placa(nome, cor); pl.position.set((p0 + p1) / 2, 2.25, D + 0.001); g.add(pl)
+    // vaso no fundo, pia na lateral, espelho
+    const vaso = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.13, 0.4, 16), branco); vaso.position.set(uc + w / 2 - 0.42, 0.2, 0.38); vaso.castShadow = true; g.add(vaso)
+    caixa(g, 0.36, 0.35, 0.14, branco, uc + w / 2 - 0.42, 0.55, 0.14)
+    obst.push({ u: uc + w / 2 - 0.42, v: 0.38, w: 0.45, d: 0.6 })
+    const yPia = i === 2 ? 0.78 : 0.88
+    const pia = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.08, 18), branco); pia.position.set(u0 + 0.3, yPia, 0.5); g.add(pia)
+    caixa(g, 0.03, 0.15, 0.03, inox, u0 + 0.14, yPia + 0.1, 0.5, false)
+    const esp = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.7), M({ color: 0xdbeafe, roughness: 0.02, metalness: 0.9 })); esp.rotation.y = Math.PI / 2; esp.position.set(u0 + 0.06, yPia + 0.6, 0.5); g.add(esp)
+    obst.push({ u: u0 + 0.3, v: 0.5, w: 0.45, d: 0.5 })
+    if (i === 2) {   // barras de apoio em volta do vaso
+      caixa(g, 0.8, 0.035, 0.035, inox, uc + w / 2 - 0.5, 0.78, 0.13, false)
+      caixa(g, 0.035, 0.035, 0.8, inox, uc + w / 2 - 0.07, 0.78, 0.5, false)
+    }
+    u0 += w
+  })
+  caixa(g, E, ALT, D, matParede, L / 2 - E / 2, ALT / 2, D / 2); obst.push({ u: L / 2 - E / 2, v: D / 2, w: E, d: D })
+  return { grupo: g, obst, L }
+}
+
+// sala multiuso no canto do andar, encostada na fachada: frente de vidro com porta, mesa com 6 cadeiras, sofá e TV.
+export function montarSalaMultiuso({ L = 5.6, D = 3.2, ALT = 2.7, matParede, matVidro }) {
+  const g = new THREE.Group()
+  const piso = new THREE.Mesh(new THREE.PlaneGeometry(L, D), M({ color: 0xd6c7b0, roughness: 0.7 })); piso.rotation.x = -Math.PI / 2; piso.position.set(0, 0.012, D / 2); piso.receiveShadow = true; g.add(piso)
+  const porta = [-L / 2 + 0.5, -L / 2 + 1.5]
+  const obst = paredes(g, { L, D, ALT, porta, matParede, vidroFrente: true, matVidro, fundo: true })
+  const madeira = M({ color: 0x8a5a36, roughness: 0.55 }), preto = M({ color: 0x18181b, roughness: 0.4 }), tecido = M({ color: 0x475569, roughness: 0.9 })
+  // mesa com 6 cadeiras
+  const mx = 0.6, mv = D / 2 + 0.1
+  caixa(g, 2.0, 0.04, 0.95, madeira, mx, 0.74, mv); caixa(g, 1.8, 0.7, 0.06, preto, mx, 0.36, mv, false)
+  for (const [du, dv, ry] of [[-0.6, -0.75, 0], [0, -0.75, 0], [0.6, -0.75, 0], [-0.6, 0.75, Math.PI], [0, 0.75, Math.PI], [0.6, 0.75, Math.PI]]) {
+    const c = new THREE.Group(); c.position.set(mx + du, 0, mv + dv); c.rotation.y = ry; g.add(c)
+    caixa(c, 0.42, 0.05, 0.42, tecido, 0, 0.46, 0); caixa(c, 0.42, 0.45, 0.05, tecido, 0, 0.7, -0.19); caixa(c, 0.05, 0.44, 0.05, preto, 0, 0.22, 0, false)
+  }
+  obst.push({ u: mx, v: mv, w: 2.3, d: 1.9 })
+  // sofá encostado no fundo e TV na lateral
+  caixa(g, 1.6, 0.42, 0.75, tecido, -L / 2 + 1.0, 0.21, 0.5); caixa(g, 1.6, 0.4, 0.18, tecido, -L / 2 + 1.0, 0.6, 0.2)
+  obst.push({ u: -L / 2 + 1.0, v: 0.45, w: 1.7, d: 0.85 })
+  const tv = caixa(g, 0.05, 0.75, 1.3, preto, L / 2 - 0.08, 1.45, D / 2); tv.castShadow = false
+  const tela = new THREE.Mesh(new THREE.PlaneGeometry(1.24, 0.69), M({ color: 0x0b1220, emissive: 0x1e3a8a, emissiveIntensity: 0.35, roughness: 0.2 })); tela.rotation.y = -Math.PI / 2; tela.position.set(L / 2 - 0.111, 1.45, D / 2); g.add(tela)
+  const pl = placa('Multiuso'); pl.position.set((porta[0] + porta[1]) / 2, 2.25, D + 0.001); g.add(pl)
   return { grupo: g, obst }
 }

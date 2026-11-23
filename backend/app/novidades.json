@@ -2,6 +2,44 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.5.5",
+   "data": "2026-11-22",
+   "titulo": "Uso do sistema por pessoa, Rede com monitor ao vivo e mapa, hall novo no 3D e telas mais rápidas",
+   "resumo": "Configurações → Usuários mostra quanto tempo cada pessoa usa cada tela, com gráficos e os caminhos entre as telas. A Rede ganhou monitor ao vivo, mapa animado do caminho até cada transmissor, dados da conexão e uma calculadora do que a internet aguenta. No mapa 3D, o hall do andar foi refeito: elevador de três portas, copa, três banheiros, sala multiuso e corredor. E o sistema abre bem mais rápido.",
+   "novo": [
+    "Configurações → Usuários → Uso do sistema: tempo de uso por dia, telas mais usadas, quem mais usa (clique na pessoa para ver as telas e os dias dela), caminhos de uma tela para outra e o mapa de calor pessoa × tela, em 7, 30 ou 90 dias",
+    "Coluna Uso (30 dias) na lista de contas, e no celular cada conta vira um cartão",
+    "Rede → Ao vivo: uma medida por segundo durante 2 minutos, com média, variação, picos e quedas, para a internet ou para o próprio painel",
+    "Rede → Mapa da rede: o caminho de um comando do navegador até cada transmissor, com o tráfego animado e a cor de cada ligação pela latência",
+    "Rede → Esta conexão: IP, IPv4 ou IPv6, protocolo, criptografia, servidor da Cloudflare, WARP, tempo de resposta do painel e as quedas desde que a tela abriu",
+    "Rede → O que aguenta: tempo para baixar o instalador do app, uma atualização, uma ISO do Windows ou um backup, e quantas chamadas de vídeo e vídeos em 4K cabem ao mesmo tempo",
+    "Mapa 3D: elevador de três portas à esquerda da porta de entrada (a primeira só para nos andares pares, a do meio e a terceira só nos ímpares), copa à direita, banheiros masculino, feminino e acessível em frente à copa, sala multiuso no canto do andar e o corredor marcado no piso",
+    "Cafeteiras do mapa com açúcar, cápsulas de vários sabores, xícaras e mexedores ao lado",
+    "Avatares 3D: arraste os modelos da Biblioteca pela alça para mudar a ordem (fica salva para todos)",
+    "Passo a passo: capítulos Usuários e uso do sistema e Placa própria (Arduino ou ESP)"
+   ],
+   "melhorias": [
+    "O sistema abre mais rápido: cada tela é baixada só quando é aberta (o pacote inicial caiu de 3 MB para 280 KB) e as mais usadas carregam em segundo plano",
+    "Configurações com navegação lateral por grupo (Você, Equipe, Sistema) e a descrição de cada área",
+    "Passo a passo redesenhado: progresso em anel, capítulos numerados, passos em linha do tempo, Só o que falta, Continuar de onde parei e Próximo capítulo",
+    "Rede organizada em abas: Velocidade, Ao vivo, Mapa da rede, Diagnóstico, O que aguenta e Histórico",
+    "No celular, ao abrir o menu lateral, ele já mostra a tela em que você está",
+    "Site: o menu do topo sem ícones em quadradinhos, com uma barra de destaque e uma seta ao passar o mouse",
+    "Site: a verificação anti-robô só carrega quando alguém começa a usar um formulário, o que deixa as páginas mais leves"
+   ],
+   "seguranca": [
+    "O tempo de uso só registra quanto tempo cada tela ficou aberta; nada do que foi digitado. Cada pessoa vê o próprio uso na cópia dos dados pessoais, e ao apagar uma conta o uso dela é apagado junto"
+   ],
+   "correcoes": [
+    "App Android: ao abrir, aparecia \"rota não encontrada\"; agora abre direto no Início (ou no login)",
+    "A medida de estabilidade do layout (CLS) em Acessos e SEO somava todos os movimentos enquanto a aba ficava aberta, e por isso marcava 1,56; agora conta como o Google (a pior janela de 5 s), e os números antigos dessa medida saíram da conta",
+    "O rodapé não pula mais quando a tela termina de carregar, e Infra → Visão geral reserva o lugar dos cartões enquanto a Cloudflare responde",
+    "No mapa 3D, a cafeteira do armário ficava de costas para a sala; agora fica de frente",
+    "Botões com texto longo não quebram mais em várias linhas (ex.: Baixar histórico em Novidades), e textos longos das novidades não fazem a tela rolar de lado no celular",
+    "Site e painel com favicon.ico (antes dava erro 404 no console)"
+   ]
+  },
+  {
    "versao": "0.5.4",
    "data": "2026-11-22",
    "titulo": "Raspberry Pi em 3D em Infra → Agentes e atualização sem erro depois de cada versão",

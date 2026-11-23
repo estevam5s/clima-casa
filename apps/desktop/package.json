@@ -1,7 +1,7 @@
 {
   "name": "clima-casa-desktop",
   "productName": "Clima Casa",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Clima Casa para desktop: controle dos ar-condicionados, Alexa e Supabase.",
   "main": "src/main.js",
   "author": "Clima Casa",

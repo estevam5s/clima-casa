@@ -187,7 +187,7 @@ export default function Novidades() {
                       {secoes.filter((x) => x[3].length).map(([k, rot, I, itens]) => (
                         <section key={k} className="min-w-0 rounded-md border border-border p-3">
                           <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><span className={`h-2 w-2 rounded-full ${COR_SECAO[k]}`} /><I className="h-4 w-4 text-muted-foreground" aria-hidden />{rot}<span className="ml-auto text-xs font-normal tabular text-muted-foreground">{itens.length}</span></h3>
-                          <ul className="space-y-1.5 pl-4 text-sm leading-relaxed">{itens.map((t) => <li key={t} className="list-disc marker:text-muted-foreground">{t}</li>)}</ul>
+                          <ul className="space-y-1.5 pl-4 text-sm leading-relaxed [overflow-wrap:anywhere]">{itens.map((t) => <li key={t} className="list-disc marker:text-muted-foreground">{t}</li>)}</ul>
                         </section>
                       ))}
                     </div>}

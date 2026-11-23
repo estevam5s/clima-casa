@@ -711,3 +711,26 @@ create table if not exists public.newsletter_campanhas (
 alter table public.newsletter_campanhas enable row level security;
 alter table public.email_envios add column if not exists campanha_id bigint;
 create index if not exists ix_email_envios_campanha on public.email_envios (campanha_id) where campanha_id is not null;
+
+-- uso do sistema por pessoa (Configurações → Usuários → Uso do sistema, 22/11/2026): tempo com cada tela aberta e
+-- visível, por dia (Brasília), e os caminhos de uma tela para outra. Só contagens: nada do que foi digitado.
+create table if not exists public.uso_telas (
+  usuario_id uuid not null,
+  dia text not null,                 -- AAAA-MM-DD em Brasília
+  rota text not null,
+  ms bigint not null default 0,
+  visitas integer not null default 0,
+  primary key (usuario_id, dia, rota)
+);
+alter table public.uso_telas enable row level security;
+create index if not exists uso_telas_dia on public.uso_telas (dia);
+create table if not exists public.uso_caminhos (
+  usuario_id uuid not null,
+  dia text not null,
+  de text not null,
+  para text not null,
+  n integer not null default 0,
+  primary key (usuario_id, dia, de, para)
+);
+alter table public.uso_caminhos enable row level security;
+create index if not exists uso_caminhos_dia on public.uso_caminhos (dia);

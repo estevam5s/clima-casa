@@ -52,6 +52,10 @@ caminhos de serviço e o projeto da Vercel).
 | Cidade viva (pedestres, animais, semáforos, TICEN), monitores e sentar/trabalhar | `components/vida3d.js`, `predio3d.js` (semáforo, carros), `cidade3d.js`, `telas3d.js`, `Mapa3D.jsx` (`E.sentar`, `E.telas`) |
 | Gerar botões Gree / copiar botões de outro ar | `backend/app/gree.py`, `rotas/api.py` (`/aparelhos/{id}/gree`, `/copiar-botoes`), `pages/Aparelho.jsx` (`AtalhosBotoes`), `scripts/gree_gerar.py` |
 | "O que há de novo" (versões) | `backend/app/novidades.json`, `rotas/api.py` (`/novidades`), `components/Novidades.jsx`, `pages/Novidades.jsx` |
+| Tempo de uso por pessoa e tela (Configurações → Usuários → Uso do sistema) | `frontend/src/usoTelas.js` (conta só aba visível e com atividade; envia a cada minuto), `backend/app/uso.py`, `POST /api/conta/uso-telas`, `GET /api/usuarios/uso`, tabelas `uso_telas` e `uso_caminhos`, `components/config/UsoSistema.jsx` |
+| Rede: monitor ao vivo, mapa da rede, dados da conexão, calculadora | `components/rede/Novos.jsx` (só speed.cloudflare.com e /saude: a CSP não libera outros endereços), abas em `pages/Rede.jsx` |
+| Ordem dos avatares (arrastar) | `pages/Avatares.jsx` (`Reorder` do framer-motion, alça própria), `avatares.ordenar`, `PUT /api/avatares/ordem` (`config.avatares_ordem`) |
+| Telas carregadas sob demanda | `main.jsx` (`lazy` em todas as telas menos Login, Painel, TrocarSenha e 404; pré-carga no ocioso), `Suspense` no `Layout.jsx`. Tela nova: use `lazy` também |
 | Painel abre em qual ar / aviso "sem transmissor" / ares da sala lado a lado | `pages/Painel.jsx` (`Destaque`, `ControleAr`, `AresDaSala`: projeto com 2+ ares; `atualizar` aplica `juntos`), `components/ArCartao.jsx` |
 | Gravação de botões IR | `transmissor.py` (`aprender`), tela `pages/Aparelho.jsx` |
 | Quem é o computador principal do agente | `backend/app/coordenador.py`, tela Infra → Agentes |
@@ -645,8 +649,14 @@ rota) abre uma vez por pessoa quando `atual > vista`, em qualquer aparelho. A pr
   vidro (`texturaCortina`), faixas brancas de sacada e colunas azuis (inspirado no prédio real), cobertura com platibanda, caixas
   d'água e condensadoras. O andar tem **corredor de 4,2 m** (`MARGEM` no `Mapa3D`; era 2,5 e o avatar enroscava) em volta das salas,
   guarda-corpo de vidro e a grade A* até a fachada (`E.limitesAndar`): ninguém sai da laje.
-- **Elevador e térreo** (`elevador3d.js`, 17/11): núcleo com 2 carros encostado na parede de fora **ao lado da porta de entrada**,
-  saindo para o corredor, portas viradas para o mesmo lado da porta. Cabine de verdade, folhas que correm, mostrador do andar.
+- **Hall do andar** (22/11, pedido do dono): do lado da porta de entrada o andar é mais fundo (`MARGEM_E` = 7,8 m no `Mapa3D`).
+  Olhando da avenida: elevador **à esquerda** da porta e copa à direita, os dois encostados na parede do escritório e virados
+  para a avenida; do outro lado do corredor, encostados na fachada e virados para a copa, os **banheiros M, F e acessível**
+  (`copa3d.montarBanheiros`) e a **sala multiuso** (`montarSalaMultiuso`); faixa escura no piso marca o corredor
+  (`E.corredorHall`). `mapa.elevador.lado/distancia` (Editar planta) ainda manda se estiver definido.
+- **Elevador e térreo** (`elevador3d.js`, 17/11; 3 carros desde 22/11): núcleo com **3 carros**; `ELEV.atende` =
+  pares, ímpares, ímpares (da esquerda para a direita, de frente para as portas); `carroAtende(i, andar)` (todos param no
+  térreo). `E.irElevador` só usa carro que para no andar do escritório. Cabine de verdade, folhas que correm, mostrador do andar.
   Controlando um avatar perto da porta do elevador: **R** (ou o botão) → abre, entra, fecha, tela "indo para" com a contagem, troca de
   nível, abre e sai (`E.viagem`, fases abrir/entrar/fechar/viajar/abrir2/sair; câmera de cinema). **Térreo** = recepção dentro do pódio
   (`predio.podio`, y = -yA): piso de pedra, balcão com recepcionista, painel de ripas com o nome, catracas (uma livre), sala de espera,

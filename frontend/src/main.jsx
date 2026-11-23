@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { vigiarErros } from './errosTela'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
@@ -8,51 +8,51 @@ import Layout from './components/Layout'
 import { Carregando, ToastProvider } from './components/ui'
 import Login from './pages/Login'
 import Painel from './pages/Painel'
-import Aparelhos from './pages/Aparelhos'
-import Aparelho from './pages/Aparelho'
-import Transmissores from './pages/Transmissores'
-import Agendamentos from './pages/Agendamentos'
-import Atividade from './pages/Atividade'
-import Notificacoes from './pages/Notificacoes'
-import Luzes from './pages/Luzes'
-import Telegram from './pages/Telegram'
-import Bugs from './pages/Bugs'
-import Ia from './pages/Ia'
-import Backup from './pages/Backup'
-import Alexa from './pages/Alexa'
-import Configuracoes from './pages/Configuracoes'
-import Autorizar from './pages/Autorizar'
-import EntrarApp from './pages/EntrarApp'
+const Aparelhos = lazy(() => import('./pages/Aparelhos'))
+const Aparelho = lazy(() => import('./pages/Aparelho'))
+const Transmissores = lazy(() => import('./pages/Transmissores'))
+const Agendamentos = lazy(() => import('./pages/Agendamentos'))
+const Atividade = lazy(() => import('./pages/Atividade'))
+const Notificacoes = lazy(() => import('./pages/Notificacoes'))
+const Luzes = lazy(() => import('./pages/Luzes'))
+const Telegram = lazy(() => import('./pages/Telegram'))
+const Bugs = lazy(() => import('./pages/Bugs'))
+const Ia = lazy(() => import('./pages/Ia'))
+const Backup = lazy(() => import('./pages/Backup'))
+const Alexa = lazy(() => import('./pages/Alexa'))
+const Configuracoes = lazy(() => import('./pages/Configuracoes'))
+const Autorizar = lazy(() => import('./pages/Autorizar'))
+const EntrarApp = lazy(() => import('./pages/EntrarApp'))
 import ProtecaoErro from './components/ProtecaoErro'
-import Supabase from './pages/Supabase'
-import RedefinirSenha from './pages/RedefinirSenha'
-import Projetos from './pages/Projetos'
-import Mapa from './pages/Mapa'
-import Cenas from './pages/Cenas'
-import Relatorios from './pages/Relatorios'
-import Seguranca from './pages/Seguranca'
-import Mensagens from './pages/Mensagens'
+const Supabase = lazy(() => import('./pages/Supabase'))
+const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha'))
+const Projetos = lazy(() => import('./pages/Projetos'))
+const Mapa = lazy(() => import('./pages/Mapa'))
+const Cenas = lazy(() => import('./pages/Cenas'))
+const Relatorios = lazy(() => import('./pages/Relatorios'))
+const Seguranca = lazy(() => import('./pages/Seguranca'))
+const Mensagens = lazy(() => import('./pages/Mensagens'))
 import TrocarSenha from './pages/TrocarSenha'
-import Integracoes from './pages/Integracoes'
+const Integracoes = lazy(() => import('./pages/Integracoes'))
 import { ProjetoProvider } from './contexto'
 import { TemaProvider } from './tema'
 import { MarcaProvider } from './marca'
-import Automacoes from './pages/Automacoes'
-import ComandosAlexa from './pages/ComandosAlexa'
-import Apps from './pages/Apps'
-import Musica from './pages/Musica'
-import Guia from './pages/Guia'
-import Novidades from './pages/Novidades'
-import Infra from './pages/Infra'
-import Rede from './pages/Rede'
-import Cafeteira from './pages/Cafeteira'
-import Persianas from './pages/Persianas'
-import Fechadura from './pages/Fechadura'
-import Avatares from './pages/Avatares'
-import Treinamento from './pages/Treinamento'
-import Emails from './pages/Emails'
-import Analise from './pages/Analise'
-import Idiomas from './pages/Idiomas'
+const Automacoes = lazy(() => import('./pages/Automacoes'))
+const ComandosAlexa = lazy(() => import('./pages/ComandosAlexa'))
+const Apps = lazy(() => import('./pages/Apps'))
+const Musica = lazy(() => import('./pages/Musica'))
+const Guia = lazy(() => import('./pages/Guia'))
+const Novidades = lazy(() => import('./pages/Novidades'))
+const Infra = lazy(() => import('./pages/Infra'))
+const Rede = lazy(() => import('./pages/Rede'))
+const Cafeteira = lazy(() => import('./pages/Cafeteira'))
+const Persianas = lazy(() => import('./pages/Persianas'))
+const Fechadura = lazy(() => import('./pages/Fechadura'))
+const Avatares = lazy(() => import('./pages/Avatares'))
+const Treinamento = lazy(() => import('./pages/Treinamento'))
+const Emails = lazy(() => import('./pages/Emails'))
+const Analise = lazy(() => import('./pages/Analise'))
+const Idiomas = lazy(() => import('./pages/Idiomas'))
 import { medirPagina } from './medicao'
 
 function ComProtecao({ children }) {   // erro numa tela não deixa a página preta; trocar de tela tenta de novo
@@ -106,6 +106,16 @@ import Cursor from './components/Cursor'
 })()
 
 vigiarErros()
+// depois que a primeira tela aparece, as telas mais usadas são baixadas em segundo plano (sem economia de dados ligada):
+// trocar de tela continua instantâneo, sem o pacote inicial pesar
+;(() => {
+  const conexao = navigator.connection
+  if (conexao?.saveData || /2g/.test(conexao?.effectiveType || '')) return
+  const pre = () => ['Aparelhos', 'Aparelho', 'Projetos', 'Relatorios', 'Atividade', 'Transmissores', 'Configuracoes', 'Cenas', 'Automacoes', 'Agendamentos']
+    .forEach((n, i) => setTimeout(() => import(`./pages/${n}.jsx`).catch(() => {}), i * 400))
+  const ocioso = window.requestIdleCallback || ((f) => setTimeout(f, 2500))
+  window.addEventListener('load', () => ocioso(pre, { timeout: 6000 }), { once: true })
+})()
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <TemaProvider>
@@ -114,6 +124,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Cursor />
       <BrowserRouter>
         <ComProtecao>
+        {/* cada tela é baixada só quando é aberta: o pacote inicial tinha 3 MB com todas as telas juntas */}
+        <Suspense fallback={<Carregando />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
@@ -161,6 +173,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="*" element={<NaoEncontrado />} />
           </Route>
         </Routes>
+        </Suspense>
         </ComProtecao>
       </BrowserRouter>
     </ToastProvider>

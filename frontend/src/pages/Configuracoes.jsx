@@ -87,15 +87,16 @@ function Agente() {
   return (
     <section id="agente" className="cartao scroll-mt-24 p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="titulo-secao">Agente do Mac</h2>
+        <h2 className="titulo-secao">Agente do escritório</h2>
         {info && <span className="flex items-center gap-2 text-sm"><Ponto ativo={info.online} /> {info.online ? 'online' : 'offline'}</span>}
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">Programa que roda no Mac da casa: recebe os comandos pela fila do Supabase, dispara o infravermelho, conecta a Alexa (Sinric Pro), roda a agenda e as automações.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Programa que roda num computador da rede do escritório (Mac, PC com Windows, Linux ou Raspberry Pi): recebe os comandos pela fila do Supabase, dispara o infravermelho, conecta a Alexa (Sinric Pro), roda a agenda e as automações. Quem está no comando e a saúde de cada computador ficam em Infra → Agentes.</p>
       <div className="mt-4 space-y-2 rounded-lg bg-muted/60 p-3 font-mono text-xs">
-        <p><span className="text-muted-foreground"># instalar ou atualizar</span><br />./instalar-servico.sh</p>
-        <p><span className="text-muted-foreground"># ver se está rodando</span><br />./instalar-servico.sh status</p>
-        <p><span className="text-muted-foreground"># log</span><br />tail -f ~/Library/Logs/ClimaCasa.log</p>
+        <p><span className="text-muted-foreground"># Mac: instalar ou atualizar, ver se está rodando</span><br />./instalar-servico.sh · ./instalar-servico.sh status</p>
+        <p><span className="text-muted-foreground"># Linux e Raspberry Pi: ver se está rodando e o log</span><br />systemctl status clima-escritorio-agente · journalctl -u clima-escritorio-agente -f</p>
+        <p><span className="text-muted-foreground"># Windows (PowerShell como administrador)</span><br />powershell -ExecutionPolicy Bypass -File .\instalar-windows.ps1 status</p>
       </div>
+      <a href="/infra?aba=agentes" className="mt-3 inline-block text-sm text-primary hover:underline">Abrir Infra → Agentes</a>
     </section>
   )
 }
@@ -126,23 +127,63 @@ export default function Configuracoes() {
   }
 
   const pode = (perm) => !perm || sessao?.permissoes?.includes(perm)
-  const ABAS = [['perfil', 'Perfil', UserRound], ['usuarios', 'Usuários', Users, 'usuarios.gerenciar'], ['seguranca', 'Segurança', ShieldCheck],
-    ['geral', 'Geral', Sliders, 'configuracoes.gerenciar'], ['aparencia', 'Aparência', Palette], ['marca', 'White label', Paintbrush, 'configuracoes.gerenciar'],
-    ['contas', 'Contas', KeyRound, 'integracoes.gerenciar'], ['cookies', 'Cookies do site', Cookie, 'configuracoes.gerenciar'], ['sistema', 'Sistema', Server, 'configuracoes.gerenciar']].filter((a) => pode(a[3]))
+  // [chave, nome, ícone, permissão, grupo, o que tem lá]
+  const ABAS = [
+    ['perfil', 'Perfil', UserRound, null, 'Você', 'Nome, foto, e-mail e senha'],
+    ['seguranca', 'Segurança', ShieldCheck, null, 'Você', 'Duas etapas, biometria, sessões e firewall'],
+    ['aparencia', 'Aparência', Palette, null, 'Você', 'Tema, cursor e atalhos de teclado'],
+    ['usuarios', 'Usuários', Users, 'usuarios.gerenciar', 'Equipe', 'Contas, permissões e uso do sistema'],
+    ['geral', 'Geral', Sliders, 'configuracoes.gerenciar', 'Sistema', 'Envio dos comandos e backup'],
+    ['marca', 'White label', Paintbrush, 'configuracoes.gerenciar', 'Sistema', 'Marca, cores, fontes e manutenção'],
+    ['contas', 'Contas', KeyRound, 'integracoes.gerenciar', 'Sistema', 'Smart Life e contas ligadas'],
+    ['cookies', 'Cookies do site', Cookie, 'configuracoes.gerenciar', 'Sistema', 'Aviso e consentimentos do site'],
+    ['sistema', 'Sistema', Server, 'configuracoes.gerenciar', 'Sistema', 'Agente e endereços do sistema'],
+  ].filter((a) => pode(a[3]))
   const pedida = params.get('aba')
   const aba = ABAS.some((a) => a[0] === pedida) ? pedida : (pode('configuracoes.gerenciar') ? 'geral' : 'perfil')
+  const atual = ABAS.find((a) => a[0] === aba)
+  const grupos = [...new Set(ABAS.map((a) => a[4]))]
   return (
     <div className="w-full min-w-0">
       <Cabecalho titulo="Configurações" descricao="Perfil, usuários e permissões, segurança da conta, aparência e o sistema." />
-      <div className="mb-6 flex max-w-full gap-1 overflow-x-auto border-b border-border">
+      {/* celular e tablet: abas que rolam de lado */}
+      <div className="sem-barra -mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 lg:hidden" role="tablist" aria-label="Áreas das configurações">
         {ABAS.map(([k, r, I]) => (
-          <button key={k} onClick={() => setParams({ aba: k })}
+          <button key={k} role="tab" aria-selected={aba === k} onClick={() => setParams({ aba: k })}
             className={`relative -mb-px flex shrink-0 items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${aba === k ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
             <I className="h-4 w-4" />{r}
-            {aba === k && <motion.span layoutId="aba-config" className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-primary" />}
+            {aba === k && <motion.span layoutId="aba-config-m" className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-primary" />}
           </button>
         ))}
       </div>
+      <div className="grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        {/* computador: navegação lateral por grupo, com o que tem em cada área */}
+        <nav className="hidden lg:block" aria-label="Áreas das configurações">
+          <div className="sticky top-20 space-y-5">
+            {grupos.map((g) => (
+              <div key={g}>
+                <p className="mb-1.5 px-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">{g}</p>
+                <ul className="space-y-0.5">
+                  {ABAS.filter((a) => a[4] === g).map(([k, r, I, , , d]) => (
+                    <li key={k}>
+                      <button onClick={() => setParams({ aba: k })} aria-current={aba === k ? 'page' : undefined}
+                        className={`group relative flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors ${aba === k ? 'text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}>
+                        {aba === k && <motion.span layoutId="aba-config" className="absolute inset-0 rounded-lg bg-muted" transition={{ type: 'spring', bounce: 0.15, duration: 0.45 }} />}
+                        {aba === k && <motion.span layoutId="aba-config-barra" className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-primary" />}
+                        <I className="relative mt-0.5 h-4 w-4 shrink-0" />
+                        <span className="relative min-w-0"><span className="block text-sm font-medium">{r}</span><span className="block truncate text-[11px] leading-snug text-muted-foreground">{d}</span></span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </nav>
+        <div className="min-w-0">
+          <div className="mb-5 hidden border-b border-border pb-4 lg:block">
+            <h2 className="text-lg font-semibold tracking-tight">{atual?.[1]}</h2><p className="text-sm text-muted-foreground">{atual?.[5]}</p>
+          </div>
       <motion.div key={aba} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
       {aba === 'geral' && (
         <div className="grid gap-6 xl:grid-cols-2">
@@ -204,6 +245,8 @@ export default function Configuracoes() {
         </div>
       )}
       </motion.div>
+        </div>
+      </div>
     </div>
   )
 }

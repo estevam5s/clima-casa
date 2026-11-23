@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import UsoSistema, { tempo } from './UsoSistema'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Copy, Crown, Fingerprint, FolderPlus, KeyRound, LogOut, Pencil, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react'
+import { BarChart3, Check, Copy, Crown, Fingerprint, FolderPlus, KeyRound, LogOut, Pencil, Search, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import Turnstile from '../Turnstile'
 import { Aviso, Botao, Carregando, FaixaMetricas, Interruptor, Modal, Vazio, useDados, useToast } from '../ui'
@@ -283,9 +285,36 @@ function TransferirDono({ u, aoFechar, aoFeito }) {
   )
 }
 
+// duas visões na mesma aba: as contas (quem entra e o que pode) e o uso do sistema (tempo, telas e caminhos)
 export default function Usuarios() {
+  const [params, setParams] = useSearchParams()
+  const ver = params.get('ver') === 'uso' ? 'uso' : 'contas'
+  const trocar = (v) => { const n = new URLSearchParams(params); if (v === 'uso') n.set('ver', 'uso'); else n.delete('ver'); setParams(n, { replace: true }) }
+  return (
+    <div className="space-y-6">
+      <div className="flex w-full gap-1 rounded-lg border border-border p-0.5 sm:w-fit" role="tablist" aria-label="Usuários">
+        {[['contas', 'Contas e acessos', Users], ['uso', 'Uso do sistema', BarChart3]].map(([k, r, I]) => (
+          <button key={k} role="tab" aria-selected={ver === k} onClick={() => trocar(k)}
+            className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm sm:flex-none ${ver === k ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+            {ver === k && <motion.span layoutId="usuarios-visao" className="absolute inset-0 rounded-md bg-muted" transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }} />}
+            <I className="relative h-4 w-4" /><span className="relative">{r}</span>
+          </button>
+        ))}
+      </div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div key={ver} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
+          {ver === 'uso' ? <UsoSistema /> : <Contas />}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function Contas() {
   const toast = useToast()
   const { dados, erro, recarregar } = useDados(() => api.get('/api/usuarios'))
+  const { dados: uso } = useDados(() => api.get('/api/usuarios/uso?dias=30').catch(() => null))
+  const usoDe = (id) => uso?.pessoas?.find((p) => p.id === id)
   const [form, setForm] = useState(null)        // 'novo' | usuário
   const [senha, setSenha] = useState(null)
   const [busca, setBusca] = useState('')
@@ -318,9 +347,29 @@ export default function Usuarios() {
           <Botao className="ml-auto" icone={UserPlus} onClick={() => setForm('novo')}>Novo usuário</Botao>
         </div>
         {lista.length === 0 ? <div className="p-6"><Vazio icone={Users} titulo="Ninguém encontrado" texto="Crie contas para quem também usa os ares." /></div> : (
-          <div className="overflow-x-auto">
-            <table className="tabela w-full min-w-[820px]">
-              <thead><tr><th>Usuário</th><th>Nível</th><th>Projetos e ares</th><th>Segurança</th><th>Último acesso</th><th /></tr></thead>
+          <>
+          {/* celular: um cartão por pessoa (a tabela larga obrigava a rolar de lado) */}
+          <ul className="divide-y divide-border md:hidden">
+            {lista.map((u) => (
+              <li key={u.id} className={`space-y-3 p-4 ${u.ativo ? '' : 'opacity-50'}`}>
+                <div className="flex items-center gap-3">
+                  {u.avatar ? <img src={u.avatar} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{iniciais(u.nome, u.email)}</span>}
+                  <div className="min-w-0 flex-1"><p className="truncate font-medium">{u.nome || u.email.split('@')[0]}</p><p className="truncate text-xs text-muted-foreground">{u.email}</p></div>
+                  <span className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${COR_PAPEL[u.papel]}`}>{u.papel === 'dono' && <Crown className="h-3 w-3" />}{u.papel_rotulo}</span>
+                </div>
+                <dl className="grid grid-cols-3 gap-2 text-xs">
+                  <div><dt className="text-muted-foreground">Uso (30 d)</dt><dd className="font-medium tabular">{usoDe(u.id) ? tempo(usoDe(u.id).ms) : '—'}</dd></div>
+                  <div><dt className="text-muted-foreground">Último acesso</dt><dd className="font-medium">{u.ultimo_acesso ? haQuanto(u.ultimo_acesso) : 'nunca'}</dd></div>
+                  <div><dt className="text-muted-foreground">Segurança</dt><dd className="font-medium">{[u.totp && '2FA', u.passkeys && 'biometria', u.google && 'Google'].filter(Boolean).join(', ') || 'só senha'}</dd></div>
+                </dl>
+                <p className="truncate text-xs text-muted-foreground">{nomeProjetos(u)}</p>
+                {u.pode_editar && <AcoesUsuario u={u} aoAtualizar={recarregar} aoEditar={() => setForm(u)} aoSenha={() => novaSenha(u)} />}
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="tabela w-full min-w-[900px]">
+              <thead><tr><th>Usuário</th><th>Nível</th><th>Projetos e ares</th><th>Segurança</th><th>Uso (30 dias)</th><th>Último acesso</th><th /></tr></thead>
               <tbody>
                 {lista.map((u) => (
                   <tr key={u.id} className={u.ativo ? '' : 'opacity-50'}>
@@ -342,6 +391,7 @@ export default function Usuarios() {
                         {u.exige_troca_senha && <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-400"><KeyRound className="h-3 w-3" />troca de senha</span>}
                       </div>
                     </td>
+                    <td className="text-sm tabular">{usoDe(u.id) ? <><span className="font-medium">{tempo(usoDe(u.id).ms)}</span><span className="block text-[11px] text-muted-foreground">{usoDe(u.id).dias_ativos} dia(s)</span></> : <span className="text-muted-foreground">—</span>}</td>
                     <td className="text-sm text-muted-foreground">{u.ultimo_acesso ? haQuanto(u.ultimo_acesso) : 'nunca entrou'}</td>
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -357,6 +407,7 @@ export default function Usuarios() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
       <p className="text-xs text-muted-foreground">As permissões valem no servidor, não só na tela: quem não tem acesso recebe "sem permissão" mesmo chamando a API direto. Ninguém consegue dar uma permissão que não tem.</p>

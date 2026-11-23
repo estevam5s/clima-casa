@@ -397,8 +397,43 @@ def apagar_usuario(uid: str, request: Request):
         raise HTTPException(403, "Você não pode apagar esse usuário.")
     _admin("DELETE", f"/admin/users/{uid}")
     db.executar("DELETE FROM usuarios WHERE id = ?", (uid,))
+    from .. import uso
+    uso.apagar_de(uid)   # o tempo de tela da pessoa sai junto com a conta
     db.registrar("painel", f"Usuário apagado: {alvo['email']}", detalhe=f"por {ator['email']}")
     return {"ok": True}
+
+
+class UsoTelasIn(BaseModel):
+    telas: list[dict] = Field(default_factory=list, max_length=40)
+    caminhos: list[dict] = Field(default_factory=list, max_length=40)
+
+
+@contas.post("/conta/uso-telas")
+def registrar_uso_telas(d: UsoTelasIn, request: Request):
+    """Tempo de tela da própria pessoa (o navegador manda a cada minuto). Só números por tela; nada do que foi digitado."""
+    from .. import uso
+    return {"ok": True, "gravados": uso.gravar(str(request.state.u["id"]), d.telas, d.caminhos)}
+
+
+@contas.get("/usuarios/uso")
+def uso_dos_usuarios(request: Request, dias: int = 30):
+    """Uso do sistema por pessoa (Configurações → Usuários → Uso do sistema). Só as pessoas que quem pergunta pode ver."""
+    from .. import uso
+    ator = request.state.u
+    dias = max(1, min(90, int(dias)))
+    linhas = db.consultar("SELECT id, nome, email, avatar, papel, cargo, ativo, projetos FROM usuarios ORDER BY criado_em")
+    visiveis = []
+    for u in linhas:
+        if ator["projetos"] != "*":
+            pu = acesso._json(u["projetos"], "*")
+            if (pu == "*" or not set(pu) <= set(ator["projetos"])) and str(u["id"]) != ator["id"]:
+                continue
+        visiveis.append(u)
+    r = uso.relatorio([str(u["id"]) for u in visiveis], dias)
+    r["usuarios"] = {str(u["id"]): {"nome": u["nome"] or (u["email"] or "").split("@")[0], "email": u["email"], "avatar": u.get("avatar") or "",
+                                    "papel": u["papel"], "cargo": u.get("cargo") or "", "ativo": u.get("ativo", True)} for u in visiveis}
+    r["periodo"] = dias
+    return r
 
 
 @contas.get("/conta/sessoes")
@@ -728,6 +763,7 @@ def meus_dados(request: Request):
         "entradas": db.consultar("SELECT quando, tipo, ip, pais, agente FROM seguranca_eventos WHERE (detalhe = ? OR detalhe = ?) AND tipo LIKE 'login%' ORDER BY quando DESC LIMIT 500", (_marca_email(email), email)),
         "conversas_ia": db.consultar("SELECT id, titulo, criado_em, atualizado_em FROM ia_conversas WHERE usuario_id = ? ORDER BY atualizado_em DESC", (str(u["id"]),)),
         "preferencias_seguranca": _prefs_seg(u["id"]),
+        "uso_das_telas": db.consultar("SELECT dia, rota, ms, visitas FROM uso_telas WHERE usuario_id = ? ORDER BY dia DESC, ms DESC LIMIT 2000", (u["id"],)),
     }
     db.registrar("painel", "Cópia dos dados pessoais baixada", detalhe=email)
     return JSONResponse(dados, headers={"Content-Disposition": 'attachment; filename="meus-dados-clima-escritorio.json"'})

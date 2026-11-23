@@ -35,7 +35,7 @@ export default function GraficoVersoes({ versoes, ir, novas = new Set() }) {
             const nova = novas.has(v.versao)
             return (
               <g key={v.versao} onMouseEnter={() => setSobre(i)} onMouseLeave={() => setSobre(null)} onFocus={() => setSobre(i)} onBlur={() => setSobre(null)}
-                onClick={() => ir(v.versao)} onKeyDown={(e) => e.key === 'Enter' && ir(v.versao)} tabIndex={0} role="button" aria-label={`Versão ${v.versao}: ${v.titulo}`} className="cursor-pointer outline-none">
+                onClick={() => ir(v.versao)} onKeyDown={(e) => e.key === 'Enter' && ir(v.versao)} tabIndex={0} role="button" aria-label={`Versão ${v.versao}: ${v.titulo}`} className="cursor-pointer focus:outline-none focus-visible:[&>rect:first-child]:stroke-primary focus-visible:[&>rect:first-child]:[stroke-width:1.5]">
                 <rect x={x - 2} y={TOPO} width={L + 4} height={ALT} rx="4" className={sobre === i ? 'fill-muted' : 'fill-transparent'} />
                 {SECOES.map(([k]) => {
                   const n = v[k]?.length || 0

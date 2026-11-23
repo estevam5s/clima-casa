@@ -18,6 +18,7 @@ function Rotas() {
   return (
     <>
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
       <Stack.Protected guard={dentro}>
         <Stack.Screen name="(abas)" />
       </Stack.Protected>

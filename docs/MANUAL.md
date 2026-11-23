@@ -339,6 +339,10 @@ Em **Configurações → Usuários** (dono, administradores e subadministradores
   convite por e-mail. Por padrão a pessoa troca a senha no primeiro login.
 - No menu **⋯** de cada usuário: editar acesso, gerar senha nova, remover o autenticador (perdeu o celular) e apagar.
 - As permissões valem no servidor: quem não tem acesso não consegue nem pela API. Ninguém dá uma permissão que não tem.
+- **Uso do sistema** (botão no topo da aba): em 7, 30 ou 90 dias, o tempo de uso por dia, as telas mais usadas, quem
+  mais usa (clique na pessoa para ver as telas e os dias dela), os caminhos de uma tela para outra e o mapa de calor
+  pessoa × tela. Conta só com a aba visível e alguém mexendo (5 min parado, o relógio para); nada do que foi digitado
+  é guardado. A lista de contas mostra o uso de 30 dias de cada pessoa. Também nos apps (Mais → Uso do sistema).
 
 ## 8.13 Verificação em duas etapas e biometria
 
@@ -627,6 +631,16 @@ fica escura à noite.
 Controlando uma pessoa: **C** na copa faz um café (C de novo dá um gole); **R** perto do elevador desce ao térreo e, pela
 porta automática, ela anda pelas ruas, calçadas, praças e pelo terminal.
 
+O hall do andar, do lado da porta de entrada e virado para a avenida: o **elevador de três portas** à esquerda da porta
+(a primeira só para nos andares pares; a do meio e a terceira, só nos ímpares; todas param no térreo) e a **copa** à
+direita. Do outro lado do corredor, em frente à copa, os **banheiros masculino, feminino e acessível**, e no canto a
+**sala multiuso**. As cafeteiras ficam de frente para quem chega, com açúcar, cápsulas, xícaras e mexedores.
+
+## 14A.5b Rede e velocidade
+Em **Rede**: *Velocidade* (este computador e a rede do escritório pelo agente), *Ao vivo* (uma medida por segundo por
+2 minutos, com picos e quedas), *Mapa da rede* (o caminho do navegador até cada transmissor, com a latência em cores),
+*Diagnóstico*, *O que aguenta* (tempo para baixar arquivos e quantas chamadas de vídeo cabem) e *Histórico*.
+
 ## 14A.6 Escudo anti-DDoS
 Ligar o escudo à mão **impede todo mundo de entrar no sistema** enquanto ele estiver ligado (o login é barrado pela
 Vercel). Use só durante um ataque de verdade; ele desliga sozinho em 30 min ou em Segurança → Escudo.
@@ -635,9 +649,9 @@ Vercel). Use só durante um ataque de verdade; ele desliga sozinho em 30 min ou 
 
 | Problema | O que fazer |
 |---|---|
-| O ar não reage ao comando | Confira se o botão daquele ajuste foi gravado; se o transmissor está online; se ele tem visão direta do ar; se o agente do Mac está online |
+| O ar não reage ao comando | Confira se o botão daquele ajuste foi gravado; se o transmissor está online; se ele tem visão direta do ar; se o agente do escritório está online (Infra → Agentes) |
 | "Nenhum botão gravado para o modo…" | Grave pelo menos uma temperatura nesse modo (capítulo 7) |
-| A gravação não recebe o sinal | Controle a 10–20 cm do transmissor, pilhas boas, aperte um botão depois que a contagem começar; o Mac precisa estar na mesma rede |
+| A gravação não recebe o sinal | Controle a 10–20 cm do transmissor, pilhas boas, aperte um botão depois que a contagem começar; o agente precisa estar na mesma rede |
 | Transmissor offline | Ele está na tomada? Mesma rede do Mac? Use **Reconectar agora**. Se trocou o Wi-Fi, veja o capítulo 12 |
 | Transmissor com aviso "Local Key mudou" | Foi pareado de novo: conecte a conta Smart Life (capítulo 5) e clique em **Reconectar agora** |
 | Alexa diz "o dispositivo não está respondendo" | Agente do Mac offline, transmissor offline ou botão não gravado. Veja o painel e a Atividade |

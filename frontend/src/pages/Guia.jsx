@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { AirVent, ArrowRight, Bell, Bot, Bug, Cpu, Crown, PersonStanding, Send, ShieldCheck, BookOpen, Check, CircleHelp, Cloud, DoorClosed, Globe, Hand, Home, KeyRound, Lightbulb, Map as MapaIcone, Mic, Monitor, Music2, FileDown, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
+import { AirVent, ArrowRight, Bell, Bot, Bug, Cpu, Crown, PersonStanding, Send, ShieldCheck, BookOpen, Check, CircleHelp, Cloud, DoorClosed, Globe, Hand, Home, KeyRound, Link2, ListChecks, Lightbulb, Map as MapaIcone, Mic, Monitor, Music2, FileDown, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
 import { api } from '../api'
-import { Cabecalho, useToast } from '../components/ui'
+import { Botao, Cabecalho, useToast } from '../components/ui'
 
 // Passo a passo do sistema inteiro: do transmissor no Wi-Fi (Smart Life) até a Alexa (Sinric Pro), outra Alexa,
 // Google, mapa e música. Cada passo pode ser marcado como feito (fica salvo neste navegador).
@@ -10,11 +11,11 @@ const CAPITULOS = [
   {
     id: 'como-funciona', icone: Workflow, titulo: 'Como o sistema funciona',
     resumo: 'As cinco peças e o caminho que um comando faz até o ar-condicionado.',
-    fluxo: ['Você: painel, app ou “Alexa, desligar o ar”', 'Clima Escritório (internet)', 'Agente do Mac (rede do escritório)', 'Transmissor Smart IR', 'Luz infravermelha', 'Ar-condicionado'],
+    fluxo: ['Você: painel, app ou “Alexa, desligar o ar”', 'Clima Escritório (internet)', 'Agente do escritório (Mac, PC ou Raspberry Pi)', 'Transmissor Smart IR', 'Luz infravermelha', 'Ar-condicionado'],
     passos: [
       { t: 'Transmissor infravermelho “Smart IR” (SRW-004)', d: 'Fica no mesmo cômodo do ar, na tomada, e “aperta os botões” do controle remoto por você.' },
       { t: 'App Smart Life (celular)', d: 'Serve para colocar o transmissor no Wi-Fi e para o sistema buscar a chave de segurança dele.' },
-      { t: 'Agente do Mac', d: 'Programa que roda sozinho no Mac do escritório. Conversa com o transmissor pela rede local, roda a agenda, as automações, as rotinas de música e mantém a Alexa conectada. O Mac precisa ficar ligado e no mesmo Wi-Fi do transmissor.' },
+      { t: 'Agente do escritório', d: 'Programa que roda sozinho num computador da rede do escritório: Mac, PC com Windows, Linux ou um Raspberry Pi ligado 24 horas. Conversa com o transmissor pela rede local, roda a agenda, as automações, as rotinas de música e mantém a Alexa conectada. Pode haver vários: um fica no comando e os outros esperam.' },
       { t: 'Painel (este site, app de celular e app de computador)', d: 'Onde você controla tudo, de qualquer lugar.' },
       { t: 'Sinric Pro', d: 'Serviço que liga o sistema à Alexa e ao Google Home.' },
     ],
@@ -26,7 +27,7 @@ const CAPITULOS = [
     passos: [
       { t: 'Wi-Fi de 2,4 GHz', d: 'O transmissor não funciona em 5 GHz. Se o roteador junta as duas redes num nome só, separe ou crie uma rede só de 2,4 GHz.' },
       { t: 'Controle remoto original de cada ar, com pilhas boas', d: 'É dele que o sistema copia os botões.' },
-      { t: 'Mac do escritório ligado, no mesmo Wi-Fi do transmissor', d: 'Ajustes do Sistema → Bateria/Energia → impedir o repouso automático quando conectado à energia.' },
+      { t: 'Um computador do escritório ligado, na mesma rede do transmissor', d: 'Mac, PC ou Raspberry Pi com o agente. No Mac: Ajustes do Sistema → Bateria/Energia → impedir o repouso automático quando conectado à energia. O Raspberry Pi já vem preparado para ficar ligado direto.' },
       { t: 'Celular com Smart Life e Amazon Alexa (ou Google Home)', d: 'Play Store ou App Store.' },
       { t: 'Onde pôr o transmissor', d: 'No mesmo cômodo do ar, com visão direta (infravermelho não atravessa paredes nem móveis), a no máximo 10 m, na tomada pelo cabo USB (5 V).' },
     ],
@@ -58,7 +59,7 @@ const CAPITULOS = [
     resumo: 'Importar da conta Smart Life e conferir se estão online.',
     passos: [
       { t: 'Abra Transmissores IR', d: 'Clique em Importar todos: vêm todos os transmissores da conta, com IP e chave. Para escolher um por um, use Importar um.', link: ['/transmissores', 'Abrir Transmissores'] },
-      { t: 'Confira o ponto verde (online)', d: 'Se estiver cinza, clique em Reconectar agora. Ainda offline? Confira se ele está na tomada e no mesmo Wi-Fi 2,4 GHz do Mac. Procurar na rede mostra o que o Mac enxerga.' },
+      { t: 'Confira o ponto verde (online)', d: 'Se estiver cinza, clique em Reconectar agora. Ainda offline? Confira se ele está na tomada e na mesma rede do agente. Procurar na rede mostra o que o agente enxerga.' },
       { t: 'Um projeto para cada lugar', d: 'Em Projetos crie “Escritório”, “Casa” etc. O seletor no topo do menu escolhe o que as telas mostram.', link: ['/projetos', 'Abrir Projetos'] },
     ],
   },
@@ -90,7 +91,7 @@ const CAPITULOS = [
     id: 'remoto', icone: Cloud, titulo: 'Usar no dia a dia e desligar de longe',
     resumo: 'Painel, cenas, agenda, automações e o controle remoto pela internet.',
     passos: [
-      { t: 'Desligar o ar de qualquer lugar', d: 'Pelo painel (app.zynio.com.br), pelo app do celular ou “Alexa, desligar o ar do escritório”. Funciona fora do escritório porque o comando vai pela internet até o Mac de lá. Precisa de: Mac ligado com o agente, transmissor online e o botão Desligar gravado.', link: ['/', 'Abrir o Painel'] },
+      { t: 'Desligar o ar de qualquer lugar', d: 'Pelo painel (app.zynio.com.br), pelo app do celular ou “Alexa, desligar o ar do escritório”. Funciona fora do escritório porque o comando vai pela internet até o agente de lá. Precisa de: um agente ligado no escritório, transmissor online e o botão Desligar gravado.', link: ['/', 'Abrir o Painel'] },
       { t: 'Desligar daqui a X tempo', d: 'Na tela do aparelho: Desligar automaticamente (30 min, 1 h, 2 h…).' },
       { t: 'Cenas: vários ares com um toque', d: 'Ex.: “Fim do expediente” desliga todos.', link: ['/cenas', 'Abrir Cenas'] },
       { t: 'Agenda: horários fixos', d: 'Ex.: seg a sex, 18:30, desligar todos.', link: ['/agendamentos', 'Abrir Agenda'] },
@@ -204,6 +205,9 @@ const CAPITULOS = [
       { t: 'Tomar um café', d: 'Controlando a pessoa, vá até a cafeteira da copa e aperte C (ou o botão Café): ela faz o café e sai com a xícara. C de novo dá um gole; parada, ela bebe sozinha.' },
       { t: 'Sair do prédio e andar pela cidade', d: 'Perto da porta do elevador aperte R para descer ao térreo, passe pela porta automática e ande pelas ruas, calçadas, praças e pelo terminal. Os prédios e casas das quadras não deixam passar.' },
       { t: 'De noite', d: 'O botão Noite (ou a hora real) acende salas, corredor e copa. Com as luzes cadastradas em Iluminação, a sala com a lâmpada apagada fica escura no 3D.' },
+      { t: 'O hall do andar', d: 'Do lado da porta de entrada, virados para a avenida: o elevador de três portas à esquerda da porta e a copa à direita. Do outro lado do corredor, em frente à copa, ficam os banheiros masculino, feminino e acessível, e no canto do andar a sala multiuso. O corredor tem a faixa escura no piso.' },
+      { t: 'Qual elevador pegar', d: 'A primeira porta (à esquerda) atende só os andares pares; a do meio e a terceira, só os ímpares. Todas param no térreo. Perto das portas, R chama o carro que para no andar do escritório.' },
+      { t: 'Café com tudo à mão', d: 'As cafeteiras ficam de frente para quem chega, com açúcar, cápsulas de vários sabores, xícaras e mexedores ao lado.' },
     ],
   },
   {
@@ -213,7 +217,7 @@ const CAPITULOS = [
       { t: 'Crie o app no Spotify for Developers', d: 'developer.spotify.com/dashboard → Create app → Redirect URI: https://app.zynio.com.br/musica → marque Web API. Em User Management, adicione o e-mail da conta que vai tocar.' },
       { t: 'Cole o Client ID e o Client Secret em Música', d: 'O segredo fica cifrado. Depois clique em Conectar com o Spotify e autorize.', link: ['/musica', 'Abrir Música'] },
       { t: 'Vincule o Spotify na Alexa', d: 'App Alexa → Mais → Configurações → Música e podcasts → Vincular novo serviço → Spotify. Os Echo passam a aparecer como aparelhos em Música.' },
-      { t: 'Crie rotinas', d: 'Por horário (ex.: seg a sex 08:30 tocar a playlist do escritório a 25%) ou junto com os ares (ex.: quando o ar da reunião ligar, pausar). Elas rodam no agente do Mac.' },
+      { t: 'Crie rotinas', d: 'Por horário (ex.: seg a sex 08:30 tocar a playlist do escritório a 25%) ou junto com os ares (ex.: quando o ar da reunião ligar, pausar). Elas rodam no agente do escritório.' },
       { t: 'Premium', d: 'O Spotify só deixa controlar a reprodução (tocar, pausar, volume) com conta Premium.' },
     ],
   },
@@ -311,6 +315,26 @@ const CAPITULOS = [
     ],
   },
   {
+    id: 'uso', icone: Users, titulo: 'Usuários e uso do sistema',
+    resumo: 'Quem tem acesso a quê e quanto tempo cada pessoa usa cada tela.',
+    passos: [
+      { t: 'Contas e acessos', d: 'Configurações → Usuários → Contas e acessos: crie contas, escolha o nível (dono, administrador, operador…), os projetos e os ares de cada pessoa. As permissões valem no servidor, não só na tela.', link: ['/configuracoes?aba=usuarios', 'Abrir Usuários'] },
+      { t: 'Uso do sistema', d: 'Na mesma aba, Uso do sistema mostra em 7, 30 ou 90 dias: tempo de uso por dia, telas mais usadas, quem mais usa (clique na pessoa para ver as telas e os dias dela), os caminhos de uma tela para outra e o mapa de calor pessoa × tela.', link: ['/configuracoes?aba=usuarios&ver=uso', 'Abrir Uso do sistema'] },
+      { t: 'Como o tempo é contado', d: 'Só com a aba do sistema visível e alguém mexendo: depois de 5 minutos parado, o relógio para. Não guarda nada do que foi digitado, só quanto tempo cada tela ficou aberta.' },
+      { t: 'Os seus dados', d: 'Cada pessoa baixa uma cópia dos próprios dados (inclusive o tempo de uso) em Configurações → Segurança. Ao apagar uma conta, o tempo de uso dela é apagado junto.' },
+    ],
+  },
+  {
+    id: 'placa', icone: Cpu, titulo: 'Placa própria (Arduino ou ESP) no lugar de um aparelho Smart Life',
+    resumo: 'Para cafeteira, persiana ou fechadura sem aparelho compatível: uma placa com relé faz o papel.',
+    passos: [
+      { t: 'Escolha a placa', d: 'Arduino UNO R4 WiFi, GIGA R1 WiFi, Opta WiFi, Portenta H7, Nano 33 IoT, MKR WiFi 1010, Nano ESP32, ESP32 ou ESP8266, com um módulo de relé.' },
+      { t: 'Gere o código', d: 'Na tela do aparelho (Cafeteira, Persianas ou Fechadura) → Código da placa própria. O sistema gera o programa completo e um token só daquela placa (aparece uma vez).', link: ['/cafeteira', 'Abrir Cafeteira'] },
+      { t: 'Grave pelo Arduino IDE', d: 'Preencha o nome e a senha do Wi-Fi no começo do código e envie para a placa. Ela busca os comandos no servidor a cada 3 s, pela internet do escritório, sem abrir porta nenhuma.' },
+      { t: 'O que a placa não faz', d: 'Ela não substitui o agente: o agente é um programa em Python com banco de dados, e Arduino ou ESP não rodam isso. Para o agente ligado 24 horas, use um Raspberry Pi (capítulo Raspberry Pi).' },
+    ],
+  },
+  {
     id: 'dono', icone: Crown, titulo: 'Transferir o posto de dono',
     resumo: 'Só o dono passa o posto para outra pessoa; o novo dono pode transferir de novo.',
     passos: [
@@ -335,11 +359,11 @@ const CAPITULOS = [
     id: 'problemas', icone: CircleHelp, titulo: 'Quando algo não funciona',
     resumo: 'Os problemas mais comuns e o que fazer.',
     tabela: [
-      ['O ar não reage', 'O botão daquele ajuste foi gravado? O transmissor está online? Tem visão direta do ar? O agente do Mac está online? O Painel mostra um aviso amarelo com o motivo.'],
+      ['O ar não reage', 'O botão daquele ajuste foi gravado? O transmissor está online? Tem visão direta do ar? O agente do escritório está online (Infra → Agentes)? O Painel mostra um aviso amarelo com o motivo.'],
       ['“Nenhum botão gravado para o modo…”', 'Grave pelo menos uma temperatura nesse modo (capítulo Gravar os botões).'],
-      ['A gravação não recebe o sinal', 'Controle a 10–20 cm do transmissor, pilhas boas, aperte depois que a contagem começar; o Mac precisa estar na mesma rede.'],
-      ['Transmissor offline', 'Está na tomada? Mesma rede 2,4 GHz do Mac? Use Reconectar agora. Se trocou o Wi-Fi, pareie de novo no Smart Life.'],
-      ['Alexa: “o dispositivo não está respondendo”', 'Agente do Mac offline, transmissor offline ou botão não gravado. Veja o Painel e a Atividade.'],
+      ['A gravação não recebe o sinal', 'Controle a 10–20 cm do transmissor, pilhas boas, aperte depois que a contagem começar; o agente precisa estar na mesma rede.'],
+      ['Transmissor offline', 'Está na tomada? Mesma rede 2,4 GHz do agente? Use Reconectar agora. Se trocou o Wi-Fi, pareie de novo no Smart Life.'],
+      ['Alexa: “o dispositivo não está respondendo”', 'Agente do escritório offline, transmissor offline ou botão não gravado. Veja o Painel e a Atividade.'],
       ['Aparelho não aparece na Alexa', 'Ele está “Disponível na Alexa” e criado no Sinric? Diga “Alexa, descobrir dispositivos”.'],
       ['Portal do Sinric: “signature mismatched”', 'O aparelho foi criado com outra credencial: recrie com a mesma Chave do App.'],
       ['Limite no Sinric', 'Plano gratuito tem 3 aparelhos. Remova os que não usa ou assine um plano.'],
@@ -357,6 +381,8 @@ export default function Guia() {
   const [feitos, setFeitos] = useState(lerFeitos)
   const [busca, setBusca] = useState('')
   const [ativo, setAtivo] = useState(CAPITULOS[0].id)
+  const [soFalta, setSoFalta] = useState(false)
+  const parado = useReducedMotion()
   const alternar = (k) => setFeitos((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); try { localStorage.setItem(CHAVE, JSON.stringify([...n])) } catch { /* sem armazenamento */ } return n })
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -385,63 +411,123 @@ export default function Guia() {
   // /guia#capitulo (links de outras telas) abre direto no capítulo
   useEffect(() => { const h = decodeURIComponent(window.location.hash.slice(1)); if (h) setTimeout(() => ir(h), 150) }, [])
 
+  const capFeito = (c) => (c.passos || []).length > 0 && (c.passos || []).every((_, k) => feitos.has(`${c.id}:${k}`))
+  const capsFeitos = CAPITULOS.filter(capFeito).length
+  const proximo = CAPITULOS.find((c) => (c.passos || []).length && !capFeito(c))
+  const marcarCapitulo = (c, valor) => setFeitos((s0) => {
+    const n = new Set(s0); (c.passos || []).forEach((_, k) => (valor ? n.add(`${c.id}:${k}`) : n.delete(`${c.id}:${k}`)))
+    try { localStorage.setItem(CHAVE, JSON.stringify([...n])) } catch { /* sem armazenamento */ }
+    return n
+  })
+  const copiarLink = (id) => { navigator.clipboard?.writeText(`${window.location.origin}/guia#${id}`); toast('Link do capítulo copiado.') }
+  const visiveis = soFalta ? filtrados.filter((c) => !capFeito(c)) : filtrados
+  const pct = total ? feitosN / total : 0
+  const R = 26, C = 2 * Math.PI * R
+
   return (
     <div>
       <Cabecalho titulo="Passo a passo" descricao="Do transmissor no Wi-Fi até a Alexa, outra Alexa, o Sinric Pro, o Smart Life, o mapa e a música. Marque cada passo conforme for fazendo."
         acoes={<>
-          <button onClick={baixarPdf} disabled={gerandoPdf} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 print:hidden"><FileDown className="h-4 w-4" />{gerandoPdf ? 'Gerando…' : 'PDF (modelo da Prefeitura)'}</button>
-          <button onClick={() => window.print()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted print:hidden"><Printer className="h-4 w-4" />Imprimir</button>
+          <Botao icone={FileDown} carregando={gerandoPdf} onClick={baixarPdf} className="print:hidden">{gerandoPdf ? 'Gerando…' : 'PDF (modelo da Prefeitura)'}</Botao>
+          <Botao variante="secundario" icone={Printer} onClick={() => window.print()} className="print:hidden">Imprimir</Botao>
         </>} />
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center print:hidden">
-        <label className="relative flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar no guia (ex.: outra Alexa, Wi-Fi, Spotify)" className="campo h-10 pl-9" aria-label="Buscar no guia" /></label>
-        <div className="flex items-center gap-3 text-sm">
-          <div className="h-2 w-40 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${(feitosN / total) * 100}%` }} /></div>
-          <span className="tabular text-muted-foreground">{feitosN} de {total} passos</span>
+
+      {/* resumo do progresso: anel, números e o próximo capítulo que falta */}
+      <section className="cartao mb-6 grid gap-5 p-5 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center print:hidden">
+        <div className="flex items-center gap-4">
+          <svg viewBox="0 0 64 64" className="h-16 w-16 shrink-0 -rotate-90" aria-hidden>
+            <circle cx="32" cy="32" r={R} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
+            <motion.circle cx="32" cy="32" r={R} fill="none" stroke="hsl(var(--primary))" strokeWidth="6" strokeLinecap="round" strokeDasharray={C}
+              initial={false} animate={{ strokeDashoffset: C * (1 - pct) }} transition={{ duration: 0.8, ease: 'easeOut' }} />
+          </svg>
+          <div>
+            <p className="text-2xl font-semibold leading-none tabular">{Math.round(pct * 100)}%</p>
+            <p className="mt-1 text-xs text-muted-foreground">{feitosN} de {total} passos · {capsFeitos} de {CAPITULOS.length} capítulos</p>
+          </div>
         </div>
-      </div>
+        <label className="relative min-w-0"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar no guia (ex.: outra Alexa, Wi-Fi, Spotify, elevador)" className="campo h-10 pl-9" aria-label="Buscar no guia" /></label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setSoFalta((v) => !v)} aria-pressed={soFalta}
+            className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${soFalta ? 'border-primary bg-primary/10 font-medium' : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+            <ListChecks className="h-4 w-4" />Só o que falta</button>
+          {proximo && <Botao variante="secundario" onClick={() => ir(proximo.id)}>Continuar: {proximo.titulo.length > 22 ? `${proximo.titulo.slice(0, 22)}…` : proximo.titulo}</Botao>}
+        </div>
+      </section>
+
       <select value={ativo} onChange={(e) => ir(e.target.value)} className="campo mb-4 h-10 lg:hidden print:hidden" aria-label="Ir para o capítulo">
-        {CAPITULOS.map((c, i) => <option key={c.id} value={c.id}>{i + 1}. {c.titulo}</option>)}
+        {CAPITULOS.map((c, i) => <option key={c.id} value={c.id}>{String(i + 1).padStart(2, '0')}. {c.titulo}{capFeito(c) ? ' (feito)' : ''}</option>)}
       </select>
-      <div className="grid gap-8 lg:grid-cols-[230px_1fr]">
-        <nav className="sticky top-20 hidden max-h-[calc(100vh-6rem)] self-start overflow-auto lg:block print:hidden" aria-label="Capítulos">
-          <ol className="space-y-0.5 text-sm">
+      <div className="grid gap-10 lg:grid-cols-[250px_minmax(0,1fr)]">
+        <nav className="rolagem-fina sticky top-20 hidden max-h-[calc(100dvh-6rem)] self-start overflow-auto pr-1 lg:block print:hidden" aria-label="Capítulos">
+          <ol className="relative space-y-0.5 border-l border-border text-sm">
             {CAPITULOS.map((c, i) => {
               const n = (c.passos || []).length, f = (c.passos || []).filter((_, k) => feitos.has(`${c.id}:${k}`)).length
               return (
-                <li key={c.id}><button onClick={() => ir(c.id)} className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left ${ativo === c.id ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
-                  <span className="w-5 shrink-0 tabular text-xs">{i + 1}.</span><span className="flex-1 truncate">{c.titulo}</span>{n > 0 && f === n && <Check className="h-3.5 w-3.5 text-emerald-500" />}
-                </button></li>
+                <li key={c.id}>
+                  <button onClick={() => ir(c.id)} aria-current={ativo === c.id ? 'true' : undefined}
+                    className={`group relative -ml-px flex w-full flex-col gap-1 py-1.5 pl-4 pr-2 text-left transition-colors ${ativo === c.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                    {ativo === c.id && <motion.span layoutId="guia-ativo" className="absolute inset-y-0 left-0 w-0.5 bg-primary" transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }} />}
+                    <span className="flex items-center gap-2">
+                      <span className="w-5 shrink-0 font-mono text-[11px] tabular opacity-70">{String(i + 1).padStart(2, '0')}</span>
+                      <span className={`flex-1 truncate ${ativo === c.id ? 'font-medium' : ''}`}>{c.titulo}</span>
+                      {n > 0 && f === n && <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
+                    </span>
+                    {n > 0 && f > 0 && f < n && <span className="ml-7 block h-0.5 overflow-hidden rounded-full bg-muted"><span className="block h-full bg-primary/70" style={{ width: `${(f / n) * 100}%` }} /></span>}
+                  </button>
+                </li>
               )
             })}
           </ol>
         </nav>
-        <div className="min-w-0 space-y-8">
-          {!filtrados.length && <p className="text-sm text-muted-foreground">Nada encontrado para “{busca}”.</p>}
-          {filtrados.map((c) => {
-            const I = c.icone, idx = CAPITULOS.findIndex((x) => x.id === c.id)
+        <div className="min-w-0 space-y-12">
+          {!visiveis.length && <p className="text-sm text-muted-foreground">{busca ? `Nada encontrado para “${busca}”.` : 'Tudo feito por aqui.'}</p>}
+          {visiveis.map((c) => {
+            const idx = CAPITULOS.findIndex((x) => x.id === c.id)
+            const nP = (CAPITULOS[idx].passos || []).length, fP = (CAPITULOS[idx].passos || []).filter((_, k) => feitos.has(`${c.id}:${k}`)).length
+            const seguinte = CAPITULOS[idx + 1]
             return (
-              <section key={c.id} id={c.id} data-capitulo className="scroll-mt-20 break-inside-avoid">
-                <div className="mb-3 flex items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border"><I className="h-4 w-4" /></span>
-                  <div><h2 className="text-lg font-semibold">{idx + 1}. {c.titulo}</h2><p className="text-sm text-muted-foreground">{c.resumo}</p></div>
-                </div>
+              <motion.section key={c.id} id={c.id} data-capitulo className="scroll-mt-20 break-inside-avoid"
+                initial={parado ? false : { opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-60px' }} transition={{ duration: 0.35 }}>
+                <header className="mb-5 flex items-start gap-4">
+                  <span className="select-none font-mono text-3xl font-semibold leading-none tracking-tight text-muted-foreground/40 tabular">{String(idx + 1).padStart(2, '0')}</span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-xl font-semibold tracking-tight">{c.titulo}</h2>
+                    <p className="mt-0.5 text-sm text-muted-foreground">{c.resumo}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 print:hidden">
+                    {nP > 0 && <span className={`rounded-md px-2 py-0.5 text-xs tabular ${fP === nP ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>{fP}/{nP}</span>}
+                    <button onClick={() => copiarLink(c.id)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Copiar link do capítulo ${c.titulo}`} title="Copiar link"><Link2 className="h-4 w-4" /></button>
+                  </div>
+                </header>
                 {c.fluxo && (
-                  <ol className="mb-4 flex flex-wrap items-center gap-1.5 text-xs">
-                    {c.fluxo.map((f, i) => <li key={f} className="flex items-center gap-1.5"><span className="rounded-md border border-border bg-card px-2 py-1">{f}</span>{i < c.fluxo.length - 1 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />}</li>)}
+                  <ol className="relative mb-6 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                    {c.fluxo.map((f, i) => (
+                      <motion.li key={f} initial={parado ? false : { opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.07 }}
+                        className="relative rounded-lg border border-border bg-card px-3 py-2.5 text-xs">
+                        <span className="mb-1 block font-mono text-[10px] text-muted-foreground">{i + 1}</span>{f}
+                        {i < c.fluxo.length - 1 && <ArrowRight className="absolute -right-2.5 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 rounded-full bg-background text-primary xl:block" />}
+                      </motion.li>
+                    ))}
                   </ol>
                 )}
                 {c.passos?.length > 0 && (
-                  <ol className="cartao divide-y divide-border">
+                  <ol className="relative space-y-1 before:absolute before:bottom-4 before:left-[15px] before:top-4 before:w-px before:bg-border">
                     {c.passos.map((p) => {
                       const i = CAPITULOS[idx].passos.indexOf(p), k = `${c.id}:${i}`, feito = feitos.has(k)
                       return (
-                        <li key={k} className="flex gap-3 px-4 py-3">
+                        <li key={k} className="group relative flex gap-4 rounded-lg py-2.5 pr-3">
                           <button onClick={() => alternar(k)} aria-pressed={feito} aria-label={feito ? `Desmarcar: ${p.t}` : `Marcar como feito: ${p.t}`}
-                            className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold tabular ${feito ? 'border-transparent bg-emerald-500 text-white' : 'border-border text-muted-foreground hover:bg-muted'}`}>{feito ? <Check className="h-3.5 w-3.5" /> : i + 1}</button>
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-sm font-medium ${feito ? 'text-muted-foreground line-through' : ''}`}>{p.t}</p>
-                            <p className="mt-0.5 text-sm text-muted-foreground">{p.d}</p>
-                            {p.link && <Link to={p.link[0]} className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline print:hidden">{p.link[1]}<ArrowRight className="h-3 w-3" /></Link>}
+                            className={`relative z-10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular transition-colors ${feito ? 'border-transparent bg-emerald-500 text-white' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-foreground'}`}>
+                            <AnimatePresence mode="wait" initial={false}>
+                              {feito ? <motion.span key="ok" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.4, opacity: 0 }} transition={{ type: 'spring', bounce: 0.5, duration: 0.35 }}><Check className="h-4 w-4" /></motion.span>
+                                : <motion.span key="n" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>{i + 1}</motion.span>}
+                            </AnimatePresence>
+                          </button>
+                          <div className="min-w-0 flex-1 pt-1">
+                            <p className={`text-sm font-medium transition-colors ${feito ? 'text-muted-foreground line-through decoration-muted-foreground/50' : ''}`}>{p.t}</p>
+                            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{p.d}</p>
+                            {p.link && <Link to={p.link[0]} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline print:hidden">{p.link[1]}<ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" /></Link>}
                           </div>
                         </li>
                       )
@@ -449,13 +535,17 @@ export default function Guia() {
                   </ol>
                 )}
                 {c.tabela?.length > 0 && (
-                  <div className="cartao overflow-hidden">
-                    <table className="w-full text-sm"><thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="px-4 py-2 font-medium">Problema</th><th className="px-4 py-2 font-medium">O que fazer</th></tr></thead>
-                      <tbody className="divide-y divide-border">{c.tabela.map(([a, b]) => <tr key={a}><td className="w-2/5 px-4 py-2.5 align-top font-medium">{a}</td><td className="px-4 py-2.5 text-muted-foreground">{b}</td></tr>)}</tbody></table>
+                  <div className="cartao overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-sm"><thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="px-4 py-2 font-medium">Problema</th><th className="px-4 py-2 font-medium">O que fazer</th></tr></thead>
+                      <tbody className="divide-y divide-border">{c.tabela.map(([a, b]) => <tr key={a} className="hover:bg-muted/30"><td className="w-2/5 px-4 py-2.5 align-top font-medium">{a}</td><td className="px-4 py-2.5 text-muted-foreground">{b}</td></tr>)}</tbody></table>
                   </div>
                 )}
-                {c.dicas?.map((d) => <p key={d} className="mt-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{d}</p>)}
-              </section>
+                {c.dicas?.map((d) => <p key={d} className="mt-4 border-l-2 border-amber-500/70 bg-amber-500/5 py-2 pl-3 pr-3 text-sm text-muted-foreground">{d}</p>)}
+                <footer className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 print:hidden">
+                  {nP > 0 ? <button onClick={() => marcarCapitulo(CAPITULOS[idx], fP < nP)} className="text-xs font-medium text-muted-foreground hover:text-foreground">{fP < nP ? 'Marcar o capítulo inteiro como feito' : 'Desmarcar o capítulo'}</button> : <span />}
+                  {seguinte && <button onClick={() => ir(seguinte.id)} className="group inline-flex items-center gap-1.5 text-sm font-medium text-primary">Próximo: {seguinte.titulo}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></button>}
+                </footer>
+              </motion.section>
             )
           })}
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><BookOpen className="h-3.5 w-3.5" />O manual completo também está em docs/MANUAL.md no repositório.</p>

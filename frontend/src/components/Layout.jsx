@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { limparCache } from '../cacheTela'
 import IconeMarca from './IconeMarca'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -7,7 +7,8 @@ import { Activity, Languages, LineChart, AirVent, BarChart3, Bell, Blinds, BookO
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
-import { ConfirmacaoGlobal } from './ui'
+import { Carregando, ConfirmacaoGlobal } from './ui'
+import { trocarTela } from '../usoTelas'
 import AcessoRapido from './AcessoRapido'
 import Notificacoes, { useCentral } from './Notificacoes'
 import Atalhos from './Atalhos'
@@ -195,6 +196,21 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores,
   const [busca, setBusca] = useState('')
   const [fechados, setFechados] = useState(lerFechados)
   const buscaRef = useRef(null)
+  const navRef = useRef(null)
+  const { pathname } = useLocation()
+  // Ao abrir (a gaveta do celular monta de novo a cada abertura) e ao trocar de tela, o menu rola até o item
+  // da tela atual. Mexe só na rolagem do próprio menu, nunca na da página.
+  useEffect(() => {
+    const nav = navRef.current
+    if (!nav) return undefined
+    const t = requestAnimationFrame(() => {
+      const el = nav.querySelector('[aria-current="page"]')
+      if (!el) return
+      const n = nav.getBoundingClientRect(), r = el.getBoundingClientRect()
+      if (r.top < n.top + 24 || r.bottom > n.bottom - 24) nav.scrollTop += r.top - n.top - (n.height - r.height) / 2
+    })
+    return () => cancelAnimationFrame(t)
+  }, [pathname, aberta])
   const q = semAcento(busca.trim())
   const grupos = q ? gruposTodos.map((g) => ({ ...g, itens: g.itens.filter((i) => semAcento(`${i.rotulo} ${CHAVES[i.para] || ''}`).includes(q)) })).filter((g) => g.itens.length) : gruposTodos
   const alternarGrupo = (t) => setFechados((f) => { const n = f.includes(t) ? f.filter((x) => x !== t) : [...f, t]; try { localStorage.setItem('clima-menu-fechados', JSON.stringify(n)) } catch { /* sem armazenamento */ } return n })
@@ -229,7 +245,7 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores,
       ) : (
         <button onClick={aoBuscar} className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" title="Buscar (⌘K)" aria-label="Buscar"><Search className="h-[18px] w-[18px]" /></button>
       )}
-      <nav className="sem-barra -mx-1 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-1 [mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%-16px),transparent)] py-1"> {/* marca: esmaecer a rolagem do menu */}
+      <nav ref={navRef} className="sem-barra -mx-1 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-1 [mask-image:linear-gradient(to_bottom,transparent,black_12px,black_calc(100%-16px),transparent)] py-1"> {/* marca: esmaecer a rolagem do menu */}
         {grupos.map((g) => {
           const recolhido = aberta && !q && fechados.includes(g.titulo)
           return (
@@ -482,6 +498,7 @@ export default function Layout() {
   const central = useCentral()
 
   useEffect(() => setMovel(false), [local.pathname])
+  useEffect(() => { trocarTela(local.pathname) }, [local.pathname])   // tempo de tela por pessoa (Configurações → Usuários)
   // nome da página no título da aba (formato definido no white label)
   useEffect(() => {
     const item = [...TODAS].sort((a, b) => b.para.length - a.para.length).find((i) => (i.para === '/' ? local.pathname === '/' : local.pathname.startsWith(i.para)))
@@ -557,9 +574,12 @@ export default function Layout() {
         <NovidadesModal />
         <TermoAceite />
         <main className="w-full px-4 pb-16 pt-6 sm:px-6 lg:px-8 2xl:px-10">
-          <motion.div key={local.pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          {/* altura mínima de uma tela: enquanto a página carrega, o rodapé fica abaixo da dobra e não "pula" quando os dados
+              chegam (era o maior deslocamento de layout medido nas telas do sistema) */}
+          <motion.div key={local.pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
+            className={TELAS_CHEIAS.some((t) => local.pathname.startsWith(t)) ? '' : 'min-h-[calc(100dvh-8.5rem)]'}>
       <Atalhos />
-            {emManutencao ? <Manutencao marca={marca} /> : <Outlet />}
+            {emManutencao ? <Manutencao marca={marca} /> : <Suspense fallback={<Carregando />}><Outlet /></Suspense>}
           </motion.div>
           {/* telas de app em tela cheia (chat, música): o rodapé empurrava a página para além da altura da tela */}
           {!TELAS_CHEIAS.some((t) => local.pathname.startsWith(t)) && <Rodape />}

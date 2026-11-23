@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { ArrowDown, ArrowUp, Building2, Gamepad2, Gauge, Laptop, Radio, Timer, Tv, Video, Waves } from 'lucide-react'
+import { Activity, ArrowDown, ArrowUp, Building2, Calculator, Gamepad2, Gauge, History, Laptop, Network, Radio, Stethoscope, Timer, Tv, Video, Waves } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Carregando, Selo, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Selo, useToast } from '../components/ui'
 import { AgendaRede, Bufferbloat, Diagnostico, Estabilidade, Resumo } from '../components/rede/Avancado'
+import { Calculadora, Conexao, MapaRede, MonitorAoVivo } from '../components/rede/Novos'
+import { useSearchParams } from 'react-router-dom'
 
 // Teste de velocidade (como o speed.cloudflare.com): do computador de quem abriu o painel (o navegador mede) e da rede do
 // escritório (o agente mede e também o tempo de resposta de cada transmissor). Servidor de medição: speed.cloudflare.com.
@@ -165,6 +167,9 @@ export default function Rede() {
   const ultimoAgente = useMemo(() => (hist || []).find((h) => h.origem === 'agente'), [hist])
   const ultimoNav = useMemo(() => meu || (hist || []).find((h) => h.origem === 'navegador'), [hist, meu])
   const pode = ['dono', 'admin'].includes(sessao?.papel)
+  const [params, setParams] = useSearchParams()
+  const ABAS = [['velocidade', 'Velocidade', Gauge], ['ao-vivo', 'Ao vivo', Activity], ['mapa', 'Mapa da rede', Network], ['diagnostico', 'Diagnóstico', Stethoscope], ['calculadora', 'O que aguenta', Calculator], ['historico', 'Histórico', History]]
+  const aba = ABAS.some((x) => x[0] === params.get('aba')) ? params.get('aba') : 'velocidade'
 
   const testarNavegador = async () => {
     setRodando('navegador'); setSerie([]); cancelar.current = false
@@ -186,6 +191,26 @@ export default function Rede() {
     <>
       <Cabecalho titulo="Rede e velocidade" descricao="Velocidade de download e upload, latência, variação, latência com carga e perda: deste computador e da internet do escritório (pelo agente), com o tempo de resposta de cada transmissor." />
       {!pode && <div className="mb-4"><Aviso tipo="alerta">Só o dono e os administradores rodam e veem os testes.</Aviso></div>}
+      {/* resumo rápido: a última medida de cada lado */}
+      <div className="mb-5">
+        <FaixaMetricas itens={[
+          { rotulo: 'Download (este computador)', valor: ultimoNav?.download ?? '—', sufixo: ultimoNav?.download != null ? 'Mbps' : '', casas: 1, dica: ultimoNav?.quando ? haQuanto(ultimoNav.quando) : 'sem teste ainda' },
+          { rotulo: 'Upload (este computador)', valor: ultimoNav?.upload ?? '—', sufixo: ultimoNav?.upload != null ? 'Mbps' : '', casas: 1, dica: ultimoNav?.latencia != null ? `latência ${ultimoNav.latencia} ms` : '' },
+          { rotulo: 'Download (escritório)', valor: ultimoAgente?.download ?? '—', sufixo: ultimoAgente?.download != null ? 'Mbps' : '', casas: 1, dica: ultimoAgente?.quando ? `pelo agente, ${haQuanto(ultimoAgente.quando)}` : 'rode pelo agente' },
+          { rotulo: 'Latência (escritório)', valor: ultimoAgente?.latencia ?? '—', sufixo: ultimoAgente?.latencia != null ? 'ms' : '', casas: 1, dica: ultimoAgente?.jitter != null ? `variação ${ultimoAgente.jitter} ms` : '' },
+        ]} />
+      </div>
+      <div className="sem-barra -mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Rede">
+        {ABAS.map(([k, r, I]) => (
+          <button key={k} role="tab" aria-selected={aba === k} onClick={() => setParams({ aba: k }, { replace: true })}
+            className={`relative -mb-px flex shrink-0 items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${aba === k ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+            <I className="h-4 w-4" />{r}
+            {aba === k && <motion.span layoutId="aba-rede" className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-primary" />}
+          </button>
+        ))}
+      </div>
+      <motion.div key={aba} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }} className="space-y-6">
+      {aba === 'velocidade' && (
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <section className="cartao p-5">
           <Velocimetro valor={rodando === 'navegador' ? prog.mbps : ultimoNav?.download} fase={prog.fase} />
@@ -213,14 +238,17 @@ export default function Rede() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-6">
-        <Diagnostico pode={pode} />
-        <Estabilidade pode={pode} />
+      )}
+      {aba === 'ao-vivo' && <><MonitorAoVivo /><Conexao /></>}
+      {aba === 'mapa' && <MapaRede ultimoNav={ultimoNav} ultimoAgente={ultimoAgente} />}
+      {aba === 'diagnostico' && <><Diagnostico pode={pode} /><Estabilidade pode={pode} /></>}
+      {aba === 'calculadora' && <Calculadora ultimoNav={ultimoNav} ultimoAgente={ultimoAgente} />}
+      {aba === 'historico' && <>
         <AgendaRede pode={pode} />
         {hist.length > 0 && <Resumo hist={hist} dono={sessao?.papel === 'dono'} aoLimpar={() => setHist([])} />}
-      </div>
+        {hist.length <= 1 && <Aviso tipo="alerta">O histórico aparece depois de dois testes ou mais.</Aviso>}
       {hist.length > 1 && (
-        <section className="cartao mt-6 p-5">
+        <section className="cartao p-5">
           <h2 className="text-sm font-semibold">Histórico</h2>
           <div className="mt-3 h-56">
             <ResponsiveContainer width="100%" height="100%">
@@ -247,6 +275,8 @@ export default function Rede() {
           </div>
         </section>
       )}
+      </>}
+      </motion.div>
     </>
   )
 }

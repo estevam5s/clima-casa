@@ -25,6 +25,8 @@ export default function Visao({ resumo, saude, irPara }) {
           dica: saude?.fila ? `${saude.fila.total_1h ?? 0} comandos na última hora` : '' },
       ]} />
 
+      {/* o lugar dos três cartões fica reservado enquanto a Cloudflare responde: sem isso, a saúde do domínio pulava para baixo */}
+      {!z && !cf.erro && <div className="grid gap-3 md:grid-cols-3" aria-hidden>{[0, 1, 2].map((i) => <Esqueleto key={i} className="h-[90px]" />)}</div>}
       {z && (
         <div className="grid gap-3 md:grid-cols-3">
           <button type="button" onClick={() => irPara('cloudflare/email')} className="cartao w-full min-w-0 p-4 text-left hover:bg-muted/40">

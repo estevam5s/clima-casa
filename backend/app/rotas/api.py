@@ -4332,6 +4332,23 @@ def listar_avatares():
     return {"avatares": avatares.listar(), "limite_mb": avatares.LIMITE_BYTES // 1024 // 1024}
 
 
+class AvatarOrdemIn(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=500)
+
+
+@api.put("/avatares/ordem")
+def avatar_ordem(d: AvatarOrdemIn):
+    """Ordem dos modelos na Biblioteca (arrastar para cima e para baixo). Declarada antes de /avatares/{avid}."""
+    from .. import avatares
+    _dono_admin()
+    try:
+        ids = avatares.ordenar(d.ids)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    db.registrar("painel", "Avatares: ordem da biblioteca alterada", detalhe=f"{len(ids)} modelo(s)")
+    return {"ok": True, "ids": ids}
+
+
 class AvatarEnvioIn(BaseModel):
     nome: str = Field(min_length=1, max_length=60)
     descricao: str = Field("", max_length=300)

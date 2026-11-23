@@ -151,7 +151,9 @@ def resumo(origem: str = "site", dias: int = 7) -> dict:
     origens = lista(f"SELECT ref AS nome, count(*) AS n FROM analise_eventos WHERE {w} AND tipo = 'pagina' AND ref <> '' GROUP BY ref ORDER BY n DESC LIMIT 15")
     diretas = um(f"SELECT count(*) AS n FROM analise_eventos WHERE {w} AND tipo = 'pagina' AND ref = ''")
     # Web Vitals: p75 por métrica e por rota (como o Google conta no Search Console)
-    vit = lista(f"SELECT nome, rota, valor FROM analise_eventos WHERE {w} AND tipo = 'vital' AND valor IS NOT NULL ORDER BY quando DESC LIMIT 20000")
+    # CLS do sistema medido antes de 22/11/2026 era a soma de toda a vida da aba (não a janela do Google): fica de fora
+    sem_cls_antigo = " AND NOT (origem = 'sistema' AND nome = 'CLS' AND (dados->>'janela') IS NULL)"
+    vit = lista(f"SELECT nome, rota, valor FROM analise_eventos WHERE {w} AND tipo = 'vital' AND valor IS NOT NULL{sem_cls_antigo} ORDER BY quando DESC LIMIT 20000")
     geral, por_rota = {}, {}
     for v in vit:
         geral.setdefault(v["nome"], []).append(v["valor"])

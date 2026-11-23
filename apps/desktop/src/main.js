@@ -21,7 +21,8 @@ const MAIS_TELAS = [['Assistente de IA', '/ia'], ['Notificações', '/notificaco
   ['Mensagens e Kanban', '/mensagens'], ['Luzes e interruptores', '/luzes'], ['Segurança do Telegram', '/seguranca?aba=telegram'],
   ['Banco (Supabase)', '/supabase'], ['Editor SQL', '/supabase?secao=sql'], ['Avatares e Estúdio', '/avatares'], ['Novidades', '/novidades'],
   ['Projetos e salas', '/projetos'], ['Mapa e Ilha 3D', '/mapa'], ['Uso da IA e limites', '/ia'], ['Passo a passo', '/guia'], ['Baixar apps', '/apps'],
-  ['Acessos e SEO', '/analise'], ['Idiomas do site', '/idiomas'], ['Newsletter', '/emails?aba=newsletter']]
+  ['Acessos e SEO', '/analise'], ['Idiomas do site', '/idiomas'], ['Newsletter', '/emails?aba=newsletter'],
+  ['Rede e velocidade', '/rede'], ['Uso do sistema por pessoa', '/configuracoes?aba=usuarios&ver=uso']]
 let janela = null, bandeja = null, saindo = false, travado = false, escondidaEm = null, novaVersao = null
 
 if (!app.requestSingleInstanceLock()) app.quit()

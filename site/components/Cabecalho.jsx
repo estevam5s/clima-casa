@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ArrowUpRight, ChevronDown, X } from 'lucide-react'
 import { BotaoEntrar } from './Sessao'
-import Icone from './Icone'
 import { SeletorIdioma, SeletorIdiomaMovel } from './Idioma'
 import { APPS_URL, MARCA, MENU, itensDoMenu } from '@/lib/dados'
 
@@ -64,7 +63,7 @@ export default function Cabecalho() {
                     {m.rotulo}<ChevronDown size={24} className={subGaveta === i ? 'girado' : ''} />
                   </button>
                   <div className={`menu-movel-sub ${subGaveta === i ? 'aberto' : ''}`}>
-                    <ul>{itensDoMenu(m).map((s) => <li key={s.href}><Link href={s.href} tabIndex={gaveta && subGaveta === i ? 0 : -1}><Icone nome={s.icone} tamanho={18} />{s.rotulo}</Link></li>)}</ul>
+                    <ul>{itensDoMenu(m).map((s) => <li key={s.href}><Link href={s.href} tabIndex={gaveta && subGaveta === i ? 0 : -1}><span>{s.rotulo}<small>{s.desc}</small></span><ArrowUpRight size={16} className="seta" aria-hidden /></Link></li>)}</ul>
                   </div>
                 </>
               )}
@@ -103,8 +102,8 @@ export default function Cabecalho() {
                             <ul>{g.itens.map((s) => (
                               <li key={s.href}>
                                 <Link href={s.href} onClick={() => setSubmenu(null)}>
-                                  <span className="ic"><Icone nome={s.icone} tamanho={18} /></span>
                                   <span className="txt"><b>{s.rotulo}</b><small>{s.desc}</small></span>
+                                  <ArrowUpRight size={16} className="seta" aria-hidden />
                                 </Link>
                               </li>))}
                             </ul>

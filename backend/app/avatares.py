@@ -48,8 +48,25 @@ def garantir_bucket():
 
 
 def listar() -> list[dict]:
-    return db.consultar("SELECT id, nome, descricao, origem, licenca, estado, tamanho, info, criado_em, especie, escala_real, parametros IS NOT NULL AS editavel, "
-                        "ajustes, arquivo_original IS NOT NULL AS editado FROM avatares ORDER BY criado_em DESC")
+    lista = db.consultar("SELECT id, nome, descricao, origem, licenca, estado, tamanho, info, criado_em, especie, escala_real, parametros IS NOT NULL AS editavel, "
+                         "ajustes, arquivo_original IS NOT NULL AS editado FROM avatares ORDER BY criado_em DESC")
+    # ordem escolhida na Biblioteca (arrastando); quem não está nela (importado depois) vem antes, do mais novo ao mais antigo
+    ordem = {int(i): k for k, i in enumerate(db.cfg("avatares_ordem") or []) if str(i).isdigit()}
+    return sorted(lista, key=lambda a: (a["id"] in ordem, ordem.get(a["id"], 0)))
+
+
+def ordenar(ids: list[int]) -> list[int]:
+    """Grava a ordem da Biblioteca. Só ids que existem; repetidos são ignorados."""
+    existem = {a["id"] for a in db.consultar("SELECT id FROM avatares")}
+    vistos, limpa = set(), []
+    for i in ids:
+        if i in existem and i not in vistos:
+            vistos.add(i)
+            limpa.append(i)
+    if not limpa:
+        raise ValueError("Nenhum desses modelos existe mais. Recarregue a página.")
+    db.set_cfg("avatares_ordem", limpa)
+    return limpa
 
 
 ESPECIES = ("pessoa", "cao", "gato", "animal", "veiculo", "outro")

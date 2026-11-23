@@ -86,6 +86,7 @@ REGRAS = [
     ("PUT", r"^/api/ia/conversas/\{cid\}/feedback$", None),   # avaliação nas próprias conversas
     ("GET", r"^/api/conta/", None),                       # a própria conta (segurança, meus dados)
     ("PUT", r"^/api/conta/seguranca/prefs$", None),
+    ("POST", r"^/api/conta/uso-telas$", None),            # cada pessoa grava o próprio tempo de tela
     ("PUT", r"^/api/ia/config$", None),                    # a rota exige o papel de dono
     ("PUT", r"^/api/ia/limites$", None),                   # a rota exige o papel de dono
     ("PUT", r"^/api/ia/conversas/\d+$", None),            # só as conversas da própria pessoa

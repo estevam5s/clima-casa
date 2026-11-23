@@ -5,10 +5,24 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 // Elevadores e térreo (recepção) do mapa 3D. Tudo desenhado por código, sem marca de fabricante.
 //
 // Núcleo de elevadores: grupo com origem no meio da face da parede onde ele encosta; +z local aponta para fora
-// (para o corredor), +x corre ao longo da parede. Dois carros lado a lado; cada um tem cabine de verdade (chão,
-// paredes de inox, corrimão e luz), duas folhas de porta que correm para dentro das paredes e um mostrador do andar.
+// (para o corredor), +x corre ao longo da parede. Três carros lado a lado; cada um tem cabine de verdade (chão,
+// paredes de inox, corrimão e luz), duas folhas de porta que correm para dentro das paredes, mostrador do andar e a
+// placa de quais andares ele atende. Da esquerda para a direita (de frente para as portas): o 1º só para nos andares
+// pares, o 2º e o 3º só nos ímpares. Todos param no térreo.
 // ---------------------------------------------------------------------------------------------------------------
-export const ELEV = { larg: 3.7, prof: 1.75, alt: 2.9, vao: 1.1, carros: [-0.95, 0.95] }
+export const ELEV = { larg: 5.0, prof: 1.75, alt: 2.9, vao: 1.1, carros: [-1.5, 0, 1.5], atende: ['pares', 'impares', 'impares'] }
+// o carro i para no andar? (0 = térreo, onde todos param)
+export const carroAtende = (i, andar) => andar === 0 || (ELEV.atende[i] === 'pares' ? andar % 2 === 0 : andar % 2 === 1)
+// andar onde o carro que não atende este andar fica parado (o par ou ímpar mais perto, para o mostrador)
+export const andarDoCarro = (i, andar) => (carroAtende(i, andar) ? andar : Math.max(0, andar - 1))
+
+function placaAtende(texto) {
+  const cv = document.createElement('canvas'); cv.width = 192; cv.height = 48
+  const g = cv.getContext('2d'); g.fillStyle = '#0b1220'; g.fillRect(0, 0, 192, 48)
+  g.fillStyle = '#e2e8f0'; g.font = '600 24px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(texto, 96, 25)
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace
+  return new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.09), new THREE.MeshStandardMaterial({ map: t, roughness: 0.5 }))
+}
 
 function texDisplay() {
   const cv = document.createElement('canvas'); cv.width = 128; cv.height = 56
@@ -24,7 +38,7 @@ function texDisplay() {
   return { tx, desenhar }
 }
 
-export function montarElevador({ rotuloAndar = '9', escuro = false }) {
+export function montarElevador({ rotuloAndar = '9', escuro = false, andar = null }) {
   const { larg, prof, alt, vao, carros } = ELEV
   const grupo = new THREE.Group()
   const M = (o) => new THREE.MeshStandardMaterial(o)
@@ -42,7 +56,7 @@ export function montarElevador({ rotuloAndar = '9', escuro = false }) {
   caixa(larg, alt - 2.25, prof, pedra, 0, 2.25 + (alt - 2.25) / 2, prof / 2)
   // rodapé e friso de inox na frente
   caixa(larg + 0.02, 0.1, 0.02, inoxEsc, 0, 0.05, prof + 0.01)
-  const lista = carros.map((cx) => {
+  const lista = carros.map((cx, i) => {
     // cabine (a porta corre para dentro dos pilares, que escondem as folhas abertas)
     caixa(vao - 0.02, 0.02, prof - 0.2, piso, cx, 0.01, 0.18 + (prof - 0.2) / 2)
     caixa(vao - 0.02, 2.2, 0.02, inox, cx, 1.12, 0.19)   // fundo (espelho de inox)
@@ -55,16 +69,17 @@ export function montarElevador({ rotuloAndar = '9', escuro = false }) {
     // duas folhas que se abrem do meio para os lados
     const folhas = [-1, 1].map((s) => caixa(vao / 2, 2.2, 0.04, inox, cx + s * vao / 4, 1.1, prof - 0.07))
     // mostrador do andar
-    const d = texDisplay(); d.desenhar(rotuloAndar)
+    const d = texDisplay(); d.desenhar(andar == null ? rotuloAndar : String(andarDoCarro(i, andar) || 'T'))
     const tela = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.15), new THREE.MeshStandardMaterial({ map: d.tx, emissiveMap: d.tx, emissive: 0xffffff, emissiveIntensity: 0.9 }))
     tela.position.set(cx, 2.48, prof + 0.003); grupo.add(tela)
-    return { cx, folhas, display: d, aberto: 0, alvo: 0 }
+    // que andares este carro atende (acima do mostrador)
+    const pa = placaAtende(ELEV.atende[i] === 'pares' ? 'Andares pares' : 'Andares ímpares'); pa.position.set(cx, 2.64, prof + 0.004); grupo.add(pa)
+    // botoeira própria de cada carro, à direita do vão
+    caixa(0.1, 0.24, 0.02, inox, cx + vao / 2 + 0.2, 1.15, prof + 0.01)
+    const botao = new THREE.Mesh(new THREE.CircleGeometry(0.022, 20), new THREE.MeshStandardMaterial({ color: 0x334155, emissive: 0x38bdf8, emissiveIntensity: 0.15 }))
+    botao.position.set(cx + vao / 2 + 0.2, 1.16, prof + 0.022); grupo.add(botao)
+    return { cx, folhas, display: d, aberto: 0, alvo: 0, botao, atende: ELEV.atende[i], serveAqui: andar == null ? true : carroAtende(i, andar) }
   })
-  // botoeira entre os dois carros (acende quando alguém chama)
-  caixa(0.14, 0.3, 0.02, inox, 0, 1.15, prof + 0.01)
-  const botao = new THREE.Mesh(new THREE.CircleGeometry(0.025, 20), new THREE.MeshStandardMaterial({ color: 0x334155, emissive: 0x38bdf8, emissiveIntensity: 0.15 }))
-  botao.position.set(0, 1.18, prof + 0.022); grupo.add(botao)
-  const botao2 = botao.clone(); botao2.material = botao.material.clone(); botao2.position.y = 1.1; grupo.add(botao2)
   const tick = (dt) => {
     for (const c of lista) {
       c.aberto = THREE.MathUtils.clamp(c.aberto + Math.sign(c.alvo - c.aberto) * dt / 0.9, 0, 1)
@@ -72,7 +87,8 @@ export function montarElevador({ rotuloAndar = '9', escuro = false }) {
       c.folhas.forEach((f, i) => { const s = i ? 1 : -1; f.position.x = c.cx + s * (vao / 4 + e * (vao / 2 - 0.04)) })
     }
   }
-  const chamar = (on) => { botao.material.emissiveIntensity = on ? 1.2 : 0.15; botao2.material.emissiveIntensity = on ? 1.2 : 0.15 }
+  // acende a botoeira do carro chamado (sem índice: apaga todas)
+  const chamar = (on, i = null) => { lista.forEach((c, j) => { c.botao.material.emissiveIntensity = on && (i == null || i === j) ? 1.2 : 0.15 }) }
   return { grupo, carros: lista, tick, chamar }
 }
 

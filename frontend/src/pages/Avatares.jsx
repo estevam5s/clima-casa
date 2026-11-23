@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { Brush, Car, Dog, Library, MapPin, Pencil, PersonStanding, Play, RotateCcw, Search, Trash2, Upload, Users, Wand2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Reorder, useDragControls } from 'framer-motion'
+import { Brush, Car, Dog, GripVertical, Library, MapPin, Pencil, PersonStanding, Play, RotateCcw, Search, Trash2, Upload, Users, Wand2 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import AvatarViewer from '../components/avatares/AvatarViewer'
@@ -196,6 +197,29 @@ function NoEscritorio({ avatares, mapa, projetos, aoSalvar, pode }) {
   )
 }
 
+// um modelo da lista da Biblioteca. Quem gerencia arrasta pela alça (o resto do cartão continua sendo clique para abrir)
+function ItemLista({ a, ativo, arrastavel, aoEscolher, aoSoltar }) {
+  const controles = useDragControls()
+  const corpo = (
+    <div className={`flex items-stretch gap-1 rounded-lg border ${ativo ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
+      {arrastavel && (
+        <button type="button" onPointerDown={(e) => { e.preventDefault(); controles.start(e) }} className="flex w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-l-lg text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+          aria-label={`Arrastar ${a.nome} para mudar a posição`} title="Arraste para cima ou para baixo"><GripVertical className="h-4 w-4" /></button>
+      )}
+      <button onClick={() => aoEscolher(a)} className={`min-w-0 flex-1 p-3 text-left ${arrastavel ? 'pl-1' : ''}`}>
+        <p className="truncate text-sm font-medium">{a.nome}</p>
+        <p className="truncate text-xs text-muted-foreground">{a.licenca}</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{ESPECIES[a.especie] || 'Pessoa'} · {a.info?.clips?.length || 0} animação(ões) · {mb(a.tamanho)}{a.info?.esqueleto ? ' · com esqueleto' : ''}{a.editavel ? ' · Estúdio' : ''}</p>
+      </button>
+    </div>
+  )
+  if (!arrastavel) return <li>{corpo}</li>
+  return (
+    <Reorder.Item value={a.id} dragListener={false} dragControls={controles} onDragEnd={aoSoltar} className="relative list-none"
+      whileDrag={{ scale: 1.02, zIndex: 10, boxShadow: '0 8px 24px rgb(0 0 0 / 0.18)' /* marca: o item arrastado flutua */ }}>{corpo}</Reorder.Item>
+  )
+}
+
 export default function Avatares() {
   const toast = useToast()
   const { sessao } = useProjeto()
@@ -219,6 +243,17 @@ export default function Avatares() {
   const pode = ['dono', 'admin'].includes(sessao?.papel)
   const abrirNoEstudio = async (a) => { try { const { receita } = await api.get(`/api/avatares/${a.id}/receita`); setNoEstudio({ ...receita, manual: !receita.parametros, parametros: receita.parametros }); setAba('estudio') } catch (e) { toast(e.message, 'erro') } }
   const lista = useMemo(() => (dados?.avatares || []).filter((a) => a.estado === 'pronto' && (!busca || `${a.nome} ${a.origem} ${a.licenca}`.toLowerCase().includes(busca.toLowerCase()))), [dados, busca])
+  // ordem da Biblioteca: arrastar muda na hora; ao soltar, grava (só dono/admin, e sem busca, que esconde itens)
+  const [ordem, setOrdem] = useState([])
+  useEffect(() => { setOrdem(lista.map((a) => a.id)) }, [lista])
+  const porId = useMemo(() => Object.fromEntries(lista.map((a) => [a.id, a])), [lista])
+  const gravarOrdem = async () => {
+    const antes = lista.map((a) => a.id)
+    if (ordem.length !== antes.length || ordem.every((id, i) => id === antes[i])) return
+    const todos = (dados?.avatares || []).map((a) => a.id)
+    try { await api.put('/api/avatares/ordem', { ids: [...ordem, ...todos.filter((id) => !ordem.includes(id))] }); toast('Ordem salva.'); recarregar() }
+    catch (e) { toast(e.message, 'erro'); setOrdem(antes) }
+  }
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const atual = lista.find((a) => a.id === sel) || lista[0]
@@ -260,14 +295,16 @@ export default function Avatares() {
           {/* a lista rola sozinha (a página não): com 70+ modelos, rolar a página tirava o visualizador da tela */}
           <aside className="space-y-3 xl:sticky xl:top-20 xl:self-start">
             <label className="relative block"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input className="campo pl-9" placeholder="Buscar" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar avatar" /></label>
-            <p className="text-xs text-muted-foreground">{lista.length} modelo(s)</p>
-            <ul className="max-h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100dvh-15rem)]">{lista.map((a) => (
-              <li key={a.id}><button onClick={() => escolher(a)} className={`w-full rounded-lg border p-3 text-left ${atual?.id === a.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}>
-                <p className="truncate text-sm font-medium">{a.nome}</p>
-                <p className="truncate text-xs text-muted-foreground">{a.licenca}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{ESPECIES[a.especie] || 'Pessoa'} · {a.info?.clips?.length || 0} animação(ões) · {mb(a.tamanho)}{a.info?.esqueleto ? ' · com esqueleto' : ''}{a.editavel ? ' · Estúdio' : ''}</p>
-              </button></li>))}
-            </ul>
+            <p className="text-xs text-muted-foreground">{lista.length} modelo(s){pode && !busca && lista.length > 1 ? ' · arraste pela alça para mudar a ordem' : ''}</p>
+            {pode && !busca ? (
+              <Reorder.Group axis="y" values={ordem} onReorder={setOrdem} layoutScroll className="max-h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100dvh-15rem)]">
+                {ordem.map((id) => porId[id] && <ItemLista key={id} a={porId[id]} ativo={atual?.id === id} arrastavel aoEscolher={escolher} aoSoltar={gravarOrdem} />)}
+              </Reorder.Group>
+            ) : (
+              <ul className="max-h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100dvh-15rem)]">
+                {lista.map((a) => <ItemLista key={a.id} a={a} ativo={atual?.id === a.id} aoEscolher={escolher} />)}
+              </ul>
+            )}
           </aside>
           {atual && (
             <div className="space-y-6">

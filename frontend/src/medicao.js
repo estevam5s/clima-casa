@@ -55,8 +55,18 @@ function iniciar() {
     new PerformanceObserver((l) => { for (const x of l.getEntries()) if (x.name === 'first-contentful-paint') por({ tipo: 'vital', nome: 'FCP', valor: x.startTime, rota: rotaAtual }) }).observe({ type: 'paint', buffered: true })
     let lcp = 0
     new PerformanceObserver((l) => { const x = l.getEntries().at(-1); if (x) lcp = x.startTime }).observe({ type: 'largest-contentful-paint', buffered: true })
-    let cls = 0
-    new PerformanceObserver((l) => { for (const x of l.getEntries()) if (!x.hadRecentInput) cls += x.value }).observe({ type: 'layout-shift', buffered: true })
+    // CLS como o Google conta: a pior "janela" de deslocamentos (até 5 s, com menos de 1 s entre um e outro), e não a
+    // soma de tudo enquanto a aba fica aberta. A soma crescia por horas, a cada tela visitada, e chegou a 1,56.
+    let cls = 0, janela = 0, inicioJ = 0, ultimo = 0
+    new PerformanceObserver((l) => {
+      for (const x of l.getEntries()) {
+        if (x.hadRecentInput) continue
+        if (janela && x.startTime - ultimo < 1000 && x.startTime - inicioJ < 5000) janela += x.value
+        else { janela = x.value; inicioJ = x.startTime }
+        ultimo = x.startTime
+        cls = Math.max(cls, janela)
+      }
+    }).observe({ type: 'layout-shift', buffered: true })
     let inp = 0
     new PerformanceObserver((l) => { for (const x of l.getEntries()) if (x.interactionId) inp = Math.max(inp, x.duration) }).observe({ type: 'event', buffered: true, durationThreshold: 40 })
     let fechou = false
@@ -64,7 +74,7 @@ function iniciar() {
       if (fechou) return
       fechou = true
       if (lcp) por({ tipo: 'vital', nome: 'LCP', valor: lcp, rota: rotaAtual })
-      por({ tipo: 'vital', nome: 'CLS', valor: Math.round(cls * 1000) / 1000, rota: rotaAtual })
+      por({ tipo: 'vital', nome: 'CLS', valor: Math.round(cls * 1000) / 1000, rota: rotaAtual, dados: { janela: 1 } })
       if (inp) por({ tipo: 'vital', nome: 'INP', valor: inp, rota: rotaAtual })
     }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { fechar(); enviar(true) } })

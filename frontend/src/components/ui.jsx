@@ -14,12 +14,12 @@ export function Botao({ variante = 'primario', carregando, icone: Icone, childre
   const tam = tamanho === 'sm' ? 'h-8 px-3 text-sm gap-1.5' : 'h-10 px-4 text-sm gap-2'
   return (
     <button data-botao={variante}
-      className={`inline-flex items-center justify-center rounded-lg font-medium transition-all active:scale-[0.98] disabled:cursor-not-allowed ${tam} ${VARIANTES[variante]} ${className}`}
+      className={`inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-lg font-medium transition-all active:scale-[0.98] disabled:cursor-not-allowed ${tam} ${VARIANTES[variante]} ${className}`}
       disabled={carregando || props.disabled}
       {...props}
     >
-      {carregando ? <Loader2 className="h-4 w-4 animate-spin" /> : Icone ? <Icone className="h-4 w-4" /> : null}
-      {children}
+      {carregando ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : Icone ? <Icone className="h-4 w-4 shrink-0" /> : null}
+      {typeof children === 'string' ? <span className="truncate">{children}</span> : children}
     </button>
   )
 }
@@ -27,11 +27,11 @@ export function Botao({ variante = 'primario', carregando, icone: Icone, childre
 export function Cabecalho({ titulo, descricao, acoes }) {
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
+      <div className="min-w-0 sm:flex-1">
         <h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>
         {descricao && <p className="mt-1 text-sm text-muted-foreground">{descricao}</p>}
       </div>
-      {acoes && <div className="flex flex-wrap gap-2">{acoes}</div>}
+      {acoes && <div className="flex min-w-0 flex-wrap gap-2 sm:shrink-0 sm:justify-end">{acoes}</div>}
     </div>
   )
 }
@@ -227,9 +227,9 @@ export function FaixaMetricas({ itens }) {
   )
 }
 
-export function Secao({ titulo, contexto, acao, children, className = '' }) {
+export function Secao({ titulo, contexto, acao, children, className = '', semPadding = false }) {
   return (
-    <section className={`cartao ${className}`}>
+    <section className={`cartao min-w-0 ${className}`}>
       <div className="flex items-end justify-between gap-3 border-b border-border px-5 py-3.5">
         <div className="min-w-0">
           <h2 className="titulo-secao">{titulo}</h2>
@@ -237,7 +237,7 @@ export function Secao({ titulo, contexto, acao, children, className = '' }) {
         </div>
         {acao}
       </div>
-      <div className="p-5">{children}</div>
+      <div className={semPadding ? '' : 'p-5'}>{children}</div>
     </section>
   )
 }
