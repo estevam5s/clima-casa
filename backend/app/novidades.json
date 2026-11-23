@@ -2,6 +2,19 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.5.6",
+   "data": "2026-11-22",
+   "titulo": "Mapa 3D mais leve: os modelos ficam guardados no navegador",
+   "resumo": "Os modelos 3D (pessoas, carros, cafeteira) eram baixados de novo a cada abertura do mapa e do Painel. Agora cada um é baixado uma vez por navegador e só de novo quando for editado.",
+   "novo": [],
+   "melhorias": [
+    "Mapa 3D e Painel abrem mais rápido a partir da segunda visita: os modelos 3D ficam guardados no navegador e só são baixados de novo quando forem editados",
+    "Menos tráfego e menos espaço no Supabase: pacotes antigos do código-fonte saem do armazenamento a cada publicação (ficam os atuais e os das 5 versões de apps mais recentes)"
+   ],
+   "seguranca": [],
+   "correcoes": []
+  },
+  {
    "versao": "0.5.5",
    "data": "2026-11-22",
    "titulo": "Uso do sistema por pessoa, Rede com monitor ao vivo e mapa, hall novo no 3D e telas mais rápidas",

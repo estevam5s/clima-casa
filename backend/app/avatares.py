@@ -168,7 +168,8 @@ def confirmar(aid: int) -> dict:
 
 
 def meta(aid: int) -> dict:
-    return db.um("SELECT especie, escala_real FROM avatares WHERE id = ?", (aid,)) or {}
+    # `versao` = nome do arquivo no Storage (muda a cada edição): o navegador guarda o modelo por essa chave e não baixa de novo
+    return db.um("SELECT especie, escala_real, arquivo AS versao FROM avatares WHERE id = ?", (aid,)) or {}
 
 
 def endereco(aid: int) -> str:

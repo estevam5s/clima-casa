@@ -83,7 +83,8 @@ const pacotes = []
 const versao = JSON.parse(fs.readFileSync(path.join(RAIZ, 'backend/app/versao_apps.json'), 'utf8')).android?.versao || '0.0.0'
 const head = commits[0]
 const alvos = [{ rotulo: `v${versao} (último commit)`, ref: head.sha, nome: `clima-casa-${versao}-${head.curto}`, atual: true },
-  ...releases.filter((r) => r.sha && !r.rascunho).map((r) => ({ rotulo: r.tag, ref: r.sha, nome: `clima-casa-${r.tag}`, atual: false }))]
+  // pacotes só das 5 releases mais novas (cada uma são 2 arquivos de ~7 MB; as antigas lotavam o Storage do plano grátis)
+  ...releases.filter((r) => r.sha && !r.rascunho).slice(0, 5).map((r) => ({ rotulo: r.tag, ref: r.sha, nome: `clima-casa-${r.tag}`, atual: false }))]
 if (SUPA && CHAVE && !process.argv.includes('--sem-pacotes')) {
   await garantirBucket()
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-src-'))
@@ -96,6 +97,19 @@ if (SUPA && CHAVE && !process.argv.includes('--sem-pacotes')) {
     }
   }
   fs.rmSync(tmp, { recursive: true, force: true })
+  // retenção: fica o que está na lista acima e os 2 "último commit" anteriores (uma instalação que começou com a
+  // publicação antiga ainda acha o pacote); o resto sai. Tudo pode ser gerado de novo a partir do Git.
+  const lista = await (await fetch(`${SUPA}/storage/v1/object/list/${BUCKET}`, { method: 'POST', headers: { ...cab, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prefix: '', limit: 1000, sortBy: { column: 'created_at', order: 'desc' } }) })).json()
+  const manter = new Set(pacotes.map((p) => p.arquivo))
+  const anteriores = [...new Set(lista.map((o) => o.name).filter((n) => /^clima-casa-\d+\.\d+\.\d+-[0-9a-f]{7}\./.test(n) && !manter.has(n)).map((n) => n.replace(/\.(zip|tar\.gz)$/, '')))].slice(0, 2)
+  anteriores.forEach((b) => { manter.add(`${b}.zip`); manter.add(`${b}.tar.gz`) })
+  const sair = lista.map((o) => o.name).filter((n) => n && !manter.has(n))
+  for (let i = 0; i < sair.length; i += 100) {
+    const r = await fetch(`${SUPA}/storage/v1/object/${BUCKET}`, { method: 'DELETE', headers: { ...cab, 'Content-Type': 'application/json' }, body: JSON.stringify({ prefixes: sair.slice(i, i + 100) }) })
+    if (!r.ok) console.warn(`aviso: não apaguei pacotes antigos (${r.status})`)
+  }
+  if (sair.length) console.log(`código-fonte: ${sair.length} pacote(s) antigo(s) apagado(s) do Storage, ficaram ${manter.size}`)
 }
 
 const saida = {

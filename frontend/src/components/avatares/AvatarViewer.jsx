@@ -27,9 +27,39 @@ const cache = new Map()   // id → Promise<gltf> (cada viewer clona a cena; o a
 // depois de editar a aparência: o próximo carregamento busca a versão nova
 export function esquecerAvatar(id) { cache.delete(id) }
 
+// Modelos 3D (avatares, carros, objetos do mapa) ficam guardados no navegador (Cache Storage) pela VERSÃO do arquivo, não
+// pelo link: o link do Storage é assinado e muda a cada pedido, então antes o navegador baixava tudo de novo a cada
+// abertura do mapa ou do Painel (dezenas de MB por visita; estourou a cota de tráfego do Supabase em 22/11/2026).
+// Agora cada modelo é baixado uma vez por navegador e só de novo quando for editado (versão nova).
+const CAIXA_MODELOS = 'clima-modelos-3d-v1'
+async function bytesDoModelo(id, url, versao) {
+  const chave = `/modelo-3d/${id}/${encodeURIComponent(versao || 'sem-versao')}`
+  let caixa = null
+  try { caixa = await caches.open(CAIXA_MODELOS) } catch { /* sem Cache Storage (aba privada): baixa direto */ }
+  if (caixa && versao) {
+    const guardado = await caixa.match(chave).catch(() => null)
+    if (guardado) return guardado.arrayBuffer()
+  }
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`Modelo 3D indisponível (${r.status}).`)
+  const bytes = await r.arrayBuffer()
+  if (caixa && versao) {
+    try {
+      for (const velho of await caixa.keys()) if (new URL(velho.url).pathname.startsWith(`/modelo-3d/${id}/`)) await caixa.delete(velho)   // versão anterior sai
+      await caixa.put(chave, new Response(bytes, { headers: { 'Content-Type': 'model/gltf-binary' } }))
+    } catch { /* cheio ou bloqueado: segue sem guardar */ }
+  }
+  return bytes
+}
+
 export function carregarAvatar(id) {
   if (!cache.has(id)) {
-    cache.set(id, api.get(`/api/avatares/${id}/arquivo`).then(({ url, ...meta }) => new Promise((ok, falha) => new GLTFLoader().load(url, (g) => { g.meta = meta; ok(g) }, undefined, falha))).catch((e) => { cache.delete(id); throw e }))
+    cache.set(id, api.get(`/api/avatares/${id}/arquivo`)
+      .then(async ({ url, versao, ...meta }) => {
+        const bytes = await bytesDoModelo(id, url, versao)
+        return new Promise((ok, falha) => new GLTFLoader().parse(bytes, '', (g) => { g.meta = meta; ok(g) }, falha))
+      })
+      .catch((e) => { cache.delete(id); throw e }))
   }
   return cache.get(id)
 }
