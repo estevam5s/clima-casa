@@ -1,5 +1,41 @@
 [
  {
+  "versao": "0.6.5",
+  "data": "2026-11-23",
+  "titulo": "Mais segurança da conta, varredura semanal e treinamento com revisão e certificado",
+  "resumo": "Entrada de outro país em pouco tempo vira alerta, o sistema roda os testes de segurança sozinho toda semana e o treinamento ganhou revisão do que se errou, desempenho por trilha e certificado verificável.",
+  "novo": [
+   "Treinamento: Revisar o que errei (as perguntas erradas voltam até a pessoa acertar)",
+   "Treinamento: acerto por trilha somando todas as provas, para saber onde estudar",
+   "Treinamento: certificado para imprimir ou salvar em PDF ao passar (70% ou mais), com código de verificação conferido pelo servidor em Verificar certificado",
+   "Segurança: varredura semanal automática com os 1.313 testes; aparecendo falha, chega uma notificação"
+  ],
+  "melhorias": [],
+  "seguranca": [
+   "Alerta de entrada da mesma conta em dois países em menos de 6 horas (sinal de senha vazada), com o que fazer",
+   "Cabeçalhos extras em todas as respostas: X-Permitted-Cross-Domain-Policies, Origin-Agent-Cluster e X-DNS-Prefetch-Control"
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.6.4",
+  "data": "2026-11-23",
+  "titulo": "Entregas e lista de bloqueio dos e-mails, comparar modelos de IA e confiabilidade nos relatórios",
+  "resumo": "E-mails mostram as taxas de entrega e bloqueiam quem devolveu ou marcou spam. O Assistente compara modelos lado a lado e mostra quais respondem agora. Os relatórios explicam por que os comandos falharam.",
+  "novo": [
+   "E-mails → Entregas: enviados, entregues, abertos e devolvidos por período e por modelo, e envios por dia",
+   "E-mails: lista de bloqueio automática (quem devolveu ou marcou como spam não recebe mais nada até ser liberado), para proteger a reputação do domínio",
+   "Assistente de IA → Comparar modelos: a mesma pergunta para 2 ou 3 modelos lado a lado, com o tempo de cada um (só texto: nenhum age nos ares)",
+   "Assistente de IA: saúde dos modelos, medida de verdade (quem responde agora, quem está lento)",
+   "Relatórios → Confiabilidade: motivos das falhas agrupados com o que fazer, e taxa de sucesso por origem (painel, Alexa, agenda, automações, cenas), também nos arquivos exportados"
+  ],
+  "melhorias": [
+   "Conclusões do relatório apontam a maior causa de falha e como resolver"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
   "versao": "0.6.3",
   "data": "2026-11-23",
   "titulo": "Hall do andar editável, portas e serviços da rede, situação dos serviços e certificados",
