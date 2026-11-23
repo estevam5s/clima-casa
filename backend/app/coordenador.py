@@ -4,7 +4,7 @@ Só um é o PRINCIPAL: executa a fila de comandos, mantém a Alexa (Sinric) cone
 rotinas de música. Os outros ficam de RESERVA e assumem sozinhos quando o principal some por mais de 45 s
 (Mac fechado e levado para casa, PC desligado). Tudo mora no Supabase, então trocar de computador não perde nada.
 
-- O posto de principal é um "aluguel" na tabela config (chave agente_lider), renovado a cada 10 s com um UPDATE
+- O posto de principal é um "aluguel" na tabela config (chave agente_lider), renovado a cada 15 s com um UPDATE
   condicional (só renova quem já é o dono ou quando o aluguel venceu): dois agentes nunca ficam principais juntos.
 - Cada computador se anuncia em config agente_maquina:<id> (nome, sistema, papel, visto).
 - "Preferido" (config agente_preferido): se estiver online, enxergar os transmissores e não for o principal, o principal cede.
@@ -28,7 +28,7 @@ from . import db
 
 log = logging.getLogger("clima.coordenador")
 ALUGUEL = 45      # segundos sem renovar até outro computador assumir
-BATIDA = 10
+BATIDA = 15       # renova o aluguel 3 vezes dentro dos 45 s (era 10: cada batida são várias consultas ao banco)
 
 
 def maquina_id() -> str:

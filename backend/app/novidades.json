@@ -2,6 +2,19 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.6.0",
+   "data": "2026-11-23",
+   "titulo": "Agente consulta o banco menos vezes",
+   "resumo": "O agente do escritório perguntava ao banco quase toda segundo se havia comando novo, mesmo parado. Isso gastava a cota de tráfego do Supabase.",
+   "novo": [],
+   "melhorias": [
+    "Agente parado consulta a fila de comandos a cada 2,5 s (antes 0,8 s); depois de um comando volta a 0,8 s por 2 minutos, então comandos em sequência continuam rápidos",
+    "Batida dos agentes (quem está no comando) a cada 15 s em vez de 10 s; a troca para o reserva continua em até 45 s"
+   ],
+   "seguranca": [],
+   "correcoes": []
+  },
+  {
    "versao": "0.5.9",
    "data": "2026-11-22",
    "titulo": "Menos consultas em segundo plano",

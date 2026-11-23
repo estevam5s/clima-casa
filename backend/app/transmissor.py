@@ -296,15 +296,21 @@ def _salvar_codigo(aparelho_id, chave, rotulo, codigo):
 
 
 def laco_agente():
-    """Thread do agente: heartbeat + fila. Roda só no Mac."""
+    """Thread do agente: heartbeat + fila.
+    A fila é consultada a cada 0,8 s por 2 minutos depois de qualquer comando (comandos em sequência saem rápido) e a cada
+    2,5 s com o agente parado. Cada consulta é tráfego no Supabase (cota de 5 GB/mês do plano grátis, estourada em
+    22/11/2026 com o agente perguntando toda hora): parado, isso corta mais da metade das consultas."""
     ultimo_batimento = 0
+    ultimo_comando = time.time()
     while True:
         try:
             if time.time() - ultimo_batimento > 15:
                 db.set_cfg("agente_visto_em", int(time.time()))
                 ultimo_batimento = time.time()
-            if not processar_fila_uma_vez():
-                time.sleep(0.8)
+            if processar_fila_uma_vez():
+                ultimo_comando = time.time()
+            else:
+                time.sleep(0.8 if time.time() - ultimo_comando < 120 else 2.5)
         except Exception:  # noqa: BLE001  (rede caiu: tenta de novo)
             time.sleep(3)
 
