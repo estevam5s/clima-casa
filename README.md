@@ -57,28 +57,32 @@ Tudo roda numa API na Vercel com banco no Supabase e um **agente** num computado
 20. [Problemas comuns](#problemas-comuns)
 21. [Perguntas frequentes](#perguntas-frequentes)
 22. [Apêndices técnicos](#apêndices-técnicos)
-23. [Licença](#licença)
+23. [Backup](#backup)
+24. [Cota do Supabase (plano grátis)](#cota-do-supabase-plano-grátis)
+25. [Repositórios e CI/CD](#repositórios-e-cicd)
+26. [Licença](#licença)
 
 ---
 
 ## Em números
 
-Conferidos no código em 21/11/2026.
+Conferidos no código em 23/11/2026.
 
 | Item | Quantidade |
 |---|---|
 | Telas no painel web | 44 |
-| Rotas da API (contando cada método) | 438 |
-| Tabelas no Postgres, todas com RLS | 45 |
+| Rotas da API (contando cada método) | 458 |
+| Tabelas no Postgres, todas com RLS | 49 |
 | Rotinas agendadas (pg_cron) | 10 |
 | Comandos do bot do Telegram | 1.114, em 28 categorias |
 | Perguntas no treinamento de segurança e ISO | 1.017 |
 | Formatos de exportação de relatório | 8 (PDF, DOCX, XLSX, CSV, HTML, XML, JSON, Markdown) |
 | Idiomas do site institucional | 6 (português, inglês, espanhol, francês, russo, coreano) |
-| Versões publicadas do sistema | 52 (numeração em sequência desde 0.0.0) |
-| Apps nativos | Android, iPhone, macOS (Apple Silicon e Intel), Windows, Linux (x64 e arm64), versão 1.7.0 |
-| Backend Python | ~26 mil linhas |
-| Frontend React | ~36 mil linhas (mais ~5 mil do site) |
+| Versões publicadas do sistema | 66 (numeração em sequência desde 0.0.0), com o horário em que cada uma entrou no ar |
+| Testes de segurança automáticos | 1.325 (rodam sozinhos toda semana) |
+| Apps nativos | Android, iPhone, macOS (Apple Silicon e Intel), Windows, Linux (x64 e arm64), versão 1.7.1 |
+| Backend Python | ~27 mil linhas |
+| Frontend React | ~39 mil linhas (mais ~5 mil do site) |
 
 ---
 
@@ -199,6 +203,11 @@ A tela `/infra` opera a Vercel e a Cloudflare **pelo agente do escritório**: os
 | Cloudflare | **Visão geral da zona** (estado, nameservers, DNSSEC, SSL/TLS, registros por tipo), **DNS** com travas nos registros críticos, exportar em BIND e consultas por tipo; **e-mails** @zynio.com.br (Email Routing); **Turnstile**; **segurança** (DNSSEC, configurações, auditoria); **token** (cada permissão testada) |
 | Agentes | Computadores com o agente: quem é o principal, quem enxerga os transmissores, saúde (CPU, memória, disco, temperatura), reiniciar à distância, instalar em outro PC por código de uso único, guia do Raspberry Pi |
 | Placas IoT | Arduino/ESP ligados ao sistema: online, comandos na fila, Wi-Fi, IP, firmware, há quanto tempo ligada |
+| Serviços | Situação oficial agora da Vercel, Supabase, Cloudflare e Resend (incidentes abertos) e dias até cada certificado vencer |
+| Portas e rede | Do computador do agente: alcança o banco (6543), o painel, Supabase, Sinric, Tuya, Resend e cada transmissor (6668), com o tempo |
+
+Em **Agentes**, só fica verde e animado ("Ativo") o computador que está ligado **e** na rede dos transmissores; o Raspberry Pi
+aparece em 3D (LEDs, calor do processador, dados pelo cabo ou Wi-Fi, aviso de fonte fraca).
 
 O que **não** existe e por quê: logs de execução em tempo real da Vercel (a API não responde no plano atual) e métricas HTTP,
 cache e WAF da Cloudflare (todos os registros são "DNS only"; o tráfego vai direto para a Vercel).
@@ -382,11 +391,15 @@ entrada de IP novo) e baixa os próprios dados.
 | Portão | Página de verificação (Turnstile, com prova de trabalho como reserva) antes do painel e do site |
 | Login | Turnstile (também no Supabase Auth), bloqueio por conta e por IP, aviso de IP novo |
 | Firewall de aplicação | Listas de IP, país, assinaturas de ataque, limite por minuto, bloqueio progressivo; escudo anti-DDoS liga o modo de ataque da Vercel |
-| Navegador | CSP restrita, HSTS, X-Frame-Options DENY, nosniff, CSRF por `Origin`, microfone só no próprio domínio |
+| Navegador | CSP restrita, HSTS, X-Frame-Options DENY, nosniff, COOP/CORP, Origin-Agent-Cluster, X-Permitted-Cross-Domain-Policies, CSRF por `Origin`, microfone só no próprio domínio |
 | Dados | AES-256-GCM em repouso, TLS verificado até o banco, RLS em tudo, SQL parametrizado, logs selados com SHA-256 |
 | Comandos físicos | Limite por aparelho, isolar aparelho, validade dos comandos na fila (comando velho não é executado) |
 | Tokens amplos | Vercel, Cloudflare e GitHub só no `.env` do agente, nunca na Vercel |
 | Auditoria | `uvx pip-audit`, `npm audit`, `bandit`; checklist de 18 controles ao vivo na tela Segurança |
+| Testes de ataque | 1.325 testes (arquivos expostos, cabeçalhos, API sem login e com token falso, CORS, métodos HTTP, redirecionamento aberto, Host falso, XSS refletido, COOP/CORP, TLS, DNS e e-mail), com varredura automática semanal e notificação |
+| Conta | Alerta de entrada da mesma conta em dois países em menos de 6 h; aviso de IP novo; sessões com inatividade e duração máxima |
+| Domínio | CAA (só Let's Encrypt e Google emitem certificado), DNSSEC, SPF, DKIM, DMARC `p=reject`, `security.txt` (RFC 9116) |
+| E-mail | Lista de bloqueio automática: quem devolveu ou marcou spam não recebe mais nada (protege a reputação do domínio) |
 
 Achou uma vulnerabilidade? Escreva para `seguranca@zynio.com.br`. Segredo vazado:
 rotacione na hora (Supabase, Vercel, Cloudflare, Sinric, Spotify, Resend, Turnstile, NVIDIA).
@@ -438,8 +451,16 @@ cd backend && ../.venv/bin/python -m app.main          # http://127.0.0.1:8090
 |---|---|
 | macOS | `./instalar-servico.sh` (roda de uma cópia em `~/Library/Application Support/ClimaCasa`, porque serviço não lê `~/Documents`) |
 | Windows | **Infra → Agentes → Instalar** gera um código de 30 min; no PowerShell como administrador, rode o comando que a tela mostra |
-| Linux / Raspberry Pi (64 bits) | `curl -fsSL https://app.zynio.com.br/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh <código>` |
-| Cartão do Raspberry pronto no Mac | `./scripts/preparar-cartao-raspberry.sh` (grava o sistema, Wi-Fi, código e `.env`; o 1º boot instala tudo) |
+| Mac (por código, sem a pasta do projeto) | `curl -fsSL https://app.zynio.com.br/instalar-agente-mac.sh -o /tmp/ia.sh && bash /tmp/ia.sh <código>` |
+| Linux (Debian, Ubuntu, Fedora, RHEL, Rocky, openSUSE, Arch) e Raspberry Pi 64 bits | `curl -fsSL https://app.zynio.com.br/instalar-agente.sh -o /tmp/ia.sh && sudo bash /tmp/ia.sh <código>` |
+| Servidor com Docker (sem systemd) | o mesmo comando com `--docker` no fim: sobe o contêiner `clima-escritorio-agente` com a rede do servidor |
+| Cartão do Raspberry pronto no Mac | `./scripts/preparar-cartao-raspberry.sh` (grava o sistema, Wi-Fi, código e `.env`; o 1º boot espera rede, DNS e relógio e instala tudo) |
+
+Guia completo do Raspberry Pi (acesso, rede da prefeitura por cabo ou Wi-Fi, o que pedir à TI, problemas): [`docs/RASPBERRY.md`](docs/RASPBERRY.md).
+
+**O que a rede precisa liberar**: saída TCP 443 (sem inspeção SSL) e **6543** (banco do Supabase, a porta mais bloqueada em redes
+corporativas), e o computador na mesma rede/VLAN dos transmissores (TCP 6668, UDP 6666/6667). O instalador testa e diz o que está
+bloqueado; depois, **Rede → Portas e serviços** mostra o mesmo a qualquer momento.
 
 Depois confira em **Infra → Agentes**: o principal precisa aparecer online e **enxergando N de N** transmissores.
 Recomendação: um computador do escritório sempre ligado (ou um Raspberry Pi) como **preferido**.
@@ -565,6 +586,30 @@ pedido; se não bate e o ajuste existe no ar, grava no botão certo.
 - Horas ligado = soma dos trechos entre "ligar" e o "desligar" seguinte (cada trecho limitado a 24 h).
 - kWh = horas × potência (W) ÷ 1000; custo = kWh × tarifa (editável na tela).
 - Referência: 9.000 BTU ≈ 800 W, 12.000 ≈ 1.100 W, 18.000 ≈ 1.650 W, 24.000 ≈ 2.200 W.
+
+---
+
+## Backup
+
+Backup → **Gerar backup** guarda tudo: as tabelas do banco (ares, botões, transmissores, salas, cenas, agenda, automações, mapa,
+usuários, configurações com segredos cifrados), os **arquivos 3D** (avatares, carros, objetos; copiados dentro do Supabase, sem
+tráfego, uma vez por versão) e os **códigos** das placas Arduino/ESP (sem o token, que se gera de novo) e dos instaladores.
+Agendado (diário ou semanal, com retenção), conferir integridade (sha256), comparar dois backups, procurar e restaurar só algumas
+linhas, cópia automática antes de restaurar e "trazer os arquivos de volta". Gerar não gasta tráfego; **baixar** um backup gasta.
+
+## Cota do Supabase (plano grátis)
+
+5 GB de tráfego (Egress) por mês, 1 GB de Storage e 0,5 GB de banco. Passou da cota, há um prazo e depois o projeto responde 402.
+O que o sistema faz para caber: modelos 3D guardados em cada navegador; telas que não consultam com a aba escondida (o sino a cada
+60 s); agente que pergunta pela fila a cada 2,5 s parado (~44 MB/dia, medido); pacotes antigos do código apagados a cada publicação.
+**Supabase → Uso e cota** mostra banco, Storage e pedidos por hora; o Egress em GB só aparece no painel do Supabase.
+
+## Repositórios e CI/CD
+
+`estevam5s/clima-casa` e `PMF-projetos/clima-casa` ficam iguais nos dois sentidos (workflow `sincronizar-repositorios.yml`, chaves
+SSH de deploy, sem forçar). O CI (`ci.yml`) roda nos dois: segredos no código, backend (ruff, Python 3.11, import, pip-audit),
+painel e site (build e npm audit). A produção é publicada à mão (`publicar-vercel.sh`, que confere a versão no ar). Detalhes na
+seção 18 do `CLAUDE.md`.
 
 ---
 

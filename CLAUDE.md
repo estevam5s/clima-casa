@@ -29,7 +29,7 @@ caminhos de serviço e o projeto da Vercel).
 8. **Diário de sessão**: toda sessão de trabalho termina com a pasta `docs/continuar/sessao-AAAA-MM-DD/` (00-LEIA-PRIMEIRO,
    01-historico, 02-estado-atual, 03-pendencias, 04-decisoes, 05-testes, PROMPT.md, continuar.sh), e atualiza
    `docs/continuar/INDICE.md` (todas as sessões) e `docs/continuar/ATUAL.md` (a mais recente). O gancho SessionStart do
-   `.claude/settings.json` mostra o `ATUAL.md` no começo de toda sessão nova. A última é `sessao-2026-11-19`.
+   `.claude/settings.json` mostra o `ATUAL.md` no começo de toda sessão nova. A última é `sessao-2026-11-21` (continuada em 22 e 23/11).
 9. **Toda atualização do sistema atualiza também os apps** (pedido do dono, 20/11/2026): o que entrou no painel ganha a tela ou o
    atalho correspondente no **Android** (`apps/android`, telas em `src/app/(abas)/mais/`), no **computador** (`apps/desktop/src/main.js`,
    `MAIS_TELAS`) e no **iPhone** (`apps/ios`, `Telas/` + `Mais.swift`). Na mesma entrega: versão nova dos três (Android `app.json`/
@@ -932,11 +932,27 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | `useState` depois de `if (...) return` | quebra a regra dos hooks quando os dados chegam. Hooks sempre antes de qualquer return |
 | Confirmação com `window.confirm` | trava a tela e foge do visual; use `Modal` (ainda há ~25 pontos antigos: `grep -rn "window.confirm" frontend/src`) |
 | Mapa 3D congela 1 a 2 s ao abrir o prédio, ao chegar um modelo ou no elevador | mudar o **número de luzes visíveis** recompila todos os materiais (dezenas de programas). Objeto que chega depois não traz luz (`E.preparar` tira); o conjunto do térreo é pré-compilado no ocioso (`E.precompilarTerreo`); para apagar uma luz, intensidade 0, nunca `visible = false`. Conferir: `renderer.info.programs.length` antes e depois (0.4.8) |
+| Teste local bloqueia 127.0.0.1 no firewall | mandar texto com "curl … \| bash" (instaladores) no corpo cai nas assinaturas de injeção: o firewall bloqueia o IP (correto). Mande código em base64 (como o backup faz) e, se bloqueou no teste, apague `seguranca_ips`/`seguranca_eventos` do 127.0.0.1 |
+| `vercel deploy` termina com "Error: fetch failed" | falha de rede no envio: rode o `publicar-vercel.sh` de novo (num worktree limpo) e confira a linha "Versão X confirmada no ar" |
+| Egress do Supabase subindo sem uso | abas antigas (código de antes de uma versão) seguem consultando até recarregar; o agente sozinho gasta ~44 MB/dia; abrir o mapa baixa os modelos uma vez por navegador. Medir: `nettop` no processo do agente, `pg_stat_statements` em 3 min |
+| Teste do treinamento manda e-mail | `corrigir` envia a nota por e-mail para quem fez a prova: em teste, avise que chegam e-mails no endereço da conta de teste |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
 
 ## 14. Estado atual e pendências
+
+- **23/11/2026 (0.5.2 a 0.6.5, apps 1.7.1)**: diário em `docs/continuar/sessao-2026-11-21/`. Agente por código em Windows, Mac, Linux
+  (várias distribuições), Raspberry Pi e Docker; **primeiro Raspberry real** (Pi 3B, Debian 13) instalado como reserva na casa do dono
+  (fonte fraca: trocar pela oficial 5 V 2,5 A). Backup de tudo (arquivos 3D copiados dentro do Supabase; 1º backup completo gerado em 23/11),
+  horário de publicação de cada versão, 1.325 testes de segurança com varredura semanal, CAA no domínio, alerta de entrada de outro país,
+  hall do andar editável, Rede/Infra com portas e serviços, E-mails com entregas e lista de bloqueio, comparar modelos na IA, confiabilidade
+  nos relatórios, treinamento com revisão e certificado. Repositório espelhado nos dois sentidos com `PMF-projetos/clima-casa` (seção 18).
+- **Cota do Supabase estourada (Egress 6,5 GB de 5 GB em 23/11)**: prazo até **22/12/2026**, depois o projeto responde 402. Causa principal
+  era o mapa baixando os modelos 3D a cada abertura (corrigido: cache no navegador). Para caber no mês seguinte: ~44 MB/dia do agente +
+  uso das telas. Se não couber: plano Pro. **Em testes, não abra o mapa 3D no Playwright** (cada abertura baixa dezenas de MB do Storage).
+- Pendências do dono: fonte oficial do Raspberry e levá-lo à rede dos transmissores (TI: 443 e 6543 liberadas, mesma VLAN); PC do João
+  desligado; nenhuma placa Arduino/ESP configurada ainda.
 
 - **19/11 (1.18.0 a 1.24.0)**: diário completo em `docs/continuar/sessao-2026-11-19/`. IA (NVIDIA) em chat com conversas
   salvas; Telegram com 498 comandos; avatares de `new-blenders` (ids 19–72, com versões leves/médias para o mapa); carros
