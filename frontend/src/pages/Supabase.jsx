@@ -57,8 +57,10 @@ export default function Supabase() {
       </header>
       <div className="flex min-h-[calc(100dvh-7rem)] flex-col md:flex-row">
         {/* menu do projeto: fixo e aberto (como o dashboard atual do Supabase), com busca; recolhe para ícones e lembra a escolha */}
-        <nav className={`shrink-0 border-b border-border bg-card md:sticky md:top-0 md:h-[calc(100dvh-7rem)] md:border-b-0 md:border-r md:transition-[width] md:duration-150 ${fechado ? 'md:w-14' : 'md:w-60'}`} aria-label="Seções do Supabase">
-          <div className="flex h-full flex-col">
+        {/* a coluna vai até o fim da página (fundo e borda contínuos) e o conteúdo dela gruda logo abaixo da barra do sistema
+            (top-16); antes o menu grudava por baixo da barra e terminava antes do fim, deixando um degrau ao rolar */}
+        <nav className={`shrink-0 border-b border-border bg-card md:self-stretch md:border-b-0 md:border-r md:transition-[width] md:duration-150 ${fechado ? 'md:w-14' : 'md:w-60'}`} aria-label="Seções do Supabase">
+          <div className="flex flex-col md:sticky md:top-16 md:h-[calc(100dvh-4rem)]">
             <div className={`hidden items-center gap-1 border-b border-border p-2 md:flex ${fechado ? 'justify-center' : ''}`}>
               {!fechado && (
                 <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-background px-2 text-[13px]">

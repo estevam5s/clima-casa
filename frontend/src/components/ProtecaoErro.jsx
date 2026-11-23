@@ -11,10 +11,11 @@ export default class ProtecaoErro extends Component {
   }
 
   static getDerivedStateFromError(erro) {
-    return { erro, atualizando: versaoTrocada(erro) && podeRecarregar() }
+    return { erro, atualizando: versaoTrocada(erro) && (podeRecarregar() || !!window.__climaRecarregando) }
   }
 
   componentDidCatch(erro, info) {
+    if (window.__climaRecarregando) return   // já está recarregando por versão nova: não é bug
     if (versaoTrocada(erro) && recarregarUmaVez()) return   // publicação nova no meio do uso: recarrega, não é bug
     try {
       api.post('/api/bugs/erro-cliente', {

@@ -441,7 +441,7 @@ function Banner() {
   )
 }
 
-const TELAS_CHEIAS = ['/ia', '/mensagens', '/musica']
+const TELAS_CHEIAS = ['/ia', '/mensagens', '/musica', '/supabase']   // telas de ponta a ponta: sem rodapé (no /supabase ele sobrava sobre o menu)
 
 function Rodape() {
   const { marca } = useMarca()

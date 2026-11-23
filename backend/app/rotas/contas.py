@@ -403,16 +403,23 @@ def apagar_usuario(uid: str, request: Request):
     return {"ok": True}
 
 
-class UsoTelasIn(BaseModel):
-    telas: list[dict] = Field(default_factory=list, max_length=40)
-    caminhos: list[dict] = Field(default_factory=list, max_length=40)
-
-
 @contas.post("/conta/uso-telas")
-def registrar_uso_telas(d: UsoTelasIn, request: Request):
-    """Tempo de tela da própria pessoa (o navegador manda a cada minuto). Só números por tela; nada do que foi digitado."""
+async def registrar_uso_telas(request: Request):
+    """Medição automática do tempo de tela (não é formulário): aproveita o que vier certo e ignora o resto. Envio cortado
+    ao fechar a aba ou com muitas telas não é mais recusado inteiro (virava "bug" e o minuto se perdia, bug #27)."""
     from .. import uso
-    return {"ok": True, "gravados": uso.gravar(str(request.state.u["id"]), d.telas, d.caminhos)}
+    try:
+        corpo = await request.json()
+    except Exception:  # noqa: BLE001  (corpo cortado: nada a gravar)
+        return {"ok": False, "gravados": 0}
+    if not isinstance(corpo, dict):
+        return {"ok": False, "gravados": 0}
+    lista = lambda k: [x for x in (corpo.get(k) or []) if isinstance(x, dict)][:200] if isinstance(corpo.get(k), list) else []  # noqa: E731
+    telas, caminhos, total = lista("telas"), lista("caminhos"), 0
+    uid = str(request.state.u["id"])
+    for i in range(0, max(len(telas), len(caminhos), 1), 40):
+        total += uso.gravar(uid, telas[i:i + 40], caminhos[i:i + 40])
+    return {"ok": True, "gravados": total}
 
 
 @contas.get("/usuarios/uso")

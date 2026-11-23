@@ -251,7 +251,9 @@ export default function Avatares() {
     const antes = lista.map((a) => a.id)
     if (ordem.length !== antes.length || ordem.every((id, i) => id === antes[i])) return
     const todos = (dados?.avatares || []).map((a) => a.id)
-    try { await api.put('/api/avatares/ordem', { ids: [...ordem, ...todos.filter((id) => !ordem.includes(id))] }); toast('Ordem salva.'); recarregar() }
+    const ids = [...ordem, ...todos.filter((id) => !ordem.includes(id))].filter((id) => Number.isInteger(id))
+    if (!ids.length) return   // lista ainda não carregou: nada a gravar
+    try { await api.put('/api/avatares/ordem', { ids }); toast('Ordem salva.'); recarregar() }
     catch (e) { toast(e.message, 'erro'); setOrdem(antes) }
   }
   if (erro) return <Aviso>{erro}</Aviso>

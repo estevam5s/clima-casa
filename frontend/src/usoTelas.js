@@ -20,15 +20,17 @@ function fechar() {
 async function enviar(final = false) {
   fechar()
   if (!telas.size && !caminhos.size) return
-  const corpo = JSON.stringify({
-    telas: [...telas].map(([rota, v]) => ({ rota, ms: Math.round(v.ms), visitas: v.visitas })),
-    caminhos: [...caminhos].map(([k, n]) => { const [de, para] = k.split('>'); return { de, para, n } }),
-  })
+  const t = [...telas].map(([rota, v]) => ({ rota: String(rota).slice(0, 120), ms: Math.round(v.ms) || 0, visitas: v.visitas || 0 }))
+  const c = [...caminhos].map(([k, n]) => { const [de, para] = k.split('>'); return { de: String(de).slice(0, 120), para: String(para || '').slice(0, 120), n } })
   telas.clear(); caminhos.clear()
   try {
     const token = await tokenAtual().catch(() => null)
     if (!token) return
-    await fetch('/api/conta/uso-telas', { method: 'POST', keepalive: final, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: corpo })
+    // em partes de até 40 (o limite do servidor): antes um minuto com muitas telas era recusado inteiro
+    for (let i = 0; i < Math.max(t.length, c.length); i += 40) {
+      await fetch('/api/conta/uso-telas', { method: 'POST', keepalive: final, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ telas: t.slice(i, i + 40), caminhos: c.slice(i, i + 40) }) })
+    }
   } catch { /* sem rede: perde este minuto, sem atrapalhar a tela */ }
 }
 

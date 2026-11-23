@@ -9,13 +9,16 @@ const ignorar = /ResizeObserver loop|Script error\.?$|turnstile|cloudflare|exten
 // Publicação nova troca os nomes dos arquivos (hash). Uma aba aberta antes tenta baixar um pedaço que não existe mais:
 // em vez de virar erro (e bug), recarrega a página UMA vez e pega a versão nova. Se falhar de novo em 1 minuto, é erro real.
 const VERSAO_TROCADA = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload CSS|Loading chunk \S+ failed/i
-export const versaoTrocada = (erro) => VERSAO_TROCADA.test(String(erro?.message || erro || ''))
+// enquanto a página recarrega por versão nova, o Vite devolve "nada" no lugar da tela (o React acusa "reading 'default'"):
+// esse erro do meio segundo antes de recarregar também não é bug
+export const versaoTrocada = (erro) => VERSAO_TROCADA.test(String(erro?.message || erro || '')) || (typeof window !== 'undefined' && !!window.__climaRecarregando)
 export function podeRecarregar() {
   try { return Date.now() - Number(sessionStorage.getItem('clima-recarga-versao') || 0) >= 60000 } catch { return false }   // já recarregou há pouco: não entra em laço
 }
 export function recarregarUmaVez() {
   if (!podeRecarregar()) return false
   try { sessionStorage.setItem('clima-recarga-versao', String(Date.now())) } catch { return false }
+  window.__climaRecarregando = true
   location.reload()
   return true
 }
