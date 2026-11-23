@@ -26,6 +26,15 @@ export default function Cabecalho() {
   const fechar = useRef(null)
 
   useEffect(() => setMontado(true), [])
+  // ao rolar, a barra encosta no alto, fica um pouco menor e ganha fundo translúcido (transição só em CSS, a 1 quadro)
+  const [rolou, setRolou] = useState(false)
+  useEffect(() => {
+    let quadro = 0
+    const medir = () => { quadro = 0; setRolou(window.scrollY > 40) }
+    const aoRolar = () => { if (!quadro) quadro = requestAnimationFrame(medir) }
+    medir(); window.addEventListener('scroll', aoRolar, { passive: true })
+    return () => { window.removeEventListener('scroll', aoRolar); cancelAnimationFrame(quadro) }
+  }, [])
   useEffect(() => { setGaveta(false); setSubGaveta(null); setSubmenu(null) }, [caminho])
   useEffect(() => {
     document.documentElement.classList.toggle('menu-aberto', gaveta)
@@ -82,7 +91,7 @@ export default function Cabecalho() {
   )
 
   return (
-    <header className="cabecalho">
+    <header className={`cabecalho ${rolou ? 'rolou' : ''}`}>
       <div className="container">
         <div className="barra">
           <Logo />

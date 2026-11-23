@@ -99,7 +99,18 @@ main { display: block; width: 100%; }
 .pre-carga img { position: absolute; width: 56px; }
 
 /* ---------- cabeçalho ---------- */
-.cabecalho { position: absolute; top: 30px; left: 0; width: 100%; z-index: 999; }
+.cabecalho { position: fixed; top: 30px; left: 0; width: 100%; z-index: 999; transition: top .45s cubic-bezier(.22,1,.36,1); }
+.cabecalho .marca-pilula, .cabecalho .menu-pilula, .cabecalho .seletor-idioma > button, .cabecalho .alternar-menu {
+  transition: background-color .45s cubic-bezier(.22,1,.36,1), box-shadow .45s cubic-bezier(.22,1,.36,1), border-color .45s, backdrop-filter .45s; }
+.cabecalho .menu-pilula > ul > li > a, .cabecalho .menu-pilula > ul > li > button, .cabecalho .marca-pilula a { transition: padding .45s cubic-bezier(.22,1,.36,1), color .2s, background-color .2s; }
+/* rolou: encosta no alto, um pouco menor, fundo translúcido com desfoque para ler sobre qualquer seção */
+.cabecalho.rolou { top: 12px; }
+.cabecalho.rolou .marca-pilula, .cabecalho.rolou .menu-pilula, .cabecalho.rolou .seletor-idioma > button, .cabecalho.rolou .alternar-menu {
+  background-color: rgba(14,15,17,.72); -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+  border-color: rgba(255,255,255,.12); box-shadow: 0 12px 32px -8px rgba(0,0,0,.55); /* marca: a barra flutua sobre o conteúdo ao rolar */ }
+.cabecalho.rolou .marca-pilula a { background: transparent; }
+.cabecalho.rolou .menu-pilula > ul > li > a, .cabecalho.rolou .menu-pilula > ul > li > button { padding-top: 9px; padding-bottom: 9px; }
+@media (prefers-reduced-motion: reduce) { .cabecalho, .cabecalho * { transition: none !important; } }
 .cabecalho .barra { display: flex; align-items: center; }
 .marca-pilula { line-height: 1; border: 1px solid var(--borda); padding: 3px 5px; border-radius: 40px; }
 .marca-pilula a { display: flex; align-items: center; gap: 9px; padding: 6px 14px 6px 8px; border-radius: 40px; background: var(--preto); color: var(--branco); font: 700 21px/1 var(--fonte-titulo); }
@@ -394,6 +405,7 @@ html.menu-aberto, html.menu-aberto body { overflow: hidden; }
 @media (max-width: 991px) { .alternar-menu { display: flex; } }
 @media (max-width: 767px) {
   .cabecalho { top: 16px; }
+  .cabecalho.rolou { top: 8px; }
   .marca-pilula a { font-size: 18px; padding: 5px 12px 5px 6px; }
   .marca-pilula img { width: 26px; height: 26px; }
   .heroi { padding: 140px 0 190px; }

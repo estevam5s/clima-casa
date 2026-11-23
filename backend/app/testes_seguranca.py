@@ -42,6 +42,12 @@ SENSIVEIS = {
     r"/.idea/workspace.xml": r"<project", r"/.vscode/settings.json": r"\{", r"/npm-debug.log": r"npm ERR", r"/yarn-error.log": r"Arguments:", r"/error.log": r"(?i)error",
     r"/access.log": r"GET /", r"/logs/app.log": r"(?i)info|error", r"/.bash_history": r"(?i)cd |ls ", r"/.zsh_history": r": \d+:", r"/backup/": r"Index of",
     r"/uploads/": r"Index of", r"/static/": r"Index of", r"/assets/": r"Index of", r"/.well-known/": r"Index of", r"/test.php": r"<\?", r"/cgi-bin/": r"Index of",
+    # código e configuração deste projeto (nada disso pode sair pela web)
+    r"/.git/logs/HEAD": r"^[0-9a-f]{40} ", r"/.git/ORIG_HEAD": r"^[0-9a-f]{40}", r"/.github/workflows/ci.yml": r"jobs:", r"/backend/app/main.py": r"FastAPI",
+    r"/backend/app/db.py": r"psycopg", r"/api/index.py": r"import", r"/middleware.js": r"export (const|default|function)", r"/.vercelignore": r"^/apps",
+    r"/CLAUDE.md": r"Regras de ouro", r"/docs/MANUAL.md": r"(?i)manual", r"/scripts/gerar-repositorio.mjs": r"import ", r"/.claude/settings.json": r"\{",
+    r"/data/maquina.id": r"^[a-z0-9-]{8,}$", r"/backend/supabase-ca.crt": r"BEGIN CERTIFICATE", r"/instalar-servico.sh": r"LaunchAgent", r"/publicar-vercel.sh": r"vercel deploy",
+    r"/site/.env.local": r"^[A-Z_]{3,}=", r"/apps/android/.env": r"^[A-Z_]{3,}=", r"/docs/credentials/": r"Index of", r"/.env.example": r"(?i)secret_key=\S{8,}",
 }
 PAGINAS = ["/", "/login", "/mapa", "/aparelhos", "/transmissores", "/relatorios", "/seguranca", "/configuracoes", "/infra", "/rede", "/cafeteira",
            "/persianas", "/fechadura", "/avatares", "/novidades", "/guia", "/apps", "/projetos", "/atividade", "/integracoes", "/musica", "/emails",
@@ -93,6 +99,20 @@ def catalogo() -> list[dict]:
     for nome, tipo in (("SPF publicado e terminando em ~all ou -all", "spf"), ("DMARC com p=reject ou quarantine", "dmarc"), ("DKIM do Resend publicado", "dkim"),
                        ("DNSSEC ativo (registro DS)", "dnssec"), ("CAA restringe quem emite certificado", "caa"), ("MX do recebimento configurado", "mx")):
         t.append({"cat": "DNS e e-mail", "nome": f"zynio.com.br: {nome}", "tipo": "dns", "chk": tipo})
+    for h in HOSTS[:2]:   # 8. redirecionamento aberto
+        for c in ("/login?next=https://evil.example", "/login?redirect=//evil.example", "/oauth/autorizar?redirect_uri=https://evil.example&client_id=x",
+                  "/redefinir-senha?volta=https://evil.example", "//evil.example/", "/entrar-app?volta=https://evil.example", "/api/musica/retorno?state=x&code=y&volta=https://evil.example"):
+            t.append({"cat": "Redirecionamento aberto", "nome": f"{h}{c[:55]} não manda para outro site", "tipo": "redir_aberto", "host": h, "caminho": c})
+    for h in HOSTS[:2]:   # 9. cabeçalho Host falso
+        for c in ("/", "/login", "/api/saude"):
+            t.append({"cat": "Host falso", "nome": f"{h}{c} ignora Host trocado", "tipo": "host_falso", "host": h, "caminho": c})
+    for h in HOSTS[:2]:   # 10. XSS refletido
+        for c in ("/?q=<script>zx9</script>", "/login?erro=<script>zx9</script>", "/api/nao-existe?x=<script>zx9</script>", "/novidades?busca=<script>zx9</script>",
+                  "/%3Cscript%3Ezx9%3C/script%3E", "/api/site/idiomas/<script>zx9</script>"):
+            t.append({"cat": "XSS refletido", "nome": f"{h}{c[:50]} não devolve o script", "tipo": "xss", "host": h, "caminho": c})
+    for pg in PAGINAS[:12]:   # 11. isolamento entre janelas e recursos (Spectre, popups)
+        for cab, regra in (("cross-origin-opener-policy", r"same-origin"), ("cross-origin-resource-policy", r"same-origin|same-site")):
+            t.append({"cat": "Isolamento (COOP/CORP)", "nome": f"{APP}{pg}: {cab}", "tipo": "cabecalho", "host": APP, "caminho": pg, "cab": cab, "regra": regra})
     t.append({"cat": "Cookies", "nome": "cookie do portão (zv) com Secure, HttpOnly e SameSite", "tipo": "cookie", "host": APP})
     t.append({"cat": "Cookies", "nome": "security.txt publicado", "tipo": "securitytxt", "host": "zynio.com.br"})
     for i, x in enumerate(t):
@@ -109,6 +129,10 @@ async def _um(cli, x, assin) -> tuple[bool, str]:
         corpo = r.content[:4000]
         if r.status_code in (401, 403, 404, 405, 410, 400):
             return True, f"{r.status_code}"
+        if r.status_code in (301, 302, 307, 308):   # www → domínio principal (testado à parte): não é o arquivo
+            destino = r.headers.get("location", "")
+            dono = re.sub(r"^https?://([^/]+).*$", r"\1", destino) if destino.startswith("http") else h
+            return dono != h or destino.rstrip("/") != url.rstrip("/"), f"{r.status_code} → {destino[:50]}"
         txt = corpo.decode("utf-8", "ignore")
         if re.search(x["assin"], txt, re.M) and "<div id=\"root\"" not in txt and "<!doctype html" not in txt.lower()[:200]:
             return False, f"{r.status_code}: conteúdo do arquivo apareceu"
@@ -151,8 +175,23 @@ async def _um(cli, x, assin) -> tuple[bool, str]:
         ok = all(k.lower() in sc.lower() for k in ("secure", "httponly", "samesite"))
         return ok, sc.split(";", 1)[1][:80] if ";" in sc else sc[:80]
     if tp == "securitytxt":
-        r = await cli.get(f"https://{h}/.well-known/security.txt")
-        return r.status_code == 200 and "Contact:" in r.text, f"{r.status_code}"
+        r = await cli.get(f"https://{h}/.well-known/security.txt", headers=assin)
+        if r.status_code == 403:   # proteção anti-robô da hospedagem: confere como um navegador comum
+            r = await cli.get(f"https://{h}/.well-known/security.txt", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/131"})
+        tem = "Contact:" in r.text and "Expires:" in r.text
+        return r.status_code == 200 and tem, f"{r.status_code}{'' if tem or r.status_code != 200 else ' sem Contact/Expires'}"
+    if tp == "redir_aberto":   # ninguém pode usar o domínio para mandar a pessoa a um site de fora
+        r = await cli.get(url, headers=assin)
+        destino = r.headers.get("location", "")
+        fora = re.match(r"^\s*(https?:)?//[^/]*evil\.example", destino, re.I) is not None   # "/evil.example/" é caminho do próprio site
+        return not fora, f"{r.status_code}{' → ' + destino[:40] if destino else ''}"
+    if tp == "host_falso":   # cabeçalho Host trocado não pode virar link/redirecionamento para outro domínio
+        r = await cli.get(url, headers={**assin, "Host": "evil.example", "X-Forwarded-Host": "evil.example"})
+        vaz = "evil.example" in r.headers.get("location", "") or "evil.example" in r.text[:20000]
+        return not vaz, f"{r.status_code}{' + refletiu o host' if vaz else ''}"
+    if tp == "xss":   # texto de ataque enviado na URL não volta como código na página
+        r = await cli.get(url, headers=assin)
+        return "<script>zx9" not in r.text, f"{r.status_code}{' + refletiu o script' if '<script>zx9' in r.text else ''}"
     if tp in ("tls_antigo", "tls_validade"):
         return await asyncio.to_thread(_tls, x)
     if tp == "dns":

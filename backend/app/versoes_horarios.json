@@ -1,0 +1,298 @@
+{
+ "0.6.1": {},
+ "0.6.0": {
+  "commit": "19ff48a",
+  "commit_em": 1795434243,
+  "no_ar": 1795434369,
+  "deploy": "clima-casa-e7l4atml6-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.9": {
+  "commit": "3e41ef9",
+  "commit_em": 1795399371,
+  "no_ar": 1795399478,
+  "deploy": "clima-casa-4327zvjy4-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.8": {
+  "commit": "266d7aa",
+  "commit_em": 1795398352,
+  "no_ar": 1795398512,
+  "deploy": "clima-casa-3m61iinap-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.7": {
+  "commit": "e6359ef",
+  "commit_em": 1795397157,
+  "no_ar": 1795397314,
+  "deploy": "clima-casa-jdvdyi5ex-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.6": {
+  "commit": "bf37a45",
+  "commit_em": 1795396800,
+  "no_ar": 1795396979,
+  "deploy": "clima-casa-hgx26lgyq-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.5": {
+  "commit": "7c0baf8",
+  "commit_em": 1795395823,
+  "no_ar": 1795395911,
+  "deploy": "clima-casa-60tfipyip-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.4": {
+  "commit": "7d90979",
+  "commit_em": 1795382977,
+  "no_ar": 1795383093,
+  "deploy": "clima-casa-1gycic74o-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.3": {
+  "commit": "9f565a4",
+  "commit_em": 1795381894,
+  "no_ar": 1795382007,
+  "deploy": "clima-casa-o9nx98rja-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.2": {
+  "commit": "c13bd58",
+  "commit_em": 1795376616,
+  "no_ar": 1795376724,
+  "deploy": "clima-casa-7btnq6unr-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.1": {
+  "commit": "f137e4b",
+  "commit_em": 1795309148,
+  "no_ar": 1795309274,
+  "deploy": "clima-casa-pe1r97unw-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.5.0": {
+  "commit": "ba470c3",
+  "commit_em": 1795306306,
+  "no_ar": 1795306411,
+  "deploy": "clima-casa-37jpqwdu3-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.4.9": {
+  "commit": "2d456ca",
+  "commit_em": 1795293137,
+  "no_ar": 1795293280,
+  "deploy": "clima-casa-2lu041omk-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.4.8": {
+  "commit": "e38a0af",
+  "commit_em": 1795288022,
+  "no_ar": 1795288198,
+  "deploy": "clima-casa-7bvvccuva-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.4.7": {
+  "commit": "58fd386",
+  "commit_em": 1795206366,
+  "no_ar": 1795207169,
+  "deploy": "clima-casa-jvqc47sgn-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.4.6": {
+  "commit": "b094bec",
+  "commit_em": 1795198982,
+  "no_ar": 1795199121,
+  "deploy": "clima-casa-4ns86kz69-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.4.5": {
+  "commit": "8ffe8ad",
+  "commit_em": 1795190171,
+  "no_ar": 1795190354,
+  "deploy": "clima-casa-ntwk6eohu-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.4.4": {
+  "commit": "6d0a795",
+  "commit_em": 1795187821,
+  "no_ar": 1795187942,
+  "deploy": "clima-casa-6pu0p5oo1-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.4.3": {
+  "commit": "5a0ec8a",
+  "commit_em": 1795184627
+ },
+ "0.4.2": {
+  "commit": "f5ca13c",
+  "commit_em": 1795181712
+ },
+ "0.4.1": {
+  "commit": "e6526fa",
+  "commit_em": 1795179547
+ },
+ "0.4.0": {
+  "commit": "dbce4de",
+  "commit_em": 1795177957
+ },
+ "0.3.9": {
+  "commit": "21bc93a",
+  "commit_em": 1795177548
+ },
+ "0.3.8": {
+  "commit": "a03484e",
+  "commit_em": 1795176640
+ },
+ "0.3.7": {
+  "commit": "ef8303c",
+  "commit_em": 1795174528
+ },
+ "0.3.6": {
+  "commit": "e9de7f4",
+  "commit_em": 1795132650
+ },
+ "0.3.5": {
+  "commit": "4749cc4",
+  "commit_em": 1795121365
+ },
+ "0.3.4": {
+  "commit": "80e5ea2",
+  "commit_em": 1795095292
+ },
+ "0.3.3": {
+  "commit": "ba28482",
+  "commit_em": 1795093202
+ },
+ "0.3.2": {
+  "commit": "48c30a3",
+  "commit_em": 1795091199
+ },
+ "0.3.1": {
+  "commit": "dd4ea66",
+  "commit_em": 1795065699
+ },
+ "0.3.0": {
+  "commit": "93a812d",
+  "commit_em": 1795059773
+ },
+ "0.2.9": {
+  "commit": "60e3ff3",
+  "commit_em": 1795058477
+ },
+ "0.2.8": {
+  "commit": "51f6e48",
+  "commit_em": 1795054961
+ },
+ "0.2.7": {
+  "commit": "e2d9307",
+  "commit_em": 1795054367
+ },
+ "0.2.6": {
+  "commit": "ef0c435",
+  "commit_em": 1795052606
+ },
+ "0.2.5": {
+  "commit": "3394cfd",
+  "commit_em": 1795050750
+ },
+ "0.2.4": {
+  "commit": "f30845c",
+  "commit_em": 1795048479
+ },
+ "0.2.3": {
+  "commit": "21cf7f3",
+  "commit_em": 1795047921
+ },
+ "0.2.2": {
+  "commit": "02e5c81",
+  "commit_em": 1795047556
+ },
+ "0.2.1": {
+  "commit": "15a37d5",
+  "commit_em": 1795046903
+ },
+ "0.2.0": {
+  "commit": "27e579b",
+  "commit_em": 1795042114
+ },
+ "0.1.9": {
+  "commit": "2190a62",
+  "commit_em": 1795029428
+ },
+ "0.1.8": {
+  "commit": "a5302d2",
+  "commit_em": 1795028193
+ },
+ "0.1.7": {
+  "commit": "9ab36db",
+  "commit_em": 1795015121
+ },
+ "0.1.6": {
+  "commit": "ebd564a",
+  "commit_em": 1795014831
+ },
+ "0.1.5": {
+  "commit": "ae58922",
+  "commit_em": 1795007299
+ },
+ "0.1.4": {
+  "commit": "189d6d4",
+  "commit_em": 1794973710
+ },
+ "0.1.3": {
+  "commit": "1289dcf",
+  "commit_em": 1794970051
+ },
+ "0.1.2": {
+  "commit": "f90531f",
+  "commit_em": 1794964083
+ },
+ "0.1.1": {
+  "commit": "1b4408f",
+  "commit_em": 1794948056
+ },
+ "0.1.0": {
+  "commit": "64d8b09",
+  "commit_em": 1794946149
+ },
+ "0.0.9": {
+  "commit": "d2b3342",
+  "commit_em": 1794944631
+ },
+ "0.0.8": {
+  "commit": "8223026",
+  "commit_em": 1794943149
+ },
+ "0.0.7": {
+  "commit": "28c1fbe",
+  "commit_em": 1794926334
+ },
+ "0.0.6": {
+  "commit": "0d35762",
+  "commit_em": 1794925338
+ },
+ "0.0.5": {
+  "commit": "edd596a",
+  "commit_em": 1794921864
+ },
+ "0.0.4": {
+  "commit": "6758677",
+  "commit_em": 1794898808
+ },
+ "0.0.3": {
+  "commit": "ce7bf35",
+  "commit_em": 1794879041
+ },
+ "0.0.2": {
+  "commit": "1c3c655",
+  "commit_em": 1794875033
+ },
+ "0.0.1": {
+  "commit": "7546eee",
+  "commit_em": 1794874047
+ },
+ "0.0.0": {
+  "commit": "7546eee",
+  "commit_em": 1794874047
+ }
+}

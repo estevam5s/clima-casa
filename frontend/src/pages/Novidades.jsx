@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { ChevronsDownUp, ChevronsUpDown, Download, Link2, Search } from 'lucide-react'
 import { api } from '../api'
@@ -14,12 +14,27 @@ const total = (v) => SECOES.reduce((s, [k]) => s + (v[k]?.length || 0), 0)
 const dias = (iso) => Math.round((Date.now() - new Date(`${iso}T12:00:00`).getTime()) / 86400000)
 const haQuanto = (iso) => { const d = dias(iso); return d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias` }
 const ancora = (v) => `v${v.replaceAll('.', '-')}`
+// horário da versão: confirmado no ar (Vercel ou o próprio servidor) ou, para as antigas, o do commit que a registrou
+const quando = (v) => v.no_ar_em || v.commit_em || null
+const horaBR = (t) => new Date(t * 1000).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const diaBR = (t) => new Date(t * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: 'long' })
+const diaChave = (t) => new Date(t * 1000).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+const duracao = (s) => (s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${(s / 3600).toFixed(1).replace('.', ',')} h` : `${(s / 86400).toFixed(1).replace('.', ',')} dias`)
+const FONTE = { vercel: 'confirmado pela Vercel (publicação de produção)', servidor: 'confirmado pelo servidor ao entrar no ar' }
+const PERIODOS = [['tudo', 'Tudo'], ['hoje', 'Hoje'], ['7', '7 dias'], ['30', '30 dias']]
+
+function Horario({ v }) {
+  if (v.no_ar_em) return <span className="inline-flex items-center gap-1" title={FONTE[v.no_ar_fonte] || 'confirmado'}><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />no ar em {horaBR(v.no_ar_em)}</span>
+  if (v.commit_em) return <span title={`horário do commit ${v.commit || ''} que registrou a versão (a publicação dessa época não está mais guardada na Vercel)`}>registrada em {horaBR(v.commit_em)} (commit)</span>
+  return <span>{dataBR(v.data)}</span>
+}
 
 export default function Novidades() {
   const { dados, erro } = useDados(() => api.get('/api/novidades'))
   const [tipo, setTipo] = useState('todos')
   const [busca, setBusca] = useState('')
   const [soNovas, setSoNovas] = useState(false)
+  const [periodo, setPeriodo] = useState('tudo')
   const [fechadas, setFechadas] = useState(() => new Set())
   const toast = useToast()
   // "novas para mim": versões publicadas depois da última vez que esta pessoa abriu esta página (neste navegador)
@@ -32,18 +47,21 @@ export default function Novidades() {
     if (!versoes) return []
     const q = busca.trim().toLowerCase()
     const idxVisita = ultimaVisita ? versoes.findIndex((v) => v.versao === ultimaVisita) : -1
-    return versoes.filter((v, i) => !soNovas || (idxVisita >= 0 && i < idxVisita)).map((v) => {
+    const hoje = diaChave(Date.now() / 1000)
+    const limite = periodo === 'tudo' || periodo === 'hoje' ? 0 : Date.now() / 1000 - Number(periodo) * 86400
+    return versoes.filter((v, i) => !soNovas || (idxVisita >= 0 && i < idxVisita))
+      .filter((v) => { const t = quando(v); return periodo === 'tudo' || (t && (periodo === 'hoje' ? diaChave(t) === hoje : t >= limite)) }).map((v) => {
       const secoes = SECOES.filter(([k]) => tipo === 'todos' || k === tipo).map(([k, rot, I]) => [k, rot, I, (v[k] || []).filter((t) => !q || t.toLowerCase().includes(q) || v.titulo.toLowerCase().includes(q))])
       return { v, secoes, n: secoes.reduce((s, x) => s + x[3].length, 0) }
     }).filter((x) => x.n > 0 || (!q && tipo === 'todos'))
-  }, [versoes, tipo, busca, soNovas, ultimaVisita])
+  }, [versoes, tipo, busca, soNovas, ultimaVisita, periodo])
   const novas = useMemo(() => {
     const i = ultimaVisita && versoes ? versoes.findIndex((v) => v.versao === ultimaVisita) : -1
     return new Set(i > 0 ? versoes.slice(0, i).map((v) => v.versao) : [])
   }, [versoes, ultimaVisita])
   const copiarLink = (v) => { const u = `${location.origin}/novidades#${ancora(v)}`; navigator.clipboard?.writeText(u).then(() => toast('Link da versão copiado.')) }
   const baixarMd = () => {
-    const md = (versoes || []).map((v) => [`## ${v.versao} · ${dataBR(v.data)}`, `**${v.titulo}**`, v.resumo || '', ...SECOES.flatMap(([k, rot]) => (v[k]?.length ? [`### ${rot}`, ...v[k].map((t) => `- ${t}`)] : []))].join('\n\n')).join('\n\n---\n\n')
+    const md = (versoes || []).map((v) => [`## ${v.versao} · ${quando(v) ? horaBR(quando(v)) : dataBR(v.data)}${v.no_ar_em ? ' (no ar)' : v.commit_em ? ' (commit)' : ''}`, `**${v.titulo}**`, v.resumo || '', ...SECOES.flatMap(([k, rot]) => (v[k]?.length ? [`### ${rot}`, ...v[k].map((t) => `- ${t}`)] : []))].join('\n\n')).join('\n\n---\n\n')
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([`# Novidades\n\n${md}\n`], { type: 'text/markdown' })); a.download = 'novidades.md'; a.click()
   }
   // índice que acompanha a leitura: a versão cujo topo já passou do cabeçalho fica marcada e o índice (que rola
@@ -96,7 +114,7 @@ export default function Novidades() {
         </div>
         <div className="flex flex-col justify-between gap-4 p-5">
           <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2"><Selo cor="verde">Versão atual</Selo><span className="text-xs text-muted-foreground">{dataBR(atual.data)} · {haQuanto(atual.data)}</span></div>
+            <div className="mb-2 flex flex-wrap items-center gap-2"><Selo cor="verde">Versão atual</Selo><span className="text-xs text-muted-foreground"><Horario v={atual} /></span></div>
             <p className="text-2xl font-semibold tracking-tight tabular">{atual.versao}</p>
             <p className="mt-1 text-sm font-medium">{atual.titulo}</p>
             {atual.resumo && <p className="mt-2 line-clamp-4 text-sm text-muted-foreground">{atual.resumo}</p>}
@@ -120,6 +138,20 @@ export default function Novidades() {
           { rotulo: 'Itens de segurança', valor: somas.seguranca, dica: 'proteções que entraram' },
           { rotulo: 'Correções', valor: somas.correcoes, dica: `${somas.melhorias} melhorias` },
         ]} />
+        {(() => {
+          const ts = versoes.map(quando).filter(Boolean).sort((a, b) => b - a)
+          const hoje = ts.filter((t) => diaChave(t) === diaChave(Date.now() / 1000)).length
+          const semana = ts.filter((t) => t > Date.now() / 1000 - 7 * 86400).length
+          const gaps = ts.slice(0, -1).map((t, i) => t - ts[i + 1]).filter((g) => g > 0)
+          const medio = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0
+          const conf = versoes.filter((v) => v.no_ar_em).length
+          return (
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              {[['Publicadas hoje', hoje], ['Nos últimos 7 dias', semana], ['Intervalo médio entre versões', medio ? duracao(medio) : '—'], ['Horário confirmado no ar', `${conf} de ${versoes.length}`]].map(([r, x]) => (
+                <div key={r} className="rounded-lg border border-border px-3 py-2"><p className="text-xs text-muted-foreground">{r}</p><p className="font-semibold tabular">{x}</p></div>))}
+            </div>
+          )
+        })()}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
@@ -156,6 +188,10 @@ export default function Novidades() {
                 </button>
               ))}
             </div>
+            <div className="flex gap-1" role="group" aria-label="Período">
+              {PERIODOS.map(([k, r]) => <button key={k} onClick={() => setPeriodo(k)} aria-pressed={periodo === k}
+                className={`h-8 rounded-md border px-2.5 text-xs font-medium ${periodo === k ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:bg-muted'}`}>{r}</button>)}
+            </div>
             <label className="relative w-full sm:w-64">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nas mudanças" className="campo h-8 pl-8 text-sm" aria-label="Buscar nas mudanças" type="search" autoComplete="off" />
@@ -166,7 +202,10 @@ export default function Novidades() {
 
           {filtradas.length === 0 ? <Vazio icone={Search} titulo="Nada encontrado" texto="Tente outra palavra ou mostre todos os tipos de mudança." /> : (
             <ol className="relative space-y-5 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-border">
-              {filtradas.map(({ v, secoes, n }, i) => (
+              {filtradas.map(({ v, secoes, n }, i) => (<Fragment key={v.versao}>
+                {(() => { const t = quando(v), ant = i > 0 ? quando(filtradas[i - 1].v) : null; if (!t || (ant && diaChave(ant) === diaChave(t))) return null
+                  const doDia = filtradas.filter((x) => quando(x.v) && diaChave(quando(x.v)) === diaChave(t)).length
+                  return <li key={`dia-${diaChave(t)}`} className="relative pl-7 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground first-letter:uppercase">{diaBR(t)} · {doDia} versão(ões)</li> })()}
                 <motion.li key={v.versao} id={ancora(v.versao)} className="relative scroll-mt-20 pl-7"
                   initial={parado ? false : { opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-40px' }} transition={{ duration: 0.25, delay: Math.min(i, 4) * 0.03 }}>
                   <span className={`absolute left-0 top-5 h-[15px] w-[15px] rounded-full border-2 border-background ${v === atual ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} aria-hidden />
@@ -174,7 +213,8 @@ export default function Novidades() {
                     <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                       <h2 className="text-lg font-semibold tabular">Versão {v.versao}</h2>
                       {v === atual && <Selo cor="verde">Atual</Selo>}
-                      <span className="text-xs text-muted-foreground">{dataBR(v.data)} · {haQuanto(v.data)}{v.antes ? ` · antes ${v.antes}` : ''}</span>
+                      <span className="text-xs text-muted-foreground"><Horario v={v} /> · {haQuanto(v.data)}{v.antes ? ` · antes ${v.antes}` : ''}
+                        {(() => { const idx = versoes.indexOf(v), ant = versoes[idx + 1]; const g = ant && quando(v) && quando(ant) ? quando(v) - quando(ant) : 0; return g > 0 ? ` · ${duracao(g)} depois da ${ant.versao}` : '' })()}</span>
                       {novas.has(v.versao) && <Selo cor="azul">Nova para você</Selo>}
                       <span className="ml-auto flex items-center gap-1 text-xs tabular text-muted-foreground">{n} de {total(v)} mudança(s)
                         <button onClick={() => copiarLink(v.versao)} className="rounded p-1 hover:bg-muted hover:text-foreground" aria-label={`Copiar link da versão ${v.versao}`} title="Copiar link"><Link2 className="h-3.5 w-3.5" /></button>
@@ -193,7 +233,7 @@ export default function Novidades() {
                     </div>}
                   </article>
                 </motion.li>
-              ))}
+              </Fragment>))}
             </ol>
           )}
         </div>

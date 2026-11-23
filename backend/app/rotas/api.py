@@ -809,6 +809,20 @@ def novidades():
             from .. import notificacoes
             notificacoes.notificar(f"versao:{atual}", "sistema", "baixa", f"Versão {atual} no ar: {versoes[0]['titulo']}",
                                    versoes[0].get("resumo", ""), "/novidades")
+    # horário de cada versão: confirmado (o servidor viu a versão no ar / a Vercel guarda a publicação) e o do commit
+    import pathlib
+    try:
+        hor = json.loads((pathlib.Path(__file__).resolve().parent.parent / "versoes_horarios.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        hor = {}
+    vistos = db.cfg("versoes_no_ar", {}) or {}
+    for v in versoes:
+        h = hor.get(v["versao"], {})
+        no_ar = h.get("no_ar") or vistos.get(v["versao"])
+        v["no_ar_em"] = no_ar
+        v["no_ar_fonte"] = "vercel" if h.get("no_ar") else ("servidor" if vistos.get(v["versao"]) else None)
+        v["commit_em"] = h.get("commit_em")
+        v["commit"] = h.get("commit")
     return {"atual": atual, "vista": vista, "mostrar": bool(atual and _chave_versao(atual) > _chave_versao(vista)),
             "versoes": versoes}
 

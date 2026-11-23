@@ -48,8 +48,9 @@ export default function RootLayout({ children }) {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       </head>
       <body>
+        {/* fora da rolagem suave (GSAP move o #smooth-content inteiro): assim a barra fica fixa e acompanha a página */}
+        <Cabecalho />
         <Efeitos>
-          <Cabecalho />
           <main>{children}</main>
           <Rodape />
         </Efeitos>

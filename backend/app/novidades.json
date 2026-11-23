@@ -2,6 +2,26 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.6.1",
+   "data": "2026-11-23",
+   "titulo": "Horário de publicação de cada versão, mais testes de segurança e barra do site que acompanha a rolagem",
+   "resumo": "Novidades mostra o horário exato em que cada versão entrou no ar, confirmado pela Vercel ou pelo próprio servidor. Os testes de segurança cresceram para 1.313 e o domínio ganhou CAA.",
+   "novo": [
+    "Novidades: horário em que cada versão entrou no ar, confirmado pela Vercel (publicação de produção) ou pelo servidor; as antigas mostram o horário do commit, indicado como tal",
+    "Novidades: filtro por período (hoje, 7 e 30 dias), versões agrupadas por dia, tempo desde a versão anterior, publicações hoje e na semana e intervalo médio entre versões",
+    "Testes de segurança: redirecionamento aberto, cabeçalho Host falso, XSS refletido, isolamento entre janelas (COOP/CORP) e mais 26 arquivos do projeto que nunca podem ser servidos (1.313 testes)"
+   ],
+   "melhorias": [
+    "Site: a barra do topo acompanha a rolagem, encosta no alto e ganha fundo translúcido, com transição suave (sem animação para quem prefere menos movimento)"
+   ],
+   "seguranca": [
+    "Domínio com registro CAA: só a Let's Encrypt e a Google podem emitir certificado para zynio.com.br, com aviso de tentativa para seguranca@zynio.com.br"
+   ],
+   "correcoes": [
+    "Testes de segurança: o redirecionamento de www para o domínio principal não é mais apontado como arquivo exposto, e o security.txt é conferido como um navegador quando a hospedagem desafia robôs"
+   ]
+  },
+  {
    "versao": "0.6.0",
    "data": "2026-11-23",
    "titulo": "Agente consulta o banco menos vezes",

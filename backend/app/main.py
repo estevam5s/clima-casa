@@ -1,5 +1,6 @@
 """Clima Casa: servidor da API + interface web."""
 import asyncio
+import json
 import os
 import threading
 from contextlib import asynccontextmanager
@@ -192,9 +193,28 @@ app.include_router(rotas_site.publico_site)
 app.include_router(rotas_site.gestao)
 
 
+_VERSAO_REGISTRADA = False
+
+
 @app.get("/saude")
 def saude():
-    return {"ok": True}
+    """Saúde + versão no ar. Na primeira resposta de uma publicação nova (na nuvem), grava "versão X no ar desde agora" em
+    config.versoes_no_ar: é o horário que a tela Novidades mostra como confirmado. O publicar-vercel.sh chama esta rota
+    logo depois de publicar, então o horário é o da publicação, não o da primeira visita."""
+    global _VERSAO_REGISTRADA
+    try:
+        versao = json.loads((Path(__file__).resolve().parent / "novidades.json").read_text(encoding="utf-8"))["versoes"][0]["versao"]
+    except Exception:  # noqa: BLE001
+        versao = None
+    if versao and not _VERSAO_REGISTRADA and transmissor.PAPEL == "nuvem":
+        _VERSAO_REGISTRADA = True
+        try:
+            reg = db.cfg("versoes_no_ar", {}) or {}
+            if versao not in reg:
+                db.set_cfg("versoes_no_ar", {**reg, versao: db.agora()})
+        except Exception:  # noqa: BLE001  (banco fora: a saúde responde mesmo assim)
+            pass
+    return {"ok": True, "versao": versao}
 
 
 if (ESTATICO / "assets").exists():
