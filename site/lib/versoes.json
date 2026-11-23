@@ -1,5 +1,38 @@
 [
  {
+  "versao": "0.6.1",
+  "data": "2026-11-23",
+  "titulo": "Horário de publicação de cada versão, mais testes de segurança e barra do site que acompanha a rolagem",
+  "resumo": "Novidades mostra o horário exato em que cada versão entrou no ar, confirmado pela Vercel ou pelo próprio servidor. Os testes de segurança cresceram para 1.313 e o domínio ganhou CAA.",
+  "novo": [
+   "Novidades: horário em que cada versão entrou no ar, confirmado pela Vercel (publicação de produção) ou pelo servidor; as antigas mostram o horário do commit, indicado como tal",
+   "Novidades: filtro por período (hoje, 7 e 30 dias), versões agrupadas por dia, tempo desde a versão anterior, publicações hoje e na semana e intervalo médio entre versões",
+   "Testes de segurança: redirecionamento aberto, cabeçalho Host falso, XSS refletido, isolamento entre janelas (COOP/CORP) e mais 26 arquivos do projeto que nunca podem ser servidos (1.313 testes)"
+  ],
+  "melhorias": [
+   "Site: a barra do topo acompanha a rolagem, encosta no alto e ganha fundo translúcido, com transição suave (sem animação para quem prefere menos movimento)"
+  ],
+  "seguranca": [
+   "Domínio com registro CAA: só a Let's Encrypt e a Google podem emitir certificado para zynio.com.br, com aviso de tentativa para seguranca@zynio.com.br"
+  ],
+  "correcoes": [
+   "Testes de segurança: o redirecionamento de www para o domínio principal não é mais apontado como arquivo exposto, e o security.txt é conferido como um navegador quando a hospedagem desafia robôs"
+  ]
+ },
+ {
+  "versao": "0.6.0",
+  "data": "2026-11-23",
+  "titulo": "Agente consulta o banco menos vezes",
+  "resumo": "O agente do escritório perguntava ao banco quase toda segundo se havia comando novo, mesmo parado. Isso gastava a cota de tráfego do Supabase.",
+  "novo": [],
+  "melhorias": [
+   "Agente parado consulta a fila de comandos a cada 2,5 s (antes 0,8 s); depois de um comando volta a 0,8 s por 2 minutos, então comandos em sequência continuam rápidos",
+   "Batida dos agentes (quem está no comando) a cada 15 s em vez de 10 s; a troca para o reserva continua em até 45 s"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
   "versao": "0.5.9",
   "data": "2026-11-22",
   "titulo": "Menos consultas em segundo plano",
