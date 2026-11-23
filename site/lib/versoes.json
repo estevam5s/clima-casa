@@ -1,5 +1,19 @@
 [
  {
+  "versao": "0.6.3",
+  "data": "2026-11-23",
+  "titulo": "Hall do andar editável, portas e serviços da rede, situação dos serviços e certificados",
+  "resumo": "No Editar planta dá para ajustar corredores, copa, banheiros e sala multiuso. Rede e Infra mostram o que o agente alcança, a situação oficial dos serviços e quando os certificados vencem.",
+  "novo": [
+   "Mapa → Editar planta → Hall do andar: largura dos corredores (laterais e lado da entrada), copa (mostrar, largura e distância da porta), banheiros (mostrar e profundidade) e sala multiuso (mostrar e largura)",
+   "Rede → Portas e serviços e Infra → Portas e rede: do computador do agente, se ele alcança o banco (porta 6543), o painel, o Supabase, a Alexa (Sinric), a nuvem Tuya, os e-mails e cada transmissor (6668), com o tempo de resposta e o que pedir à TI",
+   "Infra → Serviços: situação oficial agora da Vercel, do Supabase, da Cloudflare e do Resend, com os incidentes abertos, e os dias até cada certificado dos domínios vencer"
+  ],
+  "melhorias": [],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
   "versao": "0.6.2",
   "data": "2026-11-23",
   "titulo": "Backup de tudo: tabelas, arquivos 3D e códigos; uso e cota do Supabase",
