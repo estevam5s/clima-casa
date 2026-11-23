@@ -108,6 +108,56 @@ def _limite(uid: str):
     db.set_cfg("ia_uso", uso)
 
 
+# ---------------- comparar modelos e saúde do catálogo ----------------
+def _perguntar_texto(modelo: str, pergunta: str, max_tokens: int = 700, timeout: float = 45) -> dict:
+    """Uma pergunta só, SEM ferramentas (não consulta nem age nos ares): para comparar como cada modelo responde."""
+    t0 = time.time()
+    try:
+        r = httpx.post(URL, headers={"Authorization": f"Bearer {chave()}"}, timeout=timeout, json={
+            "model": modelo, "max_tokens": max_tokens, "temperature": 0.4,
+            "messages": [{"role": "system", "content": "Responda em português do Brasil, de forma direta. Você não tem acesso aos aparelhos nesta comparação."},
+                         {"role": "user", "content": pergunta}]})
+        ms = round((time.time() - t0) * 1000)
+        if r.status_code != 200:
+            return {"modelo": modelo, "ok": False, "ms": ms, "erro": f"a NVIDIA respondeu {r.status_code}"}
+        j = r.json()
+        return {"modelo": modelo, "ok": True, "ms": ms, "texto": (j["choices"][0]["message"].get("content") or "").strip(),
+                "tokens": (j.get("usage") or {}).get("total_tokens")}
+    except httpx.HTTPError as e:
+        return {"modelo": modelo, "ok": False, "ms": round((time.time() - t0) * 1000), "erro": "demorou demais" if isinstance(e, httpx.TimeoutException) else type(e).__name__}
+
+
+def comparar(pergunta: str, modelos: list[str]) -> list[dict]:
+    from concurrent.futures import ThreadPoolExecutor
+    if not chave():
+        raise RuntimeError("A IA ainda não foi configurada (chave da NVIDIA).")
+    validos = [m for m in modelos if m in MODELOS][:3]
+    if len(validos) < 2:
+        raise RuntimeError("Escolha de 2 a 3 modelos do catálogo.")
+    u = _u()
+    _limite(str(u.get("id") or "anon"))   # a comparação conta como uma pergunta no limite por hora
+    with ThreadPoolExecutor(3) as ex:
+        res = list(ex.map(lambda m: _perguntar_texto(m, pergunta), validos))
+    for r in res:
+        r["nome"] = next((c[1] for c in CATALOGO if c[0] == r["modelo"]), r["modelo"])
+    return res
+
+
+def saude_modelos(forcar: bool = False) -> dict:
+    """Quais modelos do catálogo respondem agora e em quanto tempo (pergunta curtinha). Guardado 10 min."""
+    from concurrent.futures import ThreadPoolExecutor
+    guardado = db.cfg("ia_saude_modelos") or {}
+    if not forcar and guardado.get("em", 0) > time.time() - 600:
+        return guardado
+    if not chave():
+        raise RuntimeError("A IA ainda não foi configurada (chave da NVIDIA).")
+    with ThreadPoolExecutor(6) as ex:
+        res = list(ex.map(lambda c: _perguntar_texto(c[0], "Diga apenas: ok", max_tokens=8, timeout=20), CATALOGO))
+    out = {"em": int(time.time()), "modelos": [{"modelo": r["modelo"], "ok": r["ok"], "ms": r["ms"], "erro": r.get("erro")} for r in res]}
+    db.set_cfg("ia_saude_modelos", out)
+    return out
+
+
 # ---------------- ferramentas ----------------
 def _u() -> dict:
     from . import acesso

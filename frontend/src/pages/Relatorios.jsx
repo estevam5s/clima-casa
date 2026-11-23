@@ -448,6 +448,29 @@ export default function Relatorios() {
             </Secao>
           </div>
 
+          {(dados.motivos_falha?.length > 0 || dados.sucesso_por_origem?.length > 0) && (
+            <Secao titulo="Confiabilidade" contexto="por que os comandos falharam e quanto cada origem acerta">
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">Motivos das falhas</p>
+                  {dados.motivos_falha?.length ? <ul className="space-y-2.5">{dados.motivos_falha.map((m) => (
+                    <li key={m.motivo} className="rounded-md border border-border p-2.5 text-sm">
+                      <p className="flex items-center justify-between gap-2"><b className="font-medium">{m.motivo}</b><span className="tabular text-red-600">{m.vezes}×</span></p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{m.dica}</p>
+                    </li>))}</ul> : <p className="text-sm text-muted-foreground">Nenhuma falha no período.</p>}
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">Taxa de sucesso por origem</p>
+                  <ul className="space-y-2">{(dados.sucesso_por_origem || []).map((o) => (
+                    <li key={o.origem} className="text-sm">
+                      <div className="flex justify-between gap-2"><span>{({ painel: 'Painel e apps', sinric: 'Alexa e Google', alexa: 'Skill própria', agenda: 'Agenda', automacao: 'Automações', cena: 'Cenas', telegram: 'Telegram', ia: 'Assistente de IA' })[o.origem] || o.origem}</span>
+                        <span className="tabular text-muted-foreground">{o.sucesso_pct}% de {o.comandos}</span></div>
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${o.sucesso_pct >= 95 ? 'bg-emerald-500' : o.sucesso_pct >= 80 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${o.sucesso_pct}%` }} /></div>
+                    </li>))}</ul>
+                </div>
+              </div>
+            </Secao>
+          )}
           <Secao titulo="Falhas no período" contexto={dados.falhas.length ? `${dados.falhas.length} mais recentes` : 'Tudo certo'}>
             {dados.falhas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum comando falhou neste período.</p> : (
               <ul className="-my-2 divide-y divide-border">

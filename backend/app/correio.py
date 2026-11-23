@@ -255,6 +255,48 @@ def configurado() -> bool:
     return bool(_chave())
 
 
+# ---------------- reputação: lista de bloqueio e números de entrega ----------------
+def suprimidos() -> dict:
+    """Endereços que devolveram um e-mail ou marcaram como spam (último estado conhecido), menos os liberados à mão.
+    Mandar de novo para eles derruba a reputação do domínio (Outlook e Gmail passam a mandar tudo para o spam)."""
+    lib = {e.lower() for e in (db.cfg("email_liberados") or [])}
+    out = {}
+    for r in db.consultar("SELECT DISTINCT ON (lower(para)) lower(para) AS para, estado, atualizado_em, tipo FROM email_envios "
+                          "ORDER BY lower(para), atualizado_em DESC"):
+        if r["estado"] in ("devolvido", "marcado como spam") and r["para"] not in lib:
+            out[r["para"]] = {"motivo": r["estado"], "em": r["atualizado_em"], "tipo": r["tipo"]}
+    return out
+
+
+def liberar(email: str):
+    lib = set(db.cfg("email_liberados") or [])
+    lib.add(email.strip().lower())
+    db.set_cfg("email_liberados", sorted(lib))
+
+
+def estatisticas(dias: int = 30) -> dict:
+    desde = db.agora() - dias * 86400
+    linhas = db.consultar("SELECT tipo, estado, criado_em FROM email_envios WHERE criado_em >= ?", (desde,))
+    total = len(linhas)
+    por_estado, por_tipo, por_dia = {}, {}, {}
+    for r in linhas:
+        por_estado[r["estado"]] = por_estado.get(r["estado"], 0) + 1
+        t = por_tipo.setdefault(r["tipo"], {"tipo": r["tipo"], "enviados": 0, "entregues": 0, "abertos": 0, "devolvidos": 0})
+        t["enviados"] += 1
+        t["entregues"] += r["estado"] in ("entregue", "aberto", "clicado")
+        t["abertos"] += r["estado"] in ("aberto", "clicado")
+        t["devolvidos"] += r["estado"] in ("devolvido", "marcado como spam")
+        dia = time.strftime("%Y-%m-%d", time.gmtime(r["criado_em"] - 3 * 3600))
+        por_dia[dia] = por_dia.get(dia, 0) + 1
+    ent = sum(v for k, v in por_estado.items() if k in ("entregue", "aberto", "clicado"))
+    dev = sum(v for k, v in por_estado.items() if k in ("devolvido", "marcado como spam"))
+    abertos = sum(v for k, v in por_estado.items() if k in ("aberto", "clicado"))
+    pct = lambda a: round(a / total * 100, 1) if total else 0  # noqa: E731
+    return {"dias": dias, "total": total, "por_estado": por_estado, "taxa_entrega": pct(ent), "taxa_abertura": pct(abertos), "taxa_devolucao": pct(dev),
+            "por_tipo": sorted(por_tipo.values(), key=lambda x: -x["enviados"]), "por_dia": [{"dia": k, "n": v} for k, v in sorted(por_dia.items())],
+            "suprimidos": len(suprimidos())}
+
+
 def enviar(para: str, tipo: str, dados: dict | None = None, assunto: str | None = None, html_: str | None = None, texto: str | None = None,
            anexos: list[dict] | None = None) -> dict:
     """Manda e registra. Lança RuntimeError com o motivo se falhar.
@@ -262,6 +304,10 @@ def enviar(para: str, tipo: str, dados: dict | None = None, assunto: str | None 
     chave = _chave()
     if not chave:
         raise RuntimeError("Resend não configurado.")
+    bloqueio = suprimidos().get(para.strip().lower())
+    if bloqueio and tipo != "teste":
+        raise RuntimeError(f"Este endereço está na lista de bloqueio ({bloqueio['motivo']}): mandar de novo prejudica a entrega de todos os e-mails. "
+                           "Confira o endereço e libere em E-mails → Entregas, se estiver certo.")
     if not assunto:
         assunto, html_, texto = montar(tipo, dados or {})
     c = cfg()

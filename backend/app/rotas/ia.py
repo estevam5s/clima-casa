@@ -54,6 +54,28 @@ def estado():
                                               "comando": "clima-ia", "login": "clima-ia login"}}
 
 
+class CompararIn(BaseModel):
+    pergunta: str = Field(min_length=2, max_length=2000)
+    modelos: list[str] = Field(min_length=2, max_length=3)
+
+
+@rotas_ia.post("/comparar")
+def comparar(d: CompararIn):
+    """A mesma pergunta para 2 ou 3 modelos, lado a lado (só texto: nenhum deles age nos ares)."""
+    try:
+        return {"respostas": ia.comparar(d.pergunta, d.modelos)}
+    except (PermissionError, RuntimeError) as e:
+        _erro(e)
+
+
+@rotas_ia.get("/modelos/saude")
+def saude_modelos(forcar: bool = False):
+    try:
+        return ia.saude_modelos(forcar)
+    except RuntimeError as e:
+        _erro(e)
+
+
 @rotas_ia.post("/conversar")
 def conversar(d: ConversaIn):
     if d.mensagens[-1].role != "user":

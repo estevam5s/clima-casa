@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowUp, AudioLines, Brain, Check, ChevronDown, Copy, Download, Image as ImagemIcone, KeyRound, Menu, MessageSquare, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
+  ArrowUp, AudioLines, Brain, Check, ChevronDown, Columns3, Copy, Download, Image as ImagemIcone, KeyRound, Menu, MessageSquare, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
   Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Settings, SlidersHorizontal, Slash, Sparkles, Square, Terminal, ThumbsDown, ThumbsUp, Trash2, Volume2, VolumeX, X,
 } from 'lucide-react'
 import { api } from '../api'
@@ -64,7 +64,7 @@ function Acoes({ m }) {
   )
 }
 
-function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar, sessao, executar, recolher, personalizar }) {
+function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar, sessao, executar, recolher, personalizar, comparar }) {
   const [menuConta, setMenuConta] = useState(false)
   const toast = useToast()
   const [menu, setMenu] = useState(null)
@@ -124,6 +124,7 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
         {menuConta && (
           <div className="absolute bottom-full left-2 right-2 z-20 mb-1 rounded-xl border border-[var(--ia-borda)] bg-[var(--ia-caixa)] p-1 text-sm shadow-lg">{/* marca: menu da conta flutua */}
             <p className="truncate px-3 pb-1 pt-2 text-xs text-[var(--ia-suave)]">{sessao?.email}</p>
+            <button onClick={() => { setMenuConta(false); comparar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Columns3 className="h-4 w-4" />Comparar modelos</button>
             <button onClick={() => { setMenuConta(false); personalizar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><SlidersHorizontal className="h-4 w-4" />Personalizar respostas</button>
             <button onClick={() => { setMenuConta(false); configurar() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Settings className="h-4 w-4" />Configurações e capacidades</button>
             <button onClick={() => { setMenuConta(false); executar?.('ajuda'); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><MessageSquare className="h-4 w-4" />O que dá para fazer</button>
@@ -289,6 +290,47 @@ function Configuracao({ dados, dono, recarregar, fechar }) {
 }
 
 const ESTILOS = [['normal', 'Normal'], ['conciso', 'Conciso'], ['explicativo', 'Explicativo'], ['formal', 'Formal']]
+
+// Comparar modelos: a mesma pergunta para 2 ou 3 modelos lado a lado (só texto: nenhum age nos ares), com o tempo de
+// cada um, e a saúde do catálogo (quem responde agora, medido de verdade; guardado 10 min)
+function CompararModelos({ fechar }) {
+  const toast = useToast()
+  const [cat, setCat] = useState([]), [saude, setSaude] = useState(null), [sel, setSel] = useState([]), [pergunta, setPergunta] = useState(''), [res, setRes] = useState(null), [ocupado, setOcupado] = useState(false), [medindo, setMedindo] = useState(false)
+  useEffect(() => {
+    api.get('/api/ia/estado').then((e) => { const m = e.modelos || []; setCat(m); setSel(m.slice(0, 2).map((x) => x.id)) }).catch(() => {})
+    api.get('/api/ia/modelos/saude').then(setSaude).catch(() => {})
+  }, [])
+  const st = (id) => saude?.modelos?.find((x) => x.modelo === id)
+  const medir = async () => { setMedindo(true); try { setSaude(await api.get('/api/ia/modelos/saude?forcar=true')) } catch (e) { toast(e.message, 'erro') } finally { setMedindo(false) } }
+  const ir = async () => { setOcupado(true); setRes(null); try { setRes((await api.post('/api/ia/comparar', { pergunta, modelos: sel })).respostas) } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) } }
+  const mais = res?.filter((r) => r.ok).sort((a, b) => a.ms - b.ms)[0]
+  return (
+    <Modal aberto titulo="Comparar modelos" onFechar={fechar} largura="max-w-5xl">
+      <div className="space-y-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-muted-foreground">Escolha de 2 a 3 modelos. Eles só respondem em texto aqui: nenhum consulta nem mexe nos ares.</p>
+          <Botao tamanho="sm" variante="secundario" carregando={medindo} onClick={medir}>Medir quem responde agora</Botao>
+        </div>
+        <div className="flex flex-wrap gap-1.5">{cat.map((m) => { const on = sel.includes(m.id), s = st(m.id); return (
+          <button key={m.id} type="button" aria-pressed={on} onClick={() => setSel(on ? sel.filter((x) => x !== m.id) : [...sel, m.id].slice(-3))}
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${on ? 'border-primary bg-primary/10 font-medium' : 'border-border hover:bg-muted'}`}
+            title={s ? (s.ok ? `respondeu em ${(s.ms / 1000).toFixed(1)} s` : `sem resposta: ${s.erro}`) : 'ainda não medido'}>
+            <span className={`h-2 w-2 rounded-full ${!s ? 'bg-zinc-400' : !s.ok ? 'bg-red-500' : s.ms > 8000 ? 'bg-amber-500' : 'bg-emerald-500'}`} />{m.nome}</button>) })}</div>
+        {saude?.em && <p className="text-xs text-muted-foreground">Ponto verde: respondeu rápido · âmbar: lento (mais de 8 s) · vermelho: não respondeu. Medido em {new Date(saude.em * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.</p>}
+        <div className="flex gap-2">
+          <textarea className="campo min-h-[4.5rem] flex-1" maxLength={2000} placeholder="Ex.: Explique em 3 frases como economizar energia com ar-condicionado no escritório" value={pergunta} onChange={(e) => setPergunta(e.target.value)} />
+          <Botao className="self-end" carregando={ocupado} disabled={sel.length < 2 || pergunta.trim().length < 2} onClick={ir}>Comparar</Botao>
+        </div>
+        {res && <div className={`grid grid-cols-1 gap-3 ${res.length === 3 ? 'lg:grid-cols-3' : 'md:grid-cols-2'}`}>{res.map((r) => (
+          <section key={r.modelo} className="min-w-0 rounded-lg border border-border p-3">
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs"><b className="text-sm">{r.nome}</b>
+              <span className="text-muted-foreground">{(r.ms / 1000).toFixed(1)} s{r.tokens ? ` · ${r.tokens} tokens` : ''}{mais?.modelo === r.modelo && res.length > 1 ? ' · o mais rápido' : ''}</span></div>
+            {r.ok ? <div className="text-sm"><MiniMarkdown texto={r.texto} /></div> : <p className="text-red-600">Não respondeu: {r.erro}</p>}
+          </section>))}</div>}
+      </div>
+    </Modal>
+  )
+}
 
 // Personalizar: instruções suas (como quer as respostas), estilo padrão, Pensar mais e ler as respostas em voz alta
 function Personalizar({ prefs, salvar, fechar }) {
@@ -536,6 +578,7 @@ export default function Ia() {
   const [config, setConfig] = useState(false)
   const [prefs, setPrefs] = useState({ estilo: 'normal', pensar: false, voz: false, instrucoes: '' })
   const [personalizar, setPersonalizar] = useState(false)
+  const [comparar, setComparar] = useState(false)
   const [falando, setFalando] = useState(null)
   useEffect(() => { api.get('/api/ia/preferencias').then(setPrefs).catch(() => {}) }, [])
   const mudarPrefs = async (m) => { setPrefs((p) => ({ ...p, ...m })); try { setPrefs(await api.put('/api/ia/preferencias', m)) } catch (e) { toast(e.message, 'erro') } }
@@ -615,13 +658,13 @@ export default function Ia() {
     <div className="tela-ia -mx-4 -mb-16 -mt-6 flex h-[calc(100dvh-4rem)] min-h-[32rem] overflow-hidden bg-[var(--ia-fundo)] text-[var(--ia-texto)] sm:-mx-6 lg:-mx-8 2xl:-mx-10">
       {lateral && (
         <aside className="hidden w-72 shrink-0 border-r border-[var(--ia-borda)] bg-[var(--ia-lateral)] md:block">
-          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} personalizar={() => setPersonalizar(true)} />
+          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} personalizar={() => setPersonalizar(true)} comparar={() => setComparar(true)} />
         </aside>
       )}
       {gaveta && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Fechar a lista" onClick={() => setGaveta(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} personalizar={() => { setGaveta(false); setPersonalizar(true) }} /></aside>
+          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} personalizar={() => { setGaveta(false); setPersonalizar(true) }} comparar={() => { setGaveta(false); setComparar(true) }} /></aside>
         </div>
       )}
       <main className="flex min-w-0 flex-1 flex-col">
@@ -691,6 +734,7 @@ export default function Ia() {
         )}
       </main>
       {config && <Configuracao dados={dados} dono={sessao.papel === 'dono'} recarregar={recarregar} fechar={() => setConfig(false)} />}
+      {comparar && <CompararModelos fechar={() => setComparar(false)} />}
       {personalizar && <Personalizar prefs={prefs} fechar={() => setPersonalizar(false)} salvar={async (p) => { try { setPrefs(await api.put('/api/ia/preferencias', p)); toast('Preferências salvas.'); setPersonalizar(false) } catch (e) { toast(e.message, 'erro') } }} />}
     </div>
   )

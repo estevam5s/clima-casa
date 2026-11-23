@@ -22,6 +22,30 @@ def _papel(*ok):
     return u
 
 
+class LiberarIn(BaseModel):
+    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+@rotas_email.get("/estatisticas")
+def estatisticas(dias: int = 30):
+    _papel("dono", "admin")
+    return correio.estatisticas(max(1, min(dias, 365)))
+
+
+@rotas_email.get("/supressao")
+def supressao():
+    _papel("dono", "admin")
+    return {"enderecos": [{"email": k, **v} for k, v in sorted(correio.suprimidos().items(), key=lambda x: -x[1]["em"])]}
+
+
+@rotas_email.post("/supressao/liberar")
+def liberar(d: LiberarIn):
+    _papel("dono", "admin")
+    correio.liberar(d.email)
+    db.registrar("painel", "E-mail liberado da lista de bloqueio", detalhe=d.email.split("@")[-1])
+    return {"ok": True}
+
+
 @rotas_email.get("/estado")
 def estado():
     _papel("dono", "admin")

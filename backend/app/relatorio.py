@@ -181,6 +181,27 @@ def montar(inicio: int, fim: int, projeto_id: int | None = None, aparelho_id: in
     fora = sum(c["fora_h"] for c in atual.values())
     dias_periodo = max(1, round(duracao / 86400))
     temp_media = round(sum(t * n for t, n in temps.items()) / max(1, sum(temps.values())), 1) if temps else None
+    # por que os comandos falharam (agrupado pela mensagem de erro) e quanto cada origem acerta
+    MOTIVOS = [("sem_agente", r"tempo esgotado|não respondeu a tempo|agente|offline", "Nenhum agente no escritório respondeu", "Ligue um computador ou o Raspberry na rede dos transmissores (Infra → Agentes)"),
+               ("transmissor", r"sem resposta|905|901|timeout|não alcan|fora da rede|WinError", "Transmissor não respondeu na rede", "Confira se o transmissor está ligado e no mesmo Wi-Fi; Transmissores → Reconectar agora"),
+               ("botao", r"botão|gravad|código", "Botão do controle não gravado", "Grave o botão que falta (Aparelho → Botões) ou gere os botões Gree"),
+               ("chave", r"local key|914|chave", "A chave do transmissor mudou", "Ele foi pareado de novo: conecte a conta Smart Life em Configurações → Contas"),
+               ("permissao", r"permiss|não está sob|403", "Sem permissão para esse ar", "Confira os ares de responsabilidade da pessoa em Configurações → Usuários")]
+    motivos = {}
+    for e in eventos:
+        if e["ok"]:
+            continue
+        txt = f"{e.get('acao') or ''} {e.get('detalhe') or ''}".lower()
+        chave, rot, dica = next(((k, r_, d_) for k, rx, r_, d_ in MOTIVOS if re.search(rx, txt)), ("outro", "Outros motivos", "Veja o detalhe na Atividade (filtro falhas)"))
+        m = motivos.setdefault(chave, {"motivo": rot, "dica": dica, "vezes": 0, "exemplo": (e.get("detalhe") or e.get("acao") or "")[:120]})
+        m["vezes"] += 1
+    sucesso_origem = {}
+    for e in eventos:
+        o = (e.get("origem") or "outro").split(":")[0]
+        x = sucesso_origem.setdefault(o, {"origem": o, "comandos": 0, "falhas": 0})
+        x["comandos"] += 1; x["falhas"] += 0 if e["ok"] else 1
+    for x in sucesso_origem.values():
+        x["sucesso_pct"] = round((x["comandos"] - x["falhas"]) / x["comandos"] * 100, 1) if x["comandos"] else 100.0
     falhas_lista = [{"quando": e["quando"], "aparelho": nomes.get(e["aparelho_id"], ""),
                      "acao": e["acao"], "origem": e["origem"], "detalhe": e["detalhe"]} for e in eventos if not e["ok"]][-50:]
     alertas = db.consultar(f"SELECT tipo, mensagem, criado_em, resolvido FROM alertas WHERE criado_em BETWEEN to_timestamp(?) AND to_timestamp(?) "
@@ -221,6 +242,8 @@ def montar(inicio: int, fim: int, projeto_id: int | None = None, aparelho_id: in
         "rotinas": sorted(rotinas.values(), key=lambda x: -x["execucoes"]),
         "alertas": alertas,
         "falhas": falhas_lista,
+        "motivos_falha": sorted(motivos.values(), key=lambda x: -x["vezes"]),
+        "sucesso_por_origem": sorted(sucesso_origem.values(), key=lambda x: -x["comandos"]),
     }
     d["conclusoes"] = _conclusoes(d)
     return d
@@ -260,6 +283,10 @@ def _conclusoes(d):
         c.append({"tipo": "info", "texto": f"{top['nome']} responde por {round(top['custo'] / r['custo'] * 100)}% do custo estimado."})
     if r["temperatura_media"] and r["temperatura_media"] < 22:
         c.append({"tipo": "alerta", "texto": f"Temperatura média escolhida de {_n(r['temperatura_media'])}°C. Cada grau a mais no frio economiza perto de 8% de energia; 23°C a 24°C costuma ser confortável."})
+    if d.get("motivos_falha"):
+        m = d["motivos_falha"][0]
+        if m["vezes"] >= 3:
+            c.append({"tipo": "alerta", "texto": f"A maior causa de falha foi “{m['motivo'].lower()}” ({m['vezes']} vez(es)). {m['dica']}."})
     return c
 
 
@@ -420,6 +447,8 @@ def _tabelas_planas(d):
         ("transmissores", [["transmissor", "aparelhos", "comandos", "falhas", "sucesso_pct"]] + [[x["transmissor"], x["aparelhos"], x["comandos"], x["falhas"], x["sucesso_pct"]] for x in d["por_transmissor"]]),
         ("rotinas", [["tipo", "nome", "execucoes", "falhas"]] + [[x["tipo"], x["nome"], x["execucoes"], x["falhas"]] for x in d["rotinas"]]),
         ("falhas", [["quando", "aparelho", "acao", "origem", "detalhe"]] + [[_data(x["quando"]).isoformat(), x["aparelho"], x["acao"], _origem(x["origem"]), x["detalhe"]] for x in d["falhas"]]),
+        ("motivos_falha", [["motivo", "vezes", "o_que_fazer"]] + [[x["motivo"], x["vezes"], x["dica"]] for x in d.get("motivos_falha", [])]),
+        ("sucesso_por_origem", [["origem", "comandos", "falhas", "sucesso_pct"]] + [[_origem(x["origem"]), x["comandos"], x["falhas"], x["sucesso_pct"]] for x in d.get("sucesso_por_origem", [])]),
     ]
 
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Newspaper, CheckCircle2, Circle, Cloud, ExternalLink, Eye, KeyRound, Mail, MailCheck, RefreshCw, Search, Send, Settings2, ShieldCheck } from 'lucide-react'
+import { Newspaper, CheckCircle2, Circle, Cloud, ExternalLink, Eye, KeyRound, Mail, MailCheck, RefreshCw, Search, Send, Settings2, ShieldCheck, BarChart3 } from 'lucide-react'
+import Entregas from '../components/emails/Entregas'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
 import Newsletter from '../components/emails/Newsletter'
@@ -7,7 +8,7 @@ import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Interruptor, Modal, 
 
 // E-mails: Resend (envio) + Cloudflare (DNS do domínio). Conexões, modelos com prévia e teste, histórico com os
 // eventos de entrega (webhook) e quais e-mails o sistema manda sozinho.
-const ABAS = [['conexoes', 'Conexões', Cloud], ['newsletter', 'Newsletter', Newspaper], ['modelos', 'Modelos', Mail], ['historico', 'Histórico', MailCheck], ['automaticos', 'Automáticos', Settings2]]
+const ABAS = [['conexoes', 'Conexões', Cloud], ['entregas', 'Entregas', BarChart3], ['newsletter', 'Newsletter', Newspaper], ['modelos', 'Modelos', Mail], ['historico', 'Histórico', MailCheck], ['automaticos', 'Automáticos', Settings2]]
 const COR_ESTADO = { entregue: 'verde', aberto: 'verde', clicado: 'verde', enviado: 'azul', enviando: 'cinza', atrasado: 'ambar', devolvido: 'vermelho', falhou: 'vermelho', 'marcado como spam': 'vermelho' }
 const NOMES_AUTO = {
   recuperar_senha: ['Recuperar a senha', 'Link de senha nova quando alguém usa “Esqueci a senha”. Sem o domínio verificado, o Supabase manda o e-mail padrão dele.'],
@@ -224,6 +225,7 @@ export default function Emails() {
         {ABAS.map(([k, n, I]) => <button key={k} onClick={() => setAba(k)} className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm ${aba === k ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}><I className="h-4 w-4" />{n}</button>)}
       </div>
       {aba === 'conexoes' && <Conexoes e={e} recarregar={carregar} dono={dono} />}
+      {aba === 'entregas' && <Entregas />}
       {aba === 'newsletter' && <Newsletter meuEmail={sessao?.email} />}
       {aba === 'modelos' && <Modelos meuEmail={sessao?.email} />}
       {aba === 'historico' && <Historico />}
