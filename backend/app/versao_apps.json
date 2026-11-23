@@ -1,19 +1,20 @@
 {
   "notas": [
-    "Tela Site e acessos (acessos, desempenho, idiomas do site e newsletter) no Android e no iPhone; atalhos no computador",
-    "Acompanha a versão 0.4.9 do sistema"
+    "Android: abre direto no Início (antes aparecia \"rota não encontrada\")",
+    "Tela Uso do sistema no Android e no iPhone; atalho no computador",
+    "Acompanha a versão 0.5.9 do sistema"
   ],
-  "publicado_em": "2026-11-21",
+  "publicado_em": "2026-11-22",
   "android": {
-    "versao": "1.7.0",
+    "versao": "1.7.1",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "desktop": {
-    "versao": "1.7.0",
+    "versao": "1.7.1",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "ios": {
-    "versao": "1.7.0",
+    "versao": "1.7.1",
     "pagina": "https://app.zynio.com.br/apps"
   }
 }
