@@ -58,6 +58,12 @@ async def laco():
                 await asyncio.to_thread(dispositivos.ciclo, ciclo)
             except Exception as e:  # noqa: BLE001
                 log.warning("aparelhos do escritório: %s", e)
+            if ciclo % 180 == 90:   # varredura de segurança semanal (os 1.313 testes); avisa se aparecer falha
+                try:
+                    from . import testes_seguranca
+                    await asyncio.to_thread(testes_seguranca.varredura_semanal)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("varredura semanal: %s", e)
             if ciclo % 15 == 0:   # backup agendado (Backup → Agendar), a cada ~5 min confere se venceu
                 try:
                     from . import backup_sistema

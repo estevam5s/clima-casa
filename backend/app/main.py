@@ -131,6 +131,9 @@ async def cabecalhos(request: Request, chamar):
     resp.headers["Permissions-Policy"] = "camera=(), microphone=(self), geolocation=(), payment=(), usb=()"   # microfone: mensagem de voz do Assistente
     resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     resp.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    resp.headers["X-Permitted-Cross-Domain-Policies"] = "none"   # Flash/PDF não usam o domínio para ler dados
+    resp.headers["Origin-Agent-Cluster"] = "?1"                  # página isolada em processo próprio do navegador
+    resp.headers["X-DNS-Prefetch-Control"] = "off"
     if dinamica and "cache-control" not in resp.headers:
         resp.headers["Cache-Control"] = "no-store"
     resp.headers["Content-Security-Policy"] = (

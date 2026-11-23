@@ -85,9 +85,19 @@ def sessao(request: Request):
 def registrar_login(request: Request):
     from .. import firewall
     db.registrar("sistema", "Login do administrador", detalhe=request.state.usuario.get("email", ""))
+    email, pais = request.state.usuario.get("email", ""), request.headers.get("x-vercel-ip-country", "")
     try:
-        firewall.registrar(firewall.ip_do_pedido(request), "login_ok", "/api/sessao/registrar-login", request.state.usuario.get("email", ""),
-                           request.headers.get("x-vercel-ip-country", ""), request.headers.get("user-agent", ""))
+        # "viagem impossível": a mesma conta entrou de outro país há menos de 6 h (sinal clássico de senha vazada)
+        if pais and email:
+            antes = db.um("SELECT pais, quando, ip FROM seguranca_eventos WHERE tipo = 'login_ok' AND detalhe = ? AND pais <> '' AND quando > ? "
+                          "ORDER BY quando DESC LIMIT 1", (email, db.agora() - 6 * 3600))
+            if antes and antes["pais"] != pais:
+                from .. import notificacoes
+                horas = max(1, round((db.agora() - antes["quando"]) / 3600))
+                notificacoes.notificar(f"viagem:{email}:{pais}", "seguranca", "alta", f"Entrada de outro país em {horas} h: {antes['pais']} → {pais}",
+                                       "A mesma conta entrou de dois países em pouco tempo. Se não foi a própria pessoa (ou uma VPN), troque a senha e "
+                                       "encerre as outras sessões em Configurações → Segurança.", "/seguranca")
+        firewall.registrar(firewall.ip_do_pedido(request), "login_ok", "/api/sessao/registrar-login", email, pais, request.headers.get("user-agent", ""))
     except Exception:  # noqa: BLE001
         pass
     return {"ok": True}
@@ -4223,7 +4233,7 @@ def responder_treinamento(d: RespostasIn, request: Request):
 
 # ---------------- treinamento com banco de mais de mil perguntas (treinamento.py) ----------------
 class ProvaIn(BaseModel):
-    trilha: str = Field(pattern=r"^(geral|anexo_a|estrutura|normas|completo)$")
+    trilha: str = Field(pattern=r"^(geral|anexo_a|estrutura|normas|completo|erradas)$")
     quantidade: int = Field(20, ge=5, le=100)
 
 
@@ -4238,13 +4248,29 @@ def treinamento_v2(request: Request):
     u = request.state.u
     gestor = u.get("papel") in ("dono", "admin")
     return {**treinamento.resumo(), "historico": treinamento.historico(u["id"]), "aprovacao": treinamento.APROVACAO,
-            "ranking": treinamento.ranking() if gestor else None}
+            "ranking": treinamento.ranking() if gestor else None, "para_revisar": len(treinamento.erradas(str(u["id"]))),
+            "desempenho": treinamento.desempenho(str(u["id"]))}
+
+
+@api.get("/treinamento/certificado/{codigo}")
+def treinamento_certificado(codigo: str):
+    """Confere se um código de certificado foi emitido por este sistema (para quem recebe o certificado)."""
+    from .. import treinamento
+    if not re.fullmatch(r"CE-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}", codigo.strip().upper()):
+        raise HTTPException(422, "Código no formato CE-XXXX-XXXX-XXXX.")
+    r = treinamento.verificar_certificado(codigo)
+    if not r:
+        raise HTTPException(404, "Nenhum certificado com este código.")
+    return r
 
 
 @api.post("/treinamento/iniciar")
 def treinamento_iniciar(d: ProvaIn, request: Request):
     from .. import treinamento
-    return treinamento.iniciar(request.state.u["id"], d.trilha, d.quantidade)
+    try:
+        return treinamento.iniciar(str(request.state.u["id"]), d.trilha, d.quantidade)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @api.post("/treinamento/corrigir")
@@ -4252,7 +4278,7 @@ def treinamento_corrigir(d: CorrigirIn, request: Request):
     from .. import treinamento
     u = request.state.u
     try:
-        return treinamento.corrigir(u["id"], d.prova, d.respostas, u)
+        return treinamento.corrigir(str(u["id"]), d.prova, d.respostas, u)
     except ValueError as e:
         raise HTTPException(400, str(e))
 

@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Award, BookOpenCheck, CheckCircle2, Flag, Gradua
 import { api, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, useDados, useToast } from '../components/ui'
 import { avisoEmail } from '../emailAviso'
+import { useProjeto } from '../contexto'
 
 // Treinamento de segurança e conformidade: banco com mais de mil perguntas (situações do dia a dia, LGPD, ISO/IEC
 // 27001:2022 Anexo A, Estrutura Harmonizada e o catálogo de normas ISO). A prova é sorteada e corrigida no servidor;
@@ -37,6 +38,57 @@ function Escolha({ dados, iniciar, iniciando }) {
         <Botao icone={ArrowRight} carregando={iniciando} onClick={() => iniciar(trilha, qtd)}>Começar a prova</Botao>
         <span className="text-xs text-muted-foreground">Aprovado com {dados.aprovacao}%. O resultado sai na hora e vai para o seu e-mail.</span>
       </div>
+      {dados.para_revisar > 0 && (
+        <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+          <span className="flex-1"><b>{dados.para_revisar} pergunta(s) para revisar</b>: as que você errou e ainda não acertou de novo. Acertou na revisão, ela sai da lista.</span>
+          <Botao variante="secundario" icone={RotateCcw} carregando={iniciando} onClick={() => iniciar('erradas', Math.min(qtd, dados.para_revisar))}>Revisar o que errei</Botao>
+        </div>
+      )}
+      {dados.desempenho?.length > 0 && (
+        <div className="mt-5">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Seu acerto por trilha (todas as provas): estude primeiro as de cima</p>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">{dados.desempenho.map((d) => (
+            <li key={d.trilha} className="text-sm">
+              <div className="flex justify-between gap-2"><span className="truncate">{d.nome}</span><span className="tabular text-muted-foreground">{d.pct}% · {d.acertos}/{d.total}</span></div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${d.pct >= 70 ? 'bg-emerald-500' : d.pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${d.pct}%` }} /></div>
+            </li>))}</ul>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// Certificado para imprimir ou salvar em PDF (janela do navegador), com o código que o servidor confere
+function abrirCertificado(r, nome) {
+  const w = window.open('', '_blank', 'noopener=no,width=1000,height=720')
+  if (!w) return
+  const data = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+  const esc = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Certificado · ${esc(r.nome)}</title><style>
+    @page{size:A4 landscape;margin:0}body{margin:0;font-family:Georgia,serif;color:#1f2937;background:#fff}
+    .c{box-sizing:border-box;width:297mm;height:210mm;padding:22mm;border:10px solid #0f766a;outline:2px solid #0f766a;outline-offset:-18px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+    h1{font-size:40px;letter-spacing:.08em;margin:0 0 6mm;color:#0f766a}p{margin:2mm 0;font-size:17px}.n{font-size:32px;font-weight:bold;margin:6mm 0}
+    .cod{margin-top:12mm;font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#4b5563}</style></head><body><div class="c">
+    <h1>CERTIFICADO</h1><p>Certificamos que</p><p class="n">${esc(nome)}</p>
+    <p>concluiu a prova <b>${esc(r.nome)}</b> com <b>${r.nota}%</b> de acerto (${r.acertos} de ${r.total}),</p>
+    <p>no treinamento de segurança da informação do Clima Escritório, em ${data}.</p>
+    <p class="cod">Código de verificação: ${esc(r.certificado)} · confira em Treinamento → Verificar certificado</p>
+    </div><script>setTimeout(()=>print(),400)</script></body></html>`)
+  w.document.close()
+}
+
+function VerificarCertificado() {
+  const [cod, setCod] = useState(''), [res, setRes] = useState(null), [erro, setErro] = useState('')
+  const ir = async (e) => { e.preventDefault(); setRes(null); setErro(''); try { setRes(await api.get(`/api/treinamento/certificado/${encodeURIComponent(cod.trim().toUpperCase())}`)) } catch (x) { setErro(x.message) } }
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao flex items-center gap-2"><Award className="h-4 w-4" />Verificar certificado</h2>
+      <form onSubmit={ir} className="mt-3 flex flex-wrap gap-2">
+        <input className="campo w-56 font-mono uppercase" placeholder="CE-XXXX-XXXX-XXXX" maxLength={17} value={cod} onChange={(e) => setCod(e.target.value)} aria-label="Código do certificado" />
+        <Botao variante="secundario" type="submit" disabled={cod.trim().length < 17}>Conferir</Botao>
+      </form>
+      {res && <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">Válido: {res.nome || 'pessoa da equipe'} · {res.trilha} · {res.nota}% · {new Date(res.em * 1000).toLocaleDateString('pt-BR')}</p>}
+      {erro && <p className="mt-2 text-sm text-red-600">{erro}</p>}
     </section>
   )
 }
@@ -108,7 +160,7 @@ function Prova({ prova, terminar, enviando }) {
   )
 }
 
-function Resultado({ r, deNovo }) {
+function Resultado({ r, deNovo, nomePessoa }) {
   const [soErradas, setSoErradas] = useState(false)
   const itens = soErradas ? r.itens.filter((x) => !x.ok) : r.itens
   const raio = 54, circ = 2 * Math.PI * raio
@@ -123,6 +175,8 @@ function Resultado({ r, deNovo }) {
         <div className="min-w-0 flex-1">
           <p className={`flex items-center gap-2 text-xl font-semibold ${r.aprovado ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>{r.aprovado ? <Award className="h-6 w-6" /> : <RotateCcw className="h-6 w-6" />}{r.aprovado ? 'Aprovado' : 'Quase lá: vale refazer'}</p>
           <p className="mt-1 text-sm text-muted-foreground">{r.nome} · {r.acertos} de {r.total} certas · mínimo 70%{r.aprovado ? ' · vale por 12 meses na conformidade (ISO/IEC 27001, 6.3)' : ''}</p>
+          {r.certificado && <Botao className="mt-3" tamanho="sm" icone={Award} onClick={() => abrirCertificado(r, nomePessoa)}>Certificado (imprimir ou salvar em PDF)</Botao>}
+          {r.para_revisar > 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{r.para_revisar} pergunta(s) na sua lista de revisão.</p>}
           {r.email && <p className="mt-2 flex items-center gap-1.5 text-sm"><Mail className="h-4 w-4 text-primary" />{avisoEmail([r.email], 'Resultado enviado para')}</p>}
           {r.email_erro && <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">O e-mail não saiu agora: {r.email_erro}</p>}
           <div className="mt-4 space-y-2">
@@ -162,6 +216,7 @@ function Resultado({ r, deNovo }) {
 export default function Treinamento() {
   const toast = useToast()
   const { dados, erro, recarregar } = useDados(() => api.get('/api/treinamento/v2'))
+  const { sessao } = useProjeto()
   const [prova, setProva] = useState(null)
   const [res, setRes] = useState(null)
   const [iniciando, setIniciando] = useState(false)
@@ -189,8 +244,9 @@ export default function Treinamento() {
       ]} />
       <div className="mt-6 space-y-6">
         {prova ? <Prova prova={prova} terminar={terminar} enviando={enviando} />
-          : res ? <Resultado r={res} deNovo={() => setRes(null)} />
+          : res ? <Resultado r={res} deNovo={() => setRes(null)} nomePessoa={sessao?.nome || sessao?.email?.split('@')[0] || ''} />
             : <Escolha dados={dados} iniciar={iniciar} iniciando={iniciando} />}
+        {!prova && <VerificarCertificado />}
         {!prova && (
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <section className="cartao p-5">

@@ -238,11 +238,37 @@ def resumo() -> dict:
     return {"total": len(b), "por_trilha": por, "trilhas": [{"id": k, "nome": n, "descricao": d, "perguntas": por.get(k, len(b) if k == "completo" else 0)} for k, (n, d) in TRILHAS.items()]}
 
 
+ERRADAS = "treino_erradas:"   # + uid → lista de ids das perguntas que a pessoa errou e ainda não acertou de novo
+
+
+def erradas(uid: str) -> list[str]:
+    b = banco()
+    return [i for i in (db.cfg(ERRADAS + uid) or []) if i in b]
+
+
+def desempenho(uid: str) -> list[dict]:
+    """Acerto da pessoa por trilha, somando todas as provas (para saber onde estudar)."""
+    d = db.cfg("treino_desempenho:" + uid) or {}
+    return sorted([{"trilha": k, "nome": TRILHAS.get(k, (k,))[0], "acertos": v[0], "total": v[1], "pct": round(v[0] / v[1] * 100) if v[1] else 0}
+                   for k, v in d.items()], key=lambda x: x["pct"])
+
+
 def iniciar(uid: str, trilha: str, quantidade: int) -> dict:
-    if trilha not in TRILHAS:
+    if trilha != "erradas" and trilha not in TRILHAS:
         raise ValueError("Trilha inválida.")
     quantidade = max(5, min(100, int(quantidade)))
     b = banco()
+    if trilha == "erradas":   # repetição: só o que a pessoa errou e ainda não acertou de novo
+        ids = erradas(uid)
+        if not ids:
+            raise ValueError("Você não tem perguntas erradas para revisar. Faça uma prova primeiro.")
+        escolhidas = [b[i] for i in random.sample(ids, min(quantidade, len(ids)))]
+        token = secrets.token_urlsafe(12)
+        p = {k: v for k, v in (db.cfg(PROVAS) or {}).items() if v.get("criado", 0) > time.time() - 3 * 3600}
+        p[token] = {"usuario": uid, "ids": [q["id"] for q in escolhidas], "trilha": "erradas", "criado": int(time.time())}
+        db.set_cfg(PROVAS, p)
+        return {"prova": token, "trilha": "erradas", "nome": "Revisão do que errei",
+                "perguntas": [{"id": q["id"], "trilha": q["trilha"], "texto": q["texto"], "opcoes": q["opcoes"]} for q in escolhidas]}
     pool = [q for q in b.values() if trilha == "completo" or q["trilha"] == trilha]
     if trilha == "completo":   # equilibra as trilhas no simulado
         grupos = {}
@@ -286,9 +312,22 @@ def corrigir(uid: str, token: str, respostas: dict[str, int], u: dict) -> dict:
     nota = round(acertos / total * 100)
     aprovado = nota >= APROVACAO
     curso = f"treino-{p['trilha']}"
-    db.executar("INSERT INTO treinamentos (usuario_id, curso, nota, aprovado, concluido_em) VALUES (?, ?, ?, ?, ?)", (uid, curso, nota, 1 if aprovado else 0, db.agora()))
-    db.registrar("sistema", f"Treinamento ({TRILHAS[p['trilha']][0]}): {'aprovado' if aprovado else 'refazer'}", detalhe=f"{u.get('email', '')} · {nota}% ({acertos}/{total})")
-    resultado = {"nota": nota, "aprovado": aprovado, "acertos": acertos, "total": total, "trilha": p["trilha"], "nome": TRILHAS[p["trilha"]][0],
+    # erradas entram na lista de revisão; acertadas saem. Desempenho por trilha acumula todas as provas.
+    lista = set(db.cfg(ERRADAS + uid) or [])
+    lista |= {i["id"] for i in itens if not i["ok"]}
+    lista -= {i["id"] for i in itens if i["ok"]}
+    db.set_cfg(ERRADAS + uid, sorted(lista))
+    dsp = db.cfg("treino_desempenho:" + uid) or {}
+    for k, (a, n) in por.items():
+        v = dsp.get(k, [0, 0]); dsp[k] = [v[0] + a, v[1] + n]
+    db.set_cfg("treino_desempenho:" + uid, dsp)
+    quando = db.agora()   # o mesmo horário vai no banco e no código do certificado (senão a verificação não bate)
+    db.executar("INSERT INTO treinamentos (usuario_id, curso, nota, aprovado, concluido_em) VALUES (?, ?, ?, ?, ?)", (uid, curso, nota, 1 if aprovado else 0, quando))
+    db.registrar("sistema", f"Treinamento ({TRILHAS.get(p['trilha'], ('Revisão do que errei',))[0]}): {'aprovado' if aprovado else 'refazer'}", detalhe=f"{u.get('email', '')} · {nota}% ({acertos}/{total})")
+    nome_trilha = "Revisão do que errei" if p["trilha"] == "erradas" else TRILHAS[p["trilha"]][0]
+    resultado = {"nota": nota, "aprovado": aprovado, "acertos": acertos, "total": total, "trilha": p["trilha"], "nome": nome_trilha,
+                 "certificado": certificado_codigo(uid, curso, nota, quando) if aprovado and p["trilha"] != "erradas" else None,
+                 "para_revisar": len(lista),
                  "por_trilha": [{"trilha": k, "nome": TRILHAS.get(k, (k,))[0], "acertos": a, "total": n, "pct": round(a / n * 100)} for k, (a, n) in por.items()],
                  "itens": itens, "email": None}
     # e-mail com a nota (não derruba a correção se falhar)
@@ -296,7 +335,7 @@ def corrigir(uid: str, token: str, respostas: dict[str, int], u: dict) -> dict:
         from . import correio
         if u.get("email") and correio.configurado():
             correio.enviar(u["email"], "treinamento", {"nome": u.get("nome") or "", "nota": nota, "aprovado": aprovado, "acertos": acertos, "total": total,
-                                                        "trilha": TRILHAS[p["trilha"]][0], "por_trilha": [(x["nome"], f"{x['acertos']}/{x['total']} ({x['pct']}%)") for x in resultado["por_trilha"]]})
+                                                        "trilha": nome_trilha, "por_trilha": [(x["nome"], f"{x['acertos']}/{x['total']} ({x['pct']}%)") for x in resultado["por_trilha"]]})
             resultado["email"] = u["email"]
     except Exception as e:  # noqa: BLE001
         resultado["email_erro"] = str(e)[:160]
@@ -316,3 +355,22 @@ def ranking() -> list[dict]:
 
 def _json(o):
     return json.dumps(o, ensure_ascii=False)
+
+
+# ---------------- certificado com código de verificação ----------------
+def certificado_codigo(uid: str, curso: str, nota: int, quando: int) -> str:
+    """Código curto que prova que o certificado saiu deste sistema (HMAC com o segredo de sessão; não dá para inventar)."""
+    import hashlib
+    import hmac
+    seg = (db.cfg("segredo_sessao") or {}).get("segredo") or db.ENV.get("CLIMA_CHAVE_MESTRA", "")
+    dig = hmac.new(str(seg).encode(), f"{uid}|{curso}|{nota}|{quando}".encode(), hashlib.sha256).hexdigest()[:12].upper()
+    return f"CE-{dig[:4]}-{dig[4:8]}-{dig[8:]}"
+
+
+def verificar_certificado(codigo: str) -> dict | None:
+    alvo = codigo.strip().upper()
+    for r in db.consultar("SELECT t.usuario_id, t.curso, t.nota, t.concluido_em, u.nome FROM treinamentos t LEFT JOIN usuarios u ON u.id::text = t.usuario_id::text "
+                          "WHERE t.aprovado = 1 AND t.concluido_em > ? ORDER BY t.concluido_em DESC LIMIT 2000", (db.agora() - 3 * 365 * 86400,)):
+        if certificado_codigo(str(r["usuario_id"]), r["curso"], r["nota"], r["concluido_em"]) == alvo:
+            return {"nome": r["nome"] or "", "trilha": TRILHAS.get(r["curso"].replace("treino-", ""), (r["curso"],))[0], "nota": r["nota"], "em": r["concluido_em"]}
+    return None

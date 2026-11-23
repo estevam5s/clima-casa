@@ -300,3 +300,26 @@ def executar(_a=None) -> dict:
     db.set_cfg(PROGRESSO, {"rodando": False, "total": total, "feitos": total, "falhas": total - res["ok"], "inicio": int(inicio), "ultimos": []})
     db.registrar("sistema", "Testes de segurança em lote", detalhe=f"{res['ok']}/{total} aprovados em {res['duracao_s']} s")
     return {"ok": True, "total": total}
+
+
+def varredura_semanal():
+    """No agente, uma vez por semana (domingo de madrugada ou na primeira hora depois de 7 dias): roda o lote inteiro e
+    avisa na central de notificações se algum teste falhou. O resultado fica na tela Segurança → Testes como de costume."""
+    ultimo = (db.cfg("seguranca_varredura_semanal") or {}).get("em", 0)
+    if time.time() - ultimo < 7 * 86400:
+        return
+    db.set_cfg("seguranca_varredura_semanal", {"em": int(time.time()), "rodando": True})
+    try:
+        r = executar()
+    except Exception as e:  # noqa: BLE001
+        db.set_cfg("seguranca_varredura_semanal", {"em": int(time.time()), "erro": str(e)[:200]})
+        return
+    if not r.get("ok"):
+        db.set_cfg("seguranca_varredura_semanal", {"em": int(time.time()), "erro": r.get("erro", "")[:200]})
+        return
+    falhas = [x for x in ((db.cfg(RESULTADO) or {}).get("resultados") or []) if x and not x.get("ok")]
+    db.set_cfg("seguranca_varredura_semanal", {"em": int(time.time()), "total": r.get("total"), "falhas": len(falhas)})
+    if falhas:
+        from . import notificacoes
+        notificacoes.notificar("seguranca:varredura", "seguranca", "alta", f"Varredura semanal: {len(falhas)} teste(s) de segurança falharam",
+                               "; ".join(x["nome"][:60] for x in falhas[:5]), "/seguranca?aba=testes")

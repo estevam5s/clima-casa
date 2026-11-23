@@ -2,6 +2,24 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.6.5",
+   "data": "2026-11-23",
+   "titulo": "Mais segurança da conta, varredura semanal e treinamento com revisão e certificado",
+   "resumo": "Entrada de outro país em pouco tempo vira alerta, o sistema roda os testes de segurança sozinho toda semana e o treinamento ganhou revisão do que se errou, desempenho por trilha e certificado verificável.",
+   "novo": [
+    "Treinamento: Revisar o que errei (as perguntas erradas voltam até a pessoa acertar)",
+    "Treinamento: acerto por trilha somando todas as provas, para saber onde estudar",
+    "Treinamento: certificado para imprimir ou salvar em PDF ao passar (70% ou mais), com código de verificação conferido pelo servidor em Verificar certificado",
+    "Segurança: varredura semanal automática com os 1.313 testes; aparecendo falha, chega uma notificação"
+   ],
+   "melhorias": [],
+   "seguranca": [
+    "Alerta de entrada da mesma conta em dois países em menos de 6 horas (sinal de senha vazada), com o que fazer",
+    "Cabeçalhos extras em todas as respostas: X-Permitted-Cross-Domain-Policies, Origin-Agent-Cluster e X-DNS-Prefetch-Control"
+   ],
+   "correcoes": []
+  },
+  {
    "versao": "0.6.4",
    "data": "2026-11-23",
    "titulo": "Entregas e lista de bloqueio dos e-mails, comparar modelos de IA e confiabilidade nos relatórios",
