@@ -1,5 +1,33 @@
 [
  {
+  "versao": "0.5.9",
+  "data": "2026-11-22",
+  "titulo": "Menos consultas em segundo plano",
+  "resumo": "Abas abertas e escondidas paravam de consultar o servidor só em algumas telas; agora em todas, e o sino de notificações consulta a cada minuto.",
+  "novo": [],
+  "melhorias": [
+   "Sino de notificações atualiza a cada minuto e só com a aba visível (antes a cada 15 s, mesmo escondida); ao voltar para a aba, atualiza na hora",
+   "Infra → Agentes, Segurança e E-mails não consultam mais o servidor com a aba escondida; a planta do mapa no Painel atualiza a cada minuto"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
+  "versao": "0.5.8",
+  "data": "2026-11-22",
+  "titulo": "Correções: tempo de uso, ordem dos avatares, tela Segurança e tela Supabase",
+  "resumo": "Três bugs da área de Bugs corrigidos e o fim da tela Supabase arrumado.",
+  "novo": [],
+  "melhorias": [],
+  "seguranca": [],
+  "correcoes": [
+   "Tempo de uso das telas: minutos com muitas telas ou com envio cortado ao fechar a aba não se perdem mais",
+   "Avatares: a ordem da Biblioteca nunca é enviada vazia enquanto a lista ainda carrega",
+   "Depois de uma publicação, abrir uma tela (ex.: Segurança) não registra mais erro enquanto a página se atualiza para a versão nova",
+   "Tela Supabase: o menu lateral vai até o fim da página e o rodapé não sobra por cima dele ao rolar"
+  ]
+ },
+ {
   "versao": "0.5.7",
   "data": "2026-11-22",
   "titulo": "Visor do ar em 3D com o mesmo número do controle",
