@@ -283,8 +283,36 @@ def op_supabase_uso(_a):
             "cotas": {"banco": 500 * 1024 ** 2, "storage": 1024 ** 3, "egress": 5 * 1024 ** 3, "mau": 50000}, "erro": erro, "lido_em": int(time.time())}
 
 
+def op_portas(_a):
+    """Do computador do agente: alcança cada serviço de que o sistema depende? (TCP, com o tempo). É o teste que a TI
+    precisa ver quando a rede é de órgão público: banco 6543, HTTPS e cada transmissor na porta 6668."""
+    import socket
+    from concurrent.futures import ThreadPoolExecutor
+    from . import db as _db
+    env = _db.ENV
+    ref = env.get("SUPABASE_URL", "").split("//")[-1].split("/")[0]
+    alvos = [("Banco de dados (Supabase, porta 6543)", env.get("SUPABASE_DB_HOST") or "aws-1-us-east-2.pooler.supabase.com", int(env.get("SUPABASE_DB_PORT") or 6543), "nuvem"),
+             ("Painel (app.zynio.com.br)", "app.zynio.com.br", 443, "nuvem"), ("Supabase (login e arquivos)", ref, 443, "nuvem"),
+             ("Alexa e Google (Sinric Pro)", "ws.sinric.pro", 443, "nuvem"), ("Nuvem Tuya (Smart Life)", "openapi.tuyaus.com", 443, "nuvem"),
+             ("E-mails (Resend)", "api.resend.com", 443, "nuvem"), ("DNS da Cloudflare", "1.1.1.1", 53, "nuvem")]
+    for h in _db.consultar("SELECT nome, ip FROM hubs WHERE ip IS NOT NULL AND ip <> ''"):
+        alvos.append((f"Transmissor {h['nome']}", h["ip"], 6668, "local"))
+
+    def testar(a):
+        nome, host, porta, tipo = a
+        t0 = time.time()
+        try:
+            socket.create_connection((host, porta), timeout=4).close()
+            return {"nome": nome, "host": host, "porta": porta, "tipo": tipo, "ok": True, "ms": round((time.time() - t0) * 1000)}
+        except OSError as e:
+            return {"nome": nome, "host": host, "porta": porta, "tipo": tipo, "ok": False, "erro": type(e).__name__}
+    with ThreadPoolExecutor(8) as ex:
+        res = list(ex.map(testar, alvos))
+    return {"resultados": res, "maquina": socket.gethostname().split(".")[0], "lido_em": int(time.time())}
+
+
 OPS = {"resumo": op_resumo, "uso": op_uso, "publicacoes": op_publicacoes, "eventos": op_eventos, "promover": op_promover, "republicar": op_republicar,
-       "cancelar": op_cancelar, "apagar": op_apagar, "limpar": op_limpar, "retencao": op_retencao, "env": op_env, "dominios": op_dominios, "supabase_uso": op_supabase_uso}
+       "cancelar": op_cancelar, "apagar": op_apagar, "limpar": op_limpar, "retencao": op_retencao, "env": op_env, "dominios": op_dominios, "supabase_uso": op_supabase_uso, "portas": op_portas}
 ALTERAM = {"promover", "republicar", "cancelar", "apagar", "limpar", "retencao", "agente_convite"}
 
 

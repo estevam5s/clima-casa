@@ -1767,8 +1767,18 @@ class EscritaMapa(BaseModel):
 
 
 class ElevadorMapa(BaseModel):
+    """Hall do andar no 3D (Editar planta): elevador, corredores, copa, banheiros e sala multiuso. Vazio = automático."""
     lado: int | None = Field(None, ge=-1, le=1)          # -1 / 1: de que lado da porta de entrada; vazio = automático
     distancia: float | None = Field(None, ge=1.0, le=60)  # metros do meio da porta ao meio do núcleo; vazio = cabe a copa
+    corredor: float | None = Field(None, ge=2.5, le=8)            # largura do corredor dos lados (padrão 4,2 m)
+    corredor_entrada: float | None = Field(None, ge=5, le=14)     # profundidade do lado da entrada (padrão 7,8 m)
+    copa: bool | None = None                                      # mostrar a copa (padrão sim)
+    copa_distancia: float | None = Field(None, ge=0.5, le=40)     # do meio da porta ao meio da copa
+    copa_largura: float | None = Field(None, ge=2.4, le=8)        # padrão 3,6 m
+    banheiros: bool | None = None                                 # mostrar os banheiros (padrão sim)
+    banheiros_prof: float | None = Field(None, ge=1.8, le=4)      # padrão 2,4 m
+    multiuso: bool | None = None                                  # mostrar a sala multiuso (padrão sim)
+    multiuso_largura: float | None = Field(None, ge=3, le=12)     # padrão 5,6 m
 
 
 class MapaIn(BaseModel):

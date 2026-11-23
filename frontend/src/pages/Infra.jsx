@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Activity, AlertTriangle, Cloud, Cpu, Gauge, Globe, Link2, KeyRound, LayoutDashboard, Laptop, Mail, Rocket, Settings, ShieldCheck, ShieldHalf, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, Cloud, Cpu, Plug, Gauge, Globe, Link2, KeyRound, LayoutDashboard, Laptop, Mail, Rocket, Settings, ShieldCheck, ShieldHalf, Zap } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Cabecalho } from '../components/ui'
@@ -8,6 +8,7 @@ import Agentes from '../components/infra/Agentes'
 import { Config, Publicacoes, Uso, VercelGeral } from '../components/infra/Vercel'
 import { CfDNS, CfEmail, CfSeguranca, CfToken, CfTurnstile } from '../components/infra/Cloudflare'
 import { CfVisao, PlacasIoT, VercelDominios } from '../components/infra/Novos'
+import { Portas, Servicos } from '../components/infra/Servicos'
 
 // Infra: o domínio de ponta a ponta. Vercel (site e app), Cloudflare (DNS, e-mails, DNSSEC, Turnstile) e os computadores
 // com o agente. Vercel e Cloudflare são operadas PELO AGENTE do escritório: os tokens têm acesso amplo e não ficam na nuvem.
@@ -17,6 +18,8 @@ const GRUPOS = [
   ['cloudflare', 'Cloudflare', Globe, [['visao', 'Visão geral', Gauge], ['dns', 'DNS', Globe], ['email', 'E-mails', Mail], ['turnstile', 'Turnstile', ShieldHalf], ['seguranca', 'Segurança', ShieldCheck], ['token', 'Token', KeyRound]]],
   ['agentes', 'Agentes', Laptop, []],
   ['iot', 'Placas IoT', Cpu, []],
+  ['servicos', 'Serviços', ShieldCheck, []],
+  ['portas', 'Portas e rede', Plug, []],
 ]
 const ANTIGAS = { uso: 'vercel/uso', publicacoes: 'vercel/publicacoes', config: 'vercel/config' }   // abas salvas antes da divisão
 
@@ -78,6 +81,8 @@ export default function Infra() {
     'cloudflare/seguranca': <CfSeguranca dono={dono} />,
     'cloudflare/token': <CfToken />,
     iot: <PlacasIoT />,
+    servicos: <Servicos />,
+    portas: <Portas />,
     agentes: <Agentes dono={dono} admin={sessao?.papel === 'admin'} />,
   }[subAtiva ? `${def[0]}/${subAtiva}` : def[0]]
 

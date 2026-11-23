@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Activity, ArrowDown, ArrowUp, Building2, Calculator, Gamepad2, Gauge, History, Laptop, Network, Radio, Stethoscope, Timer, Tv, Video, Waves } from 'lucide-react'
+import { Activity, ArrowDown, ArrowUp, Building2, Calculator, Gamepad2, Gauge, History, Laptop, Network, Plug, Radio, Stethoscope, Timer, Tv, Video, Waves } from 'lucide-react'
+import { Portas } from '../components/infra/Servicos'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Selo, useToast } from '../components/ui'
@@ -168,7 +169,7 @@ export default function Rede() {
   const ultimoNav = useMemo(() => meu || (hist || []).find((h) => h.origem === 'navegador'), [hist, meu])
   const pode = ['dono', 'admin'].includes(sessao?.papel)
   const [params, setParams] = useSearchParams()
-  const ABAS = [['velocidade', 'Velocidade', Gauge], ['ao-vivo', 'Ao vivo', Activity], ['mapa', 'Mapa da rede', Network], ['diagnostico', 'Diagnóstico', Stethoscope], ['calculadora', 'O que aguenta', Calculator], ['historico', 'Histórico', History]]
+  const ABAS = [['velocidade', 'Velocidade', Gauge], ['ao-vivo', 'Ao vivo', Activity], ['mapa', 'Mapa da rede', Network], ['diagnostico', 'Diagnóstico', Stethoscope], ['calculadora', 'O que aguenta', Calculator], ['historico', 'Histórico', History], ['portas', 'Portas e serviços', Plug]]
   const aba = ABAS.some((x) => x[0] === params.get('aba')) ? params.get('aba') : 'velocidade'
 
   const testarNavegador = async () => {
@@ -242,6 +243,7 @@ export default function Rede() {
       {aba === 'ao-vivo' && <><MonitorAoVivo /><Conexao /></>}
       {aba === 'mapa' && <MapaRede ultimoNav={ultimoNav} ultimoAgente={ultimoAgente} />}
       {aba === 'diagnostico' && <><Diagnostico pode={pode} /><Estabilidade pode={pode} /></>}
+      {aba === 'portas' && <Portas />}
       {aba === 'calculadora' && <Calculadora ultimoNav={ultimoNav} ultimoAgente={ultimoAgente} />}
       {aba === 'historico' && <>
         <AgendaRede pode={pode} />

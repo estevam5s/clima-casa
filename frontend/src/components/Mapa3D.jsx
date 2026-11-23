@@ -1011,10 +1011,11 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     // entrada) até a fachada de vidro. A grade das pessoas vai até a fachada: ninguém sai da laje.
     const andar = Number.isFinite(+mapa.andar) ? +mapa.andar : 9
     const andares = Number.isFinite(+mapa.andares) ? +mapa.andares : 11
-    const MARGEM = comPredio ? 4.2 : 0   // corredor largo dos lados (antes 2,5 m: o avatar enroscava)
+    const hall = mapa.elevador || {}   // hall do andar escolhido no Editar planta (vazio = automático)
+    const MARGEM = comPredio ? (Number(hall.corredor) || 4.2) : 0   // corredor largo dos lados (antes 2,5 m: o avatar enroscava)
     // do lado da porta de entrada o andar é mais fundo: elevador e copa encostados na parede do escritório, corredor no
     // meio e, do outro lado, os banheiros e a sala multiuso encostados na fachada
-    const MARGEM_E = comPredio && entrada ? 7.8 : MARGEM
+    const MARGEM_E = comPredio && entrada ? Math.max(MARGEM, Number(hall.corredor_entrada) || 7.8) : MARGEM
     const mg = (ld) => (entrada?.lado === ld ? MARGEM_E : MARGEM)
     const fx0 = W(x0) - 0.35 - mg('oeste'), fx1 = W(x1) + 0.35 + mg('leste'), fz0 = Z(y0) - 0.35 - mg('norte'), fz1 = Z(y1) + 0.35 + mg('sul')
     E.limitesAndar = comPredio ? [fx0 + 0.32, fz0 + 0.32, fx1 - 0.32, fz1 - 0.32] : null
@@ -1062,7 +1063,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         const laje = n[0] ? [fz0, fz1] : [fx0, fx1]
         const ateLaje = (sg) => (sg > 0 ? laje[1] - cPorta : cPorta - laje[0]) - 0.4
         const cfgE = mapa.elevador || {}
-        const COZ = { L: 3.6, D: 2.8 }
+        const COZ = { L: Number(cfgE.copa_largura) || 3.6, D: 2.8 }
         const rot = Math.atan2(n[0], n[1])
         // ponto do mundo a "d" metros da porta ao longo da parede (lado sg) e "v" metros para fora da parede do escritório
         const pto = (sg, d, v = 0) => [entrada.x + t[0] * sg * d + n[0] * (ESP / 2 + 0.02 + v), entrada.z + t[1] * sg * d + n[1] * (ESP / 2 + 0.02 + v)]
@@ -1086,9 +1087,9 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
           return r2
         }
         // copa do outro lado da porta, também encostada na parede do escritório e virada para a avenida
-        const cozLado = -lado, cozDist = 0.75 + COZ.L / 2
+        const cozLado = -lado, cozDist = Math.max(0.75 + COZ.L / 2, Number(cfgE.copa_distancia) || 0)
         let copaEm = null
-        if (cozDist + COZ.L / 2 <= ateLaje(cozLado)) {
+        if (cfgE.copa !== false && cozDist + COZ.L / 2 <= ateLaje(cozLado)) {
           const [cx3, cz3] = pto(cozLado, cozDist)
           const coz = salaEm(montarCozinha({ ...COZ, ALT: Math.max(ALT, 2.4), matParede, matVidro: matVidroParede, ligada: true }), cx3, cz3, rot)
           cafeteiras.push(coz.cafeteira)
@@ -1100,17 +1101,17 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         // do outro lado do corredor, encostados na fachada e virados para a copa: banheiros e sala multiuso
         const fundoCorr = (n[0] ? Math.abs((n[0] < 0 ? fx0 : fx1) - entrada.x) : Math.abs((n[1] < 0 ? fz0 : fz1) - entrada.z)) - ESP / 2 - 0.02 - 0.3
         const rotFachada = rot + Math.PI
-        const BAN_D = 2.4
-        if (fundoCorr - BAN_D - COZ.D >= 2.0) {
+        const BAN_D = Number(cfgE.banheiros_prof) || 2.4
+        if (cfgE.banheiros !== false && fundoCorr - BAN_D - COZ.D >= 2.0) {
           const ban = montarBanheiros({ D: BAN_D, ALT: Math.max(ALT, 2.4), matParede })
           const bDist = copaEm ?? cozDist
           if (bDist + ban.L / 2 <= ateLaje(cozLado) + 0.4) {
             const [bx, bz] = pto(cozLado, bDist, fundoCorr)
             salaEm(ban, bx, bz, rotFachada)
             // sala multiuso depois dos banheiros, em direção ao canto do andar
-            const MU = { L: 5.6, D: 3.2 }
+            const MU = { L: Number(cfgE.multiuso_largura) || 5.6, D: 3.2 }
             const mDist = bDist + ban.L / 2 + 0.25 + MU.L / 2
-            if (mDist + MU.L / 2 <= ateLaje(cozLado) + 0.4 && fundoCorr - MU.D - COZ.D >= 1.6) {
+            if (cfgE.multiuso !== false && mDist + MU.L / 2 <= ateLaje(cozLado) + 0.4 && fundoCorr - MU.D - COZ.D >= 1.6) {
               const [mx3, mz3] = pto(cozLado, mDist, fundoCorr)
               salaEm(montarSalaMultiuso({ ...MU, ALT: Math.max(ALT, 2.4), matParede, matVidro: matVidroParede }), mx3, mz3, rotFachada)
             }

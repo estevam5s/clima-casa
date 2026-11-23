@@ -2,6 +2,20 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.6.3",
+   "data": "2026-11-23",
+   "titulo": "Hall do andar editável, portas e serviços da rede, situação dos serviços e certificados",
+   "resumo": "No Editar planta dá para ajustar corredores, copa, banheiros e sala multiuso. Rede e Infra mostram o que o agente alcança, a situação oficial dos serviços e quando os certificados vencem.",
+   "novo": [
+    "Mapa → Editar planta → Hall do andar: largura dos corredores (laterais e lado da entrada), copa (mostrar, largura e distância da porta), banheiros (mostrar e profundidade) e sala multiuso (mostrar e largura)",
+    "Rede → Portas e serviços e Infra → Portas e rede: do computador do agente, se ele alcança o banco (porta 6543), o painel, o Supabase, a Alexa (Sinric), a nuvem Tuya, os e-mails e cada transmissor (6668), com o tempo de resposta e o que pedir à TI",
+    "Infra → Serviços: situação oficial agora da Vercel, do Supabase, da Cloudflare e do Resend, com os incidentes abertos, e os dias até cada certificado dos domínios vencer"
+   ],
+   "melhorias": [],
+   "seguranca": [],
+   "correcoes": []
+  },
+  {
    "versao": "0.6.2",
    "data": "2026-11-23",
    "titulo": "Backup de tudo: tabelas, arquivos 3D e códigos; uso e cota do Supabase",

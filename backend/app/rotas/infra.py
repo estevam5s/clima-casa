@@ -7,6 +7,7 @@ import os
 import re
 import time
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -126,6 +127,51 @@ def retencao(d: Retencao):
 
 
 # ---------- Cloudflare (zynio.com.br) — também pelo agente, com o CLOUDFLARE_API_TOKEN dele ----------
+@rotas_infra.get("/infra/portas")
+def portas():
+    _papel("dono", "admin")
+    return _via_agente("portas", {}, 40)
+
+
+_STATUS = {"Vercel": "https://www.vercel-status.com/api/v2/summary.json", "Supabase": "https://status.supabase.com/api/v2/summary.json",
+           "Cloudflare": "https://www.cloudflarestatus.com/api/v2/summary.json", "Resend": "https://resend-status.com/api/v2/summary.json"}
+
+
+@rotas_infra.get("/infra/servicos")
+def servicos():
+    """Situação oficial dos serviços de que o sistema depende (páginas de status públicas) e os dias até cada certificado
+    dos domínios vencer. Nada aqui usa segredo."""
+    import socket
+    import ssl
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import datetime, timezone
+    _papel("dono", "admin")
+
+    def status(item):
+        nome, url = item
+        try:
+            j = httpx.get(url, timeout=8).json()
+            incid = [{"nome": i.get("name"), "impacto": i.get("impact"), "atualizado": i.get("updated_at")} for i in (j.get("incidents") or [])][:5]
+            return {"servico": nome, "indicador": (j.get("status") or {}).get("indicator"), "descricao": (j.get("status") or {}).get("description"), "incidentes": incid}
+        except Exception as e:  # noqa: BLE001
+            return {"servico": nome, "indicador": "desconhecido", "descricao": f"sem resposta ({type(e).__name__})", "incidentes": []}
+
+    def certificado(host):
+        try:
+            ctx = ssl.create_default_context()
+            with socket.create_connection((host, 443), timeout=6) as sk, ctx.wrap_socket(sk, server_hostname=host) as ss:
+                c = ss.getpeercert()
+            fim = datetime.strptime(c["notAfter"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+            emissor = dict(x[0] for x in c.get("issuer", []))
+            return {"host": host, "vence": int(fim.timestamp()), "dias": (fim - datetime.now(timezone.utc)).days, "emissor": emissor.get("organizationName", "")}
+        except Exception as e:  # noqa: BLE001
+            return {"host": host, "erro": type(e).__name__}
+    with ThreadPoolExecutor(8) as ex:
+        st = list(ex.map(status, _STATUS.items()))
+        certs = list(ex.map(certificado, ["app.zynio.com.br", "zynio.com.br", "www.zynio.com.br"]))
+    return {"servicos": st, "certificados": certs, "lido_em": int(datetime.now(timezone.utc).timestamp())}
+
+
 @rotas_infra.get("/infra/supabase-uso")
 def supabase_uso():
     _papel("dono", "admin")

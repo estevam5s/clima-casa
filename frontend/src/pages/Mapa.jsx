@@ -602,7 +602,7 @@ export default function Mapa() {
                 {/* elevador (fora das salas, no corredor): de que lado da porta de entrada e a que distância. A copa fica entre a
                     porta e o elevador quando cabe; o banheiro fica do outro lado do elevador */}
                 <div className="space-y-2 rounded-md border border-border p-3">
-                  <p className="text-xs font-medium">Elevador, copa e banheiro (3D)</p>
+                  <p className="text-xs font-medium">Hall do andar: elevador, corredores, copa e banheiros (3D)</p>
                   <div className="flex flex-wrap gap-1" role="group" aria-label="Lado do elevador">
                     {[[null, 'Automático'], [-1, 'Esquerda da porta'], [1, 'Direita da porta']].map(([v, r]) => (
                       <button key={r} type="button" onClick={() => mexer((n) => { n.elevador = { ...(n.elevador || {}), lado: v } })} aria-pressed={(rascunho.elevador?.lado ?? null) === v}
@@ -612,7 +612,33 @@ export default function Mapa() {
                   <label className="block text-xs text-muted-foreground">Distância da porta: {rascunho.elevador?.distancia ? `${rascunho.elevador.distancia.toFixed(1)} m` : 'automática (cabe a copa)'}
                     <input type="range" min="1" max="20" step="0.5" value={rascunho.elevador?.distancia || 5.5} onChange={(e) => mexer((n) => { n.elevador = { ...(n.elevador || {}), distancia: +e.target.value } })} className="mt-1 w-full accent-[hsl(var(--primary))]" /></label>
                   {rascunho.elevador?.distancia ? <button type="button" onClick={() => mexer((n) => { n.elevador = { ...(n.elevador || {}), distancia: null } })} className="text-xs text-primary hover:underline">Voltar à distância automática</button> : null}
-                  <p className="text-[11px] text-muted-foreground">Veja o resultado na vista 3D depois de salvar.</p>
+                  {(() => {
+                    const ev = rascunho.elevador || {}
+                    const por = (k, v) => mexer((n) => { n.elevador = { ...(n.elevador || {}), [k]: v } })
+                    const Faixa = ({ k, rotulo, min, max, passo = 0.1, padrao }) => (
+                      <label className="block text-xs text-muted-foreground">{rotulo}: <b className="text-foreground">{(ev[k] ?? padrao).toFixed(1).replace('.', ',')} m</b>{ev[k] == null && ' (padrão)'}
+                        <input type="range" min={min} max={max} step={passo} value={ev[k] ?? padrao} onChange={(e) => por(k, +e.target.value)} className="mt-1 w-full accent-[hsl(var(--primary))]" /></label>)
+                    const Liga = ({ k, rotulo }) => (
+                      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={ev[k] !== false} onChange={(e) => por(k, e.target.checked ? null : false)} />{rotulo}</label>)
+                    return (
+                      <div className="space-y-2 border-t border-border pt-2">
+                        <p className="text-xs font-medium">Corredores</p>
+                        <Faixa k="corredor" rotulo="Largura nas laterais" min={2.5} max={8} padrao={4.2} />
+                        <Faixa k="corredor_entrada" rotulo="Profundidade do lado da entrada (hall)" min={5} max={14} padrao={7.8} />
+                        <p className="pt-1 text-xs font-medium">Copa</p>
+                        <Liga k="copa" rotulo="Mostrar a copa" />
+                        {ev.copa !== false && <><Faixa k="copa_largura" rotulo="Largura" min={2.4} max={8} padrao={3.6} />
+                          <Faixa k="copa_distancia" rotulo="Distância da porta" min={0.5} max={20} passo={0.5} padrao={2.6} /></>}
+                        <p className="pt-1 text-xs font-medium">Banheiros e sala multiuso</p>
+                        <Liga k="banheiros" rotulo="Mostrar os banheiros (masculino, feminino e acessível)" />
+                        {ev.banheiros !== false && <Faixa k="banheiros_prof" rotulo="Profundidade dos banheiros" min={1.8} max={4} padrao={2.4} />}
+                        <Liga k="multiuso" rotulo="Mostrar a sala multiuso" />
+                        {ev.multiuso !== false && <Faixa k="multiuso_largura" rotulo="Largura da sala multiuso" min={3} max={12} padrao={5.6} />}
+                        <button type="button" onClick={() => mexer((n) => { n.elevador = { lado: n.elevador?.lado ?? null, distancia: n.elevador?.distancia ?? null } })} className="text-xs text-primary hover:underline">Voltar o hall ao padrão</button>
+                      </div>
+                    )
+                  })()}
+                  <p className="text-[11px] text-muted-foreground">Veja o resultado na vista 3D depois de salvar. O que não couber entre o escritório e a fachada não aparece.</p>
                 </div>
                 {sel ? (
                   <div className="space-y-3 border-t border-border pt-4 text-sm">
