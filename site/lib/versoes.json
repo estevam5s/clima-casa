@@ -1,5 +1,21 @@
 [
  {
+  "versao": "0.6.2",
+  "data": "2026-11-23",
+  "titulo": "Backup de tudo: tabelas, arquivos 3D e códigos; uso e cota do Supabase",
+  "resumo": "O backup completo agora guarda também os modelos 3D (avatares, carros, objetos), os códigos das placas e os instaladores. A tela Supabase mostra o uso real do plano.",
+  "novo": [
+   "Backup: arquivos 3D e imagens copiados dentro do Supabase (sem gastar tráfego), cada versão guardada uma vez; e Trazer os arquivos de volta, que devolve só os que sumiram",
+   "Backup: códigos de cada placa Arduino/ESP (sem o token, que se gera de novo) e os instaladores do agente e do clima-ia dentro do .zip",
+   "Supabase → Uso e cota: tamanho do banco e de cada bucket contra a cota, pedidos por hora de cada serviço nas últimas 24 h e o Egress com o caminho para o número oficial"
+  ],
+  "melhorias": [
+   "O backup agendado também copia os arquivos 3D"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
   "versao": "0.6.1",
   "data": "2026-11-23",
   "titulo": "Horário de publicação de cada versão, mais testes de segurança e barra do site que acompanha a rolagem",
