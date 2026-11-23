@@ -15,7 +15,7 @@ function tema(forcado) {
 
 // Painel digital do aparelho (textura desenhada em canvas).
 // Ligado: temperatura ajustada (com contagem animada), modo, ventilação e a temperatura de fora.
-// Desligado: modo espera, mostra a temperatura real de fora e o relógio, em brilho baixo.
+// Desligado: modo espera, mostra o ajuste guardado (igual ao controle), a temperatura de fora pequena e o relógio, em brilho baixo.
 function criarPainel() {
   const canvas = document.createElement('canvas')
   canvas.width = 512; canvas.height = 192
@@ -30,17 +30,19 @@ function criarPainel() {
     const ext = temExt ? `${Math.round(estado.externa)}°` : '--°'
     g.textBaseline = 'middle'
     if (brilho < 0.5) {
-      // espera: temperatura de fora + relógio
+      // espera: o AJUSTE guardado (o mesmo número do controle ao lado), a temperatura de fora pequena e o relógio.
+      // Antes o número grande era a de fora e parecia que o 3D e o controle discordavam (22/11/2026).
       const a = 0.55 * (1 - brilho * 2)
       g.globalAlpha = a
       g.fillStyle = '#9fd3ff'; g.shadowColor = '#4ea8ff'; g.shadowBlur = 16
       g.font = '600 118px ui-monospace, Menlo, monospace'
-      g.fillText(temExt ? ext : `${estado.temperatura ?? '--'}°`, 26, 104)
-      g.shadowBlur = 8; g.font = '600 34px -apple-system, sans-serif'
-      g.fillText(temExt ? 'EXT' : 'AJUSTE', 340, 64)
+      g.fillText(`${estado.temperatura ?? '--'}°`, 26, 104)
+      g.shadowBlur = 8; g.font = '600 30px -apple-system, sans-serif'
+      g.fillText('AJUSTE', 340, 46)
       const agora = new Date()
-      g.fillText(`${String(agora.getHours()).padStart(2, '0')}${agora.getSeconds() % 2 ? ':' : ' '}${String(agora.getMinutes()).padStart(2, '0')}`, 340, 112)
-      if (estado.umidade != null) { g.font = '500 26px -apple-system, sans-serif'; g.fillText(`${Math.round(estado.umidade)}%`, 340, 152) }
+      g.fillText(`${String(agora.getHours()).padStart(2, '0')}${agora.getSeconds() % 2 ? ':' : ' '}${String(agora.getMinutes()).padStart(2, '0')}`, 340, 92)
+      g.font = '500 26px -apple-system, sans-serif'
+      if (temExt) g.fillText(`FORA ${ext}${estado.umidade != null ? ` ${Math.round(estado.umidade)}%` : ''}`, 340, 140)
     }
     if (brilho > 0.02) {
       const cor = `#${(COR_MODO[estado.modo] ?? 0x4ea8ff).toString(16).padStart(6, '0')}`
@@ -231,7 +233,7 @@ export default function Cena3D({ estado, className = '', escuro }) {
     let ultimoPainel = ''
     let corAtual = ''
     let brilhoEscuro = false
-    let mostrada = estadoRef.current?.externa ?? estadoRef.current?.temperatura ?? 23
+    let mostrada = estadoRef.current?.temperatura ?? 23
     const cor = new THREE.Color()
     const laco = () => {
       quadro = requestAnimationFrame(laco)
@@ -269,8 +271,8 @@ export default function Cena3D({ estado, className = '', escuro }) {
       if (ligado) led.material.color.setHex(0x22c55e)
       else led.material.color.setRGB(0.35 + 0.5 * (0.5 + 0.5 * Math.sin(tempo * 2.2)), 0.08, 0.08)
 
-      // painel digital: ao ligar a temperatura "conta" da de fora até a ajustada; reflexo passa a cada ~6 s
-      const alvo = ligado ? (e.temperatura ?? 23) : (e.externa ?? e.temperatura ?? 23)
+      // painel digital: a temperatura "conta" até o ajuste quando ele muda; reflexo passa a cada ~6 s
+      const alvo = e.temperatura ?? 23   // ligado ou não, o número grande é o ajuste (igual ao controle)
       mostrada += (alvo - mostrada) * Math.min(1, dt * (ligado ? 2.2 : 4))
       const varredura = ((tempo / 6) % 1)
       const segundo = Math.floor(Date.now() / 1000)
