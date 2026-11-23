@@ -2,6 +2,19 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.5.9",
+   "data": "2026-11-22",
+   "titulo": "Menos consultas em segundo plano",
+   "resumo": "Abas abertas e escondidas paravam de consultar o servidor só em algumas telas; agora em todas, e o sino de notificações consulta a cada minuto.",
+   "novo": [],
+   "melhorias": [
+    "Sino de notificações atualiza a cada minuto e só com a aba visível (antes a cada 15 s, mesmo escondida); ao voltar para a aba, atualiza na hora",
+    "Infra → Agentes, Segurança e E-mails não consultam mais o servidor com a aba escondida; a planta do mapa no Painel atualiza a cada minuto"
+   ],
+   "seguranca": [],
+   "correcoes": []
+  },
+  {
    "versao": "0.5.8",
    "data": "2026-11-22",
    "titulo": "Correções: tempo de uso, ordem dos avatares, tela Segurança e tela Supabase",

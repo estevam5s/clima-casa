@@ -140,7 +140,7 @@ function Historico() {
   const [itens, setItens] = useState(null), [q, setQ] = useState(''), [estado, setEstado] = useState(''), [det, setDet] = useState(null)
   const carregar = useCallback(() => { const p = new URLSearchParams({ limite: 200 }); if (q.trim()) p.set('q', q.trim()); if (estado) p.set('estado', estado); api.get(`/api/email/envios?${p}`).then(setItens).catch(() => setItens([])) }, [q, estado])
   useEffect(() => { const t = setTimeout(carregar, 250); return () => clearTimeout(t) }, [carregar])
-  useEffect(() => { const t = setInterval(carregar, 15000); return () => clearInterval(t) }, [carregar])
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) carregar() }, 30000); return () => clearInterval(t) }, [carregar])
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">

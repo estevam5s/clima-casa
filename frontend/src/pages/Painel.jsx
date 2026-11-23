@@ -279,7 +279,7 @@ export default function Painel() {
   }, [filtro])
   useEffect(() => {
     const buscar = () => { if (!document.hidden) api.get('/api/mapa').then(setPlanta).catch(() => {}) }
-    buscar(); const t = setInterval(buscar, 20000); return () => clearInterval(t)
+    buscar(); const t = setInterval(buscar, 60000); return () => clearInterval(t)   // planta do mapa muda pouco: 60 s
   }, [])
   const plantaPronta = useMemo(() => (planta ? { ...planta, mapa: completar(planta.mapa, planta.projetos, planta.ares) } : null), [planta])
 

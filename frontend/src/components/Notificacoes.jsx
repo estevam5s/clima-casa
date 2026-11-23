@@ -50,7 +50,13 @@ export function useCentral() {
     }
     vistas.current = new Set(naoLidas.map((n) => `${n.id}:${n.atualizado_em}`))
   }).catch(() => {}), [aba])
-  useEffect(() => { carregar(); const t = setInterval(carregar, 15000); return () => clearInterval(t) }, [carregar])
+  // a cada 60 s e só com a aba visível (antes 15 s mesmo escondida: era a maior fonte de consultas ao banco); volta na hora ao reabrir a aba
+  useEffect(() => {
+    carregar(); const t = setInterval(() => { if (!document.hidden) carregar() }, 60000)
+    const voltou = () => { if (!document.hidden) carregar() }
+    document.addEventListener('visibilitychange', voltou)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', voltou) }
+  }, [carregar])
   useEffect(() => { window.addEventListener('clima:notificacoes-mudou', carregar); return () => window.removeEventListener('clima:notificacoes-mudou', carregar) }, [carregar])
   useEffect(() => { carregar() }, [local.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
   return { dados, aba, setAba, carregar }

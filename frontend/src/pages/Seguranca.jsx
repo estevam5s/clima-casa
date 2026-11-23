@@ -315,7 +315,7 @@ function Monitoramento({ barra }) {
   useEffect(() => { const t = setInterval(() => { if (!document.hidden) recarregarEscudo() }, 5000); return () => clearInterval(t) }, [recarregarEscudo])
   useEffect(() => {
     if (!aoVivo) return undefined
-    const t = setInterval(recarregar, 15000)
+    const t = setInterval(() => { if (!document.hidden) recarregar() }, 30000)
     return () => clearInterval(t)
   }, [aoVivo, recarregar])
   const t = dados?.totais
