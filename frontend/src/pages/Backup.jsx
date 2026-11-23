@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArchiveRestore, CheckCircle2, Database, DatabaseBackup, Download, FileArchive, FileSearch, GitCompare, PenLine, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react'
 import { Agenda, Comparar, Conferir, Procurar, Uso, fmtData, fmtMB } from '../components/backup/Avancado'
+import { gerarCodigo } from '../components/dispositivos/Placa'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
@@ -9,17 +10,38 @@ import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, useDa
 // Gerar: todas as tabelas (ou as escolhidas) num .zip com manifesto e sha256 de cada tabela, guardado no Storage
 // privado. Restaurar: envia o .zip, SIMULA (o que é novo, o que muda, o que sairia) e só grava com RESTAURAR.
 
+// códigos e instaladores vão em base64: têm trechos como "curl ... | bash" que o firewall do sistema (corretamente) barra
+const emBase64 = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => {
+  const b = new TextEncoder().encode(v); let bin = ''; for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode(...b.subarray(i, i + 0x8000))
+  return [k, btoa(bin)]
+}))
+
 function Gerar({ tabelas, grupos, aoGerar }) {
   const toast = useToast()
   const [sel, setSel] = useState(() => new Set(Object.keys(grupos)))
   const [gerando, setGerando] = useState(false)
   const [tudo, setTudo] = useState(true)
   const [rotulo, setRotulo] = useState('')
+  const [comArquivos, setComArquivos] = useState(true)
+  const [comCodigos, setComCodigos] = useState(true)
+  // códigos das placas (montados aqui, como na tela de cada aparelho, SEM o token: ele só aparece uma vez) e instaladores
+  const montarCodigos = async () => {
+    const extras = {}
+    const lista = await api.get('/api/dispositivos').catch(() => [])
+    const placas = (Array.isArray(lista) ? lista : lista.dispositivos || []).filter((d) => d.driver === 'placa' || d.placa_configurada || d.placa)
+    const nomeArq = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '-').replace(/-+/g, '-').slice(0, 40).toLowerCase()
+    for (const d of placas) extras[`placas/${d.id}-${nomeArq(d.nome)}.ino`] = gerarCodigo(d.tipo, d.placa || 'esp32', null, d.nome)
+    for (const f of ['instalar-agente.sh', 'instalar-agente-mac.sh', 'instalar-agente.ps1', 'instalar-ia.sh', 'instalar-ia.ps1', 'clima-ia/clima_ia.py']) {
+      try { const r = await fetch(`/${f}`, { cache: 'no-store' }); if (r.ok) extras[`instaladores/${f}`] = await r.text() } catch { /* sem o arquivo: segue */ }
+    }
+    extras['LEIA-ME.txt'] = `Códigos do Clima Escritório guardados no backup.\n\nplacas/: um código por aparelho com placa (Arduino/ESP). O TOKEN não vai no backup (o painel mostra uma vez só):\ndepois de restaurar, abra o aparelho no painel, gere um token novo e envie o código de novo para a placa.\n\ninstaladores/: agente do escritório (Windows, Mac, Linux, Raspberry Pi, Docker) e o clima-ia do terminal.\n`
+    return { extras, placas: placas.length }
+  }
   const lista = useMemo(() => (tudo ? null : tabelas.filter((t) => sel.has(t.grupo)).map((t) => t.nome)), [tudo, sel, tabelas])
   const gerar = async () => {
     setGerando(true)
     try {
-      const r = await api.post('/api/backup-sistema/gerar', { tabelas: lista, rotulo })
+      const r = await api.post('/api/backup-sistema/gerar', { tabelas: lista, rotulo, arquivos: comArquivos, extras: comCodigos ? emBase64((await montarCodigos()).extras) : null })
       const n = Object.values(r.tabelas).reduce((a, b) => a + b, 0)
       toast(`Backup pronto: ${Object.keys(r.tabelas).length} tabela(s), ${n.toLocaleString('pt-BR')} linha(s), ${fmtMB(r.tamanho)} em ${r.segundos} s.`)
       aoGerar(r.arquivo); setRotulo('')
@@ -43,6 +65,17 @@ function Gerar({ tabelas, grupos, aoGerar }) {
           ))}
         </div>
       )}
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <label className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm ${comArquivos ? 'border-primary/60 bg-primary/5' : 'border-border'}`}>
+          <input type="checkbox" className="mt-0.5" checked={comArquivos} onChange={(e) => setComArquivos(e.target.checked)} />
+          <span><b className="font-medium">Arquivos 3D e imagens</b><span className="block text-xs text-muted-foreground">Modelos dos avatares, carros e objetos do mapa (os "blenders"). Copiados dentro do Supabase, sem gastar tráfego; cada versão é guardada uma vez.</span></span>
+        </label>
+        <label className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm ${comCodigos ? 'border-primary/60 bg-primary/5' : 'border-border'}`}>
+          <input type="checkbox" className="mt-0.5" checked={comCodigos} onChange={(e) => setComCodigos(e.target.checked)} />
+          <span><b className="font-medium">Códigos das placas e instaladores</b><span className="block text-xs text-muted-foreground">Código de cada placa Arduino/ESP (sem o token, que se gera de novo) e os instaladores do agente para Windows, Mac, Linux e Raspberry Pi.</span></span>
+        </label>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">As tabelas já incluem tudo do banco: ares, botões gravados, transmissores, salas, cenas, agenda, automações, mapa, usuários e configurações (segredos cifrados).</p>
       <label className="mt-4 block text-sm"><span className="rotulo">Nota (opcional)</span>
         <input className="campo" maxLength={120} placeholder="Ex.: antes de trocar os transmissores" value={rotulo} onChange={(e) => setRotulo(e.target.value)} /></label>
       <Botao className="mt-4" icone={DatabaseBackup} carregando={gerando} onClick={gerar} disabled={!tudo && !sel.size}>{gerando ? 'Gerando…' : 'Gerar backup'}</Botao>

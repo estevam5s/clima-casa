@@ -1,5 +1,8 @@
 """Rota /backup: backup completo, lista, download, apagar, envio de um .zip e restauração (simular, mesclar, substituir).
 Só dono ou admin; além disso o acesso.py exige acesso a todos os projetos para tudo que começa com /api/backup."""
+import base64
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -36,6 +39,13 @@ class RestaurarIn(BaseModel):
 class GerarRotuloIn(BaseModel):
     tabelas: list[str] | None = Field(None, max_length=200)
     rotulo: str = Field("", max_length=120)
+    arquivos: bool = False                      # copia o Storage (modelos 3D, imagens) para dentro do backup
+    extras: dict[str, str] | None = None        # códigos das placas e instaladores (texto), montados no navegador
+
+
+class RestaurarArquivosIn(BaseModel):
+    arquivo: str = Field(min_length=5, max_length=120)
+    confirmacao: str = ""
 
 
 class RotuloIn(BaseModel):
@@ -81,7 +91,17 @@ def listar(request: Request):
 def gerar(d: GerarRotuloIn, request: Request):
     quem = _quem(request)
     try:
-        return bs.gerar(quem, d.tabelas, rotulo=d.rotulo)
+        extras = {}
+        for k, v in (d.extras or {}).items():   # chegam em base64 (o firewall barra "curl ... | bash" em texto puro)
+            if not re.fullmatch(r"[\w./-]{1,120}", k) or ".." in k or len(v) > 540_000:
+                raise HTTPException(422, "Arquivo de código com nome ou tamanho inválido.")
+            try:
+                extras[k] = base64.b64decode(v, validate=True).decode("utf-8")
+            except (ValueError, UnicodeDecodeError) as e:
+                raise HTTPException(422, "Arquivo de código ilegível.") from e
+        if sum(len(v) for v in extras.values()) > 3_000_000:
+            raise HTTPException(422, "Códigos grandes demais para o backup.")
+        return bs.gerar(quem, d.tabelas, rotulo=d.rotulo, arquivos=d.arquivos, extras=extras)
     except Exception as e:  # noqa: BLE001
         _erro(e)
 
@@ -187,5 +207,16 @@ def linhas(arquivo: str, tabela: str, request: Request, q: str = ""):
         raise HTTPException(422, "Busca longa demais.")
     try:
         return bs.linhas(arquivo, tabela, q)
+    except Exception as e:  # noqa: BLE001
+        _erro(e)
+
+
+@rotas_backup.post("/restaurar-arquivos")
+def restaurar_arquivos(d: RestaurarArquivosIn, request: Request):
+    quem = _quem(request)
+    if d.confirmacao != "RESTAURAR":
+        raise HTTPException(400, "Para trazer os arquivos de volta, digite RESTAURAR.")
+    try:
+        return bs.restaurar_arquivos(d.arquivo, quem)
     except Exception as e:  # noqa: BLE001
         _erro(e)

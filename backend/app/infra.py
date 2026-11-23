@@ -249,8 +249,42 @@ def op_dominios(_a):
     return {"projetos": out, "lido_em": int(time.time())}
 
 
+def op_supabase_uso(_a):
+    """Uso real do projeto no Supabase (só no agente: o token da Management API fica no .env daqui).
+    Tamanho do banco, tamanho de cada bucket e pedidos por hora de cada serviço nas últimas 24 h. O Egress em GB não sai
+    pela API com este token (é da organização): a tela leva ao número oficial."""
+    import datetime
+    from . import db as _db
+    env = _db.ENV
+    tk, ref = env.get("SUPABASE_ACCESS_TOKEN", ""), env.get("SUPABASE_URL", "").split("//")[-1].split(".")[0]
+    cab = {"apikey": env["SUPABASE_SECRET_KEY"], "Authorization": f"Bearer {env['SUPABASE_SECRET_KEY']}"}
+    url = env["SUPABASE_URL"]
+    banco = _db.um("SELECT pg_database_size(current_database()) AS b")["b"]
+    buckets = []
+    from . import backup_sistema as bs
+    for b in httpx.get(f"{url}/storage/v1/bucket", headers=cab, timeout=15).json():
+        objs = bs._listar_tudo(b["id"])
+        buckets.append({"bucket": b["id"], "arquivos": len(objs), "bytes": sum(o["tamanho"] for o in objs), "publico": b.get("public")})
+    pedidos, erro = [], ""
+    if tk:
+        fim = datetime.datetime.now(datetime.timezone.utc)
+        r = httpx.get(f"https://api.supabase.com/v1/projects/{ref}/analytics/endpoints/usage.api-counts", headers={"Authorization": f"Bearer {tk}"},
+                      params={"interval": "1day"}, timeout=20)
+        if r.status_code == 200:
+            pedidos = [{"hora": x["timestamp"], "auth": x.get("total_auth_requests", 0), "rest": x.get("total_rest_requests", 0),
+                        "storage": x.get("total_storage_requests", 0), "realtime": x.get("total_realtime_requests", 0)} for x in r.json().get("result", [])]
+        else:
+            erro = f"pedidos por hora indisponíveis ({r.status_code})"
+        _ = fim
+    else:
+        erro = "sem SUPABASE_ACCESS_TOKEN no agente"
+    usuarios = _db.um("SELECT count(*) AS n FROM auth.users")["n"]
+    return {"ref": ref, "banco_bytes": banco, "buckets": sorted(buckets, key=lambda x: -x["bytes"]), "pedidos": pedidos, "usuarios_auth": usuarios,
+            "cotas": {"banco": 500 * 1024 ** 2, "storage": 1024 ** 3, "egress": 5 * 1024 ** 3, "mau": 50000}, "erro": erro, "lido_em": int(time.time())}
+
+
 OPS = {"resumo": op_resumo, "uso": op_uso, "publicacoes": op_publicacoes, "eventos": op_eventos, "promover": op_promover, "republicar": op_republicar,
-       "cancelar": op_cancelar, "apagar": op_apagar, "limpar": op_limpar, "retencao": op_retencao, "env": op_env, "dominios": op_dominios}
+       "cancelar": op_cancelar, "apagar": op_apagar, "limpar": op_limpar, "retencao": op_retencao, "env": op_env, "dominios": op_dominios, "supabase_uso": op_supabase_uso}
 ALTERAM = {"promover", "republicar", "cancelar", "apagar", "limpar", "retencao", "agente_convite"}
 
 

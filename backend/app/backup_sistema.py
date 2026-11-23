@@ -54,12 +54,74 @@ def _url():
     return db.ENV["SUPABASE_URL"]
 
 
+TIPOS_BUCKET = ["application/zip", "application/octet-stream", "model/gltf-binary", "model/gltf+json", "image/png", "image/jpeg", "image/webp", "text/plain", "application/json"]
+# buckets copiados no backup completo (fora o próprio backup e o código-fonte, que o Git gera de novo)
+FORA_DOS_ARQUIVOS = {BUCKET, "codigo-fonte"}
+
+
 def garantir_bucket():
     r = httpx.get(f"{_url()}/storage/v1/bucket/{BUCKET}", headers=_cab(), timeout=10)
     if r.status_code == 200:
+        if set(r.json().get("allowed_mime_types") or []) != set(TIPOS_BUCKET):
+            httpx.put(f"{_url()}/storage/v1/bucket/{BUCKET}", headers=_cab(), timeout=10,
+                      json={"public": False, "file_size_limit": LIMITE_ENVIO, "allowed_mime_types": TIPOS_BUCKET})
         return
     httpx.post(f"{_url()}/storage/v1/bucket", headers=_cab(), timeout=10,
-               json={"id": BUCKET, "name": BUCKET, "public": False, "file_size_limit": LIMITE_ENVIO, "allowed_mime_types": ["application/zip", "application/octet-stream"]})
+               json={"id": BUCKET, "name": BUCKET, "public": False, "file_size_limit": LIMITE_ENVIO, "allowed_mime_types": TIPOS_BUCKET})
+
+
+def _listar_tudo(bucket: str, prefixo: str = "") -> list[dict]:
+    """Todos os objetos de um bucket (desce nas pastas)."""
+    saida, desloc = [], 0
+    while True:
+        r = httpx.post(f"{_url()}/storage/v1/object/list/{bucket}", headers=_cab(), timeout=20, json={"prefix": prefixo, "limit": 1000, "offset": desloc})
+        itens = r.json() if r.status_code == 200 else []
+        for o in itens:
+            if o.get("id") is None:
+                saida += _listar_tudo(bucket, f"{prefixo}{o['name']}/")
+            else:
+                saida.append({"caminho": f"{prefixo}{o['name']}", "tamanho": (o.get("metadata") or {}).get("size") or 0})
+        if len(itens) < 1000:
+            return saida
+        desloc += 1000
+
+
+def copiar_arquivos() -> list[dict]:
+    """Copia cada arquivo do Storage (modelos 3D dos avatares, carros e objetos; imagens) para backups-sistema/arquivos/.
+    A cópia é feita DENTRO do Supabase (sem download: não gasta tráfego). Cada arquivo é guardado uma vez: os nomes dos
+    modelos mudam a cada versão, então backups seguidos não duplicam o que já está copiado."""
+    buckets = [b["id"] for b in httpx.get(f"{_url()}/storage/v1/bucket", headers=_cab(), timeout=10).json() if b["id"] not in FORA_DOS_ARQUIVOS]
+    ja = {o["caminho"] for o in _listar_tudo(BUCKET, "arquivos/")}
+    lista = []
+    for b in buckets:
+        for o in _listar_tudo(b):
+            destino = f"arquivos/{b}/{o['caminho']}"
+            copiado = destino in ja
+            if not copiado:
+                r = httpx.post(f"{_url()}/storage/v1/object/copy", headers=_cab(), timeout=60,
+                               json={"bucketId": b, "sourceKey": o["caminho"], "destinationBucket": BUCKET, "destinationKey": destino})
+                copiado = r.status_code < 300
+            lista.append({"bucket": b, "caminho": o["caminho"], "tamanho": o["tamanho"], "copia": destino if copiado else None})
+    return lista
+
+
+def restaurar_arquivos(nome: str, quem: str) -> dict:
+    """Devolve ao lugar os arquivos do backup que não existem mais (ex.: um modelo 3D apagado). Não sobrescreve nada."""
+    man, _z = _abrir(nome)
+    arquivos = [a for a in (man.get("arquivos") or []) if a.get("copia")]
+    existentes = {b: {o["caminho"] for o in _listar_tudo(b)} for b in {a["bucket"] for a in arquivos}}
+    voltaram, falhas = 0, 0
+    for a in arquivos:
+        if a["caminho"] in existentes.get(a["bucket"], set()):
+            continue
+        r = httpx.post(f"{_url()}/storage/v1/object/copy", headers=_cab(), timeout=60,
+                       json={"bucketId": BUCKET, "sourceKey": a["copia"], "destinationBucket": a["bucket"], "destinationKey": a["caminho"]})
+        if r.status_code < 300:
+            voltaram += 1
+        else:
+            falhas += 1
+    db.registrar("painel", "Arquivos restaurados do backup", detalhe=f"{nome} · {voltaram} de volta, {falhas} falha(s) · {quem}")
+    return {"no_backup": len(arquivos), "voltaram": voltaram, "falhas": falhas, "ja_existiam": len(arquivos) - voltaram - falhas}
 
 
 def tabelas() -> list[dict]:
@@ -100,7 +162,8 @@ def _versao_sistema() -> str:
         return ""
 
 
-def gerar(quem: str, escolhidas: list[str] | None = None, prefixo: str = "backup", rotulo: str = "") -> dict:
+def gerar(quem: str, escolhidas: list[str] | None = None, prefixo: str = "backup", rotulo: str = "", arquivos: bool = False,
+          extras: dict[str, str] | None = None) -> dict:
     """Monta o .zip com as tabelas (todas, ou as escolhidas) e guarda no Storage privado. Devolve o registro."""
     garantir_bucket()
     validas = _nomes_validos()
@@ -115,16 +178,24 @@ def gerar(quem: str, escolhidas: list[str] | None = None, prefixo: str = "backup
             z.writestr(f"tabelas/{t}.json", dados)
             contagem[t] = len(linhas)
             hashes[t] = hashlib.sha256(dados).hexdigest()
-        arquivos3d = []
+        arquivos3d, lista_arquivos = [], []
         try:
-            r = httpx.post(f"{_url()}/storage/v1/object/list/avatares", headers=_cab(), json={"prefix": "", "limit": 1000}, timeout=20)
-            arquivos3d = [{"nome": o["name"], "tamanho": (o.get("metadata") or {}).get("size")} for o in r.json()] if r.status_code == 200 else []
+            if arquivos:
+                lista_arquivos = copiar_arquivos()
+                arquivos3d = [{"nome": a["caminho"], "tamanho": a["tamanho"]} for a in lista_arquivos if a["bucket"] == "avatares"]
+            else:
+                r = httpx.post(f"{_url()}/storage/v1/object/list/avatares", headers=_cab(), json={"prefix": "", "limit": 1000}, timeout=20)
+                arquivos3d = [{"nome": o["name"], "tamanho": (o.get("metadata") or {}).get("size")} for o in r.json()] if r.status_code == 200 else []
         except Exception:  # noqa: BLE001
             pass
+        # códigos das placas (sem token: ele só aparece uma vez no painel) e instaladores do agente e do clima-ia
+        for caminho, texto in (extras or {}).items():
+            z.writestr(f"codigos/{caminho}", texto)
         manifesto = {"sistema": "Clima Escritório", "versao_backup": 3, "versao_sistema": _versao_sistema(), "tipo": PREFIXOS.get(prefixo, prefixo),
                      "rotulo": rotulo[:120], "gerado_em": db.agora(), "gerado_por": quem, "tabelas": contagem, "sha256": hashes,
                      "segredos": "os valores sensíveis da tabela config vão cifrados (precisam da mesma CLIMA_CHAVE_MESTRA para funcionar)",
-                     "arquivos_3d": arquivos3d, "segundos": round(time.time() - t0, 1)}
+                     "arquivos_3d": arquivos3d, "arquivos": lista_arquivos, "arquivos_bytes": sum(a["tamanho"] for a in lista_arquivos),
+                     "codigos": sorted((extras or {}).keys()), "segundos": round(time.time() - t0, 1)}
         z.writestr("manifesto.json", json.dumps(manifesto, ensure_ascii=False, indent=2))
     conteudo = buf.getvalue()
     nome = f"{prefixo}-" + time.strftime("%Y-%m-%d-%H%M%S", time.gmtime(time.time() - 3 * 3600)) + f"-{secrets.token_hex(3)}.zip"
@@ -409,7 +480,7 @@ def ciclo():
     grupos = a.get("grupos")
     escolhidas = [t for g in grupos for t in GRUPOS.get(g, ("", []))[1]] if grupos else None
     try:
-        r = gerar("agendado", escolhidas, prefixo="auto")
+        r = gerar("agendado", escolhidas, prefixo="auto", arquivos=True)   # tabelas + cópia dos arquivos (sem tráfego)
         apagados = _reter("auto", int(a.get("manter") or 7))
         a.update({"ultimo": int(time.time()), "ultimo_ok": True, "ultimo_arquivo": r["arquivo"], "ultimo_erro": "", "apagados": len(apagados)})
     except Exception as e:  # noqa: BLE001

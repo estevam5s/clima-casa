@@ -6,6 +6,7 @@ import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { useDados } from '../components/ui'
 import Visao from '../components/supabase/Visao'
+import UsoCota from '../components/supabase/UsoCota'
 import Tabelas from '../components/supabase/Tabelas'
 import Sql from '../components/supabase/Sql'
 import { Autenticacao, Avisos, Backups, Banco, Desempenho, Registros, Rotinas } from '../components/supabase/Outras'
@@ -18,7 +19,7 @@ const GRUPOS = [
   ['Banco de dados', [['tabelas', 'Editor de tabelas', Table2], ['sql', 'Editor SQL', Terminal], ['esquema', 'Diagrama do esquema', Network], ['banco', 'Tabelas e tamanhos', Database],
     ['indices', 'Índices', ListTree], ['funcoes', 'Funções e gatilhos', Braces], ['extensoes', 'Extensões', Blocks]]],
   ['Segurança', [['politicas', 'Políticas (RLS)', ShieldCheck], ['auth', 'Autenticação', Users], ['avisos', 'Avisos', Lightbulb]]],
-  ['Plataforma', [['storage', 'Storage', FolderArchive], ['realtime', 'Realtime', Radio], ['rotinas', 'Rotinas (cron)', CalendarClock], ['backups', 'Backups', Archive]]],
+  ['Plataforma', [['uso', 'Uso e cota', Gauge], ['storage', 'Storage', FolderArchive], ['realtime', 'Realtime', Radio], ['rotinas', 'Rotinas (cron)', CalendarClock], ['backups', 'Backups', Archive]]],
   ['Observabilidade', [['desempenho', 'Desempenho', Gauge], ['conexoes', 'Conexões e bloqueios', Plug], ['manutencao', 'Manutenção e cache', Wrench], ['registros', 'Registros', ScrollText]]],
   ['Projeto', [['configuracao', 'Configuração', Settings2]]],
 ]
@@ -115,6 +116,7 @@ export default function Supabase() {
           {secao === 'funcoes' && <Funcoes />}
           {secao === 'extensoes' && <Extensoes />}
           {secao === 'politicas' && <Politicas />}
+          {secao === 'uso' && <UsoCota />}
           {secao === 'storage' && <Storage />}
           {secao === 'realtime' && <Realtime />}
           {secao === 'conexoes' && <Conexoes />}

@@ -73,8 +73,10 @@ export function Conferir({ arquivo, aoFechar }) {
             {d.manifesto.tipo && <><dt className="text-muted-foreground">Tipo</dt><dd>{d.manifesto.tipo}</dd></>}
             {d.manifesto.versao_sistema && <><dt className="text-muted-foreground">Versão do sistema</dt><dd>{d.manifesto.versao_sistema}</dd></>}
             {d.manifesto.rotulo && <><dt className="text-muted-foreground">Nota</dt><dd>{d.manifesto.rotulo}</dd></>}
-            <dt className="text-muted-foreground">Arquivos 3D</dt><dd>{(d.manifesto.arquivos_3d || []).length} listado(s) (continuam no Storage)</dd>
+            <dt className="text-muted-foreground">Arquivos</dt><dd>{(d.manifesto.arquivos || []).length ? `${d.manifesto.arquivos.filter((a) => a.copia).length} copiado(s) (${fmtMB(d.manifesto.arquivos_bytes)}), guardados no Storage` : `${(d.manifesto.arquivos_3d || []).length} modelo(s) 3D listado(s), sem cópia`}</dd>
+            <dt className="text-muted-foreground">Códigos</dt><dd>{(d.manifesto.codigos || []).length ? `${d.manifesto.codigos.length} arquivo(s): ${d.manifesto.codigos.filter((c) => c.startsWith('placas/')).length} placa(s) e instaladores` : 'não incluídos'}</dd>
           </dl>
+          {(d.manifesto.arquivos || []).some((a) => a.copia) && <TrazerArquivos arquivo={arquivo} />}
           <div className="max-h-[45vh] overflow-auto rounded-lg border border-border">
             <table className="w-full text-xs"><thead className="sticky top-0 bg-muted text-left text-muted-foreground"><tr><th className="px-3 py-1.5">Tabela</th><th className="px-3 py-1.5 text-right">Linhas</th><th className="px-3 py-1.5 text-right">Tamanho</th><th className="px-3 py-1.5">sha256</th></tr></thead>
               <tbody>{d.tabelas.map((t) => <tr key={t.tabela} className="border-t border-border/70"><td className="px-3 py-1 font-mono">{t.tabela}</td><td className="px-3 py-1 text-right tabular-nums">{t.linhas ?? '—'}</td><td className="px-3 py-1 text-right tabular-nums">{fmtMB(t.bytes)}</td>
@@ -83,6 +85,25 @@ export function Conferir({ arquivo, aoFechar }) {
         </div>
       )}
     </Modal>
+  )
+}
+
+// Devolve ao lugar os arquivos do backup que sumiram (ex.: modelo 3D apagado). Não sobrescreve os que existem.
+function TrazerArquivos({ arquivo }) {
+  const toast = useToast()
+  const [palavra, setPalavra] = useState(''), [ocupado, setOcupado] = useState(false), [res, setRes] = useState(null)
+  const ir = async () => {
+    setOcupado(true)
+    try { const r = await api.post('/api/backup-sistema/restaurar-arquivos', { arquivo, confirmacao: palavra }); setRes(r); toast(`${r.voltaram} arquivo(s) de volta; ${r.ja_existiam} já existiam.`) } catch (e) { toast(e.message, 'erro') } finally { setOcupado(false) }
+  }
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3">
+      <p className="font-medium">Trazer os arquivos de volta</p>
+      <p className="text-xs text-muted-foreground">Copia de volta só os que não existem mais (por exemplo, um modelo 3D apagado). Nada que já existe é trocado. Digite RESTAURAR:</p>
+      <div className="flex gap-2"><input className="campo font-mono" value={palavra} onChange={(e) => setPalavra(e.target.value)} aria-label="Digite RESTAURAR" />
+        <Botao variante="secundario" carregando={ocupado} disabled={palavra !== 'RESTAURAR'} onClick={ir}>Trazer de volta</Botao></div>
+      {res && <p className="text-xs text-muted-foreground">{res.voltaram} voltaram · {res.ja_existiam} já existiam · {res.falhas} falha(s)</p>}
+    </div>
   )
 }
 
