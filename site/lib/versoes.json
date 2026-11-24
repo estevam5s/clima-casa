@@ -1,5 +1,25 @@
 [
  {
+  "versao": "0.6.6",
+  "data": "2026-11-23",
+  "titulo": "Agentes que se atualizam sozinhos, menu com largura ajustável e download dos apps sem falhar",
+  "resumo": "Cada computador do agente (Mac, Windows, Linux, Raspberry Pi) mostra a versão e se atualiza sozinho quando sai uma nova; o menu lateral ganhou largura ajustável.",
+  "novo": [
+   "Infra → Agentes: versão de cada computador, aviso de desatualizado e botão Atualizar agente (baixa, confere e reinicia)",
+   "Atualização automática dos agentes a cada versão nova (pode desligar)",
+   "Menu lateral com largura ajustável: arraste a borda direita (duplo clique volta ao padrão); continua fechando sozinho",
+   "Infra → Agentes: explicação de quem pode usar o sistema e de onde, com o Raspberry ou um PC no comando"
+  ],
+  "melhorias": [
+   "Quando o computador no comando roda uma versão antiga, a mensagem de erro diz qual é e como atualizar"
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Download dos apps (Windows, Android e outros) falhava com o Mac bloqueado: o agente guarda o acesso ao GitHub na memória",
+   "Arquivo de versão anterior numa aba aberta durante a publicação não vira mais bug"
+  ]
+ },
+ {
   "versao": "0.6.5",
   "data": "2026-11-23",
   "titulo": "Mais segurança da conta, varredura semanal e treinamento com revisão e certificado",
