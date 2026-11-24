@@ -366,9 +366,13 @@ def executar(op: str, args: dict):
     return OPS[op](args or {})
 
 
+_GH_MEMORIA = {"t": ""}   # o token do `gh` fica só na memória deste processo (o chaveiro do Mac tranca com a tela bloqueada)
+
+
 def _token_github() -> str:
     """Token do GitHub SÓ no agente: GITHUB_APPS_TOKEN do .env (de preferência só leitura) ou o `gh` já logado neste
-    computador (lido na hora, nunca gravado em arquivo nem no banco)."""
+    computador (lido na hora, nunca gravado em arquivo nem no banco). Depois da 1ª leitura bem-sucedida, o do `gh` fica
+    em memória: com o Mac bloqueado ou dormindo o `gh auth token` falha e o download dos apps quebrava (23/11/2026)."""
     import os
     import shutil
     import subprocess
@@ -380,9 +384,12 @@ def _token_github() -> str:
         try:
             r = subprocess.run([gh, "auth", "token"], capture_output=True, text=True, timeout=10)
             if r.returncode == 0 and r.stdout.strip():
-                return r.stdout.strip()
+                _GH_MEMORIA["t"] = r.stdout.strip()
+                return _GH_MEMORIA["t"]
         except Exception:  # noqa: BLE001
             pass
+    if _GH_MEMORIA["t"]:   # o `gh` falhou agora (chaveiro trancado), mas já tinha dado certo neste processo
+        return _GH_MEMORIA["t"]
     raise ErroInfra("Este computador não tem acesso ao GitHub (sem GITHUB_APPS_TOKEN e sem o gh logado).")
 
 

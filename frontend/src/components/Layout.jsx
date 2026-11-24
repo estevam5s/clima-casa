@@ -504,7 +504,35 @@ export default function Layout() {
     const item = [...TODAS].sort((a, b) => b.para.length - a.para.length).find((i) => (i.para === '/' ? local.pathname === '/' : local.pathname.startsWith(i.para)))
     definirPagina(item ? (marca.menu_rotulos?.[item.para] || item.rotulo) : '')
   }, [local.pathname, marca.menu_rotulos])
-  const ABERTA = Math.max(200, Math.min(320, Number(marca.menu_largura) || 264))
+  const PADRAO = Math.max(200, Math.min(320, Number(marca.menu_largura) || 264))
+  // largura escolhida por quem usa (arrastar a borda, como no VS Code); guardada só neste navegador
+  const [largura, setLargura] = useState(() => { try { const n = Number(localStorage.getItem('clima-sidebar-largura')); return n >= 200 && n <= 480 ? n : 0 } catch { return 0 } })
+  const [arrastando, setArrastando] = useState(false)
+  const ABERTA = largura || PADRAO
+  const guardarLargura = (n) => { setLargura(n); try { n ? localStorage.setItem('clima-sidebar-largura', String(n)) : localStorage.removeItem('clima-sidebar-largura') } catch { /* sem storage */ } }
+  const comecarArrastar = (e) => {
+    e.preventDefault()
+    const alca = e.currentTarget
+    alca.setPointerCapture?.(e.pointerId)
+    setArrastando(true)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    const mover = (ev) => setLargura(Math.round(Math.max(200, Math.min(480, ev.clientX))))
+    const soltar = (ev) => {
+      alca.removeEventListener('pointermove', mover); alca.removeEventListener('pointerup', soltar); alca.removeEventListener('pointercancel', soltar)
+      document.body.style.cursor = ''; document.body.style.userSelect = ''
+      setArrastando(false)
+      guardarLargura(Math.round(Math.max(200, Math.min(480, ev.clientX || ABERTA))))
+      // soltou fora da barra: ela volta a fechar sozinha (se não estiver fixa)
+      const r = alca.parentElement?.getBoundingClientRect()
+      if (r && (ev.clientX > r.right + 8 || ev.clientX < r.left)) setHover(false)
+    }
+    alca.addEventListener('pointermove', mover); alca.addEventListener('pointerup', soltar); alca.addEventListener('pointercancel', soltar)
+  }
+  const teclaLargura = (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); guardarLargura(Math.max(200, Math.min(480, ABERTA + (e.key === 'ArrowRight' ? 16 : -16)))) }
+    if (e.key === 'Home') { e.preventDefault(); guardarLargura(0) }
+  }
   const [abertura, setAbertura] = useState(() => { try { return marca.abertura && !sessionStorage.getItem('clima-abertura') } catch { return false } })
   useEffect(() => { if (!abertura) return undefined; try { sessionStorage.setItem('clima-abertura', '1') } catch { /* sem storage */ } const t = setTimeout(() => setAbertura(false), 1600); return () => clearTimeout(t) }, [abertura])
   useEffect(() => {
@@ -523,11 +551,19 @@ export default function Layout() {
       <motion.aside
         className="fixed inset-y-0 left-0 z-40 hidden border-r border-border bg-sidebar md:block"
         initial={false}
-        animate={{ width: aberta ? ABERTA : FECHADA }}
-        transition={MOLA}
-        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+        animate={{ width: aberta || arrastando ? ABERTA : FECHADA }}
+        transition={arrastando ? { duration: 0 } : MOLA}
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => { if (!arrastando) setHover(false) }}
       >
-        <ConteudoSidebar aberta={aberta} fixada={fixada} alternarFixar={alternarFixar} contadores={central.dados?.status} aoBuscar={() => setPaleta(true)} />
+        <ConteudoSidebar aberta={aberta || arrastando} fixada={fixada} alternarFixar={alternarFixar} contadores={central.dados?.status} aoBuscar={() => setPaleta(true)} />
+        {(aberta || arrastando) && (
+          <div role="separator" aria-orientation="vertical" aria-label="Largura do menu (arraste; duplo clique volta ao padrão)" aria-valuemin={200} aria-valuemax={480} aria-valuenow={ABERTA}
+            tabIndex={0} title="Arraste para ajustar a largura · duplo clique volta ao padrão"
+            onPointerDown={comecarArrastar} onDoubleClick={() => guardarLargura(0)} onKeyDown={teclaLargura}
+            className={`group/alca absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none outline-none`}>
+            <span className={`absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors ${arrastando ? 'bg-primary' : 'bg-transparent group-hover/alca:bg-primary/60 group-focus-visible/alca:bg-primary'}`} />
+          </div>
+        )}
       </motion.aside>
 
       {/* Celular: gaveta lateral */}
@@ -544,7 +580,7 @@ export default function Layout() {
         )}
       </AnimatePresence>
 
-      <motion.div className="min-w-0" initial={false} animate={{ paddingLeft: desktop ? (aberta ? ABERTA : FECHADA) : 0 }} transition={MOLA}>
+      <motion.div className="min-w-0" initial={false} animate={{ paddingLeft: desktop ? (aberta || arrastando ? ABERTA : FECHADA) : 0 }} transition={arrastando ? { duration: 0 } : MOLA}>
         <header data-cabecalho-app className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
           <button onClick={() => setMovel(true)} className="-ml-1 rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
           <BarraStatus status={central.dados?.status} />

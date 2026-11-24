@@ -23,9 +23,16 @@ export function recarregarUmaVez() {
   return true
 }
 
-function anotar(mensagem, pilha = '') {
+// o pedaço que falhou ainda existe no servidor? Se não existe (404), a aba é de uma versão anterior: não é bug do código
+async function pedacoSumiu(mensagem) {
+  const url = String(mensagem).match(/https?:\/\/[^\s'"]+\.(?:js|css)/)?.[0]
+  if (!url) return true
+  try { const r = await fetch(url, { method: 'HEAD', cache: 'no-store' }); return r.status === 404 } catch { return true }   // sem rede: também não é bug
+}
+
+async function anotar(mensagem, pilha = '') {
   if (!mensagem || ignorar.test(mensagem)) return
-  if (versaoTrocada(mensagem) && recarregarUmaVez()) return
+  if (versaoTrocada(mensagem) && (recarregarUmaVez() || await pedacoSumiu(mensagem))) return
   errosRecentes.unshift(`${new Date().toLocaleTimeString('pt-BR')} ${mensagem}`.slice(0, 300))
   errosRecentes.length = Math.min(errosRecentes.length, 10)
   const chave = `${location.pathname}|${mensagem}`.slice(0, 300)

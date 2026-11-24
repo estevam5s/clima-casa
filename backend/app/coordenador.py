@@ -136,6 +136,18 @@ def cumprir_ordens(papel: str):
             db.executar("UPDATE config SET valor = ? WHERE chave = 'agente_lider'", (json.dumps({"id": "", "visto": 0}),))
         log.info("reiniciando a pedido do painel")
         os._exit(3)
+    if o.get("acao") == "atualizar":
+        from . import atualizar_agente
+        try:
+            r = atualizar_agente.aplicar(f"pedido do painel por {o.get('por') or '?'}")
+        except Exception as e:  # noqa: BLE001
+            db.registrar("agente", f"{socket.gethostname().split('.')[0]}: atualização falhou", ok=False, detalhe=str(e)[:300])
+            db.set_cfg(f"agente_atualizar_falhou:{_eu()}", {"versao": atualizar_agente.versao_publicada(), "erro": str(e)[:300], "em": int(time.time())})
+            return
+        if r.get("mudou"):
+            atualizar_agente._reiniciar(papel)
+        else:
+            db.registrar("agente", f"{socket.gethostname().split('.')[0]} já estava na versão mais nova ({r.get('versao')})")
 
 
 def info(papel: str) -> dict:
@@ -147,8 +159,10 @@ def info(papel: str) -> dict:
             sistema, versao = f"Linux · {rel['PRETTY_NAME']}", ""
     if os.path.exists("/.dockerenv"):
         versao = f"{versao} (Docker)".strip()
+    from . import atualizar_agente
     return {"id": _eu(), "nome": socket.gethostname().split(".")[0], "sistema": f"{sistema} {versao}".strip(),
-            "python": platform.python_version(), "papel": papel, "visto": int(time.time())}
+            "python": platform.python_version(), "papel": papel, "visto": int(time.time()),
+            "versao": atualizar_agente.versao_local(), "docker": atualizar_agente.em_docker()}
 
 
 def ve_transmissores() -> tuple[int | None, int]:
@@ -178,6 +192,8 @@ def anunciar(papel: str):
         ve, total = _visao["ve"], _visao["total"]
         db.set_cfg(f"agente_maquina:{_eu()}", {**info(papel), "ve_transmissores": ve, "total_transmissores": total, "saude": saude()})
         cumprir_ordens(papel)
+        from . import atualizar_agente
+        atualizar_agente.conferir(papel)
     except Exception as e:  # noqa: BLE001
         log.warning("não deu para anunciar o computador: %s", e)
 

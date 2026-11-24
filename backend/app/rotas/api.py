@@ -2201,7 +2201,9 @@ def baixar_app(arquivo: str):
                 return {"url": r["url"], "origem": "agente", "versao": r.get("versao"), "tamanho": r.get("tamanho")}
         except HTTPException:
             pass
-        return {"url": publico, "origem": "github", "aviso": "O agente do escritório não conseguiu gerar o link: ele só abre para quem tem acesso ao repositório no GitHub."}
+        return {"url": publico, "origem": "github", "aviso": "O download pelo sistema precisa de um token só de leitura do GitHub (o repositório é privado). "
+                "O dono cadastra uma vez em Apps → Downloads sem acesso ao GitHub; depois funciona sempre, com qualquer computador no comando "
+                "(inclusive o Raspberry). Este link direto só abre para quem tem acesso ao repositório."}
     rel = _gh(token, f"/repos/{REPO_APPS}/releases/latest")
     if rel.status_code != 200:
         raise HTTPException(424, f"O GitHub recusou o token ({rel.status_code}). O dono precisa gerar outro em Apps → Downloads sem acesso ao GitHub.")

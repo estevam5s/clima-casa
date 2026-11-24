@@ -37,7 +37,12 @@ def _via_agente(op: str, args: dict, espera: float = 40):
     fid = transmissor.enfileirar("infra", None, {"op": op, "args": args})
     f = transmissor.aguardar(fid, espera)
     if f.get("estado") != "ok":
-        raise HTTPException(502, f.get("erro") or "O agente não conseguiu falar com a Vercel.")
+        erro = f.get("erro") or "O agente não conseguiu falar com a Vercel."
+        if erro.startswith("Operação desconhecida"):   # quem está no comando roda código antigo
+            nome = (coordenador.lider() or {}).get("nome") or "O computador no comando"
+            erro = (f"{nome} está com uma versão antiga do agente e não conhece esta função. Atualize em Infra → Agentes "
+                    "(botão Atualizar agente) ou rode o instalador de novo nele.")
+        raise HTTPException(502, erro)
     r = f.get("resultado")
     try:   # a resposta pode ter coisa sensível (código de instalação, e-mails recebidos): não fica guardada na fila
         db.executar("UPDATE fila_comandos SET resultado = NULL WHERE id = ?", (fid,))
@@ -438,8 +443,28 @@ def rede_resultado(d: ResultadoRede):
 def agentes():
     u = _papel("dono", "admin")
     from .. import convite
-    return {"maquinas": coordenador.maquinas(), "principal": coordenador.lider(), "preferido": coordenador.preferido(), "aluguel_s": coordenador.ALUGUEL,
-            "convites": convite.pendentes() if u.get("papel") in ("dono", "admin") else []}
+    from .. import atualizar_agente
+    maqs = coordenador.maquinas()
+    for m in maqs:
+        f = db.cfg(f"agente_atualizar_falhou:{m.get('id')}")
+        if f:
+            m["atualizar_falhou"] = f
+    return {"maquinas": maqs, "principal": coordenador.lider(), "preferido": coordenador.preferido(), "aluguel_s": coordenador.ALUGUEL,
+            "convites": convite.pendentes() if u.get("papel") in ("dono", "admin") else [],
+            "versao_publicada": atualizar_agente.versao_publicada(), "auto_atualizar": atualizar_agente.auto_ligado()}
+
+
+class AutoAtualizar(BaseModel):
+    ativo: bool
+
+
+@rotas_infra.put("/agentes/auto-atualizar")
+def agentes_auto_atualizar(d: AutoAtualizar):
+    u = _papel("dono", "admin")
+    from .. import atualizar_agente
+    db.set_cfg(atualizar_agente.CHAVE_AUTO, {"ativo": d.ativo})
+    db.registrar("sistema", f"Atualização automática dos agentes {'ligada' if d.ativo else 'desligada'}", detalhe=f"por {u.get('email', '')}")
+    return {"ok": True, "ativo": d.ativo}
 
 
 @rotas_infra.post("/agentes/convite")
@@ -480,6 +505,27 @@ def reiniciar_agente(d: Reiniciar):
     db.set_cfg(f"agente_ordem:{d.id}", {"acao": "reiniciar", "em": int(time.time()), "por": u.get("email", "")})
     db.registrar("sistema", f"Pedido para reiniciar o agente em {m.get('nome') or d.id}", detalhe=f"por {u.get('email', '')}")
     return {"ok": True, "mensagem": f"{m.get('nome') or 'O computador'} reinicia o agente em até 15 s e volta em cerca de 1 minuto."}
+
+
+@rotas_infra.post("/agentes/atualizar")
+def atualizar_agente_rota(d: Reiniciar):
+    """Pede a um computador que baixe a versão mais nova do código, confira e reinicie (Mac, Windows, Linux, Raspberry)."""
+    u = _papel("dono", "admin")
+    m = db.cfg(f"agente_maquina:{d.id}")
+    if not m:
+        raise HTTPException(404, "Computador não encontrado.")
+    if time.time() - int(m.get("visto") or 0) > coordenador.ALUGUEL:
+        raise HTTPException(409, "Esse computador está desligado ou sem internet: ele não recebe o pedido.")
+    if not m.get("versao"):
+        raise HTTPException(409, f"{m.get('nome') or 'Esse computador'} tem um agente de antes da atualização pelo painel: rode o instalador "
+                                 "de novo nele uma vez (Infra → Agentes → Instalar). Depois ele se atualiza sozinho.")
+    if m.get("docker"):
+        raise HTTPException(409, "Agente no Docker: atualize recriando o contêiner (rode o instalador de novo com --docker).")
+    db.set_cfg(f"agente_atualizar_falhou:{d.id}", None)
+    db.set_cfg(f"agente_ordem:{d.id}", {"acao": "atualizar", "em": int(time.time()), "por": u.get("email", "")})
+    db.registrar("sistema", f"Pedido para atualizar o agente em {m.get('nome') or d.id}", detalhe=f"por {u.get('email', '')}")
+    return {"ok": True, "mensagem": f"{m.get('nome') or 'O computador'} baixa a versão nova em até 15 s e volta em 1 a 3 minutos "
+                                    "(no Raspberry pode levar mais se houver dependências novas)."}
 
 
 class Esquecer(BaseModel):

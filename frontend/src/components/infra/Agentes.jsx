@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 const Raspberry3D = lazy(() => import('../Raspberry3D'))
-import { Check, Container, Copy, Cpu, HardDrive, KeyRound, Laptop, MemoryStick, Monitor, Network, Radio, RotateCw, Server, Star, Thermometer, Trash2, Wifi } from 'lucide-react'
+import { ArrowUpCircle, Check, Container, Copy, Cpu, HardDrive, KeyRound, Laptop, MemoryStick, Monitor, Network, Radio, RotateCw, Server, Star, Thermometer, Trash2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Esqueleto, Selo, useToast, confirmar } from '../ui'
 
@@ -96,7 +96,7 @@ function GuiaRaspberry() {
         <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>4.</b><span>Gere o código de instalação aqui embaixo, abra “É um Raspberry Pi ou um Linux?” e cole o comando no Raspberry (pela janela do SSH). Leva de 10 a 20 minutos no Pi 3B.</span></li>
         <li className="grid grid-cols-[1.5rem_1fr] gap-2"><b>5.</b><span>Quando ele aparecer na lista acima, clique em <b>Preferir este</b>: ele fica no comando sempre que estiver ligado e enxergando os transmissores. O Mac e os PCs viram reserva.</span></li>
       </ol>
-      <p className="mt-4 text-xs text-muted-foreground">Precisa destravar? “Reiniciar agente” no cartão do Raspberry funciona de qualquer lugar, sem SSH. Atualizar o sistema dele: gere um código novo e rode o mesmo comando. Use o sistema de 64 bits; Arduino, ESP32 e ESP8266 não rodam o agente.</p>
+      <p className="mt-4 text-xs text-muted-foreground">Precisa destravar? “Reiniciar agente” no cartão do Raspberry funciona de qualquer lugar, sem SSH. Atualizar o sistema dele: botão “Atualizar agente” (ou sozinho, com a atualização automática ligada). Use o sistema de 64 bits; Arduino, ESP32 e ESP8266 não rodam o agente.</p>
     </section>
   )
 }
@@ -237,6 +237,37 @@ function Instalar({ maquinas, aoConectar }) {
   )
 }
 
+const _v = (t) => String(t || '0').split('.').map(Number)
+const menor = (a, b) => { const x = _v(a), y = _v(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0) } return false }
+const desatualizado = (m, pub) => !!pub && !m.docker && (!m.versao || menor(m.versao, pub))
+
+function VersaoAgente({ m, publicada }) {
+  if (!m.versao) return <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Agente antigo (sem atualização pelo painel): rode o instalador de novo nele uma vez</p>
+  const velho = desatualizado(m, publicada)
+  return (
+    <p className={`text-xs ${velho ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
+      Versão {m.versao}{velho ? ` · desatualizado (no ar: ${publicada})` : ' · em dia'}
+      {m.atualizar_falhou && <span className="block font-normal text-red-600">Última atualização falhou: {m.atualizar_falhou.erro}</span>}
+    </p>
+  )
+}
+
+// resposta direta para "posso deixar o Raspberry (ou um PC) no comando e todos usarem de qualquer lugar?"
+function ComoFuncionaRede() {
+  return (
+    <details className="mt-3 max-w-3xl rounded-lg border border-border p-3 text-sm">
+      <summary className="cursor-pointer font-medium">Raspberry ou PC no comando: quem consegue usar e de onde</summary>
+      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted-foreground">
+        <li><b className="text-foreground">Quem usa o sistema</b> (painel, apps, Alexa, Telegram) pode estar em qualquer rede e em qualquer sistema: tudo passa pela nuvem, e a nuvem entrega o pedido ao agente.</li>
+        <li><b className="text-foreground">O agente no comando</b> (Raspberry, Windows, Mac ou Linux, tanto faz) precisa estar <b className="text-foreground">na mesma rede dos transmissores</b>: é ele quem fala com eles pela rede local (porta 6668). Em outra rede (em casa, 4G) ele fica "fora da rede" e os comandos não chegam aos ares.</li>
+        <li>A rede dele precisa de saída para a internet nas portas <b className="text-foreground">443</b> e <b className="text-foreground">6543</b> (banco). Redes da prefeitura costumam bloquear a 6543 ou inspecionar o HTTPS: veja em Rede → Portas e serviços e peça a liberação à TI.</li>
+        <li>Deixe o Raspberry (ou o PC) como <b className="text-foreground">preferido</b> e ligado sempre; os outros computadores ficam de reserva e assumem em até 1 minuto se ele cair, desde que também enxerguem os transmissores.</li>
+        <li>Com a atualização automática ligada, cada computador fica na mesma versão do sistema sem precisar rodar o instalador de novo.</li>
+      </ul>
+    </details>
+  )
+}
+
 export default function Agentes({ dono, admin }) {
   const toast = useToast()
   const [d, setD] = useState(null)
@@ -246,6 +277,8 @@ export default function Agentes({ dono, admin }) {
   useEffect(() => { carregar(); const t = setInterval(() => { if (!document.hidden) carregar() }, pode ? 5000 : 10000); return () => clearInterval(t) }, [carregar, pode])
   const preferir = async (id) => { try { setD(await api.post('/api/agentes/preferido', { id })); toast(id ? 'Salvo. Ele assume em até 1 minuto se estiver ligado e enxergar os transmissores.' : 'Sem preferência: fica no comando quem já está, desde que enxergue os transmissores.') } catch (e) { toast(e.message, 'erro') } }
   const reiniciar = async (m) => { if (!await confirmar(`Reiniciar o agente em ${m.nome}? Ele fica uns 30 a 60 segundos sem mandar comandos.`)) return; try { const r = await api.post('/api/agentes/reiniciar', { id: m.id }); toast(r.mensagem) } catch (e) { toast(e.message, 'erro') } }
+  const atualizar = async (m) => { if (!await confirmar(`Atualizar o agente em ${m.nome} para a ${d.versao_publicada}? Ele baixa o código, confere e reinicia (1 a 3 minutos sem mandar comandos; se for o principal, um reserva assume).`)) return; try { const r = await api.post('/api/agentes/atualizar', { id: m.id }); toast(r.mensagem) } catch (e) { toast(e.message, 'erro') } }
+  const mudarAuto = async (ativo) => { try { await api.put('/api/agentes/auto-atualizar', { ativo }); setD((x) => ({ ...x, auto_atualizar: ativo })); toast(ativo ? 'Os agentes se atualizam sozinhos a cada versão nova.' : 'Atualização automática desligada: use "Atualizar agente" em cada computador.') } catch (e) { toast(e.message, 'erro') } }
   const esquecer = async (id) => { if (!await confirmar('Tirar este computador da lista?')) return; try { setD(await api.post('/api/agentes/esquecer', { id })) } catch (e) { toast(e.message, 'erro') } }
   if (!d) return <Esqueleto className="h-64" />
   const preferido = d.maquinas.find((m) => m.id === d.preferido)
@@ -255,7 +288,14 @@ export default function Agentes({ dono, admin }) {
         <NoComando maquinas={d.maquinas} />
         <div><h2 className="titulo-secao">Quem fica no comando</h2>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Só um computador é o <b className="text-foreground">principal</b> e manda os comandos para os ares; os outros ficam de <b className="text-foreground">reserva</b>. Quem não enxerga os transmissores (fora do Wi-Fi do escritório) passa o comando para quem enxerga. O <b className="text-foreground">preferido</b> retoma sozinho quando volta ao escritório.</p>
-          <p className="mt-1 text-sm">{preferido ? <>Preferido agora: <b>{preferido.nome}</b>.</> : 'Sem preferido: fica quem já está no comando.'}</p></div>
+          <p className="mt-1 text-sm">{preferido ? <>Preferido agora: <b>{preferido.nome}</b>.</> : 'Sem preferido: fica quem já está no comando.'}</p>
+          {pode && (
+            <label className="mt-2 flex max-w-3xl cursor-pointer items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={!!d.auto_atualizar} onChange={(e) => mudarAuto(e.target.checked)} />
+              <span><b>Atualizar os agentes sozinhos</b> (versão no ar: {d.versao_publicada || '?'}). Cada computador confere a cada 10 minutos, baixa o código novo, confere que funciona e reinicia. Vale para Mac, Windows, Linux e Raspberry Pi; no Docker, recrie o contêiner.</span>
+            </label>
+          )}
+          <ComoFuncionaRede /></div>
         {!d.maquinas.length && <Aviso tipo="alerta">Nenhum computador com o agente ainda.</Aviso>}
         <div className="grid gap-3 md:grid-cols-2">
           {d.maquinas.map((m) => { const I = /Windows/.test(m.sistema) ? Monitor : /Docker/.test(m.sistema) ? Container : /Raspberry|Raspbian/i.test(`${m.sistema} ${m.saude?.modelo || ''}`) ? Cpu : /Linux/.test(m.sistema) ? Server : Laptop; const ve = m.ve_transmissores, tot = m.total_transmissores; return (
@@ -272,6 +312,7 @@ export default function Agentes({ dono, admin }) {
                       {st.chave === 'ativo' && <Transmitindo />}{st.rotulo}<span className="font-normal text-muted-foreground">· {st.texto}</span>
                     </p>) })()}
                   <p className="text-xs text-muted-foreground">{m.sistema} · Python {m.python}</p>
+                  <VersaoAgente m={m} publicada={d.versao_publicada} />
                   <p className="mt-1 flex items-center gap-1.5 text-xs"><Radio className="h-3.5 w-3.5 text-muted-foreground" />{ve == null ? <span className="text-muted-foreground">visão dos transmissores: atualize o agente</span>
                     : ve > 0 ? <span>{m.online ? '' : 'da última vez, '}enxerga {ve} de {tot} transmissor{tot > 1 ? 'es' : ''}</span> : <span className="text-amber-700 dark:text-amber-400">não enxerga os transmissores (fora do escritório?)</span>}</p>
                   <p className="text-xs text-muted-foreground">{m.online ? 'visto agora' : `visto ${haQuanto(m.visto)}`} · id {m.id}</p>
@@ -299,6 +340,7 @@ export default function Agentes({ dono, admin }) {
                 <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
                   {d.preferido === m.id ? <Botao tamanho="sm" variante="secundario" icone={Star} onClick={() => preferir(null)}>Tirar preferência</Botao> : <Botao tamanho="sm" variante="secundario" icone={Star} onClick={() => preferir(m.id)}>Preferir este</Botao>}
                   {m.online && <Botao tamanho="sm" variante="secundario" icone={RotateCw} onClick={() => reiniciar(m)}>Reiniciar agente</Botao>}
+                  {m.online && desatualizado(m, d.versao_publicada) && <Botao tamanho="sm" icone={ArrowUpCircle} onClick={() => atualizar(m)}>Atualizar agente</Botao>}
                   {dono && !m.online && <Botao tamanho="sm" variante="secundario" icone={Trash2} onClick={() => esquecer(m.id)}>Tirar da lista</Botao>}
                 </div>
               )}
