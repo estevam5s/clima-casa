@@ -1,5 +1,35 @@
 [
  {
+  "versao": "0.6.8",
+  "data": "2026-11-24",
+  "titulo": "Tarefas no padrão Asana, Assistente com Projetos, Backup avançado, placas em 3D e login com GitHub",
+  "resumo": "Tarefas ganharam Página inicial, Caixa de entrada, Portfólios, modelos e status de projeto; o Assistente ganhou Projetos com arquivos ou repositório do GitHub, Esforço e Configurações; o Backup ganhou saúde, teste de restauração, cópia no computador do agente e download cifrado.",
+  "novo": [
+   "Login com GitHub (e conectar a conta GitHub em Configurações → Segurança)",
+   "Tarefas: botão Criar, Página inicial (suas tarefas, projetos recentes e pessoas), Caixa de entrada e Portfólios",
+   "Tarefas: lista de projetos com filtros por proprietário, membros e status, galeria de modelos prontos e projeto com Visão geral (descrição, membros, prazo, status e atualizações de status)",
+   "Assistente de IA: Projetos com instruções e arquivos (enviar arquivos, um .zip do projeto ou importar um repositório do GitHub) usados como contexto nas conversas",
+   "Assistente de IA: seletor de modelo com Esforço (baixo, médio, alto, máximo) e Mais modelos",
+   "Assistente de IA: Configurações com Conta, sessões abertas, Aparência (fonte e largura), Personalização, Capacidades, Notificações, Privacidade (exportar e apagar) e Uso",
+   "Backup: saúde (último, próximo, teste de restauração, cópia local e histórico de tamanho)",
+   "Backup: backup a cada 6 ou 12 horas, retenção de 7 diários, 4 semanais e 12 mensais, e teste de restauração automático depois de cada backup agendado",
+   "Backup: cópia fora da nuvem no computador do agente e download cifrado com senha (e restaurar o arquivo cifrado)",
+   "Placas Arduino e ESP em 3D com as medidas reais, giráveis e com download em .glb (abre no Blender)",
+   "Painel: o ar Gree aparece com o modelo 3D da biblioteca",
+   "Bot do Telegram: 376 comandos novos em 14 categorias (tarefas, backup, acessos, relatórios por ar e por sala, comparações, agenda por dia, previsão hora a hora, checklists de abertura e fechamento, lembretes, calculadora de BTU e custo, placas, apps e novidades por versão) e menu principal com os atalhos novos"
+  ],
+  "melhorias": [
+   "Assistente: a conversa dentro de um projeto mostra o projeto no topo"
+  ],
+  "seguranca": [
+   "Arquivos de projeto do Assistente nunca levam .env, chaves ou pastas pesadas; cada projeto é só de quem criou",
+   "Backup cifrado no navegador (AES-256, senha que nem o sistema conhece)"
+  ],
+  "correcoes": [
+   "Bot do Telegram: /calc_btu formatava os números errado"
+  ]
+ },
+ {
   "versao": "0.6.7",
   "data": "2026-11-24",
   "titulo": "Tarefas no estilo Asana com GitHub Projects, ar Gree em 3D e Acessos mais completo",
