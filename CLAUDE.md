@@ -29,7 +29,7 @@ caminhos de serviço e o projeto da Vercel).
 8. **Diário de sessão**: toda sessão de trabalho termina com a pasta `docs/continuar/sessao-AAAA-MM-DD/` (00-LEIA-PRIMEIRO,
    01-historico, 02-estado-atual, 03-pendencias, 04-decisoes, 05-testes, PROMPT.md, continuar.sh), e atualiza
    `docs/continuar/INDICE.md` (todas as sessões) e `docs/continuar/ATUAL.md` (a mais recente). O gancho SessionStart do
-   `.claude/settings.json` mostra o `ATUAL.md` no começo de toda sessão nova. A última é `sessao-2026-11-21` (continuada em 22 e 23/11).
+   `.claude/settings.json` mostra o `ATUAL.md` no começo de toda sessão nova. A última é `sessao-2026-11-21` (continuada em 22, 23 e 24/11).
 9. **Toda atualização do sistema atualiza também os apps** (pedido do dono, 20/11/2026): o que entrou no painel ganha a tela ou o
    atalho correspondente no **Android** (`apps/android`, telas em `src/app/(abas)/mais/`), no **computador** (`apps/desktop/src/main.js`,
    `MAIS_TELAS`) e no **iPhone** (`apps/ios`, `Telas/` + `Mais.swift`). Na mesma entrega: versão nova dos três (Android `app.json`/
@@ -147,6 +147,10 @@ caminhos de serviço e o projeto da Vercel).
 | Qualidade automática do mapa 3D (resolução, sombra) | `Mapa3D.jsx` (`NIVEIS`, `aplicarQualidade`, `localStorage['clima-mapa-qualidade']`, `esconderInterior` com o prédio fechado, `E.moverSol` sem refazer a cena, `E.precompilarTerreo`); peças paradas mescladas em `predio3d.js` (faixas, `palmeira`) |
 | Agente que se atualiza sozinho (versão por computador, botão Atualizar agente) | `backend/app/atualizar_agente.py` (`conferir` a cada 10 min no `coordenador.anunciar`, `aplicar`: pacote zip mais novo do bucket `codigo-fonte`, compila antes, preserva `.env`/`.venv`/`data`, instala dependências se o requirements mudou, `os._exit(3)`), ordem `agente_ordem:<id>` `{acao: "atualizar"}`, `config.agente_auto_atualizar`, `agente_atualizar_falhou:<id>`, rotas `POST /api/agentes/atualizar` e `PUT /api/agentes/auto-atualizar`, `components/infra/Agentes.jsx` (`VersaoAgente`). Agente sem `versao` no anúncio = código de antes de 0.6.6: rodar o instalador uma vez. Docker: recriar o contêiner |
 | Largura do menu lateral (arrastar a borda) | `components/Layout.jsx` (`largura`, `comecarArrastar`, `localStorage['clima-sidebar-largura']`, 200 a 480 px; o hover continua abrindo e fechando) |
+| Tarefas (estilo Asana: lista, quadro, calendário, cronograma, painel, subtarefas, comentários) e GitHub Projects | `backend/app/tarefas.py` (`sincronizar`: GraphQL, Status ↔ seção, tarefa nova vira draft issue; `conferir_token` recusa token com escopo além de `project`), `rotas/tarefas.py` (visualizador só vê; GitHub: token só dono, ligar/desligar dono/admin), tabelas `tarefas_projetos`, `tarefas_secoes`, `tarefas`, `tarefas_comentarios`, `config.github_tarefas` (cifrado), `pages/Tarefas.jsx`. Aviso no sino: chave `tarefa:<id>:<pessoa>` (só essa pessoa vê) |
+| Pedido de Infra quando o principal roda agente antigo | `rotas/infra._via_agente` grava a fila com `estado = 'qualquer'` (principal sem `versao`); `transmissor.atender_qualquer` (a cada anúncio, qualquer papel) pega se `infra.capaz(op)`. Agente antigo só lê `pendente` |
+| Modelo 3D de ar por marca (Gree), cor e visor com a temperatura | avatar da espécie `ar` (`avatares.ESPECIES`), `PUT /api/mapa/ares-modelo` → `config.mapa_modelos.ares {marca: id}` e `ar_visor`, `Mapa3D.jsx` (`visorTemp`, troca no ocioso depois do `E.preparar`), `pages/Avatares.jsx` (`ArNoMapa`). GLB do Tripo: reduzir antes (`scripts/avatar-esqueleto/leve.mjs`, 62 MB → 0,8 MB) |
+| Sino que balança, Aparência e marca juntas, logo do menu | `index.css` (`.sino-tocando`), `components/Notificacoes.jsx`; `pages/Configuracoes.jsx` (aba `marca`, `?aba=aparencia` cai nela), `WhiteLabel.jsx` (`logo_menu`, `PreviaAba`), `Layout.jsx` (`Marca`) |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
@@ -944,6 +948,7 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 
 ## 14. Estado atual e pendências
 
+- **24/11/2026 (0.6.7, apps 1.8.0)**: Tarefas no estilo Asana com GitHub Projects (escrita no GitHub não testada), ar Gree em 3D (avatar 74) com visor, avatar 73 com pesos refeitos (original guardado: Restaurar), sala de reunião com 3 persianas (dispositivos 1, 25, 26), Acessos e SEO completo, download pelos agentes atualizados (estado `qualquer` na fila). PC do João (preferido) ainda roda agente antigo: rodar o instalador uma vez.
 - **23/11/2026 (0.5.2 a 0.6.5, apps 1.7.1)**: diário em `docs/continuar/sessao-2026-11-21/`. Agente por código em Windows, Mac, Linux
   (várias distribuições), Raspberry Pi e Docker; **primeiro Raspberry real** (Pi 3B, Debian 13) instalado como reserva na casa do dono
   (fonte fraca: trocar pela oficial 5 V 2,5 A). Backup de tudo (arquivos 3D copiados dentro do Supabase; 1º backup completo gerado em 23/11),

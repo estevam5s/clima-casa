@@ -21,6 +21,7 @@ from .rotas import correio as rotas_correio
 from .rotas import dispositivos as rotas_dispositivos
 from .rotas import telegram as rotas_telegram
 from .rotas import bugs as rotas_bugs
+from .rotas import tarefas as rotas_tarefas
 from .rotas import ia as rotas_ia
 from .rotas import backup as rotas_backup
 from .rotas import site_gestao as rotas_site
@@ -190,6 +191,7 @@ app.include_router(rotas_dispositivos.rotas_disp)
 app.include_router(rotas_telegram.publico_telegram)
 app.include_router(rotas_telegram.rotas_telegram)
 app.include_router(rotas_bugs.rotas_bugs)
+app.include_router(rotas_tarefas.rotas_tarefas)
 app.include_router(rotas_ia.rotas_ia)
 app.include_router(rotas_backup.rotas_backup)
 app.include_router(rotas_site.publico_site)

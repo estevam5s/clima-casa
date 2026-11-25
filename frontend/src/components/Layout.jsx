@@ -3,7 +3,7 @@ import { limparCache } from '../cacheTela'
 import IconeMarca from './IconeMarca'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, Languages, LineChart, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
+import { Activity, ListTodo, Languages, LineChart, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -37,6 +37,7 @@ export const GRUPOS = [
     { para: '/musica', rotulo: 'Música', icone: Music2 },
   ] },
   { titulo: 'Escritório', itens: [
+    { para: '/tarefas', rotulo: 'Tarefas', icone: ListTodo },
     { para: '/cafeteira', rotulo: 'Cafeteira', icone: Coffee },
     { para: '/luzes', rotulo: 'Iluminação', icone: Lightbulb },
     { para: '/persianas', rotulo: 'Persianas', icone: Blinds },
@@ -72,7 +73,7 @@ export const GRUPOS = [
 const TODAS = GRUPOS.flatMap((g) => g.itens)
 // sinônimos para a busca do menu (o rótulo já conta)
 const CHAVES = {
-  '/': 'inicio dashboard resumo', '/notificacoes': 'avisos alertas sino central historico', '/luzes': 'luz lampada iluminacao anoitecer interruptor', '/telegram': 'bot telegram celular mensagem', '/bugs': 'erro problema defeito falha corrigir ia prompt', '/backup': 'backup restaurar upload copia seguranca dados zip exportar importar', '/ia': 'ia inteligencia artificial nvidia chat conversar terminal clima-ia assistente', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
+  '/': 'inicio dashboard resumo', '/tarefas': 'todo to-do tarefa projeto kanban quadro asana github projects prazo sprint', '/notificacoes': 'avisos alertas sino central historico', '/luzes': 'luz lampada iluminacao anoitecer interruptor', '/telegram': 'bot telegram celular mensagem', '/bugs': 'erro problema defeito falha corrigir ia prompt', '/backup': 'backup restaurar upload copia seguranca dados zip exportar importar', '/ia': 'ia inteligencia artificial nvidia chat conversar terminal clima-ia assistente', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
   '/relatorios': 'pdf exportar consumo gasto energia', '/aparelhos': 'ar condicionado ares split botoes gravar', '/cenas': 'atalhos',
   '/automacoes': 'regras gatilhos', '/agendamentos': 'horario agenda temporizador', '/transmissores': 'ir infravermelho smart ir tuya hub controle remoto',
   '/musica': 'spotify som', '/integracoes': 'alexa google sinric echo voz', '/comandos-alexa': 'frases voz alexa', 
@@ -90,14 +91,14 @@ function Marca({ aberta }) {
   const { marca } = useMarca()
   return (
     <Link to="/" className="flex h-9 min-w-0 items-center gap-2.5 px-1.5">
-      {logoDaMarca(marca, document.documentElement.classList.contains('dark')) ? <img src={logoDaMarca(marca, document.documentElement.classList.contains('dark'))} alt="" className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : (
+      {marca.logo_menu && aberta ? <img src={marca.logo_menu} alt={marca.nome} className="h-8 min-w-0 max-w-full object-contain object-left" /> : logoDaMarca(marca, document.documentElement.classList.contains('dark')) ? <img src={logoDaMarca(marca, document.documentElement.classList.contains('dark'))} alt="" className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : (
         <svg viewBox="0 0 32 32" className="h-7 w-7 shrink-0" aria-hidden="true">
           <rect width="32" height="32" rx="8" fill="hsl(var(--primary))" />
           <path d="M16 6v20M7.3 11l17.4 10M7.3 21l17.4-10" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
         </svg>
       )}
-      <motion.span animate={{ opacity: aberta ? 1 : 0, x: aberta ? 0 : -6 }} transition={{ duration: 0.15 }}
-        className="truncate whitespace-pre text-[15px] font-semibold tracking-tight">{marca.nome}</motion.span>
+      {!(marca.logo_menu && aberta) && <motion.span animate={{ opacity: aberta ? 1 : 0, x: aberta ? 0 : -6 }} transition={{ duration: 0.15 }}
+        className="truncate whitespace-pre text-[15px] font-semibold tracking-tight">{marca.nome}</motion.span>}
     </Link>
   )
 }

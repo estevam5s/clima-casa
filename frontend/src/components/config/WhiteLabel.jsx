@@ -208,6 +208,28 @@ function MeusTemas({ f, setF, toast }) {
   )
 }
 
+// como a aba do navegador e o topo do menu vão ficar com o que foi enviado
+function PreviaAba({ f }) {
+  const icone = f.favicon || f.logo
+  return (
+    <div className="rounded-lg border border-border bg-muted/40 p-3">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">Prévia</p>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex w-64 max-w-full items-center gap-2 rounded-t-lg border border-b-0 border-border bg-card px-3 py-2 text-xs">
+          {icone ? <img src={icone} alt="" className="h-4 w-4 object-contain" /> : <span className="h-4 w-4 rounded bg-primary" />}
+          <span className="min-w-0 flex-1 truncate">{f.nome || 'Clima Escritório'}</span><span className="text-muted-foreground">×</span>
+        </div>
+        <div className="flex h-12 w-60 max-w-full items-center gap-2.5 rounded-lg border border-border bg-card px-3">
+          {f.logo_menu ? <img src={f.logo_menu} alt="" className="h-8 max-w-full object-contain object-left" /> : (<>
+            {f.logo ? <img src={f.logo} alt="" className="h-7 w-7 rounded-lg object-contain" /> : <span className="h-7 w-7 rounded-lg bg-primary" />}
+            <span className="truncate text-sm font-semibold">{f.nome || 'Clima Escritório'}</span></>)}
+        </div>
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">Com notificação, a aba ganha o número em vermelho por cima do ícone.</p>
+    </div>
+  )
+}
+
 export default function WhiteLabel() {
   const { marca, setMarcaLocal } = useMarca()
   const [f, setF] = useState(marca)
@@ -322,8 +344,11 @@ export default function WhiteLabel() {
               <Campo rotulo="Nome curto" ajuda="Aparece no app instalado e em espaços pequenos."><input className="campo" value={f.nome_curto} onChange={set('nome_curto')} maxLength={20} /></Campo>
               <div className="md:col-span-2"><Campo rotulo="Slogan"><input className="campo" value={f.slogan} onChange={set('slogan')} maxLength={160} /></Campo></div>
               <div className="md:col-span-2"><Campo rotulo="Descrição"><input className="campo" value={f.descricao} onChange={set('descricao')} maxLength={200} /></Campo></div>
-              {[['logo', 'Logo'], ['logo_escuro', 'Logo no tema escuro'], ['favicon', 'Ícone da aba (favicon)']].map(([k, r]) => (
-                <Campo key={k} rotulo={r} ajuda="PNG, JPG, WEBP ou SVG até 300 KB. Quadrado fica melhor.">
+              {[['logo', 'Logo (quadrado)', 'Ícone ao lado do nome no menu, abertura e relatórios. Quadrado fica melhor.'],
+                ['logo_escuro', 'Logo no tema escuro', 'Opcional: usado no tema escuro no lugar do logo.'],
+                ['logo_menu', 'Logo do menu lateral (horizontal)', 'Opcional: substitui ícone + nome no topo do menu aberto. Ex.: 320 × 80 px.'],
+                ['favicon', 'Ícone da aba do sistema (favicon)', 'Só do sistema (app.zynio.com.br), não do site. Quadrado, 64 × 64 px ou maior.']].map(([k, r, a]) => (
+                <Campo key={k} rotulo={r} ajuda={`${a} PNG, JPG, WEBP ou SVG até 300 KB.`}>
                   <div className="flex items-center gap-3">
                     <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-muted">
                       {f[k] ? <img src={f[k]} alt="" className="h-full w-full object-contain" /> : <ImagePlus className="h-5 w-5 text-muted-foreground" />}
@@ -333,6 +358,7 @@ export default function WhiteLabel() {
                   </div>
                 </Campo>
               ))}
+              <div className="md:col-span-2"><PreviaAba f={f} /></div>
               <Campo rotulo="Site"><input className="campo" value={f.site} onChange={set('site')} placeholder="https://" /></Campo>
               <Campo rotulo="Domínio próprio" ajuda="Aponte o domínio para a Vercel (CNAME cname.vercel-dns.com) e adicione no projeto."><input className="campo" value={f.dominio} onChange={set('dominio')} placeholder="clima.suaempresa.com.br" /></Campo>
             </div>

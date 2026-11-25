@@ -2201,9 +2201,9 @@ def baixar_app(arquivo: str):
                 return {"url": r["url"], "origem": "agente", "versao": r.get("versao"), "tamanho": r.get("tamanho")}
         except HTTPException:
             pass
-        return {"url": publico, "origem": "github", "aviso": "O download pelo sistema precisa de um token só de leitura do GitHub (o repositório é privado). "
-                "O dono cadastra uma vez em Apps → Downloads sem acesso ao GitHub; depois funciona sempre, com qualquer computador no comando "
-                "(inclusive o Raspberry). Este link direto só abre para quem tem acesso ao repositório."}
+        return {"url": publico, "origem": "github", "aviso": "Nenhum computador do agente com acesso ao GitHub respondeu agora, então este link direto só abre "
+                "para quem tem acesso ao repositório. Para o download funcionar sempre, o dono cadastra uma vez um token só de leitura em "
+                "Apps → Downloads sem acesso ao GitHub (o link do GitHub já vem preenchido)."}
     rel = _gh(token, f"/repos/{REPO_APPS}/releases/latest")
     if rel.status_code != 200:
         raise HTTPException(424, f"O GitHub recusou o token ({rel.status_code}). O dono precisa gerar outro em Apps → Downloads sem acesso ao GitHub.")
@@ -2901,11 +2901,18 @@ def _visibilidade_notificacoes():
     """None = vê todas; senão, função que diz se a pessoa pode ver (e mexer em) uma notificação.
     A tabela é uma só para todos: quem tem acesso limitado só enxerga e mexe no que é dele."""
     from .. import acesso
+    eu = str((acesso.atual.get() or {}).get("id") or "")
+
+    def de_outra_pessoa(n):   # aviso de tarefa ("tarefa:<id>:<pessoa>") é só de quem recebeu a tarefa
+        c = n.get("chave") or ""
+        return c.startswith("tarefa:") and not c.endswith(":" + eu)
     if acesso.projetos_permitidos() is None and acesso.pode("configuracoes.gerenciar"):
-        return None
+        return lambda n: not de_outra_pessoa(n)
     permitidos = _ids_aparelhos_permitidos()
 
     def visivel(n):
+        if (n.get("chave") or "").startswith("tarefa:"):
+            return not de_outra_pessoa(n)
         m = re.search(r"/aparelhos/(\d+)", n.get("link") or "")
         if m:
             return permitidos is None or int(m.group(1)) in permitidos
@@ -4408,7 +4415,7 @@ class AvatarEnvioIn(BaseModel):
     licenca: str = Field(min_length=3, max_length=200)     # licença ou autorização de uso
     tamanho: int = Field(ge=1, le=30 * 1024 * 1024)
     autorizado: bool                                        # quem importa declara que pode usar o modelo
-    especie: str = Field("pessoa", pattern=r"^(pessoa|cao|gato|animal|veiculo|outro)$")
+    especie: str = Field("pessoa", pattern=r"^(pessoa|cao|gato|animal|veiculo|ar|outro)$")
     parametros: dict | None = None                          # receita do Estúdio (para editar de novo)
     escala_real: bool = False                               # True: o mapa usa o tamanho do arquivo (pets); False: reescala para 1,72 m
 
@@ -4454,7 +4461,7 @@ class AvatarEdicaoIn(BaseModel):
     descricao: str | None = Field(None, max_length=300)
     origem: str | None = Field(None, min_length=3, max_length=200)
     licenca: str | None = Field(None, min_length=3, max_length=200)
-    especie: str | None = Field(None, pattern=r"^(pessoa|cao|gato|animal|veiculo|outro)$")
+    especie: str | None = Field(None, pattern=r"^(pessoa|cao|gato|animal|veiculo|ar|outro)$")
 
 
 @api.put("/avatares/{avid}")
@@ -4565,6 +4572,33 @@ def mapa_veiculos(d: VeiculosIn):
     db.set_cfg("mapa_veiculos", lista)
     db.registrar("painel", "Veículos do mapa atualizados", detalhe=f"{len(lista)} veículo(s)")
     return {"veiculos": lista}
+
+
+class ArModeloIn(BaseModel):
+    marca: str = Field(min_length=1, max_length=40)
+    avatar_id: int | None = None        # None = volta ao desenho padrão
+    visor: bool = True                  # temperatura no visor do aparelho
+
+
+@api.put("/mapa/ares-modelo")
+def mapa_ares_modelo(d: ArModeloIn):
+    """Modelo 3D (avatar da espécie "ar") usado no mapa por todos os ares de uma marca (ex.: Gree)."""
+    _dono_admin()
+    marca = d.marca.strip().lower()
+    if d.avatar_id is not None and not db.um("SELECT id FROM avatares WHERE id = ? AND especie = 'ar' AND estado = 'pronto'", (d.avatar_id,)):
+        raise HTTPException(400, "Escolha um modelo da espécie Ar-condicionado já importado.")
+    mm = db.cfg("mapa_modelos") or {}
+    ares = dict(mm.get("ares") or {})
+    if d.avatar_id is None:
+        ares.pop(marca, None)
+    else:
+        ares[marca] = d.avatar_id
+    mm["ares"] = ares
+    mm["ar_visor"] = d.visor
+    db.set_cfg("mapa_modelos", mm)
+    usados = db.um("SELECT count(*) AS n FROM aparelhos WHERE lower(marca) = ?", (marca,))["n"]
+    db.registrar("painel", f"Mapa: modelo 3D dos ares {d.marca.strip()} {'trocado' if d.avatar_id else 'voltou ao padrão'}", detalhe=f"{usados} ar(es) dessa marca")
+    return {"ares": ares, "ar_visor": d.visor, "aparelhos": usados}
 
 
 FISICA_LIMITES = {"massa": (150, 20000), "potencia": (20, 1500), "aderencia": (0.4, 1.6), "freio": (0.3, 1.5), "marchas": (3, 10),
@@ -5027,7 +5061,7 @@ MARCA_PADRAO = {
     "menu_rotulos": {}, "menu_ocultos": [], "css": "", "meta_descricao": "", "dominio": "", "mostrar_creditos": True,
     "unidade_temperatura": "C", "formato_hora": "24h",
     # extras do white label
-    "logo_escuro": "", "menu_estilo": "padrao", "login_fundo": "fumaca", "login_imagem": "", "login_cor": "#0f172a",
+    "logo_escuro": "", "logo_menu": "", "menu_estilo": "padrao", "login_fundo": "fumaca", "login_imagem": "", "login_cor": "#0f172a",
     "animacoes": "completas", "selo_ambiente": "", "mostrar_ajuda": True, "link_privacidade": "https://zynio.com.br/privacidade",
     "link_termos": "https://zynio.com.br/termos", "banner_inicio": "", "banner_fim": "",
     # aparência avançada
@@ -5084,7 +5118,7 @@ def _validar_marca(m: dict) -> dict:
     for k in ("cor_primaria", "cor_destaque", "cor_alerta"):
         if not _COR.match(limpo[k]):
             raise HTTPException(400, f"Cor inválida em {k}: use o formato #RRGGBB.")
-    for k in ("logo", "favicon", "logo_escuro", "login_imagem"):
+    for k in ("logo", "favicon", "logo_escuro", "logo_menu", "login_imagem"):
         if limpo[k] and not re.match(r"^data:image/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$", limpo[k]):
             raise HTTPException(400, "Imagem inválida: envie PNG, JPG, WEBP ou SVG.")
         if len(limpo[k]) > (1_400_000 if k == "login_imagem" else 400_000):
@@ -5185,7 +5219,7 @@ def versao_marca(indice: int):
     historico = db.cfg("white_label_historico") or []
     if not 0 <= indice < len(historico):
         raise HTTPException(404, "Versão não encontrada.")
-    return {"em": historico[indice]["em"], "marca": {k: v for k, v in historico[indice]["marca"].items() if k not in ("logo", "logo_escuro", "favicon", "login_imagem")}}
+    return {"em": historico[indice]["em"], "marca": {k: v for k, v in historico[indice]["marca"].items() if k not in ("logo", "logo_escuro", "logo_menu", "favicon", "login_imagem")}}
 
 
 class TemaMarcaIn(BaseModel):

@@ -69,7 +69,7 @@ def ordenar(ids: list[int]) -> list[int]:
     return limpa
 
 
-ESPECIES = ("pessoa", "cao", "gato", "animal", "veiculo", "outro")
+ESPECIES = ("pessoa", "cao", "gato", "animal", "veiculo", "ar", "outro")   # ar = modelo de ar-condicionado para o mapa
 
 
 def receita(aid: int) -> dict | None:

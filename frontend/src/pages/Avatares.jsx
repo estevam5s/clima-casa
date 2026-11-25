@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { Brush, Car, Dog, GripVertical, Library, MapPin, Pencil, PersonStanding, Play, RotateCcw, Search, Trash2, Upload, Users, Wand2 } from 'lucide-react'
+import { AirVent, Brush, Car, Dog, GripVertical, Library, MapPin, Pencil, PersonStanding, Play, RotateCcw, Search, Trash2, Upload, Users, Wand2 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import AvatarViewer from '../components/avatares/AvatarViewer'
@@ -25,7 +25,7 @@ function Importar({ aberto, aoFechar, aoImportar, limite }) {
   const enviar = async (e) => {
     e.preventDefault(); setErro('')
     if (!arq) return setErro('Escolha um arquivo .glb.')
-    if (arq.size > limite * 1048576) return setErro(`O arquivo tem ${mb(arq.size)}; o limite é ${limite} MB.`)
+    if (arq.size > limite * 1048576) return setErro(`O arquivo tem ${mb(arq.size)}; o limite é ${limite} MB. Modelos gerados por IA (Tripo, Meshy) costumam vir com milhões de triângulos: no Blender, Modificadores → Decimate (razão 0,01 a 0,03) e texturas em 1024 px deixam com 1 a 3 MB, que é o que o mapa aguenta bem.`)
     try {
       setProg(0)
       const { id, upload_url: url } = await api.post('/api/avatares/envio', { ...f, tamanho: arq.size })
@@ -82,7 +82,39 @@ function QuemUsa({ avatar, mapa, aoSalvar, pode }) {
   )
 }
 
-const ESPECIES = { pessoa: 'Pessoa', cao: 'Cão', gato: 'Gato', animal: 'Animal', veiculo: 'Veículo', outro: 'Outro' }
+const ESPECIES = { pessoa: 'Pessoa', cao: 'Cão', gato: 'Gato', animal: 'Animal', veiculo: 'Veículo', ar: 'Ar-condicionado', outro: 'Outro' }
+
+// Modelo de ar-condicionado: entra no mapa 3D no lugar do desenho padrão em todos os ares de uma marca (cor e
+// temperatura no visor continuam vindo de cada ar: a cor em Mapa → clicar no ar, a temperatura do estado real)
+function ArNoMapa({ avatar, mapa, aoSalvar, pode }) {
+  const toast = useToast()
+  const usados = Object.entries(mapa?.modelos?.ares || {}).filter(([, id]) => id === avatar.id).map(([m]) => m)
+  const [marca, setMarca] = useState(usados[0] || 'gree')
+  const [visor, setVisor] = useState(mapa?.modelos?.ar_visor !== false)
+  const [salvando, setSalvando] = useState(false)
+  const gravar = async (avatar_id) => {
+    setSalvando(true)
+    try {
+      const r = await api.put('/api/mapa/ares-modelo', { marca, avatar_id, visor })
+      aoSalvar(); toast(avatar_id ? `${r.aparelhos} ar(es) ${marca} usam este modelo no mapa (vale na próxima abertura do mapa).` : 'Os ares dessa marca voltaram ao desenho padrão.')
+    } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
+  }
+  return (
+    <section className="cartao p-5">
+      <h2 className="flex items-center gap-2 text-sm font-semibold"><AirVent className="h-4 w-4 text-muted-foreground" />Nos ares do mapa 3D</h2>
+      <p className="mt-1 text-xs text-muted-foreground">Todos os ares split da marca escolhida (campo Marca do aparelho) aparecem com este modelo. A cor de cada um continua a do cartão do ar no mapa, e o visor mostra a temperatura e a cor do modo quando ele está ligado.</p>
+      {usados.length > 0 && <p className="mt-2 text-sm">Em uso nos ares: <b className="capitalize">{usados.join(', ')}</b></p>}
+      {pode ? (
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <label className="text-xs">Marca<input className="campo mt-1 h-9 w-40" value={marca} onChange={(e) => setMarca(e.target.value)} maxLength={40} placeholder="Gree" /></label>
+          <label className="flex h-9 items-center gap-2 text-sm"><input type="checkbox" checked={visor} onChange={(e) => setVisor(e.target.checked)} className="accent-[hsl(var(--primary))]" />Temperatura no visor</label>
+          <Botao tamanho="sm" carregando={salvando} disabled={!marca.trim()} onClick={() => gravar(avatar.id)}>Usar nos ares {marca || '…'}</Botao>
+          {usados.includes(marca.trim().toLowerCase()) && <Botao tamanho="sm" variante="secundario" onClick={() => gravar(null)}>Voltar ao desenho padrão</Botao>}
+        </div>
+      ) : <p className="mt-2 text-sm text-muted-foreground">Só o dono e os administradores mudam o modelo dos ares.</p>}
+    </section>
+  )
+}
 
 // Veículo nas ruas do mapa 3D: liga/desliga e a física (massa, potência, aderência, freios, câmbio, tração…)
 const FISICA = [['massa', 'Massa', 150, 20000, 10, 'kg', 1400], ['potencia', 'Potência', 20, 1500, 5, 'cv', 520], ['aderencia', 'Aderência dos pneus', 0.4, 1.6, 0.01, '', 1.1],
@@ -360,9 +392,11 @@ export default function Avatares() {
                 <h2 className="flex items-center gap-2 text-sm font-semibold"><Users className="h-4 w-4 text-muted-foreground" />Quem usa no mapa</h2>
                 <div className="mt-3">{(atual.especie || 'pessoa') === 'pessoa' ? <QuemUsa avatar={atual} mapa={mapa} aoSalvar={recMapa} pode={pode} />
                   : atual.especie === 'veiculo' ? <p className="text-sm text-muted-foreground">Veículos andam nas ruas: veja abaixo.</p>
+                  : atual.especie === 'ar' ? <p className="text-sm text-muted-foreground">Modelo de ar-condicionado: escolha a marca abaixo.</p>
                   : <p className="text-sm text-muted-foreground">Pets e mascotes não substituem pessoas da equipe: coloque na aba <button className="font-medium underline" onClick={() => setAba('escritorio')}>No escritório</button>.</p>}</div>
               </section>
               {atual.especie === 'veiculo' && <VeiculoNoMapa key={atual.id} avatar={atual} mapa={mapa} aoSalvar={recMapa} pode={pode} />}
+              {atual.especie === 'ar' && <ArNoMapa key={atual.id} avatar={atual} mapa={mapa} aoSalvar={recMapa} pode={pode} />}
             </div>
           )}
         </div>

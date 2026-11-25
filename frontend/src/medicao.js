@@ -19,6 +19,17 @@ function enviar(final = false) {
     fetch('/api/site/coletar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo, keepalive: true }).catch(() => {})
   } catch { /* sem rede */ }
 }
+// quanto da página a pessoa rolou (maior %): só conta a área de rolagem principal (mais de metade da tela de altura)
+let rolou = 0
+function medirRolagem(e) {
+  const el = e.target === document ? document.scrollingElement : e.target
+  if (!el || !el.clientHeight || el.clientHeight < window.innerHeight * 0.5 || el.scrollHeight <= el.clientHeight + 40) return
+  const pct = Math.min(100, Math.round(((el.scrollTop + el.clientHeight) / el.scrollHeight) * 100))
+  if (pct > rolou) rolou = pct
+}
+if (typeof document !== 'undefined') document.addEventListener('scroll', medirRolagem, { capture: true, passive: true })
+function fecharRolagem() { if (rolou) por({ tipo: 'rolagem', rota: rotaAtual, valor: rolou }); rolou = 0 }
+
 function por(evento) {
   if (desligado) return
   fila.push(evento)
@@ -26,6 +37,7 @@ function por(evento) {
 }
 
 export function medirPagina(rota) {
+  fecharRolagem()
   rotaAtual = rota.replace(/\/\d+(?=\/|$)/g, '/:id')   // /aparelhos/12 conta junto com /aparelhos/7
   por({ tipo: 'pagina', rota: rotaAtual })
 }
@@ -43,7 +55,7 @@ function iniciar() {
   document.addEventListener('click', (e) => {
     const el = e.target.closest?.('a,button,[role="button"],[role="tab"]')
     if (!el) return
-    const nome = (el.getAttribute('aria-label') || el.title || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60)
+    const nome = (el.getAttribute('aria-label') || el.title || el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60)
     if (!nome) return
     const alvo = el.tagName === 'A' ? (el.getAttribute('href') || '').split('?')[0].slice(0, 120) : ''
     por({ tipo: 'clique', rota: rotaAtual, nome, alvo })
@@ -77,7 +89,7 @@ function iniciar() {
       por({ tipo: 'vital', nome: 'CLS', valor: Math.round(cls * 1000) / 1000, rota: rotaAtual, dados: { janela: 1 } })
       if (inp) por({ tipo: 'vital', nome: 'INP', valor: inp, rota: rotaAtual })
     }
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { fechar(); enviar(true) } })
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { fechar(); fecharRolagem(); enviar(true) } })
   } catch { /* navegador sem PerformanceObserver */ }
   window.addEventListener('error', (e) => por({ tipo: 'erro', rota: rotaAtual, nome: String(e.message || 'erro').slice(0, 120) }))
   // quem está com a aba aberta (online agora) e envio periódico

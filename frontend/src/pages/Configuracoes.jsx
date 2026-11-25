@@ -131,15 +131,14 @@ export default function Configuracoes() {
   const ABAS = [
     ['perfil', 'Perfil', UserRound, null, 'Você', 'Nome, foto, e-mail e senha'],
     ['seguranca', 'Segurança', ShieldCheck, null, 'Você', 'Duas etapas, biometria, sessões e firewall'],
-    ['aparencia', 'Aparência', Palette, null, 'Você', 'Tema, cursor e atalhos de teclado'],
     ['usuarios', 'Usuários', Users, 'usuarios.gerenciar', 'Equipe', 'Contas, permissões e uso do sistema'],
     ['geral', 'Geral', Sliders, 'configuracoes.gerenciar', 'Sistema', 'Envio dos comandos e backup'],
-    ['marca', 'White label', Paintbrush, 'configuracoes.gerenciar', 'Sistema', 'Marca, cores, fontes e manutenção'],
+    ['marca', 'Aparência e marca', Paintbrush, null, 'Você', 'Tema, cursor, logo, favicon, cores e fontes'],
     ['contas', 'Contas', KeyRound, 'integracoes.gerenciar', 'Sistema', 'Smart Life e contas ligadas'],
     ['cookies', 'Cookies do site', Cookie, 'configuracoes.gerenciar', 'Sistema', 'Aviso e consentimentos do site'],
     ['sistema', 'Sistema', Server, 'configuracoes.gerenciar', 'Sistema', 'Agente e endereços do sistema'],
   ].filter((a) => pode(a[3]))
-  const pedida = params.get('aba')
+  const pedida = params.get('aba') === 'aparencia' ? 'marca' : params.get('aba')   // a antiga aba Aparência virou parte desta
   const aba = ABAS.some((a) => a[0] === pedida) ? pedida : (pode('configuracoes.gerenciar') ? 'geral' : 'perfil')
   const atual = ABAS.find((a) => a[0] === aba)
   const grupos = [...new Set(ABAS.map((a) => a[4]))]
@@ -208,8 +207,22 @@ export default function Configuracoes() {
         </div>
       )}
       {aba === 'perfil' && <Perfil />}
-      {aba === 'aparencia' && <Aparencia />}
-      {aba === 'marca' && <WhiteLabel />}
+      {aba === 'marca' && (
+        <div className="space-y-10">
+          <section>
+            <h3 className="mb-1 text-base font-semibold">Só para você</h3>
+            <p className="mb-4 text-sm text-muted-foreground">Tema, cursor e atalhos ficam salvos neste navegador e valem só para você.</p>
+            <Aparencia />
+          </section>
+          {pode('configuracoes.gerenciar') ? (
+            <section className="border-t border-border pt-8">
+              <h3 className="mb-1 text-base font-semibold">Marca do sistema (white label)</h3>
+              <p className="mb-4 text-sm text-muted-foreground">Logo do menu, ícone da aba, cores, fontes e manutenção: vale para todos que usam o sistema.</p>
+              <WhiteLabel />
+            </section>
+          ) : <p className="border-t border-border pt-6 text-sm text-muted-foreground">A marca do sistema (logo, ícone da aba e cores) é configurada pelo dono ou por um administrador.</p>}
+        </div>
+      )}
       {aba === 'usuarios' && <Usuarios />}
       {aba === 'cookies' && <CookiesSite />}
       {aba === 'seguranca' && (
@@ -288,7 +301,7 @@ function Aparencia() {
         ))}
       </div>
       <MouseETeclado />
-      <p className="text-sm text-muted-foreground">Agora: tema {escuro ? 'escuro' : 'claro'}. A escolha fica salva neste navegador; também dá para trocar pelo botão no topo da tela. A cor da marca, a fonte e o tamanho do texto ficam na aba White label.</p>
+      <p className="text-sm text-muted-foreground">Agora: tema {escuro ? 'escuro' : 'claro'}. A escolha fica salva neste navegador; também dá para trocar pelo botão no topo da tela. A cor da marca, a fonte e o tamanho do texto ficam logo abaixo, em Marca do sistema.</p>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { AirVent, ArrowRight, Bell, Bot, Bug, Cpu, Crown, PersonStanding, Send, ShieldCheck, BookOpen, Check, CircleHelp, Cloud, DoorClosed, Globe, Hand, Home, KeyRound, Link2, ListChecks, Lightbulb, Map as MapaIcone, Mic, Monitor, Music2, FileDown, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
+import { ListTodo, AirVent, ArrowRight, Bell, Bot, Bug, Cpu, Crown, PersonStanding, Send, ShieldCheck, BookOpen, Check, CircleHelp, Cloud, DoorClosed, Globe, Hand, Home, KeyRound, Link2, ListChecks, Lightbulb, Map as MapaIcone, Mic, Monitor, Music2, FileDown, Printer, Radio, Search, Smartphone, Speaker, Users, Wifi, Workflow } from 'lucide-react'
 import { api } from '../api'
 import { Botao, Cabecalho, useToast } from '../components/ui'
 
@@ -292,6 +292,16 @@ const CAPITULOS = [
       { t: 'Relatar', d: 'Bugs → Relatar bug: título, o que aconteceu e os passos. A tela, o navegador e os últimos erros vão junto, sem dados pessoais.', link: ['/bugs', 'Abrir Bugs'] },
       { t: 'O que o sistema encontra sozinho', d: 'Erros nas telas, erros internos do servidor, falhas repetidas na Atividade e na fila, rotas sem permissão, transmissor com problema e agente parado (procura de hora em hora).' },
       { t: 'Corrigir', d: 'Abra o bug, copie o "Prompt para a IA corrigir" e cole no clima-ia (terminal) ou no Claude Code, na pasta do projeto. Depois marque como Corrigido.' },
+    ],
+  },
+  {
+    id: 'tarefas', icone: ListTodo, titulo: 'Tarefas da equipe (e GitHub Projects)',
+    resumo: 'Organize o trabalho em projetos, como no Asana: lista, quadro, calendário, cronograma e painel.',
+    passos: [
+      { t: 'Criar um projeto', d: 'Tarefas → Novo projeto: nome, cor e as seções iniciais (Quadro, Sprint, Correções ou Lista simples). As seções viram as colunas do quadro.', link: ['/tarefas', 'Abrir Tarefas'] },
+      { t: 'Criar e organizar tarefas', d: 'Adicionar tarefa no fim de cada seção (Enter cria e já abre a próxima). Clique numa tarefa para dar responsável, prazo, prioridade, etiquetas, subtarefas e comentários. Arraste entre seções na Lista ou no Quadro.' },
+      { t: 'Acompanhar', d: 'Minhas tarefas junta o que está com você (atrasadas, hoje, próximos 7 dias). Calendário e Cronograma usam o início e o prazo; o Painel mostra o que está aberto por seção, pessoa e prioridade.' },
+      { t: 'GitHub Projects (opcional)', d: 'O dono conecta um token que só mexe em Projects (botão GitHub). Depois, ligue o projeto a um Project do GitHub e use Sincronizar: o Status de lá vira a seção daqui, e tarefa nova daqui vira rascunho lá. Apagar aqui não apaga lá.' },
     ],
   },
   {

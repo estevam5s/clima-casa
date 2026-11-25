@@ -27,7 +27,7 @@ from . import db
 
 SITE = "https://zynio.com.br"
 SISTEMA = "https://app.zynio.com.br"
-TIPOS = {"pagina", "clique", "vital", "api", "ping", "erro"}
+TIPOS = {"pagina", "clique", "vital", "api", "ping", "erro", "rolagem"}
 VITAIS = {"LCP": (2500, 4000), "INP": (200, 500), "CLS": (0.1, 0.25), "FCP": (1800, 3000), "TTFB": (800, 1800)}   # bom até / ruim acima
 RETENCAO_DIAS = 90
 ROBOS = re.compile(r"bot|crawl|spider|slurp|headless|lighthouse|playwright|puppeteer|preview|facebookexternalhit|whatsapp|telegram", re.I)
@@ -173,6 +173,33 @@ def resumo(origem: str = "site", dias: int = 7) -> dict:
                        "erros": sum(1 for y in x if (y["status"] or 0) >= 500 or (y["status"] or 0) == 0)} for k, x in g.items()),
                      key=lambda x: -(x["p95"] or 0))[:30]
     erros = lista(f"SELECT nome, rota, count(*) AS n, max(quando) AS ultimo FROM analise_eventos WHERE {w} AND tipo = 'erro' GROUP BY nome, rota ORDER BY n DESC LIMIT 15")
+    # período anterior do mesmo tamanho, para comparar (variação em %)
+    ant = db.um("SELECT count(*) FILTER (WHERE tipo = 'pagina') AS paginas, count(DISTINCT sessao) FILTER (WHERE sessao <> '') AS sessoes, "
+                "count(DISTINCT coalesce(nullif(visitante, ''), sessao)) AS visitantes, count(*) FILTER (WHERE tipo = 'clique') AS cliques "
+                "FROM analise_eventos WHERE origem = ? AND quando > ? AND quando <= ?", (origem, de - dias * 86400, de)) or {}
+    # novos x recorrentes: só quem aceitou "estatísticas" tem identificador entre visitas; o resto é anônimo
+    nr = db.um("SELECT count(*) FILTER (WHERE primeiro > ?) AS novos, count(*) FILTER (WHERE primeiro <= ?) AS recorrentes FROM ("
+               "SELECT visitante, min(quando) AS primeiro FROM analise_eventos WHERE origem = ? AND visitante <> '' GROUP BY visitante "
+               "HAVING max(quando) > ?) x", (de, de, origem, de)) or {}
+    anonimas = um(f"SELECT count(DISTINCT sessao) AS n FROM analise_eventos WHERE {w} AND visitante = '' AND sessao <> ''")
+    # tempo em cada página (até a próxima página da mesma sessão; mais de 30 min não conta) e quanto rolaram
+    tempo = {r["rota"]: r for r in lista(
+        f"WITH p AS (SELECT rota, quando, lead(quando) OVER (PARTITION BY sessao ORDER BY quando) AS prox FROM analise_eventos "
+        f"WHERE {w} AND tipo = 'pagina' AND sessao <> '') SELECT rota, avg(prox - quando) FILTER (WHERE prox - quando BETWEEN 1 AND 1800) AS media, "
+        "count(*) AS n FROM p GROUP BY rota ORDER BY n DESC LIMIT 25")}
+    rol = {r["rota"]: r for r in lista(f"SELECT rota, avg(valor) AS media, count(*) AS n FROM analise_eventos WHERE {w} AND tipo = 'rolagem' "
+                                       "AND valor IS NOT NULL GROUP BY rota")}
+    paginas_tempo = [{"rota": k, "vistas": int(v["n"]), "tempo_s": round(float(v["media"])) if v["media"] is not None else None,
+                      "rolagem": round(float(rol[k]["media"])) if k in rol else None} for k, v in tempo.items()]
+    caminhos = lista(f"WITH p AS (SELECT rota, lead(rota) OVER (PARTITION BY sessao ORDER BY quando) AS prox FROM analise_eventos "
+                     f"WHERE {w} AND tipo = 'pagina' AND sessao <> '') SELECT rota AS de, prox AS para, count(*) AS n FROM p "
+                     "WHERE prox IS NOT NULL AND prox <> rota GROUP BY 1, 2 ORDER BY n DESC LIMIT 15")
+    semana_hora = lista(f"SELECT extract(dow FROM to_timestamp(quando) AT TIME ZONE 'America/Sao_Paulo')::int AS dia, "
+                        f"extract(hour FROM to_timestamp(quando) AT TIME ZONE 'America/Sao_Paulo')::int AS hora, count(*) AS n "
+                        f"FROM analise_eventos WHERE {w} AND tipo = 'pagina' GROUP BY 1, 2")
+    campanhas = lista(f"SELECT dados->>'utm_source' AS fonte, coalesce(dados->>'utm_medium', '') AS meio, coalesce(dados->>'utm_campaign', '') AS campanha, "
+                      f"count(DISTINCT sessao) AS sessoes, count(*) AS paginas FROM analise_eventos WHERE {w} AND tipo = 'pagina' "
+                      "AND (dados->>'utm_source') IS NOT NULL GROUP BY 1, 2, 3 ORDER BY sessoes DESC LIMIT 15")
     return {
         "origem": origem, "dias": dias,
         "totais": {"paginas": int(tot.get("paginas") or 0), "sessoes": int(tot.get("sessoes") or 0), "visitantes": int(tot.get("visitantes") or 0),
@@ -183,6 +210,9 @@ def resumo(origem: str = "site", dias: int = 7) -> dict:
         "paises": grupo("pais"), "cidades": cidades, "dispositivos": grupo("dispositivo", 5), "navegadores": grupo("navegador", 8), "sistemas": grupo("so", 8),
         "idiomas": grupo("idioma", 10), "origens": origens, "diretas": int(diretas.get("n") or 0), "vitais": vitais, "vitais_rotas": vitais_rotas,
         "api": api, "erros": erros, "recomendacoes": _recomendacoes(vitais, vitais_rotas, api, ses, origem),
+        "anterior": {k: int(ant.get(k) or 0) for k in ("paginas", "sessoes", "visitantes", "cliques")},
+        "visitantes_tipo": {"novos": int(nr.get("novos") or 0), "recorrentes": int(nr.get("recorrentes") or 0), "anonimas": int(anonimas.get("n") or 0)},
+        "paginas_tempo": paginas_tempo, "caminhos": caminhos, "semana_hora": semana_hora, "campanhas": campanhas,
     }
 
 

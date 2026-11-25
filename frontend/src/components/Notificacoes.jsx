@@ -213,7 +213,8 @@ export default function Notificacoes({ central }) {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setAberto(!aberto)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Notificações (${total} não lidas)`}>
-        <Bell className="h-[18px] w-[18px]" />
+        <Bell className={`h-[18px] w-[18px] ${total > 0 ? 'sino-tocando text-foreground' : ''}`} />
+        {total > 0 && <span aria-hidden className="sino-onda pointer-events-none absolute -right-0.5 -top-0.5 h-[18px] w-[18px] rounded-full bg-red-500" />}
         <AnimatePresence>
           {total > 0 && (
             <motion.span key={total} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ type: 'spring', stiffness: 500, damping: 22 }}

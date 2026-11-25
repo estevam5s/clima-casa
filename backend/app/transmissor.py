@@ -192,9 +192,9 @@ def sem_agente() -> str:
     return f"O agente ({principal.get('nome')}) não respondeu a tempo. Tente de novo em alguns segundos."
 
 
-def enfileirar(tipo: str, hub_id: str | None, dados: dict) -> int:
-    return db.executar("INSERT INTO fila_comandos (tipo, hub_id, dados, criado_em) VALUES (?, ?, CAST(? AS jsonb), ?)",
-                       (tipo, hub_id, json.dumps(dados), db.agora()))
+def enfileirar(tipo: str, hub_id: str | None, dados: dict, estado: str = "pendente") -> int:
+    return db.executar("INSERT INTO fila_comandos (tipo, hub_id, dados, criado_em, estado) VALUES (?, ?, CAST(? AS jsonb), ?, ?)",
+                       (tipo, hub_id, json.dumps(dados), db.agora(), estado))
 
 
 def aguardar(fila_id: int, limite: float) -> dict:
@@ -204,7 +204,7 @@ def aguardar(fila_id: int, limite: float) -> dict:
         if f and f["estado"] in ("ok", "erro"):
             return f
         time.sleep(0.4)
-    db.executar("UPDATE fila_comandos SET estado = 'erro', erro = 'Tempo esgotado' WHERE id = ? AND estado = 'pendente'",
+    db.executar("UPDATE fila_comandos SET estado = 'erro', erro = 'Tempo esgotado' WHERE id = ? AND estado IN ('pendente', 'qualquer')",
                 (fila_id,))
     return {"estado": "erro", "erro": sem_agente()}
 
@@ -212,6 +212,24 @@ def aguardar(fila_id: int, limite: float) -> dict:
 # Sinal de infravermelho só vale enquanto a nuvem espera por ele (8 s) e um pouco mais: um pedido que ficou parado
 # (agente caiu e voltou) não liga o ar minutos depois de alguém ter visto "não respondeu" na tela.
 VALIDADE_ENVIO = 20
+
+
+def atender_qualquer() -> bool:
+    """Pedidos de Infra marcados 'qualquer' (a nuvem viu que o principal roda código antigo e não conhece a operação):
+    qualquer agente atualizado que tenha o acesso pedido atende, mesmo de reserva. Agente antigo só lê 'pendente' e nem vê.
+    Chamado a cada anúncio (~15 s), uma consulta só."""
+    from . import infra
+    itens = db.consultar("SELECT id, dados FROM fila_comandos WHERE estado = 'qualquer' AND tipo = 'infra' AND criado_em > ? ORDER BY id LIMIT 5",
+                         (db.agora() - 60,))
+    for it in itens:
+        dados = it["dados"] if isinstance(it["dados"], dict) else json.loads(it["dados"] or "{}")
+        if not infra.capaz(dados.get("op", "")):
+            continue
+        item = db.um("UPDATE fila_comandos SET estado = 'executando', inicio_em = ? WHERE id = ? AND estado = 'qualquer' RETURNING *",
+                     (db.agora(), it["id"]))
+        if item:
+            _infra_pool().submit(_executar_item, item)
+    return bool(itens)
 
 
 def processar_fila_uma_vez() -> bool:

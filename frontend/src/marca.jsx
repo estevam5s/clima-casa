@@ -13,7 +13,7 @@ export const MARCA_PADRAO = {
   suporte_email: '', suporte_telefone: '', suporte_whatsapp: '', site: '', banner_ativo: false, banner_texto: '', banner_cor: 'info',
   boas_vindas: '', menu_rotulos: {}, menu_ocultos: [], css: '', meta_descricao: '', dominio: '', mostrar_creditos: true,
   unidade_temperatura: 'C', formato_hora: '24h',
-  logo_escuro: '', menu_estilo: 'padrao', login_fundo: 'fumaca', login_imagem: '', login_cor: '#0f172a', animacoes: 'completas',
+  logo_escuro: '', logo_menu: '', menu_estilo: 'padrao', login_fundo: 'fumaca', login_imagem: '', login_cor: '#0f172a', animacoes: 'completas',
   selo_ambiente: '', mostrar_ajuda: true, link_privacidade: 'https://zynio.com.br/privacidade', link_termos: 'https://zynio.com.br/termos',
   banner_inicio: '', banner_fim: '',
   tom_neutro: 'zinco', estilo_botao: 'solido', estilo_cartao: 'borda', largura: 'padrao', icone_espessura: 20,
@@ -139,6 +139,8 @@ export function aplicarMarca(marcaBase) {
   document.querySelector('meta[name="description"]')?.setAttribute('content', m.meta_descricao || m.descricao)
   Object.assign(marcaAtual, { unidade: m.unidade_temperatura, hora12: m.formato_hora === '12h', nome: m.nome, favicon: m.favicon || m.logo })
   definirNomeAba(m.nome, m.favicon || m.logo, m.titulo_aba, m.nome_curto)
+  // ícone ao "Adicionar à tela de início" (iPhone/Android) também segue a marca do sistema
+  try { const t = document.querySelector('link[rel="apple-touch-icon"]'); if (t) { t.dataset.original ||= t.getAttribute('href'); t.setAttribute('href', m.favicon || m.logo || t.dataset.original) } } catch { /* sem DOM */ }
   definirPadraoEmpresa(m.cursor_empresa ? { cursor: true, cursor_estilo: m.cursor_empresa_estilo, cursor_modelo: m.cursor_empresa_modelo, cursor_efeitos: m.cursor_empresa_efeitos || [] } : {})
 }
 
@@ -155,7 +157,7 @@ export function MarcaProvider({ children }) {
       if (!r.ok) return
       const m = { ...MARCA_PADRAO, ...(await r.json()) }
       setMarca(m)
-      try { localStorage.setItem('clima-marca', JSON.stringify({ ...m, logo: m.logo.length < 60000 ? m.logo : '', favicon: '' })) } catch { /* cota */ }
+      try { localStorage.setItem('clima-marca', JSON.stringify({ ...m, logo: m.logo.length < 60000 ? m.logo : '', favicon: (m.favicon || '').length < 60000 ? m.favicon : '', logo_menu: (m.logo_menu || '').length < 60000 ? m.logo_menu : '' })) } catch { /* cota */ }
     } catch { /* offline: usa a cópia local */ }
   }, [])
   useEffect(() => { recarregar() }, [recarregar])

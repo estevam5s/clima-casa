@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { AlertTriangle, ExternalLink, Gauge, Globe2, KeyRound, LineChart, MapPin, Monitor, MousePointerClick, RefreshCw, Search, Smartphone, Tablet, Timer } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Download, ExternalLink, Gauge, Globe2, KeyRound, LineChart, MapPin, Monitor, MousePointerClick, RefreshCw, Search, Smartphone, Tablet, Timer } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
+import { baixarArquivo, paraCsv } from '../components/FerramentasLista'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Secao, Selo, useToast } from '../components/ui'
 
 // Acessos e SEO (backend/app/analise.py): quem acessa o site zynio.com.br e o sistema, por onde entra, o que clica, de onde é,
@@ -16,6 +17,33 @@ const NOME_NOTA = { bom: 'bom', melhorar: 'precisa melhorar', ruim: 'ruim' }
 const PAISES = (() => { try { return new Intl.DisplayNames(['pt-BR'], { type: 'region' }) } catch { return null } })()
 const pais = (c) => (c && PAISES ? PAISES.of(c) || c : c || '-')
 const fmtVital = (k, v) => (v == null ? '-' : k === 'CLS' ? v.toFixed(2).replace('.', ',') : v >= 1000 ? `${(v / 1000).toFixed(2).replace('.', ',')} s` : `${Math.round(v)} ms`)
+const variacao = (agora, antes) => {
+  if (!antes) return agora ? 'novo neste período' : ''
+  const p = Math.round(((agora - antes) / antes) * 100)
+  return `${p > 0 ? '+' : ''}${p}% vs período anterior`
+}
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+function SemanaHora({ dados }) {
+  const max = Math.max(1, ...dados.map((x) => x.n))
+  const v = (d, h) => dados.find((x) => x.dia === d && x.hora === h)?.n || 0
+  if (!dados.length) return <p className="text-sm text-muted-foreground">Sem acessos neste período.</p>
+  return (
+    <div className="overflow-x-auto">
+      <div className="grid min-w-[620px] gap-[3px]" style={{ gridTemplateColumns: '2.5rem repeat(24, minmax(0, 1fr))' }}>
+        <span />{Array.from({ length: 24 }, (_, h) => <span key={h} className="text-center text-[10px] text-muted-foreground tabular">{h % 3 === 0 ? h : ''}</span>)}
+        {DIAS_SEMANA.map((nome, d) => (
+          <div key={d} className="contents">
+            <span className="text-xs text-muted-foreground">{nome}</span>
+            {Array.from({ length: 24 }, (_, h) => { const n = v(d, h); return (
+              <span key={h} title={`${nome} ${h}h: ${n} página(s)`} className="h-5 rounded-[3px] bg-primary" style={{ opacity: n ? 0.15 + (n / max) * 0.85 : 0.05 }} />) })}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const duracao = (s) => (s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`)
 
 function Barras({ itens, rotulo, valor, sub, vazio = 'Nada ainda neste período.' }) {
@@ -41,8 +69,8 @@ function Geral({ d }) {
     <div className="space-y-6">
       <FaixaMetricas itens={[
         { rotulo: 'Online agora', valor: t.online, dica: 'abas abertas nos últimos 5 min', tom: t.online ? 'bom' : undefined },
-        { rotulo: 'Visitantes', valor: t.visitantes, dica: `${t.sessoes} sessões no período`, serie: d.por_dia.map((x) => x.sessoes) },
-        { rotulo: 'Páginas vistas', valor: t.paginas, dica: `${String(t.paginas_por_sessao).replace('.', ',')} por sessão`, serie: d.por_dia.map((x) => x.paginas) },
+        { rotulo: 'Visitantes', valor: t.visitantes, dica: `${t.sessoes} sessões · ${variacao(t.visitantes, d.anterior?.visitantes)}`, serie: d.por_dia.map((x) => x.sessoes), tom: d.anterior && t.visitantes > d.anterior.visitantes ? 'bom' : undefined },
+        { rotulo: 'Páginas vistas', valor: t.paginas, dica: `${String(t.paginas_por_sessao).replace('.', ',')} por sessão · ${variacao(t.paginas, d.anterior?.paginas)}`, serie: d.por_dia.map((x) => x.paginas) },
         { rotulo: 'Tempo médio', valor: duracao(t.duracao_media_s), dica: `rejeição ${t.rejeicao}% · ${t.cliques} cliques`, tom: t.rejeicao > 70 ? 'ruim' : undefined },
       ]} />
       {!!d.recomendacoes.length && (
@@ -82,6 +110,22 @@ function Geral({ d }) {
           ) : <p className="text-sm text-muted-foreground">Ninguém agora.</p>}
         </Secao>
       </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <Secao titulo="Dia da semana × hora" contexto="Páginas vistas (horário de Brasília): quanto mais forte, mais acesso">
+          <SemanaHora dados={d.semana_hora || []} />
+        </Secao>
+        <Secao titulo="Quem são" contexto="Novos e recorrentes só para quem aceitou estatísticas (os demais são anônimos)">
+          {(() => { const v = d.visitantes_tipo || {}; const tot = (v.novos || 0) + (v.recorrentes || 0) + (v.anonimas || 0); return tot ? (
+            <div className="space-y-3 text-sm">
+              <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+                <span className="bg-primary" style={{ width: `${(v.novos / tot) * 100}%` }} /><span className="bg-emerald-500" style={{ width: `${(v.recorrentes / tot) * 100}%` }} /><span className="bg-slate-400" style={{ width: `${(v.anonimas / tot) * 100}%` }} />
+              </div>
+              {[['bg-primary', 'Novos', v.novos], ['bg-emerald-500', 'Voltaram', v.recorrentes], ['bg-slate-400', 'Sessões anônimas', v.anonimas]].map(([c, n, x]) => (
+                <p key={n} className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-sm ${c}`} /><span className="flex-1">{n}</span><span className="tabular text-muted-foreground">{x || 0}</span></p>))}
+              <p className="text-xs text-muted-foreground">Cliques: {t.cliques} · {variacao(t.cliques, d.anterior?.cliques)}</p>
+            </div>) : <p className="text-sm text-muted-foreground">Nada ainda neste período.</p> })()}
+        </Secao>
+      </div>
       <Secao titulo="Por hora do dia" contexto="Quando as pessoas mais acessam">
         <div className="h-48"><ResponsiveContainer width="100%" height="100%">
           <BarChart data={horas} margin={{ left: -18, right: 8 }}>
@@ -113,6 +157,35 @@ function Rotas({ d }) {
       </Secao>
       <Secao titulo="De onde vêm" contexto={`Sites que mandaram visitas · ${d.diretas} diretas (sem origem)`} className="xl:col-span-2">
         <Barras itens={d.origens} rotulo={(x) => x.nome} valor={(x) => x.n} vazio="Nenhuma visita vinda de outro site ainda." />
+      </Secao>
+      <Secao titulo="Tempo e rolagem por página" contexto="Tempo até a próxima página da mesma sessão (até 30 min) · quanto da página a pessoa rolou" className="xl:col-span-2">
+        {d.paginas_tempo?.length ? (
+          <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-sm">
+            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 font-medium">Página</th><th className="py-2 font-medium">Vistas</th><th className="py-2 font-medium">Tempo médio</th><th className="py-2 font-medium">Rolagem média</th></tr></thead>
+            <tbody>{d.paginas_tempo.map((r) => (
+              <tr key={r.rota} className="border-b border-border/60">
+                <td className="max-w-[18rem] truncate py-2 font-mono text-xs">{r.rota}</td>
+                <td className="py-2 tabular">{r.vistas}</td>
+                <td className="py-2 tabular">{r.tempo_s == null ? '-' : duracao(r.tempo_s)}</td>
+                <td className="py-2">{r.rolagem == null ? <span className="text-muted-foreground">-</span> : (
+                  <span className="flex items-center gap-2"><span className="h-1.5 w-20 rounded-full bg-muted"><span className="block h-1.5 rounded-full bg-primary/70" style={{ width: `${r.rolagem}%` }} /></span><span className="tabular text-xs">{r.rolagem}%</span></span>)}</td>
+              </tr>))}
+            </tbody>
+          </table></div>
+        ) : <p className="text-sm text-muted-foreground">Nada ainda neste período.</p>}
+        <p className="mt-2 text-xs text-muted-foreground">Rolagem: medida desde a versão 0.6.7. Página sem rolagem (cabe na tela) fica com "-".</p>
+      </Secao>
+      <Secao titulo="Caminhos mais comuns" contexto="De uma página para a seguinte na mesma sessão">
+        {d.caminhos?.length ? (
+          <ul className="space-y-2 text-sm">{d.caminhos.map((c, i) => (
+            <li key={i} className="flex items-center gap-2"><code className="min-w-0 truncate text-xs">{c.de}</code><ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /><code className="min-w-0 flex-1 truncate text-xs">{c.para}</code><span className="tabular text-muted-foreground">{c.n}</span></li>))}
+          </ul>) : <p className="text-sm text-muted-foreground">Ainda ninguém passou de uma página para outra neste período.</p>}
+      </Secao>
+      <Secao titulo="Campanhas" contexto="Links com utm_source, utm_medium e utm_campaign (só do site)">
+        {d.campanhas?.length ? (
+          <ul className="space-y-2 text-sm">{d.campanhas.map((c, i) => (
+            <li key={i} className="flex items-baseline justify-between gap-3"><span className="min-w-0 truncate"><b className="font-medium">{c.fonte}</b>{c.meio ? ` / ${c.meio}` : ''}{c.campanha ? ` · ${c.campanha}` : ''}</span><span className="shrink-0 tabular text-muted-foreground">{c.sessoes} sessões</span></li>))}
+          </ul>) : <p className="text-sm text-muted-foreground">Nenhuma visita com UTM. Ex.: <code className="text-xs">zynio.com.br/?utm_source=instagram&amp;utm_campaign=lancamento</code></p>}
       </Secao>
     </div>
   )
@@ -282,6 +355,22 @@ function Seo() {
   )
 }
 
+function exportar(d) {
+  const linhas = [
+    ...d.rotas.map((r) => ({ secao: 'rotas', nome: r.rota, valor: r.paginas, extra: `${r.sessoes} sessões` })),
+    ...(d.paginas_tempo || []).map((r) => ({ secao: 'tempo', nome: r.rota, valor: r.tempo_s ?? '', extra: r.rolagem == null ? '' : `rolagem ${r.rolagem}%` })),
+    ...d.cliques.map((r) => ({ secao: 'cliques', nome: r.nome, valor: r.n, extra: r.alvo || r.rota })),
+    ...d.origens.map((r) => ({ secao: 'origens', nome: r.nome, valor: r.n, extra: '' })),
+    ...(d.campanhas || []).map((r) => ({ secao: 'campanhas', nome: [r.fonte, r.meio, r.campanha].filter(Boolean).join(' / '), valor: r.sessoes, extra: `${r.paginas} páginas` })),
+    ...d.paises.map((r) => ({ secao: 'paises', nome: pais(r.nome), valor: r.sessoes, extra: '' })),
+    ...d.cidades.map((r) => ({ secao: 'cidades', nome: `${r.cidade}, ${r.regiao} (${r.pais})`, valor: r.sessoes, extra: '' })),
+    ...d.dispositivos.map((r) => ({ secao: 'aparelhos', nome: r.nome, valor: r.sessoes, extra: '' })),
+    ...d.navegadores.map((r) => ({ secao: 'navegadores', nome: r.nome, valor: r.sessoes, extra: '' })),
+    ...Object.entries(d.vitais).map(([k, v]) => ({ secao: 'web vitals (p75)', nome: k, valor: v.p75 ?? '', extra: `${v.n} medições · ${v.nota}` })),
+  ]
+  baixarArquivo(`acessos-${d.origem}-${d.dias}d.csv`, paraCsv(linhas, [['secao', 'Seção'], ['nome', 'Item'], ['valor', 'Valor'], ['extra', 'Detalhe']]), 'text/csv;charset=utf-8')
+}
+
 export default function Analise() {
   const { sessao } = useProjeto()
   const [aba, setAba] = useState(() => new URLSearchParams(location.search).get('aba') || 'geral')
@@ -290,14 +379,15 @@ export default function Analise() {
   const [d, setD] = useState(null)
   const [erro, setErro] = useState(null)
   const pode = ['dono', 'admin'].includes(sessao?.papel)
+  const emSeo = aba === 'seo'   // trocar entre as outras abas não busca de novo (o resumo é o mesmo)
   useEffect(() => {
-    if (!pode || aba === 'seo') return undefined
+    if (!pode || emSeo) return undefined
     let vivo = true
     const ler = () => api.get(`/api/analise/resumo?origem=${origem}&dias=${dias}`).then((r) => { if (vivo) { setD(r); setErro(null) } }).catch((e) => vivo && setErro(e.message))
     setD(null); ler()
     const t = setInterval(() => { if (!document.hidden) ler() }, 30000)
     return () => { vivo = false; clearInterval(t) }
-  }, [origem, dias, aba, pode])
+  }, [origem, dias, emSeo, pode])
   const abas = useMemo(() => ABAS, [])
   if (!sessao) return <Esqueleto className="h-64" />
   if (!pode) return <Aviso>Só o dono e os administradores veem os acessos.</Aviso>
@@ -311,6 +401,7 @@ export default function Analise() {
         {aba !== 'seo' && (
           <div className="flex flex-wrap gap-2">
             <div className="flex rounded-lg border border-border p-0.5">{[['site', 'Site', Globe2], ['sistema', 'Sistema', Monitor]].map(([k, n, I]) => <button key={k} onClick={() => setOrigem(k)} className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${origem === k ? 'bg-muted font-medium' : 'text-muted-foreground'}`}><I className="h-3.5 w-3.5" />{n}</button>)}</div>
+            <Botao variante="secundario" tamanho="sm" disabled={!d} onClick={() => exportar(d)}><Download className="h-4 w-4" />CSV</Botao>
             <div className="flex rounded-lg border border-border p-0.5">{[1, 7, 30, 90].map((n) => <button key={n} onClick={() => setDias(n)} className={`rounded-md px-2.5 py-1 text-sm tabular ${dias === n ? 'bg-muted font-medium' : 'text-muted-foreground'}`}>{n === 1 ? 'Hoje' : `${n} dias`}</button>)}</div>
           </div>
         )}

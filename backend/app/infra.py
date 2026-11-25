@@ -366,6 +366,21 @@ def executar(op: str, args: dict):
     return OPS[op](args or {})
 
 
+def capaz(op: str) -> bool:
+    """Este computador tem o acesso que a operação precisa? (pedido 'qualquer': só pega quem consegue fazer)"""
+    env = db.carregar_env()
+    if op.startswith("cf_"):
+        return bool(env.get("CLOUDFLARE_API_TOKEN"))
+    if op == "app_link":
+        try:
+            return bool(_token_github())
+        except ErroInfra:
+            return False
+    if op in ("portas", "supabase_uso"):
+        return op in OPS
+    return op in OPS and bool(env.get("VERCEL_TOKEN"))
+
+
 _GH_MEMORIA = {"t": ""}   # o token do `gh` fica só na memória deste processo (o chaveiro do Mac tranca com a tela bloqueada)
 
 

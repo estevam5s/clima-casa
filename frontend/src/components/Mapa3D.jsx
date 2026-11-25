@@ -269,10 +269,20 @@ function espelhoBoneco(modelo, av, k) {
   const coxa = osso('coxa_0'), joelho = osso('joelho_0')
   const ySentado = y0 + (coxa?.position.y || 0) + (joelho?.position.y || 0) + 0.006   // quadril na altura do joelho: coxa reta no assento
   modelo.traverse((o) => { if (o.isSkinnedMesh) o.frustumCulled = false })   // sentado/agachado sai da caixa de repouso
+  // malha real (escaneada) é mais larga que o boneco: de pé, o braço abre um pouco e balança menos, senão a mão
+  // atravessa o quadril e estica a calça
+  const abre = [new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -0.09), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.09)]
+  const nada = new THREE.Quaternion()
+  const lado = new Map(lista.map(([o]) => [o, /ombro_1/.test(o.name) ? 1 : /ombro_0/.test(o.name) ? 0 : -1]))
+  const brac = new Set(lista.filter(([o]) => /clima_(ombro|cotovelo)_/.test(o.name)).map(([o]) => o))
   return () => {
     quadril.quaternion.copy(u.quadril.quaternion)
     quadril.position.y = u.sentada ? ySentado + (u.quadril.position.y - 0.47) / k : y0 + (u.quadril.position.y - 0.92) / k
-    for (const [o, j] of lista) o.quaternion.copy(j.quaternion)
+    for (const [o, j] of lista) {
+      if (u.sentada || !brac.has(o) || u.bracos.some((b) => b.cafe?.visible || b.celular?.visible)) { o.quaternion.copy(j.quaternion); continue }
+      o.quaternion.slerpQuaternions(nada, j.quaternion, 0.72)
+      const l = lado.get(o); if (l >= 0) o.quaternion.premultiply(abre[l])
+    }
     if (cabeca) cabeca.scale.setScalar(u.pescoco?.visible === false ? 0.001 : 1)
   }
 }
@@ -2019,6 +2029,20 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
     const matAr = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35, metalness: 0.05 })
     const geoAr = new RoundedBoxGeometry(0.9, 0.3, 0.22, 4, 0.06)
     const texPonto = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c) })()
+    // visor do aparelho com a temperatura (como o display de um split de verdade): aceso no ligado, apagado no desligado
+    const visorTemp = (a) => {
+      const c = document.createElement('canvas'); c.width = 128; c.height = 56
+      const g = c.getContext('2d')
+      g.fillStyle = '#0b1220'; g.beginPath(); g.roundRect(0, 0, 128, 56, 10); g.fill()
+      if (a.ligado) {
+        const cor = `#${new THREE.Color(COR_MODO[a.modo] || 0x38bdf8).getHexString()}`
+        g.shadowColor = cor; g.shadowBlur = 10; g.fillStyle = cor
+        g.font = 'bold 40px ui-monospace, Menlo, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'
+        g.fillText(`${Math.round(a.temperatura)}°`, 64, 30)
+      }
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace
+      return new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.044), new THREE.MeshBasicMaterial({ map: t, transparent: true, toneMapped: false }))
+    }
     const montarAr = (pos, a, previsto) => {
       const mx = pos.x + AR_L / 2, my = pos.y + AR_A / 2
       const rot = (pos.rot || 0) * Math.PI / 180
@@ -2033,6 +2057,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       g.position.set(W(mx) + dir.x * dentro, yAr, Z(my) + dir.z * dentro); g.rotation.y = -rot
       const corpo = new THREE.Mesh(geo, previsto ? new THREE.MeshStandardMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.28 }) : new THREE.MeshStandardMaterial({ color: corAr, roughness: 0.35, metalness: pos.cor === '#9ca3af' ? 0.5 : 0.05 }))
       corpo.castShadow = !previsto; g.add(corpo)
+      const desenho = [corpo]   // peças do desenho padrão (somem quando o modelo 3D da marca chega)
       if (previsto) {
         g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x64748b })))
       } else {
@@ -2051,14 +2076,18 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
         } else {
           const grade = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.03, 0.02), matPreto); grade.position.set(0, -0.1, 0.105); g.add(grade)
           const aleta = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.008, 0.05), new THREE.MeshStandardMaterial({ color: corAr, roughness: 0.4 })); aleta.position.set(0, -0.125, 0.12); aleta.rotation.x = a.ligado ? 0.7 : 0.05; g.add(aleta)
-          const visor = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.03), a.ligado ? new THREE.MeshBasicMaterial({ color: 0x7dd3fc }) : new THREE.MeshBasicMaterial({ color: 0x1f2937 })); visor.position.set(0.3, 0.03, 0.112); g.add(visor)
+          const visor = mapa.modelos?.ar_visor === false
+            ? new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.03), new THREE.MeshBasicMaterial({ color: a.ligado ? 0x7dd3fc : 0x1f2937 }))
+            : visorTemp(a)
+          visor.position.set(0.3, 0.03, 0.112); g.add(visor)
           const led = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 10), new THREE.MeshBasicMaterial({ color: corLed })); led.position.set(0.36, 0.06, 0.112); g.add(led)
+          desenho.push(grade, aleta, visor, led)
         }
       }
       const alvo = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.6, 0.6), new THREE.MeshBasicMaterial({ visible: false }))
       alvo.userData = previsto ? { tipo: 'elemento', id: a } : { tipo: 'ar', id: a.id }
       g.add(alvo); mundo.add(g)
-      const u = { g, corpo, alvo, a, previsto, dir }
+      const u = { g, corpo, alvo, a, previsto, dir, desenho, modelo, corAr: pos.cor || '' }
       if (!previsto && a.ligado) {
         // fluxo de ar: partículas saindo pela grade, descendo e abrindo em leque
         const N = 140, pos3 = new Float32Array(N * 3), vida = new Float32Array(N)
@@ -2829,6 +2858,38 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       })
     }
     E.compilacao.then(() => { if (estado.current?.mundo === mundo) quandoOcioso(1500, () => E.precompilarTerreo?.()) })
+
+    // ares de uma marca com modelo 3D na biblioteca (Avatares → espécie Ar-condicionado → "Usar nos ares"): o GLB entra
+    // no lugar do desenho, pintado com a cor do ar e com o visor da temperatura na frente
+    const porModelo = {}
+    for (const u of unidades) {
+      const id = !u.previsto && u.modelo === 'split' && mapa.modelos?.ares?.[String(u.a.marca || '').trim().toLowerCase()]
+      if (id) (porModelo[id] ||= []).push(u)
+    }
+    Object.entries(porModelo).forEach(([id, lista]) => quandoOcioso(800, () => carregarAvatar(+id).then((gl) => {
+      if (estado.current?.mundo !== mundo) return
+      const caixa = new THREE.Box3().setFromObject(gl.scene), tam = caixa.getSize(new THREE.Vector3())
+      const esc = 0.9 / Math.max(0.01, tam.x)
+      for (const u of lista) {
+        const m = gl.scene.clone(true)
+        m.traverse((o) => {
+          if (!o.isMesh) return
+          o.castShadow = true
+          o.material = [].concat(o.material).map((mt) => { const c = mt.clone(); if (u.corAr) c.color = new THREE.Color(u.corAr); return c })
+          if (o.material.length === 1) o.material = o.material[0]
+        })
+        m.scale.setScalar(esc)
+        // centro na altura do desenho e costas encostadas na parede (o desenho tem 22 cm de fundo)
+        m.position.set(-(caixa.min.x + tam.x / 2) * esc, -(caixa.min.y + tam.y / 2) * esc, -0.11 - caixa.min.z * esc)
+        const frente = 0.11 + (tam.z * esc - 0.22) + 0.002
+        E.preparar(m).then(() => {
+          if (estado.current?.mundo !== mundo) return
+          u.desenho.forEach((d) => { d.visible = false })
+          u.g.add(m)
+          if (mapa.modelos?.ar_visor !== false) { const v = visorTemp(u.a); v.position.set(0.3, 0.03, frente); u.g.add(v) }
+        })
+      }
+    }).catch(() => { /* fica o desenho */ })))
 
     // clique e cursor
     const ray = new THREE.Raycaster(), mouse = new THREE.Vector2()

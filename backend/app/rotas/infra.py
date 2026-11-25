@@ -34,11 +34,19 @@ def _via_agente(op: str, args: dict, espera: float = 40):
             raise HTTPException(400, str(e)) from e
     if not transmissor.agente_online():
         raise HTTPException(503, "O agente do escritório está offline. A Infra da Vercel passa por ele (o token não fica na nuvem).")
-    fid = transmissor.enfileirar("infra", None, {"op": op, "args": args})
-    f = transmissor.aguardar(fid, espera)
+    lid = coordenador.lider() or {}
+    principal = db.cfg(f"agente_maquina:{lid.get('id')}") if lid.get("id") else None
+    antigo = bool(principal) and not principal.get("versao")
+    # principal com código de antes da 0.6.6 recusa operações novas: o pedido vai para qualquer agente atualizado (reserva também)
+    fid = transmissor.enfileirar("infra", None, {"op": op, "args": args}, estado="qualquer" if antigo else "pendente")
+    f = transmissor.aguardar(fid, max(espera, 35) if antigo else espera)
     if f.get("estado") != "ok":
         erro = f.get("erro") or "O agente não conseguiu falar com a Vercel."
-        if erro.startswith("Operação desconhecida"):   # quem está no comando roda código antigo
+        if antigo and (erro.startswith("Tempo") or erro == transmissor.sem_agente()):
+            nome = principal.get("nome") or "O computador no comando"
+            erro = (f"{nome} está no comando com uma versão antiga do agente, e nenhum outro computador atualizado e com o acesso "
+                    "necessário respondeu. Rode o instalador uma vez nele (Infra → Agentes → Instalar); depois ele se atualiza sozinho.")
+        elif erro.startswith("Operação desconhecida"):   # quem está no comando roda código antigo
             nome = (coordenador.lider() or {}).get("nome") or "O computador no comando"
             erro = (f"{nome} está com uma versão antiga do agente e não conhece esta função. Atualize em Infra → Agentes "
                     "(botão Atualizar agente) ou rode o instalador de novo nele.")

@@ -17,6 +17,7 @@ const Notificacoes = lazy(() => import('./pages/Notificacoes'))
 const Luzes = lazy(() => import('./pages/Luzes'))
 const Telegram = lazy(() => import('./pages/Telegram'))
 const Bugs = lazy(() => import('./pages/Bugs'))
+const Tarefas = lazy(() => import('./pages/Tarefas'))
 const Ia = lazy(() => import('./pages/Ia'))
 const Backup = lazy(() => import('./pages/Backup'))
 const Alexa = lazy(() => import('./pages/Alexa'))
@@ -142,6 +143,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="luzes" element={<Luzes />} />
             <Route path="telegram" element={<Telegram />} />
             <Route path="bugs" element={<Bugs />} />
+            <Route path="tarefas" element={<Tarefas />} />
             <Route path="ia" element={<Ia />} />
             <Route path="backup" element={<Backup />} />
             <Route path="alexa" element={<Alexa />} />

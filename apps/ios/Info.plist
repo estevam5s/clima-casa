@@ -5,9 +5,9 @@
 	<key>CFBundleDisplayName</key>
 	<string>Clima Escritório</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.7.1</string>
+	<string>1.8.0</string>
 	<key>CFBundleVersion</key>
-	<string>171</string>
+	<string>180</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>pt-BR</string>
 	<key>NSFaceIDUsageDescription</key>

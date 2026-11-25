@@ -29,6 +29,7 @@ const ITENS: [string, string, string][] = [
   ['Segurança', 'Firewall e o bot do Telegram', '/mais/seguranca'],
   ['Novidades', 'O que mudou em cada versão', '/mais/novidades'],
   ['Site e acessos', 'Quem acessa, desempenho, idiomas e newsletter', '/mais/site'],
+  ['Tarefas', 'Minhas tarefas e projetos da equipe: concluir e criar', '/mais/tarefas'],
   ['Bugs', 'Problemas encontrados, procurar e autoteste dos cadastros', '/mais/bugs'],
   ['Uso da IA', 'Limite da sessão de 5 horas e da semana', '/mais/uso-ia'],
   ['Uso do sistema', 'Tempo de cada pessoa em cada tela (quem gerencia usuários)', '/mais/uso-sistema'],

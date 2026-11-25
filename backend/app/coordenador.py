@@ -192,6 +192,11 @@ def anunciar(papel: str):
         ve, total = _visao["ve"], _visao["total"]
         db.set_cfg(f"agente_maquina:{_eu()}", {**info(papel), "ve_transmissores": ve, "total_transmissores": total, "saude": saude()})
         cumprir_ordens(papel)
+        try:
+            from .transmissor import atender_qualquer
+            atender_qualquer()
+        except Exception as e:  # noqa: BLE001
+            log.warning("pedido para qualquer agente falhou: %s", e)
         from . import atualizar_agente
         atualizar_agente.conferir(papel)
     except Exception as e:  # noqa: BLE001

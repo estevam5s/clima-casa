@@ -155,16 +155,16 @@ function TokenDownloads() {
       <p className="mt-1 text-sm text-muted-foreground">O repositório é privado. Com um token <b>só de leitura</b>, o servidor pede o arquivo ao GitHub e entrega um link temporário: qualquer pessoa logada no painel baixa, sem conta no GitHub. O token fica cifrado e nunca vai ao navegador.</p>
       <p className="mt-2 text-sm">{estado.configurado ? <>Configurado {estado.mascara && <code className="text-xs">{estado.mascara}</code>}: downloads funcionando para todos.</> : 'Não configurado: hoje só baixa quem tem acesso ao repositório no GitHub.'}</p>
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-        <li>Abra <a className="text-primary hover:underline" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">GitHub → Fine-grained token</a>.</li>
+        <li>Abra <a className="font-medium text-primary hover:underline" href={`https://github.com/settings/personal-access-tokens/new?name=${encodeURIComponent('Clima Escritorio - downloads')}&description=${encodeURIComponent('So leitura: links temporarios dos instaladores em app.zynio.com.br/apps')}&target_name=${estado.repo.split('/')[0]}&expires_in=none&contents=read`} target="_blank" rel="noreferrer">o GitHub com o token já preenchido</a> (nome, dono e Contents: Read-only).</li>
         <li>Repository access: <b>Only select repositories</b> → <code>{estado.repo}</code>.</li>
-        <li>Permissions → Repository → <b>Contents: Read-only</b> (o resto fica sem acesso). Gere e cole abaixo.</li>
+        <li>Confira que só <b>Contents: Read-only</b> está marcado (o GitHub soma Metadata: Read-only sozinho). <b>Generate token</b>, copie e cole abaixo.</li>
       </ol>
       <form onSubmit={(e) => { e.preventDefault(); salvar(token.trim()) }} className="mt-3 flex flex-wrap gap-2">
         <input type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" value={token} onChange={(e) => setToken(e.target.value)} placeholder="github_pat_…" aria-label="Token do GitHub (só leitura)" className="campo h-9 min-w-0 flex-1 font-mono" />
         <Botao type="submit" tamanho="sm" carregando={salvando} disabled={token.trim().length < 20}>Conferir e salvar</Botao>
         {estado.configurado && <Botao type="button" tamanho="sm" variante="secundario" onClick={() => salvar('')}>Remover</Botao>}
       </form>
-      <p className="mt-2 text-xs text-muted-foreground">O sistema recusa tokens que podem escrever no repositório.</p>
+      <p className="mt-2 text-xs text-muted-foreground">O sistema recusa tokens que podem escrever no repositório. Sem o token, o download passa por um agente atualizado que tenha o GitHub logado (hoje, o Mac).</p>
     </section>
   )
 }

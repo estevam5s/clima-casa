@@ -2,6 +2,39 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.6.7",
+   "data": "2026-11-24",
+   "titulo": "Tarefas no estilo Asana com GitHub Projects, ar Gree em 3D e Acessos mais completo",
+   "resumo": "Nova tela Tarefas (lista, quadro, calendário, cronograma e painel, ligada ao GitHub Projects), ar-condicionado Gree com modelo 3D e temperatura no visor, e o download dos apps passando por qualquer agente atualizado.",
+   "novo": [
+    "Tarefas: projetos com seções, tarefas com responsável, início, prazo, prioridade, etiquetas, estimativa e subtarefas",
+    "Tarefas: visões Lista, Quadro (arrastar entre colunas), Calendário, Cronograma e Painel, e a página Minhas tarefas",
+    "Tarefas: comentários e histórico de cada mudança; quem recebe uma tarefa ganha um aviso no sino",
+    "Tarefas: ligar um projeto a um Project do GitHub e sincronizar (o Status vira a seção; tarefa nova daqui vira rascunho lá)",
+    "Avatares: tipo Ar-condicionado e o botão Usar nos ares de uma marca; os 9 ares Gree já usam o modelo 3D enviado",
+    "Mapa 3D: visor de cada ar mostra a temperatura na cor do modo quando ligado",
+    "Aparência e marca: logo horizontal do menu lateral e prévia de como ficam a aba e o topo do menu",
+    "Acessos e SEO: comparação com o período anterior, novos e recorrentes, mapa dia da semana × hora, tempo e rolagem por página, caminhos mais comuns, campanhas (UTM) e exportar em CSV",
+    "Apps 1.8.0: Tarefas no Android, no iPhone e no menu do computador"
+   ],
+   "melhorias": [
+    "O sino de notificações balança enquanto houver notificação não lida",
+    "Configurações: Aparência e White label viraram uma aba só (Aparência e marca)",
+    "Favicon do sistema também vale para o ícone ao adicionar à tela de início",
+    "Sala de reunião com a janela dividida em 3, uma persiana para cada (no mapa e em Persianas)",
+    "Seu avatar Blender anda sem esticar a calça e com os braços balançando de forma mais natural",
+    "Download dos apps: link do GitHub para criar o token só de leitura já vem preenchido"
+   ],
+   "seguranca": [
+    "Token do GitHub para Tarefas só é aceito se mexer apenas em Projects (o que escreve em repositórios é recusado) e fica cifrado",
+    "Aviso de tarefa no sino só aparece para quem recebeu a tarefa"
+   ],
+   "correcoes": [
+    "Download dos apps falhava quando o computador no comando tinha agente antigo: agora outro agente atualizado atende o pedido",
+    "Pedidos de Infra deixavam de funcionar com o principal desatualizado: vão para qualquer agente atualizado com o acesso necessário"
+   ]
+  },
+  {
    "versao": "0.6.6",
    "data": "2026-11-23",
    "titulo": "Agentes que se atualizam sozinhos, menu com largura ajustável e download dos apps sem falhar",

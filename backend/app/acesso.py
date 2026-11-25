@@ -80,6 +80,7 @@ REGRAS = [
     ("GET", r"^/api/avatares(/\{avid\}/(arquivo|receita))?$", None),
     ("*", r"^/api/telegram/", None),
     ("*", r"^/api/bugs", None),
+    ("*", r"^/api/tarefas", None),                                                     # cada rota confere (visualizador só vê; GitHub: dono/admin)
     ("POST", r"^/api/ia/(conversar|confirmar)$", None),   # as ferramentas da IA checam as permissões de quem pergunta
     ("POST", r"^/api/ia/transcrever$", None),             # mensagem de voz da própria pessoa
     ("POST", r"^/api/ia/comparar$", None),                # comparar modelos: só texto, sem ferramentas (não age nos ares)
@@ -95,7 +96,8 @@ REGRAS = [
     ("POST", r"^/api/guia/pdf$", None),
     ("POST", r"^/api/treinamento/(iniciar|corrigir)$", None),   # cada pessoa faz a própria prova
     ("POST", r"^/api/avatares/\{avid\}/(versao|versao/confirmar|restaurar)$", None),   # a rota exige dono/admin
-    ("PUT", r"^/api/mapa/veiculos$", None),                                             # a rota exige dono/admin
+    ("PUT", r"^/api/mapa/veiculos$", None),
+    ("PUT", r"^/api/mapa/ares-modelo$", None),                                         # a rota exige dono/admin                                             # a rota exige dono/admin
     ("POST", r"^/api/mapa/veiculos/\{vid\}/posicao$", None),                             # estacionar depois de dirigir   # qualquer pessoa logada baixa o Passo a passo em PDF   # cada rota confere (relatar: qualquer logado; gerir: configuracoes.gerenciar)   # cada rota confere (vínculo próprio; configurar só o dono)
     ("GET", r"^/api/dispositivos(/\{did\}/eventos|/placas)?$", None),
     ("*", r"^/api/avatares", "configuracoes.gerenciar"),   # importar/apagar (a rota ainda exige dono/admin); ler é liberado acima

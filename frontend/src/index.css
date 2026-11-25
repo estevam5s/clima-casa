@@ -213,3 +213,14 @@ header[data-cabecalho-app] { container: topo / inline-size; }
 .rolagem-fina { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
 .rolagem-fina::-webkit-scrollbar { width: 6px; }
 .rolagem-fina::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
+
+/* Sino com notificação: balança a cada 3 s até as notificações serem lidas ou limpas */
+@keyframes sino-balanca {
+  0%, 62%, 100% { transform: rotate(0) }
+  66% { transform: rotate(16deg) } 70% { transform: rotate(-14deg) } 74% { transform: rotate(11deg) }
+  78% { transform: rotate(-8deg) } 82% { transform: rotate(5deg) } 86% { transform: rotate(-2deg) }
+}
+.sino-tocando { animation: sino-balanca 3s ease-in-out infinite; transform-origin: 50% 8%; }
+@keyframes sino-onda { 0% { transform: scale(1); opacity: 0.55 } 100% { transform: scale(2.4); opacity: 0 } }
+.sino-onda { animation: sino-onda 3s ease-out infinite; animation-delay: 1.9s; }
+@media (prefers-reduced-motion: reduce) { .sino-tocando, .sino-onda { animation: none; } }
