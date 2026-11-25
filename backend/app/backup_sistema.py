@@ -430,7 +430,8 @@ def linhas(nome: str, tabela: str, busca: str = "", limite: int = 50) -> dict:
 
 
 # ---------- backup agendado (rodado pelo agente a cada ~5 min) ----------
-AGENDA_PADRAO = {"ativo": False, "frequencia": "diario", "hora": "03:00", "dia_semana": 0, "manter": 7, "grupos": None}
+AGENDA_PADRAO = {"ativo": False, "frequencia": "diario", "hora": "03:00", "dia_semana": 0, "manter": 7, "grupos": None,
+                 "retencao": "simples", "testar": True}
 
 
 def agenda() -> dict:
@@ -441,7 +442,7 @@ def agenda() -> dict:
 
 def salvar_agenda(d: dict) -> dict:
     atual = {**AGENDA_PADRAO, **(db.cfg("backup_agenda", {}) or {})}
-    for k in ("ativo", "frequencia", "hora", "dia_semana", "manter", "grupos"):
+    for k in ("ativo", "frequencia", "hora", "dia_semana", "manter", "grupos", "retencao", "testar"):
         if k in d:
             atual[k] = d[k]
     atual.pop("devido", None)   # horário mudou: recalcula
@@ -457,6 +458,12 @@ def _proximo(a: dict) -> int:
     """Próximo horário (epoch) em que o backup agendado deve rodar."""
     h, m = (int(x) for x in a["hora"].split(":"))
     agora = time.time()
+    if a["frequencia"] in ("6h", "12h"):   # a cada 6 ou 12 horas, contando a partir do horário escolhido
+        passo = 6 * 3600 if a["frequencia"] == "6h" else 12 * 3600
+        br = _agora_br()
+        inicio = agora - (br.tm_hour * 3600 + br.tm_min * 60 + br.tm_sec) + h * 3600 + m * 60 - 86400
+        n = int((agora - inicio) // passo) + 1
+        return int(inicio + n * passo)
     br = _agora_br()
     base = agora - (br.tm_hour * 3600 + br.tm_min * 60 + br.tm_sec) + h * 3600 + m * 60   # hoje, no horário, em Brasília
     for d in range(0, 8):
@@ -481,8 +488,10 @@ def ciclo():
     escolhidas = [t for g in grupos for t in GRUPOS.get(g, ("", []))[1]] if grupos else None
     try:
         r = gerar("agendado", escolhidas, prefixo="auto", arquivos=True)   # tabelas + cópia dos arquivos (sem tráfego)
-        apagados = _reter("auto", int(a.get("manter") or 7))
+        apagados = _reter_gfs("auto") if a.get("retencao") == "gfs" else _reter("auto", int(a.get("manter") or 7))
         a.update({"ultimo": int(time.time()), "ultimo_ok": True, "ultimo_arquivo": r["arquivo"], "ultimo_erro": "", "apagados": len(apagados)})
+        if a.get("testar", True):
+            a["teste"] = testar_restauracao(r["arquivo"])
     except Exception as e:  # noqa: BLE001
         a.update({"ultimo": int(time.time()), "ultimo_ok": False, "ultimo_erro": str(e)[:200]})
         try:
@@ -501,3 +510,115 @@ def uso() -> dict:
         t = por.setdefault(a["tipo"], {"arquivos": 0, "bytes": 0})
         t["arquivos"] += 1; t["bytes"] += a["tamanho"] or 0
     return {"por_tipo": por, "bytes": sum(t["bytes"] for t in por.values())}
+
+
+
+def _epoch(v) -> int:
+    """created_at do Storage vem em ISO (2026-11-24T22:10:00.123Z)."""
+    if isinstance(v, (int, float)):
+        return int(v)
+    try:
+        from datetime import datetime
+        return int(datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp())
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+# ---------- retenção inteligente (avô-pai-filho) ----------
+def _reter_gfs(prefixo: str, dias: int = 7, semanas: int = 4, meses: int = 12) -> list[str]:
+    """Guarda o mais novo de cada um dos últimos 7 dias, 4 semanas e 12 meses; apaga o resto do tipo."""
+    lista = [a for a in listar() if a["arquivo"].startswith(prefixo + "-")]   # mais novo primeiro
+    ficar, vistos = set(), {"d": set(), "s": set(), "m": set()}
+    for a in lista:
+        t = time.gmtime(_epoch(a.get("criado_em")) - 3 * 3600)
+        d, s_, m = time.strftime("%Y-%m-%d", t), time.strftime("%G-%V", t), time.strftime("%Y-%m", t)
+        for k, v, lim in (("d", d, dias), ("s", s_, semanas), ("m", m, meses)):
+            if v not in vistos[k] and len(vistos[k]) < lim:
+                vistos[k].add(v); ficar.add(a["arquivo"])
+    if lista:
+        ficar.add(lista[0]["arquivo"])
+    velhos = [a["arquivo"] for a in lista if a["arquivo"] not in ficar]
+    if velhos:
+        httpx.request("DELETE", f"{_url()}/storage/v1/object/{BUCKET}", headers=_cab(), json={"prefixes": velhos}, timeout=20)
+    return velhos
+
+
+# ---------- teste de restauração (simulação, nada é gravado) ----------
+def testar_restauracao(nome: str) -> dict:
+    try:
+        r = restaurar(nome, "simular", None, "teste automático", seguranca=False)
+        tabs = r.get("tabelas") or []
+        erros = [t for t in tabs if isinstance(t, dict) and t.get("erro")]
+        res = {"em": int(time.time()), "arquivo": nome, "ok": not erros, "tabelas": len(tabs), "erros": [f"{t.get('tabela')}: {t.get('erro')}" for t in erros][:5]}
+    except Exception as e:  # noqa: BLE001
+        res = {"em": int(time.time()), "arquivo": nome, "ok": False, "tabelas": 0, "erros": [str(e)[:200]]}
+    if not res["ok"]:
+        try:
+            from . import notificacoes
+            notificacoes.notificar("backup_teste", "sistema", "alta", "O teste de restauração do backup falhou", "; ".join(res["erros"])[:300], "/backup")
+        except Exception:  # noqa: BLE001
+            pass
+    db.set_cfg("backup_teste", res)
+    return res
+
+
+# ---------- cópia fora da nuvem (no computador do agente): regra 3-2-1 ----------
+LOCAL_PADRAO = {"ativo": False, "manter": 10}
+
+
+def pasta_local():
+    from pathlib import Path
+    p = Path(__file__).resolve().parents[1] / "data" / "backups"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def copia_local(forcar: bool = False) -> dict | None:
+    """No agente principal: baixa os backups novos do Storage para data/backups (uma vez cada) e mantém os N mais novos.
+    Roda no máximo a cada 30 min. Cada arquivo baixado conta no tráfego do Supabase só uma vez."""
+    c = {**LOCAL_PADRAO, **(db.cfg("backup_local") or {})}
+    if not c["ativo"]:
+        return None
+    estado = db.cfg("backup_local_estado") or {}
+    if not forcar and time.time() - int(estado.get("em") or 0) < 1800:
+        return estado
+    import shutil
+    import socket
+    pasta = pasta_local()
+    nuvem = [a for a in listar() if not a["arquivo"].startswith("envio-")][: int(c["manter"])]
+    baixados, erros = 0, []
+    for a in nuvem:
+        alvo = pasta / a["arquivo"]
+        if alvo.exists() and alvo.stat().st_size == (a.get("tamanho") or alvo.stat().st_size):
+            continue
+        try:
+            r = httpx.get(f"{_url()}/storage/v1/object/{BUCKET}/{a['arquivo']}", headers=_cab(), timeout=120)
+            r.raise_for_status()
+            tmp = alvo.with_suffix(".parcial")
+            tmp.write_bytes(r.content); tmp.replace(alvo)
+            baixados += 1
+        except Exception as e:  # noqa: BLE001
+            erros.append(f"{a['arquivo']}: {str(e)[:80]}")
+    manter = {a["arquivo"] for a in nuvem}
+    for f in pasta.glob("*.zip"):
+        if f.name not in manter:
+            f.unlink(missing_ok=True)
+    livre = shutil.disk_usage(pasta).free
+    estado = {"em": int(time.time()), "maquina": socket.gethostname().split(".")[0], "pasta": str(pasta), "baixados": baixados, "erros": erros[:5],
+              "arquivos": sorted(({"nome": f.name, "tamanho": f.stat().st_size} for f in pasta.glob("*.zip")), key=lambda x: x["nome"], reverse=True),
+              "livre_gb": round(livre / 1e9, 1)}
+    db.set_cfg("backup_local_estado", estado)
+    return estado
+
+
+def saude() -> dict:
+    """Painel de saúde: último backup, horas desde ele, próximo agendado, teste de restauração, cópias locais e histórico."""
+    lista = listar()
+    ultimo = lista[0] if lista else None
+    agora = int(time.time())
+    a = agenda()
+    return {"ultimo": ultimo, "horas_desde": round((agora - (_epoch(ultimo.get("criado_em")) or agora)) / 3600, 1) if ultimo else None,
+            "proximo": a.get("proximo"), "agenda": a, "teste": db.cfg("backup_teste"), "local": {**LOCAL_PADRAO, **(db.cfg("backup_local") or {})},
+            "local_estado": db.cfg("backup_local_estado"), "historico": [{"arquivo": x["arquivo"], "tipo": x["tipo"], "tamanho": x["tamanho"], "criado_em": _epoch(x.get("criado_em"))}
+                                                                       for x in reversed(lista[:60])],
+            "total_bytes": sum(x.get("tamanho") or 0 for x in lista), "quantidade": len(lista)}

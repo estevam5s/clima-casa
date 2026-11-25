@@ -20,7 +20,7 @@ DADOS = Path(os.environ.get("CLIMA_DADOS", RAIZ / "data"))
 if not os.environ.get("VERCEL"):  # na Vercel o disco é só leitura
     DADOS.mkdir(exist_ok=True)
 
-_TABELAS_COM_ID = {"aparelhos", "codigos", "agendamentos", "atividade", "alertas", "backups", "fila_comandos", "projetos", "cenas", "automacoes", "temporizadores", "seguranca_ips", "seguranca_eventos", "notificacoes", "site_mensagens", "passkeys", "site_respostas", "site_consentimentos", "dispositivos", "dispositivos_eventos", "avatares", "aceites", "treinamentos", "bugs", "telegram_eventos", "analise_eventos", "newsletter_inscritos", "newsletter_campanhas", "tarefas_projetos", "tarefas_secoes", "tarefas", "tarefas_comentarios"}
+_TABELAS_COM_ID = {"aparelhos", "codigos", "agendamentos", "atividade", "alertas", "backups", "fila_comandos", "projetos", "cenas", "automacoes", "temporizadores", "seguranca_ips", "seguranca_eventos", "notificacoes", "site_mensagens", "passkeys", "site_respostas", "site_consentimentos", "dispositivos", "dispositivos_eventos", "avatares", "aceites", "treinamentos", "bugs", "telegram_eventos", "analise_eventos", "newsletter_inscritos", "newsletter_campanhas", "tarefas_projetos", "tarefas_secoes", "tarefas", "tarefas_comentarios", "tarefas_status", "ia_projetos"}
 _RE_INSERT = re.compile(r"^\s*INSERT\s+INTO\s+(\w+)", re.I)
 _pool: queue.LifoQueue = queue.LifoQueue(maxsize=2 if os.environ.get("VERCEL") else 6)
 _criadas = 0

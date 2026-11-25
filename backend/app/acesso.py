@@ -93,6 +93,8 @@ REGRAS = [
     ("PUT", r"^/api/ia/limites$", None),                   # a rota exige o papel de dono
     ("PUT", r"^/api/ia/conversas/\d+$", None),            # só as conversas da própria pessoa
     ("DELETE", r"^/api/ia/conversas/\d+$", None),
+    ("POST|PUT|DELETE", r"^/api/ia/projetos(/(\d+|\{pid\})(/arquivos(/tirar)?|/github)?)?$", None),   # projetos da própria pessoa
+    ("DELETE", r"^/api/ia/conversas$", None),                                         # apagar todas as próprias conversas
     ("POST", r"^/api/guia/pdf$", None),
     ("POST", r"^/api/treinamento/(iniciar|corrigir)$", None),   # cada pessoa faz a própria prova
     ("POST", r"^/api/avatares/\{avid\}/(versao|versao/confirmar|restaurar)$", None),   # a rota exige dono/admin

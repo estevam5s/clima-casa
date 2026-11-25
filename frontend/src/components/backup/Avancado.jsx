@@ -19,7 +19,7 @@ export function Agenda({ agenda, grupos, aoSalvar }) {
     setSalvando(true)
     try {
       const corpo = { ...f, ...extra }
-      await api.put('/api/backup-sistema/agenda', { ativo: corpo.ativo, frequencia: corpo.frequencia, hora: corpo.hora, dia_semana: Number(corpo.dia_semana), manter: Number(corpo.manter), grupos: corpo.grupos })
+      await api.put('/api/backup-sistema/agenda', { ativo: corpo.ativo, frequencia: corpo.frequencia, hora: corpo.hora, dia_semana: Number(corpo.dia_semana), manter: Number(corpo.manter), grupos: corpo.grupos, retencao: corpo.retencao || 'simples', testar: corpo.testar !== false })
       toast(corpo.ativo ? 'Backup agendado salvo.' : 'Backup agendado desligado.'); aoSalvar()
     } catch (e) { toast(e.message, 'erro') } finally { setSalvando(false) }
   }
@@ -34,12 +34,17 @@ export function Agenda({ agenda, grupos, aoSalvar }) {
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <label className="text-sm"><span className="rotulo">Frequência</span>
-          <select className="campo" value={f.frequencia} onChange={(e) => mudar('frequencia', e.target.value)}><option value="diario">Todo dia</option><option value="semanal">Uma vez por semana</option></select></label>
+          <select className="campo" value={f.frequencia} onChange={(e) => mudar('frequencia', e.target.value)}><option value="6h">A cada 6 horas</option><option value="12h">A cada 12 horas</option><option value="diario">Todo dia</option><option value="semanal">Uma vez por semana</option></select></label>
         {f.frequencia === 'semanal' && <label className="text-sm"><span className="rotulo">Dia</span>
           <select className="campo" value={f.dia_semana} onChange={(e) => mudar('dia_semana', e.target.value)}>{DIAS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></label>}
         <label className="text-sm"><span className="rotulo">Horário</span><input type="time" className="campo" value={f.hora} onChange={(e) => mudar('hora', e.target.value)} /></label>
-        <label className="text-sm"><span className="rotulo">Guardar os últimos</span><input type="number" min={1} max={60} className="campo" value={f.manter} onChange={(e) => mudar('manter', e.target.value)} /></label>
+        {f.retencao !== 'gfs' && <label className="text-sm"><span className="rotulo">Guardar os últimos</span><input type="number" min={1} max={60} className="campo" value={f.manter} onChange={(e) => mudar('manter', e.target.value)} /></label>}
       </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <label className="flex items-start gap-2 rounded-lg border border-border p-2.5 text-sm"><input type="radio" className="mt-1" checked={f.retencao !== 'gfs'} onChange={() => mudar('retencao', 'simples')} /><span><b className="font-medium">Os mais novos</b><span className="block text-xs text-muted-foreground">Guarda só os N últimos.</span></span></label>
+        <label className="flex items-start gap-2 rounded-lg border border-border p-2.5 text-sm"><input type="radio" className="mt-1" checked={f.retencao === 'gfs'} onChange={() => mudar('retencao', 'gfs')} /><span><b className="font-medium">Diários, semanais e mensais</b><span className="block text-xs text-muted-foreground">7 diários, 4 semanais e 12 mensais: volta até 1 ano ocupando pouco.</span></span></label>
+      </div>
+      <label className="mt-3 flex items-center justify-between gap-3 text-sm"><span>Testar a restauração depois de cada backup<span className="block text-xs text-muted-foreground">Simula a volta do arquivo (nada é gravado) e avisa no sino se algo falhar.</span></span><Interruptor ligado={f.testar !== false} onChange={(v) => mudar('testar', v)} rotulo="Testar restauração" /></label>
       <div className="mt-3 flex flex-wrap gap-1.5 text-sm">
         <button onClick={() => mudar('grupos', null)} className={`rounded-lg border px-2.5 py-1 ${!f.grupos ? 'border-primary bg-primary/10 font-medium' : 'border-border hover:bg-muted'}`}>Tudo</button>
         {Object.keys(grupos).map((g) => { const on = f.grupos?.includes(g); return (

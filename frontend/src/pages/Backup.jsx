@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArchiveRestore, CheckCircle2, Database, DatabaseBackup, Download, FileArchive, FileSearch, GitCompare, PenLine, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, Lock, ArchiveRestore, CheckCircle2, Database, DatabaseBackup, Download, FileArchive, FileSearch, GitCompare, PenLine, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react'
 import { Agenda, Comparar, Conferir, Procurar, Uso, fmtData, fmtMB } from '../components/backup/Avancado'
+import { BaixarCifrado, CopiaLocal, PedirSenha, SaudeBackup, decifrar, ehCifrado } from '../components/backup/Saude'
 import { gerarCodigo } from '../components/dispositivos/Placa'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
@@ -95,10 +96,17 @@ function Restaurar({ tabelas, aoMudar, preArquivo, setPreArquivo }) {
   const [gravando, setGravando] = useState(false)
   const [seguranca, setSeguranca] = useState(true)
   const restauravel = useMemo(() => new Set(tabelas.filter((t) => t.restauravel).map((t) => t.nome)), [tabelas])
+  const [senhaDe, setSenhaDe] = useState(null)   // arquivo .cifrado esperando a senha
   const enviar = async (e) => {
-    const f = e.target.files?.[0]; e.target.value = ''
-    if (!f) return
-    if (!/\.zip$/i.test(f.name)) return toast('Escolha o .zip gerado por esta tela.', 'erro')
+    const f0 = e.target?.files?.[0] || e.arquivo; if (e.target) e.target.value = ''
+    if (!f0) return
+    let f = f0
+    const cab = new Uint8Array(await f0.slice(0, 8).arrayBuffer())
+    if (ehCifrado(new Uint8Array([...cab, ...new Uint8Array(40)]))) {
+      if (!e.senha) return setSenhaDe(f0)
+      try { const aberto = await decifrar(new Uint8Array(await f0.arrayBuffer()), e.senha); f = new File([aberto], f0.name.replace(/\.cifrado$/i, ''), { type: 'application/zip' }); setSenhaDe(null) }
+      catch (err) { return toast(err.message, 'erro') }
+    } else if (!/\.zip$/i.test(f.name)) return toast('Escolha o .zip (ou .zip.cifrado) gerado por esta tela.', 'erro')
     try {
       const { arquivo, upload_url: url } = await api.post('/api/backup-sistema/envio', { tamanho: f.size })
       await new Promise((ok, falha) => {
@@ -126,9 +134,10 @@ function Restaurar({ tabelas, aoMudar, preArquivo, setPreArquivo }) {
     <section className="cartao p-5">
       <h2 className="titulo-secao flex items-center gap-2"><ArchiveRestore className="h-4 w-4 text-primary" />Restaurar (upload)</h2>
       <p className="mt-1 text-sm text-muted-foreground">Envie um backup ou escolha um da lista. Primeiro o sistema <b>simula</b>: mostra, tabela por tabela, o que é novo, o que muda e o que sairia. Nada é gravado até você confirmar com <b>RESTAURAR</b>. Sessões, logins e passkeys nunca são restaurados.</p>
-      <input ref={arq} type="file" accept=".zip,application/zip" className="hidden" onChange={enviar} />
+      <input ref={arq} type="file" accept=".zip,.cifrado,application/zip" className="hidden" onChange={enviar} />
+      {senhaDe && <PedirSenha nome={senhaDe.name} fechar={() => setSenhaDe(null)} aoConfirmar={(senha) => enviar({ arquivo: senhaDe, senha })} />}
       <div className="mt-4 flex flex-wrap gap-2">
-        <Botao icone={Upload} variante="secundario" carregando={enviando > 0} onClick={() => arq.current?.click()}>{enviando ? `Enviando ${enviando}%` : 'Enviar um .zip de backup'}</Botao>
+        <Botao icone={Upload} variante="secundario" carregando={enviando > 0} onClick={() => arq.current?.click()}>{enviando ? `Enviando ${enviando}%` : 'Enviar um backup (.zip ou .cifrado)'}</Botao>
         {preArquivo && <Botao icone={RefreshCw} carregando={simulando} onClick={() => simular(preArquivo)}>Simular {preArquivo.slice(0, 28)}…</Botao>}
       </div>
       {sim && (
@@ -178,6 +187,10 @@ function Restaurar({ tabelas, aoMudar, preArquivo, setPreArquivo }) {
 }
 
 export default function Backup() {
+  const [saude, setSaude] = useState(null)
+  const [cifrar, setCifrar] = useState(null)
+  const lerSaude = () => api.get('/api/backup-sistema/saude').then(setSaude).catch(() => {})
+  useEffect(() => { lerSaude() }, [])
   const toast = useToast()
   const { sessao } = useProjeto()
   const pode = ['dono', 'admin'].includes(sessao?.papel)
@@ -215,11 +228,13 @@ export default function Backup() {
       {dados.agenda?.ativo && dados.agenda.ultimo && !dados.agenda.ultimo_ok && <div className="mt-4"><Aviso>O último backup agendado falhou: {dados.agenda.ultimo_erro}</Aviso></div>}
       {!dados.arquivos.length || (Date.now() - new Date(dados.arquivos[0].criado_em).getTime()) > 7 * 86400000
         ? <div className="mt-4"><Aviso tipo="alerta">{dados.arquivos.length ? 'O backup completo mais novo tem mais de 7 dias.' : 'Ainda não há backup completo.'} Gere um agora ou ligue o backup agendado.</Aviso></div> : null}
+      <div className="mt-6"><SaudeBackup saude={saude} recarregar={lerSaude} /></div>
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <Gerar tabelas={tb.tabelas} grupos={tb.grupos} aoGerar={() => recarregar()} />
+        <Gerar tabelas={tb.tabelas} grupos={tb.grupos} aoGerar={() => { recarregar(); lerSaude() }} />
         <Restaurar tabelas={tb.tabelas} aoMudar={recarregar} preArquivo={preArquivo} setPreArquivo={setPreArquivo} />
       </div>
-      <div className="mt-6"><Agenda agenda={dados.agenda} grupos={tb.grupos} aoSalvar={recarregar} /></div>
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2"><Agenda agenda={dados.agenda} grupos={tb.grupos} aoSalvar={() => { recarregar(); lerSaude() }} /><CopiaLocal saude={saude} aoMudar={lerSaude} /></div>
+      {cifrar && <BaixarCifrado arquivo={cifrar} fechar={() => setCifrar(null)} />}
       <section className="cartao mt-6 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="titulo-secao flex items-center gap-2"><FileArchive className="h-4 w-4 text-primary" />Backups guardados</h2>
@@ -244,6 +259,7 @@ export default function Backup() {
                 <Botao tamanho="sm" variante="secundario" icone={ShieldCheck} onClick={() => setConferir(a.arquivo)}>Conferir</Botao>
                 <Botao tamanho="sm" variante="secundario" icone={FileSearch} onClick={() => setProcurar(a.arquivo)}>Procurar</Botao>
                 <Botao tamanho="sm" variante="secundario" icone={Download} onClick={() => baixar(a.arquivo)}>Baixar</Botao>
+                <Botao tamanho="sm" variante="secundario" icone={Lock} onClick={() => setCifrar(a.arquivo)}>Cifrado</Botao>
                 <Botao tamanho="sm" variante="secundario" icone={ArchiveRestore} onClick={() => { setPreArquivo(a.arquivo); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Usar para restaurar</Botao>
                 <button onClick={() => setApagar(a.arquivo)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600" aria-label={`Apagar ${a.arquivo}`}><Trash2 className="h-4 w-4" /></button>
               </li>

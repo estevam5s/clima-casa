@@ -55,11 +55,13 @@ class RotuloIn(BaseModel):
 
 class AgendaIn(BaseModel):
     ativo: bool
-    frequencia: str = Field(pattern="^(diario|semanal)$")
+    frequencia: str = Field(pattern="^(6h|12h|diario|semanal)$")
     hora: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     dia_semana: int = Field(0, ge=0, le=6)
     manter: int = Field(7, ge=1, le=60)
     grupos: list[str] | None = Field(None, max_length=10)
+    retencao: str = Field("simples", pattern="^(simples|gfs)$")   # gfs = 7 diários, 4 semanais e 12 mensais
+    testar: bool = True                                           # simula a restauração depois de cada backup agendado
 
 
 def _erro(e: Exception):
@@ -220,3 +222,36 @@ def restaurar_arquivos(d: RestaurarArquivosIn, request: Request):
         return bs.restaurar_arquivos(d.arquivo, quem)
     except Exception as e:  # noqa: BLE001
         _erro(e)
+
+
+@rotas_backup.get("/saude")
+def saude_backup(request: Request):
+    _quem(request)
+    return bs.saude()
+
+
+@rotas_backup.post("/testar/{arquivo}")
+def testar_backup(arquivo: str, request: Request):
+    quem = _quem(request)
+    try:
+        bs._nome_ok(arquivo)
+        r = bs.testar_restauracao(arquivo)
+    except Exception as e:  # noqa: BLE001
+        _erro(e)
+    db.registrar("painel", "Teste de restauração do backup", ok=r["ok"], detalhe=f"{arquivo} · {r['tabelas']} tabela(s) · {quem}")
+    return r
+
+
+class LocalIn(BaseModel):
+    ativo: bool
+    manter: int = Field(10, ge=1, le=60)
+
+
+@rotas_backup.put("/local")
+def backup_local(d: LocalIn, request: Request):
+    quem = _quem(request)
+    db.set_cfg("backup_local", d.model_dump())
+    if d.ativo:   # o agente baixa no próximo ciclo (até ~5 min); zera o relógio para não esperar 30 min
+        db.set_cfg("backup_local_estado", {**(db.cfg("backup_local_estado") or {}), "em": 0})
+    db.registrar("painel", "Cópia local dos backups " + ("ligada" if d.ativo else "desligada"), detalhe=f"guarda {d.manter} · {quem}")
+    return bs.saude()

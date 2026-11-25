@@ -1,4 +1,4 @@
-"""Catálogo de comandos do bot do Telegram (862 comandos em 26 categorias) e o menu navegável.
+"""Catálogo de comandos do bot do Telegram (1.490 comandos em 42 categorias; os da 0.6.8 em telegram_cmds_extra.py) e o menu navegável.
 
 Cada comando é registrado com @cmd(nome, categoria, descrição, uso, arg, perm, papel, confirmar):
 - `arg` diz o que o comando precisa: "ar" (um ar; sem nome usa o "ar atual" da conversa ou mostra a lista para escolher),
@@ -2113,7 +2113,10 @@ def menu_principal(ctx):
            [{"text": "Hoje", "callback_data": "x:hoje"}, {"text": "Gasto", "callback_data": "x:gasto"}, {"text": "Tempo lá fora", "callback_data": "x:tempo"}],
            [{"text": "Horários", "callback_data": "k:horarios:0"}, {"text": "Relatórios", "callback_data": "k:dados:0"}, {"text": "Luzes e aparelhos", "callback_data": "k:disp:0"}],
            [{"text": "Avisos e bugs", "callback_data": "k:avisos:0"}, {"text": "Segurança", "callback_data": "k:seg:0"}, {"text": "Uso da IA", "callback_data": "x:uso_ia"}],
-           [{"text": "Guia e glossário", "callback_data": "k:guia:0"}, {"text": "Conversar com a IA", "callback_data": "m:ia"}],
+           [{"text": "Minhas tarefas", "callback_data": "x:tarefas"}, {"text": "Lembretes", "callback_data": "k:lembretes:0"}, {"text": "Previsão", "callback_data": "k:previsao:0"}],
+           [{"text": "Fechamento", "callback_data": "x:checklist_fechamento"}, {"text": "Backup", "callback_data": "k:backup:0"}, {"text": "Acessos", "callback_data": "k:acessos:0"}],
+           [{"text": "Por ar", "callback_data": "k:porar:0"}, {"text": "Por sala", "callback_data": "k:porsala:0"}, {"text": "Comparar", "callback_data": "k:comparar:0"}],
+           [{"text": "Guia e glossário", "callback_data": "k:guia:0"}, {"text": "Conversar com a IA", "callback_data": "m:ia"}, {"text": "Novidades", "callback_data": "k:versoes:0"}],
            [{"text": f"Todos os comandos ({len(C)})", "callback_data": "x:comandos"}]]
     rec = [n for n in (p.get("recentes") or []) if n in C][:3]
     if rec:
@@ -2897,3 +2900,5 @@ for _k, _t, _d in _PROB:
     cmd(f"problema_{_k}", "guia", f"O que fazer: {_t}")(lambda ctx, a, _t=_t, _d=_d: ctx.enviar(f"<b>{_e(_t)}</b>\n{_e(_d)}", [[{"text": "Roteiro completo", "url": f"{APP}/guia#problemas"}], [{"text": "Menu", "callback_data": "m:menu"}]]))
 
 NOVOS_044 = len(C) - _ANTES_044
+
+from . import telegram_cmds_extra  # noqa: E402,F401  (14 categorias novas da 0.6.8: tarefas, backup, acessos, lembretes…)

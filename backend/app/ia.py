@@ -504,7 +504,7 @@ def preferencias(uid: str) -> dict:
 
 def salvar_preferencias(uid: str, d: dict) -> dict:
     p = preferencias(uid)
-    for k in ("estilo", "instrucoes", "pensar", "voz"):
+    for k in ("estilo", "instrucoes", "pensar", "voz", "chamar", "trabalho", "esforco", "fonte", "largura", "notificar", "agir", "sugestoes"):
         if d.get(k) is not None:
             p[k] = d[k]
     if p["estilo"] not in ESTILOS:
@@ -590,7 +590,8 @@ def msg_lista_txt(msgs: list[dict]) -> list[str]:
 
 
 def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None, leitura: bool = False,
-              estilo: str | None = None, pensar: bool = False, imagens: list[str] | None = None) -> dict:
+              estilo: str | None = None, pensar: bool = False, imagens: list[str] | None = None, projeto: dict | None = None,
+              esforco: str | None = None) -> dict:
     """Uma rodada de conversa. `historico` = [{role: user|assistant, content}] (o último é a pergunta).
     Devolve {texto, acoes: [...feitas], confirmacoes: [{confirmacao, descricao}]}."""
     u = _u()
@@ -615,8 +616,20 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", 
     extra = ESTILOS.get(estilo or prefs.get("estilo") or "normal", "")
     if prefs.get("instrucoes"):
         extra += "\nInstruções de quem pergunta (siga se não conflitarem com as regras acima): " + prefs["instrucoes"][:1500]
+    if prefs.get("chamar"):
+        extra += f"\nChame a pessoa de {prefs['chamar'][:40]}."
+    if prefs.get("trabalho"):
+        extra += f"\nTrabalho de quem pergunta: {prefs['trabalho'][:60]} (ajuste o nível técnico)."
+    if prefs.get("agir") is False:
+        leitura = True   # Capacidades → "Agir nos ares" desligado: sempre só consulta
+    esforco = esforco or prefs.get("esforco")
+    if esforco == "baixo":
+        extra += "\nEsforço BAIXO: responda direto e curto."
+    if projeto:
+        from . import ia_projetos
+        extra += "\n\n" + ia_projetos.contexto(projeto, pergunta, 90_000 if esforco == "maximo" else 60_000)
     msgs = [{"role": "system", "content": _sistema(canal) + ("\n- MODO PLANO (só leitura): você NÃO pode mudar nada; consulte, explique e proponha um plano passo a passo." if leitura else "") + extra}]
-    for h in historico[-16:]:
+    for h in historico[-(30 if esforco == "maximo" else 16):]:
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
             msgs.append({"role": h["role"], "content": h["content"][:3000]})
     # imagens (prints da tela, foto do controle): vão junto da última pergunta; modelo sem visão troca para o que enxerga

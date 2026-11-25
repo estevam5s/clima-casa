@@ -210,3 +210,31 @@ def sincronizar(pid: int, autor: dict) -> dict:
 def evento(tid: int, autor: dict, texto: str):
     db.executar("INSERT INTO tarefas_comentarios (tarefa_id, autor_id, autor_nome, tipo, texto, criado_em) VALUES (?, ?, ?, 'evento', ?, ?)",
                 (tid, autor.get("id"), autor.get("nome") or (autor.get("email") or "").split("@")[0], texto[:500], agora()))
+
+
+# ---------------- modelos de projeto (galeria) ----------------
+# Seções e tarefas de partida. São só um ponto de partida: nada de prazo nem pessoa inventada.
+MODELOS = {
+    "multidisciplinar": {"nome": "Plano de projeto multidisciplinar", "layout": "lista",
+                         "descricao": "Tarefas por etapa, com datas, para alinhar várias equipes.",
+                         "secoes": [("Planejamento", ["Definir objetivo e escopo", "Listar as equipes envolvidas", "Montar o cronograma"]),
+                                    ("Execução", ["Distribuir as tarefas", "Acompanhar os prazos"]),
+                                    ("Entrega", ["Revisar o resultado", "Apresentar e encerrar"])]},
+    "reuniao": {"nome": "Pauta de reunião", "layout": "lista", "descricao": "Itens da pauta, próximos passos e ações de cada reunião.",
+                "secoes": [("Pauta", ["Item 1 da pauta"]), ("Próximos passos", []), ("Ações combinadas", [])]},
+    "um_a_um": {"nome": "Pauta de reuniões a dois", "layout": "lista", "descricao": "Itens, notas e próximos passos das conversas a dois.",
+                "secoes": [("Para conversar", []), ("Notas", []), ("Próximos passos", [])]},
+    "ti": {"nome": "Solicitações de TI", "layout": "quadro", "descricao": "Pedidos para a TI, do recebido ao resolvido.",
+           "secoes": [("Recebidas", []), ("Em análise", []), ("Em andamento", []), ("Aguardando", []), ("Resolvidas", [])]},
+    "sprint": {"nome": "Sprint de desenvolvimento", "layout": "quadro", "descricao": "Backlog, sprint, revisão e pronto.",
+               "secoes": [("Backlog", []), ("Nesta sprint", []), ("Em revisão", []), ("Pronto", [])]},
+    "correcoes": {"nome": "Correções", "layout": "quadro", "descricao": "Bugs do novo ao resolvido.",
+                  "secoes": [("Novo", []), ("Analisando", []), ("Corrigindo", []), ("Testar", []), ("Resolvido", [])]},
+    "instalacao": {"nome": "Instalação de ar-condicionado", "layout": "lista", "descricao": "Do transmissor no teto ao ar na Alexa.",
+                   "secoes": [("Preparar", ["Parear o transmissor no Smart Life (Wi-Fi 2,4 GHz)", "Conferir se o agente enxerga o transmissor"]),
+                              ("Cadastrar", ["Cadastrar o ar na sala certa", "Gravar o Desligar e gerar os botões (Gree) ou copiar de outro ar"]),
+                              ("Testar", ["Testar ligar, desligar e temperatura", "Testar interferência com os outros ares", "Colocar na Alexa"])]},
+    "simples": {"nome": "Lista simples", "layout": "lista", "descricao": "Uma seção só.", "secoes": [("Tarefas", [])]},
+    "kanban": {"nome": "Quadro", "layout": "quadro", "descricao": "A fazer, fazendo e feito.", "secoes": [("A fazer", []), ("Fazendo", []), ("Feito", [])]},
+}
+STATUS = ("sem_status", "no_caminho", "em_risco", "fora_do_caminho", "pausado", "concluido")

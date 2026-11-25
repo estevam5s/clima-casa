@@ -4,6 +4,7 @@ import { AlertTriangle, Check, CheckCircle2, Copy, Download, Fingerprint, KeyRou
 import { api, haQuanto } from '../../api'
 import { supabase } from '../../supabase'
 import { biometriaDisponivel, cadastrarBiometria, temBiometriaNoAparelho } from '../../webauthn'
+import { LogoGithub } from '../LogoGithub'
 import { Aviso, Botao, Interruptor, Secao, useToast, confirmar } from '../ui'
 
 const traduzir = (m = '') => (/invalid|expired/i.test(m) ? 'Código errado ou vencido. Confira a hora do celular e use o código novo.'
@@ -213,7 +214,7 @@ const LogoGoogle = ({ className = 'h-5 w-5' }) => (
 
 // Conta Google ligada ao usuário (identidade do Supabase Auth). Ligada, o botão "Entrar com Google" do login abre esta conta,
 // mesmo que o e-mail do Google seja diferente do e-mail do sistema.
-function ContaGoogle() {
+function ContaOAuth({ prov, nome, Logo }) {
   const toast = useToast()
   const [google, setGoogle] = useState(undefined)   // undefined = carregando, null = não ligada
   const [total, setTotal] = useState(0)
@@ -225,17 +226,17 @@ function ContaGoogle() {
     if (error) { setErro(error.message); setGoogle(null); return }
     const ids = data?.identities || []
     setTotal(ids.length)
-    setGoogle(ids.find((i) => i.provider === 'google') || null)
+    setGoogle(ids.find((i) => i.provider === prov) || null)
   }
   useEffect(() => {
-    // volta do Google: erro na URL (ex.: conta Google já ligada a outro usuário)
+    // volta do provedor: erro na URL (ex.: conta já ligada a outro usuário)
     const url = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1))
     const e = url.get('error_description') || url.get('error')
     if (e) {
-      setErro(/already|exists|linked/i.test(e) ? 'Essa conta Google já está ligada a outro usuário do sistema.' : `O Google não concluiu a conexão: ${e}`)
+      setErro(/already|exists|linked/i.test(e) ? `Essa conta ${nome} já está ligada a outro usuário do sistema.` : `O ${nome} não concluiu a conexão: ${e}`)
       window.history.replaceState(null, '', `${window.location.pathname}?aba=seguranca`)
     } else if (url.get('access_token') || url.get('code')) {
-      toast('Conta Google conectada. Agora você pode entrar com o Google.')
+      toast(`Conta ${nome} conectada. Agora você pode entrar com o ${nome}.`)
       window.history.replaceState(null, '', `${window.location.pathname}?aba=seguranca`)
     }
     carregar().catch((x) => { setErro(x.message); setGoogle(null) })
@@ -245,45 +246,45 @@ function ContaGoogle() {
     setOcupado(true); setErro('')
     try {
       const sb = await supabase()
-      const { error } = await sb.auth.linkIdentity({ provider: 'google', options: { redirectTo: `${window.location.origin}/configuracoes?aba=seguranca`, queryParams: { prompt: 'select_account' } } })
+      const { error } = await sb.auth.linkIdentity({ provider: prov, options: { redirectTo: `${window.location.origin}/configuracoes?aba=seguranca`, ...(prov === 'google' ? { queryParams: { prompt: 'select_account' } } : {}) } })
       if (error) throw new Error(/manual linking/i.test(error.message) ? 'A conexão de contas está desligada no servidor de login.' : error.message)
     } catch (e) { setErro(e.message); setOcupado(false) }
   }
   const desconectar = async () => {
-    if (!await confirmar('Desconectar a conta Google? Você volta a entrar só com e-mail e senha (ou biometria).')) return
+    if (!await confirmar(`Desconectar a conta ${nome}? Você volta a entrar só com e-mail e senha (ou biometria).`)) return
     setOcupado(true); setErro('')
     try {
       const sb = await supabase()
       const { error } = await sb.auth.unlinkIdentity(google)
       if (error) throw new Error(error.message)
-      toast('Conta Google desconectada.')
+      toast(`Conta ${nome} desconectada.`)
       await carregar()
     } catch (e) { setErro(e.message) } finally { setOcupado(false) }
   }
   const dados = google?.identity_data || {}
   return (
-    <Secao titulo="Login com Google" contexto="Entre no sistema com a sua conta Google, sem digitar a senha">
+    <Secao titulo={`Login com ${nome}`} contexto={`Entre no sistema com a sua conta ${nome}, sem digitar a senha`}>
       {erro && <div className="mb-4"><Aviso>{erro}</Aviso></div>}
       {google === undefined ? <p className="text-sm text-muted-foreground">Carregando…</p> : google ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-            {dados.avatar_url ? <img src={dados.avatar_url} alt="" referrerPolicy="no-referrer" className="h-10 w-10 rounded-full object-cover" /> : <span className="grid h-10 w-10 place-items-center rounded-full bg-muted"><LogoGoogle /></span>}
+            {dados.avatar_url ? <img src={dados.avatar_url} alt="" referrerPolicy="no-referrer" className="h-10 w-10 rounded-full object-cover" /> : <span className="grid h-10 w-10 place-items-center rounded-full bg-muted"><Logo /></span>}
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1.5 text-sm font-medium"><LogoGoogle className="h-4 w-4" />{dados.full_name || dados.name || 'Conta Google'}</p>
+              <p className="flex items-center gap-1.5 text-sm font-medium"><Logo className="h-4 w-4" />{dados.full_name || dados.name || dados.user_name || `Conta ${nome}`}</p>
               <p className="truncate text-xs text-muted-foreground">{dados.email || google.email}{google.created_at ? ` · conectada ${haQuanto(Math.floor(new Date(google.created_at).getTime() / 1000))}` : ''}</p>
             </div>
             <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-400"><Check className="h-3 w-3" />Conectada</span>
           </div>
-          <p className="text-sm text-muted-foreground">Na tela de login, use <b className="font-medium text-foreground">Entrar com Google</b> e escolha esta conta. Se você usa o Google Authenticator, o código continua sendo pedido.</p>
+          <p className="text-sm text-muted-foreground">Na tela de login, use <b className="font-medium text-foreground">Entrar com {nome}</b> e escolha esta conta. Se você usa um app autenticador, o código continua sendo pedido.</p>
           <Botao variante="secundario" tamanho="sm" icone={X} carregando={ocupado} disabled={total < 2} onClick={desconectar}>Desconectar</Botao>
           {total < 2 && <p className="text-xs text-muted-foreground">É o único jeito de entrar desta conta: para desconectar, defina antes uma senha no Perfil.</p>}
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">Conecte uma conta Google para entrar com um clique. Pode ser um e-mail diferente do seu e-mail do sistema. Só você consegue conectar a sua conta, porque o Google pede a sua confirmação.</p>
+          <p className="text-sm text-muted-foreground">Conecte uma conta {nome} para entrar com um clique. Pode ser um e-mail diferente do seu e-mail do sistema. Só você consegue conectar a sua conta, porque o {nome} pede a sua confirmação.</p>
           <button onClick={conectar} disabled={ocupado}
             className="flex h-11 w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-card text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60 sm:w-auto sm:px-5">
-            <LogoGoogle className="h-[18px] w-[18px]" />{ocupado ? 'Abrindo o Google…' : 'Conectar conta Google'}
+            <Logo className="h-[18px] w-[18px]" />{ocupado ? `Abrindo o ${nome}…` : `Conectar conta ${nome}`}
           </button>
         </div>
       )}
@@ -370,5 +371,5 @@ function PainelConta() {
 }
 
 export default function SegurancaConta() {
-  return <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><PainelConta /><ContaGoogle /><Autenticador /><Biometria /><Sessoes /></div>
+  return <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><PainelConta /><ContaOAuth prov="google" nome="Google" Logo={LogoGoogle} /><ContaOAuth prov="github" nome="GitHub" Logo={LogoGithub} /><Autenticador /><Biometria /><Sessoes /></div>
 }

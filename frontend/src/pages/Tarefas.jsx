@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useSearchParams } from 'react-router-dom'
 import {
+  AirVent, Bug, ClipboardList, Clock3, FolderClosed, House, Inbox, LayoutDashboard, LifeBuoy, NotebookPen, Rocket, Users, UsersRound,
   Archive, BarChart3, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Columns3, ExternalLink, Filter,
   GanttChart, Github, List, MessageSquare, MoreHorizontal, Plus, RefreshCw, Search, Trash2, User, UserRound, X,
 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Esqueleto, Modal, Vazio, useToast } from '../components/ui'
+import { Aviso, Botao, Esqueleto, Modal, Vazio, useToast } from '../components/ui'
 
 // Tarefas no estilo Asana (backend/app/tarefas.py, rotas/tarefas.py): projetos com seções, lista, quadro, calendário,
 // cronograma e painel; detalhe com subtarefas, comentários e histórico; integração com o GitHub Projects.
@@ -465,20 +466,300 @@ function GithubProjeto({ projeto, info, gestor, dono, aoMudou, aberto, aoFechar 
   )
 }
 
-function NovoProjeto({ aberto, aoFechar, aoCriar }) {
-  const [f, setF] = useState({ nome: '', descricao: '', cor: CORES[0], modelo: 'kanban' })
-  const MODELOS = { kanban: ['A fazer', 'Fazendo', 'Feito'], sprint: ['Backlog', 'Nesta sprint', 'Em revisão', 'Pronto'], bugs: ['Novo', 'Analisando', 'Corrigindo', 'Testar', 'Resolvido'], simples: ['Tarefas'] }
+const STATUS = {
+  sem_status: ['Definir status', 'bg-muted text-muted-foreground', 'bg-slate-400'],
+  no_caminho: ['No caminho certo', 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400', 'bg-emerald-500'],
+  em_risco: ['Em risco', 'bg-amber-500/15 text-amber-700 dark:text-amber-400', 'bg-amber-500'],
+  fora_do_caminho: ['Fora do caminho', 'bg-red-500/15 text-red-700 dark:text-red-400', 'bg-red-500'],
+  pausado: ['Pausado', 'bg-sky-500/15 text-sky-700 dark:text-sky-400', 'bg-sky-500'],
+  concluido: ['Concluído', 'bg-violet-500/15 text-violet-700 dark:text-violet-400', 'bg-violet-500'],
+}
+const ICONE_MODELO = { multidisciplinar: Users, reuniao: NotebookPen, um_a_um: UsersRound, ti: LifeBuoy, sprint: Rocket, correcoes: Bug, instalacao: AirVent, simples: List, kanban: Columns3 }
+const COR_MODELO = { multidisciplinar: '#c026d3', reuniao: '#2563eb', um_a_um: '#db2777', ti: '#0d9488', sprint: '#ea580c', correcoes: '#dc2626', instalacao: '#0f766a', simples: '#475569', kanban: '#7c3aed' }
+
+function IconeProjeto({ p, tamanho = 'h-7 w-7' }) {
+  const I = p?.layout === 'quadro' ? Columns3 : p?.layout === 'calendario' ? CalendarDays : p?.layout === 'cronograma' ? GanttChart : List
+  return <span className={`inline-flex ${tamanho} shrink-0 items-center justify-center rounded-md text-white`} style={{ background: p?.cor || '#475569' }}><I className="h-4 w-4" /></span>
+}
+
+function Pessoas({ ids, pessoas, max = 4 }) {
+  const lista = (ids || []).map((i) => pessoas.find((p) => p.id === i)).filter(Boolean)
   return (
-    <Modal aberto={aberto} titulo="Novo projeto" onFechar={aoFechar}>
-      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); aoCriar({ nome: f.nome.trim(), descricao: f.descricao.trim(), cor: f.cor, secoes: MODELOS[f.modelo] }) }}>
-        <label className="block text-sm">Nome<input autoFocus className="campo mt-1" value={f.nome} maxLength={80} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Ex.: Instalação dos transmissores" /></label>
-        <label className="block text-sm">Descrição<input className="campo mt-1" value={f.descricao} maxLength={2000} onChange={(e) => setF({ ...f, descricao: e.target.value })} /></label>
-        <div className="text-sm">Cor<div className="mt-1 flex flex-wrap gap-1.5">{CORES.map((c) => <button type="button" key={c} onClick={() => setF({ ...f, cor: c })} aria-label={c} className={`h-7 w-7 rounded-full ${f.cor === c ? 'ring-2 ring-foreground ring-offset-2 ring-offset-card' : ''}`} style={{ background: c }} />)}</div></div>
-        <div className="text-sm">Seções iniciais<div className="mt-1 grid grid-cols-2 gap-2">{Object.entries(MODELOS).map(([k, l]) => (
-          <button type="button" key={k} onClick={() => setF({ ...f, modelo: k })} className={`rounded-lg border p-2 text-left text-xs ${f.modelo === k ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}><b className="block text-sm font-medium capitalize">{k === 'kanban' ? 'Quadro' : k === 'sprint' ? 'Sprint' : k === 'bugs' ? 'Correções' : 'Lista simples'}</b>{l.join(' · ')}</button>))}</div></div>
-        <div className="flex justify-end gap-2 pt-2"><Botao type="button" variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao type="submit" disabled={!f.nome.trim()}>Criar projeto</Botao></div>
+    <span className="flex items-center -space-x-1.5">
+      {lista.slice(0, max).map((p) => <span key={p.id} className="rounded-full ring-2 ring-card"><Avatar pessoa={p} /></span>)}
+      {lista.length > max && <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-muted px-1 text-[10px] ring-2 ring-card">+{lista.length - max}</span>}
+    </span>
+  )
+}
+
+function NovoProjeto({ aberto, aoFechar, aoCriar, modelos, pessoas, modeloInicial, eu }) {
+  const [f, setF] = useState({ nome: '', descricao: '', cor: CORES[0], modelo: 'kanban', membros: [], portfolio: '' })
+  useEffect(() => { if (aberto) setF((x) => ({ ...x, modelo: modeloInicial || 'kanban', nome: modeloInicial && modelos?.[modeloInicial] ? modelos[modeloInicial].nome : '', cor: COR_MODELO[modeloInicial] || CORES[0], membros: [] })) }, [aberto, modeloInicial]) // eslint-disable-line react-hooks/exhaustive-deps
+  const m = modelos?.[f.modelo]
+  return (
+    <Modal aberto={aberto} titulo="Criar projeto" onFechar={aoFechar} largura="max-w-3xl">
+      <form className="grid gap-5 md:grid-cols-[minmax(0,1fr)_16rem]" onSubmit={(e) => { e.preventDefault(); aoCriar({ nome: f.nome.trim(), descricao: f.descricao.trim(), cor: f.cor, modelo: f.modelo, membros: f.membros, portfolio: f.portfolio.trim() }) }}>
+        <div className="space-y-3">
+          <label className="block text-sm">Nome do projeto<input autoFocus className="campo mt-1" value={f.nome} maxLength={80} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Ex.: Instalação dos transmissores" /></label>
+          <label className="block text-sm">Descrição<input className="campo mt-1" value={f.descricao} maxLength={2000} onChange={(e) => setF({ ...f, descricao: e.target.value })} placeholder={m?.descricao || ''} /></label>
+          <div className="text-sm">Modelo<div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">{Object.entries(modelos || {}).map(([k, x]) => { const I = ICONE_MODELO[k] || List; return (
+            <button type="button" key={k} onClick={() => setF({ ...f, modelo: k, cor: COR_MODELO[k] || f.cor, nome: f.nome || '' })} className={`flex items-start gap-2 rounded-lg border p-2 text-left ${f.modelo === k ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}>
+              <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-white" style={{ background: COR_MODELO[k] }}><I className="h-3.5 w-3.5" /></span>
+              <span className="min-w-0"><b className="block truncate text-xs font-medium">{x.nome}</b><span className="block text-[11px] text-muted-foreground">{x.layout === 'quadro' ? 'Quadro' : 'Lista'} · {x.secoes.length} seções</span></span>
+            </button>) })}</div></div>
+          <div className="text-sm">Cor<div className="mt-1 flex flex-wrap gap-1.5">{CORES.map((c) => <button type="button" key={c} onClick={() => setF({ ...f, cor: c })} aria-label={c} className={`h-7 w-7 rounded-full ${f.cor === c ? 'ring-2 ring-foreground ring-offset-2 ring-offset-card' : ''}`} style={{ background: c }} />)}</div></div>
+          <label className="block text-sm">Portfólio (opcional)<input className="campo mt-1" value={f.portfolio} maxLength={80} onChange={(e) => setF({ ...f, portfolio: e.target.value })} placeholder="Ex.: Escritório 9º andar" /></label>
+          <div className="text-sm">Membros<div className="mt-1 flex flex-wrap gap-1.5">{pessoas.filter((p) => p.id !== eu).map((p) => { const on = f.membros.includes(p.id); return (
+            <button type="button" key={p.id} onClick={() => setF({ ...f, membros: on ? f.membros.filter((x) => x !== p.id) : [...f.membros, p.id] })} className={`flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-xs ${on ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'}`}><Avatar pessoa={p} tamanho="h-5 w-5 text-[9px]" />{p.nome}</button>) })}</div><p className="mt-1 text-xs text-muted-foreground">Você entra como membro. Todos com acesso ao sistema veem os projetos; membros recebem as novidades na Caixa de entrada.</p></div>
+        </div>
+        <div className="hidden rounded-xl border border-border bg-muted/40 p-3 md:block">
+          <p className="text-xs font-medium text-muted-foreground">Prévia</p>
+          <div className="mt-2 flex items-center gap-2"><IconeProjeto p={{ cor: f.cor, layout: m?.layout }} /><b className="truncate text-sm">{f.nome || m?.nome || 'Projeto'}</b></div>
+          <div className="mt-3 space-y-2">{(m?.secoes || []).map((s) => <div key={s} className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"><b className="font-medium">{s}</b><div className="mt-1 h-1.5 w-2/3 rounded bg-muted" /></div>)}</div>
+        </div>
+        <div className="flex justify-end gap-2 md:col-span-2"><Botao type="button" variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao type="submit" disabled={!f.nome.trim()}>Criar projeto</Botao></div>
       </form>
     </Modal>
+  )
+}
+
+// --------- Página inicial ---------
+function Inicio({ geral, pessoas, eu, nome, abrirTarefa, abrirProjeto, criarProjeto, versao }) {
+  const [n, setN] = useState(null)
+  const [minhas, setMinhas] = useState(null)
+  const [aba, setAba] = useState('proximas')
+  useEffect(() => { api.get('/api/tarefas/inicio').then(setN).catch(() => {}); api.get('/api/tarefas/minhas').then((r) => setMinhas(r.tarefas)).catch(() => setMinhas([])) }, [versao])
+  const hora = new Date(Date.now() - 3 * 3600e3).getUTCHours()
+  const lista = (minhas || []).filter((t) => (aba === 'concluidas' ? t.concluida : aba === 'atrasadas' ? atrasada(t) : !t.concluida && !atrasada(t)))
+  const meus = (geral?.projetos || []).filter((p) => !p.arquivado).sort((a, b) => (b.atualizado_em || 0) - (a.atualizado_em || 0))
+  return (
+    <div className="mx-auto max-w-5xl">
+      <p className="text-center text-sm text-muted-foreground first-letter:uppercase">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+      <h2 className="mt-1 text-center text-3xl font-semibold tracking-tight">{hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'}{nome ? `, ${nome}` : ''}</h2>
+      <div className="mx-auto mt-4 flex w-fit flex-wrap items-center justify-center gap-x-5 gap-y-1 rounded-full border border-border bg-card px-5 py-2 text-sm">
+        <span><b className="tabular">{n?.feitas_semana ?? '…'}</b> <span className="text-muted-foreground">tarefa(s) concluída(s) na semana</span></span>
+        <span><b className="tabular">{n?.colaboradores ?? '…'}</b> <span className="text-muted-foreground">colaborador(es)</span></span>
+        {n?.atrasadas > 0 && <span className="text-red-600 dark:text-red-400"><b className="tabular">{n.atrasadas}</b> atrasada(s)</span>}
+      </div>
+      <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="cartao flex min-h-[22rem] flex-col">
+          <div className="flex items-center gap-3 px-5 pt-4"><Avatar pessoa={pessoas.find((p) => p.id === eu)} tamanho="h-9 w-9 text-xs" /><h3 className="text-base font-semibold">Minhas tarefas</h3></div>
+          <div className="mt-2 flex gap-4 border-b border-border px-5 text-sm">{[['proximas', 'Próximas'], ['atrasadas', 'Atrasadas'], ['concluidas', 'Concluídas']].map(([k, r]) => (
+            <button key={k} onClick={() => setAba(k)} className={`-mb-px border-b-2 py-2 ${aba === k ? 'border-foreground font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{r}{k === 'atrasadas' && n?.atrasadas ? ` (${n.atrasadas})` : ''}</button>))}</div>
+          <div className="flex-1 overflow-y-auto">
+            {!minhas ? <div className="p-5"><Esqueleto className="h-24" /></div> : lista.length ? lista.slice(0, 12).map((t) => (
+              <button key={t.id} onClick={() => abrirTarefa(t.id, t.projeto_id)} className="flex w-full items-center gap-3 border-b border-border/60 px-5 py-2 text-left text-sm hover:bg-muted/50">
+                {t.concluida ? <CircleCheck className="h-4 w-4 shrink-0 text-emerald-600" /> : <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                <span className="min-w-0 flex-1 truncate">{t.titulo}</span>
+                <span className="hidden max-w-[8rem] truncate rounded px-1.5 py-0.5 text-[11px] sm:inline" style={{ background: `${t.projeto_cor}22`, color: t.projeto_cor }}>{t.projeto_nome}</span>
+                <Prazo t={t} />
+              </button>)) : <p className="px-5 py-8 text-center text-sm text-muted-foreground">{aba === 'concluidas' ? 'Nada concluído nos últimos 7 dias.' : aba === 'atrasadas' ? 'Nenhuma atrasada.' : 'Nenhuma tarefa com você.'}</p>}
+          </div>
+        </section>
+        <section className="cartao flex min-h-[22rem] flex-col">
+          <div className="flex items-center justify-between px-5 pt-4"><h3 className="text-base font-semibold">Projetos</h3><span className="text-xs text-muted-foreground">Recentes</span></div>
+          <div className="mt-3 grid flex-1 grid-cols-1 content-start gap-1 px-3 pb-3 sm:grid-cols-2">
+            {geral?.pode_editar && <button onClick={criarProjeto} className="flex items-center gap-3 rounded-lg p-2 text-left text-sm hover:bg-muted"><span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-dashed border-border"><Plus className="h-4 w-4" /></span>Criar projeto</button>}
+            {meus.slice(0, 7).map((p) => (
+              <button key={p.id} onClick={() => abrirProjeto(p.id)} className="flex items-center gap-3 rounded-lg p-2 text-left hover:bg-muted">
+                <IconeProjeto p={p} tamanho="h-10 w-10" />
+                <span className="min-w-0"><b className="block truncate text-sm font-medium">{p.nome}</b><span className="block text-xs text-muted-foreground">{p.total - p.feitas} aberta(s){p.atrasadas ? ` · ${p.atrasadas} atrasada(s)` : ''}</span></span>
+              </button>))}
+          </div>
+        </section>
+        <section className="cartao lg:col-span-2">
+          <div className="flex items-center justify-between px-5 pt-4"><h3 className="text-base font-semibold">Pessoas</h3><span className="text-xs text-muted-foreground">Tarefas abertas com cada uma</span></div>
+          <PessoasCarga pessoas={pessoas} versao={versao} />
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function PessoasCarga({ pessoas, versao }) {
+  const [carga, setCarga] = useState(null)
+  useEffect(() => { api.get('/api/tarefas/carga').then((r) => setCarga(r.pessoas)).catch(() => setCarga([])) }, [versao])
+  if (!carga) return <div className="p-5"><Esqueleto className="h-16" /></div>
+  return (
+    <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 lg:grid-cols-6">
+      {pessoas.map((p) => { const c = carga.find((x) => x.id === p.id) || {}; return (
+        <div key={p.id} className="flex flex-col items-center gap-1.5 rounded-lg p-2 text-center">
+          <Avatar pessoa={p} tamanho="h-12 w-12 text-sm" />
+          <span className="max-w-full truncate text-sm font-medium">{p.nome}</span>
+          <span className="text-xs text-muted-foreground">{c.abertas || 0} aberta(s){c.atrasadas ? <b className="text-red-600 dark:text-red-400"> · {c.atrasadas} atrasada(s)</b> : ''}</span>
+        </div>) })}
+    </div>
+  )
+}
+
+// --------- Caixa de entrada ---------
+function Caixa({ abrirTarefa, versao }) {
+  const [d, setD] = useState(null)
+  const [filtro, setFiltro] = useState('todas')
+  useEffect(() => { api.get('/api/tarefas/caixa').then(setD).catch(() => setD({ itens: [] })) }, [versao])
+  if (!d) return <Esqueleto className="h-64" />
+  const itens = d.itens.filter((x) => filtro === 'todas' || (filtro === 'comentarios' ? x.tipo === 'comentario' : x.tipo === 'evento'))
+  return (
+    <div className="mx-auto max-w-4xl">
+      <div className="mb-3 flex items-center gap-2">{[['todas', 'Atividade'], ['comentarios', 'Comentários'], ['eventos', 'Mudanças']].map(([k, r]) => (
+        <button key={k} onClick={() => setFiltro(k)} className={`rounded-full border px-3 py-1 text-sm ${filtro === k ? 'border-foreground font-medium' : 'border-border text-muted-foreground hover:bg-muted'}`}>{r}</button>))}</div>
+      {!itens.length ? <Vazio icone={Inbox} titulo="Caixa de entrada em dia" texto="Aqui aparecem os comentários e as mudanças feitas por outras pessoas nas suas tarefas e nos projetos em que você é membro (últimos 30 dias)." /> : (
+        <div className="cartao divide-y divide-border">
+          {itens.map((x) => (
+            <button key={x.id} onClick={() => abrirTarefa(x.tarefa_id, x.projeto_id)} className="flex w-full gap-3 px-4 py-3 text-left hover:bg-muted/50">
+              <Avatar pessoa={{ nome: x.autor_nome }} tamanho="h-8 w-8 text-[11px]" />
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-sm" style={{ background: x.projeto_cor }} />{x.projeto_nome}<span>·</span>{quando(x.criado_em)}</span>
+                <span className="mt-0.5 block truncate text-sm font-medium">{x.titulo}</span>
+                <span className={`mt-0.5 block text-sm ${x.tipo === 'comentario' ? '' : 'text-muted-foreground'}`}><b className="font-medium">{x.autor_nome || 'Alguém'}</b> {x.tipo === 'comentario' ? 'comentou: ' : ''}<span className="break-words">{x.tipo === 'comentario' ? x.texto : x.texto.charAt(0).toLowerCase() + x.texto.slice(1)}</span></span>
+              </span>
+              {x.tipo === 'comentario' ? <MessageSquare className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" /> : <Clock3 className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />}
+            </button>))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --------- Projetos (lista com filtros + galeria de modelos) ---------
+function ProjetosLista({ geral, pessoas, eu, abrirProjeto, criarProjeto }) {
+  const [q, setQ] = useState('')
+  const [dono, setDono] = useState('')
+  const [membro, setMembro] = useState('')
+  const [status, setStatus] = useState('')
+  const [arquivados, setArquivados] = useState(false)
+  const [galeria, setGaleria] = useState(() => { try { return localStorage.getItem('clima-tarefas-galeria') !== '0' } catch { return true } })
+  const lista = (geral?.projetos || []).filter((p) => (arquivados ? p.arquivado : !p.arquivado) && (!q || p.nome.toLowerCase().includes(q.toLowerCase()))
+    && (!dono || p.criado_por === dono) && (!membro || (p.membros || []).includes(membro)) && (!status || p.status === status))
+    .sort((a, b) => (b.atualizado_em || 0) - (a.atualizado_em || 0))
+  const sel = 'h-8 w-auto rounded-full border border-border bg-card px-3 text-sm'
+  return (
+    <div>
+      <label className="relative block"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input type="search" autoComplete="off" className="campo h-10 rounded-full pl-9" placeholder="Encontre um projeto" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Encontre um projeto" /></label>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <select className={sel} value={dono} onChange={(e) => setDono(e.target.value)} aria-label="Proprietário"><option value="">Proprietário(a)</option>{pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
+        <select className={sel} value={membro} onChange={(e) => setMembro(e.target.value)} aria-label="Membros"><option value="">Membros</option>{pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
+        <select className={sel} value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status"><option value="">Status</option>{Object.entries(STATUS).map(([k, [r]]) => <option key={k} value={k}>{k === 'sem_status' ? 'Sem status' : r}</option>)}</select>
+        <label className="ml-1 flex items-center gap-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} className="accent-[hsl(var(--primary))]" />Arquivados</label>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[680px] text-sm">
+          <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 font-medium">Nome</th><th className="py-2 font-medium">Membros</th><th className="py-2 font-medium">Portfólio</th><th className="py-2 font-medium">Status</th><th className="py-2 font-medium">Progresso</th><th className="py-2 text-right font-medium">Modificado</th></tr></thead>
+          <tbody>
+            {lista.map((p) => { const pr = p.total ? Math.round((p.feitas / p.total) * 100) : 0; return (
+              <tr key={p.id} onClick={() => abrirProjeto(p.id)} className="cursor-pointer border-b border-border/60 hover:bg-muted/50">
+                <td className="py-2.5 pr-3"><span className="flex items-center gap-3"><IconeProjeto p={p} /><span className="min-w-0"><b className="block truncate font-medium">{p.nome}</b>{(p.membros || []).includes(eu) && <span className="text-xs text-emerald-600 dark:text-emerald-400">Participando</span>}</span></span></td>
+                <td className="py-2.5"><Pessoas ids={p.membros} pessoas={pessoas} /></td>
+                <td className="py-2.5">{p.portfolio ? <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs"><FolderClosed className="h-3 w-3" />{p.portfolio}</span> : <span className="text-muted-foreground">-</span>}</td>
+                <td className="py-2.5"><span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${STATUS[p.status || 'sem_status'][1]}`}>{p.status && p.status !== 'sem_status' ? STATUS[p.status][0] : 'Sem status'}</span></td>
+                <td className="py-2.5"><span className="flex items-center gap-2"><span className="h-1.5 w-20 rounded-full bg-muted"><span className="block h-1.5 rounded-full bg-primary" style={{ width: `${pr}%` }} /></span><span className="text-xs tabular text-muted-foreground">{pr}%</span></span></td>
+                <td className="py-2.5 text-right text-xs text-muted-foreground">{p.atualizado_em ? quando(p.atualizado_em) : ''}</td>
+              </tr>) })}
+            {!lista.length && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Nenhum projeto com esses filtros.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {galeria && geral?.pode_editar && (
+        <div className="mt-10">
+          <div className="flex items-center justify-center gap-2"><h3 className="text-center text-lg font-semibold">Comece com um modelo pronto</h3>
+            <button onClick={() => { setGaleria(false); try { localStorage.setItem('clima-tarefas-galeria', '0') } catch { /* */ } }} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Esconder os modelos"><X className="h-4 w-4" /></button></div>
+          <div className="mx-auto mt-4 grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(geral.modelos || {}).filter(([k]) => !['simples', 'kanban'].includes(k)).map(([k, m]) => { const I = ICONE_MODELO[k] || List; return (
+              <button key={k} onClick={() => criarProjeto(k)} className="cartao p-4 text-left transition-colors hover:border-muted-foreground/40">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white" style={{ background: COR_MODELO[k] }}><I className="h-4 w-4" /></span>
+                <b className="mt-3 block text-sm font-semibold">{m.nome}</b>
+                <span className="mt-1 block text-xs text-muted-foreground">{m.descricao}</span>
+                <span className="mt-2 block text-[11px] text-muted-foreground">{m.secoes.join(' · ')}</span>
+              </button>) })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --------- Portfólios (projetos agrupados, com status e progresso) ---------
+function Portfolios({ geral, pessoas, abrirProjeto }) {
+  const grupos = {}
+  for (const p of (geral?.projetos || []).filter((x) => !x.arquivado)) (grupos[p.portfolio || 'Sem portfólio'] ||= []).push(p)
+  const nomes = Object.keys(grupos).sort((a, b) => (a === 'Sem portfólio') - (b === 'Sem portfólio') || a.localeCompare(b))
+  if (!nomes.length) return <Vazio icone={FolderClosed} titulo="Nenhum portfólio" texto="Dê um nome de portfólio aos projetos (Criar projeto ou Visão geral do projeto) para acompanhá-los juntos." />
+  return (
+    <div className="space-y-6">
+      {nomes.map((n) => { const ps = grupos[n], tot = ps.reduce((a, p) => a + p.total, 0), ft = ps.reduce((a, p) => a + p.feitas, 0); return (
+        <section key={n} className="cartao">
+          <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3"><FolderClosed className="h-4 w-4 text-muted-foreground" /><h3 className="text-base font-semibold">{n}</h3>
+            <span className="text-xs text-muted-foreground">{ps.length} projeto(s) · {tot ? Math.round((ft / tot) * 100) : 0}% concluído</span>
+            <span className="ml-auto flex gap-1">{Object.keys(STATUS).filter((k) => k !== 'sem_status').map((k) => { const c = ps.filter((p) => p.status === k).length; return c ? <span key={k} className={`rounded-full px-2 py-0.5 text-[11px] ${STATUS[k][1]}`}>{c} {STATUS[k][0].toLowerCase()}</span> : null })}</span></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm"><tbody>{ps.map((p) => { const pr = p.total ? Math.round((p.feitas / p.total) * 100) : 0; return (
+            <tr key={p.id} onClick={() => abrirProjeto(p.id)} className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-muted/50">
+              <td className="py-2.5 pl-5"><span className="flex items-center gap-3"><IconeProjeto p={p} /><b className="font-medium">{p.nome}</b></span></td>
+              <td className="py-2.5"><span className={`rounded-full px-2 py-0.5 text-xs ${STATUS[p.status || 'sem_status'][1]}`}>{p.status && p.status !== 'sem_status' ? STATUS[p.status][0] : 'Sem status'}</span></td>
+              <td className="py-2.5 text-xs text-muted-foreground">{p.prazo ? `Prazo ${fmtData(p.prazo)}` : ''}</td>
+              <td className="py-2.5"><span className="flex items-center gap-2"><span className="h-1.5 w-24 rounded-full bg-muted"><span className="block h-1.5 rounded-full bg-primary" style={{ width: `${pr}%` }} /></span><span className="text-xs tabular">{pr}%</span></span></td>
+              <td className="py-2.5 pr-5"><Pessoas ids={p.membros} pessoas={pessoas} max={3} /></td>
+            </tr>) })}</tbody></table></div>
+        </section>) })}
+    </div>
+  )
+}
+
+// --------- Visão geral do projeto (descrição, membros, status e atualizações) ---------
+function VisaoGeral({ dados, pessoas, pode, salvarProjeto, publicarStatus }) {
+  const p = dados.projeto
+  const [st, setSt] = useState(p.status && p.status !== 'sem_status' ? p.status : 'no_caminho')
+  const [txt, setTxt] = useState('')
+  const total = dados.tarefas.length, feitas = dados.tarefas.filter((t) => t.concluida).length
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="space-y-6">
+        <section>
+          <h3 className="text-base font-semibold">Descrição do projeto</h3>
+          <textarea key={`d${p.id}${p.atualizado_em}`} defaultValue={p.descricao} disabled={!pode} rows={4} maxLength={2000} placeholder="Para que serve este projeto? Qual o resultado esperado?"
+            onBlur={(e) => e.target.value !== p.descricao && salvarProjeto({ descricao: e.target.value })} className="campo mt-2 min-h-[6rem] w-full resize-y py-2" />
+        </section>
+        <section>
+          <h3 className="text-base font-semibold">Membros</h3>
+          <div className="mt-2 flex flex-wrap gap-2">{pessoas.map((x) => { const on = (p.membros || []).includes(x.id); return (
+            <button key={x.id} disabled={!pode} onClick={() => salvarProjeto({ membros: on ? p.membros.filter((m) => m !== x.id) : [...(p.membros || []), x.id] })}
+              className={`flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-sm ${on ? 'border-primary bg-primary/10' : 'border-dashed border-border text-muted-foreground hover:bg-muted'}`}><Avatar pessoa={x} />{x.nome}{on && <Check className="h-3.5 w-3.5 text-primary" />}</button>) })}</div>
+        </section>
+        <section>
+          <h3 className="text-base font-semibold">Atualizações de status</h3>
+          {pode && (
+            <div className="cartao mt-2 p-4">
+              <div className="flex flex-wrap gap-1.5">{Object.entries(STATUS).filter(([k]) => k !== 'sem_status').map(([k, [r, c, b]]) => (
+                <button key={k} onClick={() => setSt(k)} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${st === k ? `border-transparent ${c} font-medium` : 'border-border text-muted-foreground hover:bg-muted'}`}><span className={`h-2 w-2 rounded-full ${b}`} />{r}</button>))}</div>
+              <textarea className="campo mt-3 min-h-[4.5rem] w-full resize-y py-2" rows={3} maxLength={4000} value={txt} onChange={(e) => setTxt(e.target.value)} placeholder={`Resumo: ${feitas} de ${total} tarefas concluídas. O que avançou, o que trava, próximos passos…`} />
+              <div className="mt-2 flex justify-end"><Botao tamanho="sm" onClick={async () => { await publicarStatus(st, txt); setTxt('') }}>Publicar atualização</Botao></div>
+            </div>
+          )}
+          <ol className="mt-3 space-y-3">
+            {(dados.status_historico || []).map((h) => (
+              <li key={h.id} className="cartao p-4">
+                <div className="flex flex-wrap items-center gap-2 text-xs"><span className={`rounded-full px-2 py-0.5 font-medium ${STATUS[h.status][1]}`}>{STATUS[h.status][0]}</span><b>{h.autor_nome}</b><span className="text-muted-foreground">{quando(h.criado_em)}</span></div>
+                {h.texto && <p className="mt-2 whitespace-pre-wrap text-sm">{h.texto}</p>}
+              </li>))}
+            {!dados.status_historico?.length && <p className="text-sm text-muted-foreground">Nenhuma atualização ainda. Publique a primeira para quem acompanha o projeto.</p>}
+          </ol>
+        </section>
+      </div>
+      <aside className="space-y-4">
+        <div className="cartao p-4">
+          <p className="text-xs font-medium text-muted-foreground">Status atual</p>
+          <p className={`mt-1.5 inline-flex rounded-full px-2.5 py-1 text-sm font-medium ${STATUS[p.status || 'sem_status'][1]}`}>{p.status && p.status !== 'sem_status' ? STATUS[p.status][0] : 'Sem status'}</p>
+          <div className="mt-4 h-2 rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${total ? (feitas / total) * 100 : 0}%` }} /></div>
+          <p className="mt-1 text-xs text-muted-foreground">{feitas} de {total} tarefa(s) concluída(s)</p>
+        </div>
+        <div className="cartao space-y-3 p-4 text-sm">
+          <label className="block"><span className="text-xs text-muted-foreground">Prazo do projeto</span><input type="date" className="campo mt-1 h-8" disabled={!pode} value={p.prazo || ''} onChange={(e) => salvarProjeto({ prazo: e.target.value })} /></label>
+          <label className="block"><span className="text-xs text-muted-foreground">Portfólio</span><input className="campo mt-1 h-8" disabled={!pode} key={`pf${p.id}${p.atualizado_em}`} defaultValue={p.portfolio} maxLength={80} onBlur={(e) => e.target.value !== p.portfolio && salvarProjeto({ portfolio: e.target.value })} placeholder="Sem portfólio" /></label>
+          <label className="block"><span className="text-xs text-muted-foreground">Visão ao abrir</span><select className="campo mt-1 h-8" disabled={!pode} value={p.layout || 'lista'} onChange={(e) => salvarProjeto({ layout: e.target.value })}>{VISOES.map(([k, r]) => <option key={k} value={k}>{r}</option>)}</select></label>
+          <div><span className="text-xs text-muted-foreground">Cor</span><div className="mt-1 flex flex-wrap gap-1">{CORES.map((c) => <button key={c} disabled={!pode} onClick={() => salvarProjeto({ cor: c })} aria-label={c} className={`h-6 w-6 rounded-full ${p.cor === c ? 'ring-2 ring-foreground ring-offset-2 ring-offset-card' : ''}`} style={{ background: c }} />)}</div></div>
+          <p className="text-xs text-muted-foreground">Criado por {pessoas.find((x) => x.id === p.criado_por)?.nome || 'alguém'} em {new Date(p.criado_em * 1000).toLocaleDateString('pt-BR')}</p>
+        </div>
+      </aside>
+    </div>
   )
 }
 
@@ -511,6 +792,8 @@ function Minhas({ abrir, mudar, versao }) {
   )
 }
 
+const PAGINAS = [['inicio', 'Página inicial', House], ['caixa', 'Caixa de entrada', Inbox], ['minhas', 'Minhas tarefas', CircleCheck], ['projetos', 'Projetos', ClipboardList], ['portfolios', 'Portfólios', FolderClosed]]
+
 export default function Tarefas() {
   const toast = useToast()
   const { sessao } = useProjeto()
@@ -519,23 +802,26 @@ export default function Tarefas() {
   const [pessoas, setPessoas] = useState([])
   const [dados, setDados] = useState(null)
   const [erro, setErro] = useState(null)
-  const [novo, setNovo] = useState(false)
+  const [novo, setNovo] = useState(null)       // null = fechado; '' = sem modelo; 'sprint' etc.
   const [gh, setGh] = useState(false)
   const [sinc, setSinc] = useState(false)
   const [versao, setVersao] = useState(0)
   const [filtro, setFiltro] = useState({ q: '', resp: '', prio: '', concluidas: false })
   const [menuProj, setMenuProj] = useState(false)
-  const pid = params.get('projeto') === 'minhas' ? 'minhas' : params.get('projeto') ? +params.get('projeto') : null
-  const visao = VISOES.some(([k]) => k === params.get('visao')) ? params.get('visao') : (() => { try { return localStorage.getItem('clima-tarefas-visao') || 'lista' } catch { return 'lista' } })()
+  const [criar, setCriar] = useState(false)
+  const [tarefaRapida, setTarefaRapida] = useState(false)
+  const pid = /^\d+$/.test(params.get('projeto') || '') ? +params.get('projeto') : null
+  const pagina = pid ? null : (PAGINAS.some(([k]) => k === params.get('projeto')) ? params.get('projeto') : 'inicio')
   const aberta = params.get('tarefa') ? +params.get('tarefa') : null
   const set = (mud) => { const p = new URLSearchParams(params); Object.entries(mud).forEach(([k, v]) => (v == null ? p.delete(k) : p.set(k, v))); setParams(p, { replace: true }) }
   const carregarGeral = useCallback(() => api.get('/api/tarefas/projetos').then(setGeral).catch((e) => setErro(e.message)), [])
   useEffect(() => { carregarGeral(); api.get('/api/tarefas/pessoas').then((r) => setPessoas(r.pessoas)).catch(() => {}) }, [carregarGeral])
-  useEffect(() => { if (geral && pid == null) { const p = geral.projetos.find((x) => !x.arquivado); set({ projeto: p ? p.id : 'minhas' }) } }, [geral]) // eslint-disable-line react-hooks/exhaustive-deps
-  const carregar = useCallback(() => { if (typeof pid === 'number') return api.get(`/api/tarefas/projetos/${pid}`).then((r) => { setDados(r); setErro(null) }).catch((e) => setErro(e.message)) }, [pid])
+  const carregar = useCallback(() => { if (pid) return api.get(`/api/tarefas/projetos/${pid}`).then((r) => { setDados(r); setErro(null) }).catch((e) => setErro(e.message)) }, [pid])
   useEffect(() => { setDados(null); carregar() }, [carregar])
+  const visao = ['geral', ...VISOES.map(([k]) => k)].includes(params.get('visao')) ? params.get('visao') : (dados?.projeto?.layout || 'lista')
   const recarregar = () => { carregar(); carregarGeral(); setVersao((v) => v + 1) }
   const pode = geral?.pode_editar
+  const eu = sessao?.id
   const mudar = async (t, campos) => {
     setDados((d) => d && ({ ...d, tarefas: d.tarefas.map((x) => (x.id === t.id ? { ...x, ...campos } : x)) }))
     try { await api.put(`/api/tarefas/${t.id}`, campos); recarregar() } catch (e) { toast(e.message, 'erro'); carregar() }
@@ -544,8 +830,10 @@ export default function Tarefas() {
     setDados((d) => d && ({ ...d, tarefas: d.tarefas.map((x) => (x.id === t.id ? { ...x, secao_id, ordem } : x)).sort((a, b) => a.ordem - b.ordem) }))
     try { await api.put('/api/tarefas-ordem', { itens: [{ id: t.id, secao_id, ordem }] }) } catch (e) { toast(e.message, 'erro'); carregar() }
   }
-  const criar = async (campos) => { try { await api.post('/api/tarefas', { projeto_id: pid, ...campos }); recarregar() } catch (e) { toast(e.message, 'erro') } }
+  const criarTarefa = async (campos) => { try { await api.post('/api/tarefas', { projeto_id: pid, ...campos }); recarregar() } catch (e) { toast(e.message, 'erro') } }
   const secaoAcao = async (fn) => { try { setDados(await fn()) } catch (e) { toast(e.message, 'erro') } }
+  const projeto = dados?.projeto
+  const salvarProjeto = (mud) => secaoAcao(() => api.put(`/api/tarefas/projetos/${pid}`, { nome: projeto.nome, descricao: projeto.descricao || '', cor: projeto.cor, arquivado: projeto.arquivado, portfolio: projeto.portfolio || '', layout: projeto.layout || 'lista', prazo: projeto.prazo || '', ...mud }).then((r) => { carregarGeral(); return r }))
   const sincronizar = async () => {
     setSinc(true)
     try { const r = await api.post(`/api/tarefas/projetos/${pid}/github/sincronizar`); setDados(r); toast(`GitHub: ${r.vieram} vieram, ${r.atualizadas} atualizadas, ${r.enviadas} enviadas.`) } catch (e) { toast(e.message, 'erro') } finally { setSinc(false) }
@@ -553,87 +841,138 @@ export default function Tarefas() {
   const tarefas = useMemo(() => (dados?.tarefas || []).filter((t) => {
     if (!filtro.concluidas && t.concluida) return false
     if (filtro.q && !`${t.titulo} ${t.descricao} ${(t.etiquetas || []).join(' ')}`.toLowerCase().includes(filtro.q.toLowerCase())) return false
-    if (filtro.resp === 'eu' && t.responsavel_id !== sessao?.id) return false
+    if (filtro.resp === 'eu' && t.responsavel_id !== eu) return false
     if (filtro.resp === 'ninguem' && t.responsavel_id) return false
     if (filtro.resp && !['eu', 'ninguem'].includes(filtro.resp) && t.responsavel_id !== filtro.resp) return false
     if (filtro.prio && t.prioridade !== filtro.prio) return false
     return true
-  }), [dados, filtro, sessao])
-  const projeto = dados?.projeto
-  const ativos = (geral?.projetos || []).filter((p) => !p.arquivado), arquivados = (geral?.projetos || []).filter((p) => p.arquivado)
+  }), [dados, filtro, eu])
+  const ativos = (geral?.projetos || []).filter((p) => !p.arquivado)
+  const meuNome = (pessoas.find((p) => p.id === eu)?.nome || '').split(' ')[0]
+  const irPagina = (k) => { set({ projeto: k, tarefa: null, visao: null }); setMenuProj(false) }
+  const irProjeto = (id) => { set({ projeto: id, tarefa: null, visao: null }); setMenuProj(false) }
+  const abrirTarefa = (id, p) => set({ tarefa: id, ...(p ? { projeto: p } : {}) })
   if (erro && !geral) return <Aviso>{erro}</Aviso>
+  const titulo = pid ? projeto?.nome : PAGINAS.find(([k]) => k === pagina)?.[1]
   return (
     <div className="w-full min-w-0">
-      <Cabecalho titulo="Tarefas" descricao="Projetos, quadros e prazos da equipe, com subtarefas, comentários e ligação com o GitHub Projects." />
-      <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
-        <nav className="min-w-0" aria-label="Projetos de tarefas">
-          <button onClick={() => setMenuProj((m) => !m)} className="mb-2 flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-sm lg:hidden">
-            {pid === 'minhas' ? 'Minhas tarefas' : projeto?.nome || 'Projetos'}<ChevronDown className="h-4 w-4" />
-          </button>
+      <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <nav className="min-w-0 lg:border-r lg:border-border lg:pr-4" aria-label="Tarefas">
+          <div className="relative mb-3">
+            <button disabled={!pode} onClick={() => setCriar((c) => !c)} className="flex h-9 items-center gap-2 rounded-full border border-border bg-card pl-1.5 pr-4 text-sm font-medium hover:bg-muted disabled:opacity-50">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground"><Plus className="h-4 w-4" /></span>Criar
+            </button>
+            {criar && (
+              <div className="absolute left-0 top-11 z-30 w-52 rounded-lg border border-border bg-card p-1 shadow-lg"> {/* marca: menu flutua */}
+                <button onClick={() => { setCriar(false); setTarefaRapida(true) }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-muted"><CircleCheck className="h-4 w-4" />Tarefa</button>
+                <button onClick={() => { setCriar(false); setNovo('') }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-muted"><ClipboardList className="h-4 w-4" />Projeto</button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setMenuProj((m) => !m)} className="mb-2 flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-sm lg:hidden">{titulo || 'Tarefas'}<ChevronDown className="h-4 w-4" /></button>
           <div className={`${menuProj ? 'block' : 'hidden'} space-y-0.5 lg:block`}>
-            <button onClick={() => { set({ projeto: 'minhas', tarefa: null }); setMenuProj(false) }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${pid === 'minhas' ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}><UserRound className="h-4 w-4" />Minhas tarefas</button>
-            <p className="px-3 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">Projetos</p>
+            {PAGINAS.map(([k, r, I], i) => (
+              <div key={k}>
+                {i === 2 && <div className="my-2 border-t border-border" />}
+                <button onClick={() => irPagina(k)} className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left text-sm ${pagina === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}><I className="h-4 w-4" />{r}</button>
+              </div>
+            ))}
+            <div className="flex items-center justify-between px-3 pb-1 pt-5">
+              <span className="text-xs font-medium text-muted-foreground">Projetos</span>
+              {pode && <button onClick={() => setNovo('')} className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Criar projeto"><Plus className="h-4 w-4" /></button>}
+            </div>
             {!geral ? <Esqueleto className="h-24" /> : ativos.map((p) => (
-              <button key={p.id} onClick={() => { set({ projeto: p.id, tarefa: null }); setMenuProj(false) }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${pid === p.id ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}>
-                <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: p.cor }} /><span className="min-w-0 flex-1 truncate">{p.nome}</span>
+              <button key={p.id} onClick={() => irProjeto(p.id)} className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left text-sm ${pid === p.id ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}>
+                <IconeProjeto p={p} tamanho="h-5 w-5 [&_svg]:h-3 [&_svg]:w-3" /><span className="min-w-0 flex-1 truncate">{p.nome}</span>
                 {p.atrasadas > 0 && <span className="rounded bg-red-500/10 px-1 text-[10px] font-medium text-red-600 dark:text-red-400 tabular" title="atrasadas">{p.atrasadas}</span>}
                 {p.no_github && <Github className="h-3 w-3 shrink-0" />}
-                <span className="text-[11px] tabular">{p.total - p.feitas}</span>
               </button>
             ))}
-            {pode && <button onClick={() => setNovo(true)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"><Plus className="h-4 w-4" />Novo projeto</button>}
-            {arquivados.length > 0 && <details className="pt-2"><summary className="cursor-pointer px-3 py-1 text-xs text-muted-foreground">Arquivados ({arquivados.length})</summary>
-              {arquivados.map((p) => <button key={p.id} onClick={() => set({ projeto: p.id, tarefa: null })} className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-muted/60"><Archive className="h-3.5 w-3.5" />{p.nome}</button>)}</details>}
           </div>
         </nav>
         <div className="min-w-0">
-          {pid === 'minhas' ? <Minhas abrir={(id, p) => set({ tarefa: id, projeto: p })} mudar={async (t, c) => { await api.put(`/api/tarefas/${t.id}`, c); recarregar() }} versao={versao} />
-            : !geral ? <Esqueleto className="h-72" />
-            : !ativos.length && !arquivados.length ? (
-              <Vazio icone={Columns3} titulo="Nenhum projeto ainda" texto="Crie um projeto para organizar as tarefas da equipe em lista, quadro, calendário e cronograma." acao={pode && <Botao icone={Plus} onClick={() => setNovo(true)}>Criar o primeiro projeto</Botao>} />
-            ) : !dados ? (erro ? <Aviso>{erro}</Aviso> : <Esqueleto className="h-72" />) : (
-              <>
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="h-3.5 w-3.5 rounded" style={{ background: projeto.cor }} />
-                  <TituloEditavel valor={projeto.nome} pode={pode} className="text-lg font-semibold" aoSalvar={(nome) => secaoAcao(() => api.put(`/api/tarefas/projetos/${pid}`, { ...projeto, nome, descricao: projeto.descricao || '' }).then((r) => { carregarGeral(); return r }))} />
-                  {projeto.github && <a href={projeto.github.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"><Github className="h-3 w-3" />{projeto.github.titulo}</a>}
-                  <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                    {projeto.github && geral.github.conectado && <Botao tamanho="sm" variante="secundario" icone={RefreshCw} carregando={sinc} onClick={sincronizar} disabled={!pode}>Sincronizar</Botao>}
-                    <Botao tamanho="sm" variante="secundario" icone={Github} onClick={() => setGh(true)}>GitHub</Botao>
-                    {geral.gestor && <MenuProjeto projeto={projeto} aoArquivar={() => secaoAcao(() => api.put(`/api/tarefas/projetos/${pid}`, { ...projeto, descricao: projeto.descricao || '', arquivado: !projeto.arquivado }).then((r) => { carregarGeral(); return r }))}
-                      aoApagar={async () => { await api.del(`/api/tarefas/projetos/${pid}`); set({ projeto: null }); setDados(null); carregarGeral() }} />}
-                  </div>
+          {!pid ? (
+            <>
+              {pagina !== 'inicio' && <div className="mb-5 flex items-center justify-between gap-3"><h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>{pagina === 'projetos' && pode && <Botao tamanho="sm" variante="secundario" onClick={() => setNovo('')}>Criar projeto</Botao>}</div>}
+              {pagina === 'inicio' && <Inicio geral={geral} pessoas={pessoas} eu={eu} nome={meuNome} abrirTarefa={abrirTarefa} abrirProjeto={irProjeto} criarProjeto={() => setNovo('')} versao={versao} />}
+              {pagina === 'caixa' && <Caixa abrirTarefa={abrirTarefa} versao={versao} />}
+              {pagina === 'minhas' && <Minhas abrir={abrirTarefa} mudar={async (t, c) => { await api.put(`/api/tarefas/${t.id}`, c); recarregar() }} versao={versao} />}
+              {pagina === 'projetos' && <ProjetosLista geral={geral} pessoas={pessoas} eu={eu} abrirProjeto={irProjeto} criarProjeto={(m) => setNovo(m || '')} />}
+              {pagina === 'portfolios' && <Portfolios geral={geral} pessoas={pessoas} abrirProjeto={irProjeto} />}
+            </>
+          ) : !dados ? (erro ? <Aviso>{erro}</Aviso> : <Esqueleto className="h-72" />) : (
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-2.5">
+                <IconeProjeto p={projeto} tamanho="h-9 w-9" />
+                <TituloEditavel valor={projeto.nome} pode={pode} className="text-xl font-semibold" aoSalvar={(nome) => salvarProjeto({ nome })} />
+                <button onClick={() => set({ visao: 'geral' })} className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS[projeto.status || 'sem_status'][1]}`}>{STATUS[projeto.status || 'sem_status'][0]}</button>
+                {projeto.github && <a href={projeto.github.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"><Github className="h-3 w-3" />{projeto.github.titulo}</a>}
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <button onClick={() => set({ visao: 'geral' })} title="Membros"><Pessoas ids={projeto.membros} pessoas={pessoas} /></button>
+                  {projeto.github && geral?.github?.conectado && <Botao tamanho="sm" variante="secundario" icone={RefreshCw} carregando={sinc} onClick={sincronizar} disabled={!pode}>Sincronizar</Botao>}
+                  <Botao tamanho="sm" variante="secundario" icone={Github} onClick={() => setGh(true)}>GitHub</Botao>
+                  {geral?.gestor && <MenuProjeto projeto={projeto} aoArquivar={() => salvarProjeto({ arquivado: !projeto.arquivado })}
+                    aoApagar={async () => { await api.del(`/api/tarefas/projetos/${pid}`); irPagina('projetos'); setDados(null); carregarGeral() }} />}
                 </div>
-                <div className="mb-3 space-y-2">
-                  <div className="flex gap-1 overflow-x-auto border-b border-border">{VISOES.map(([k, r, I]) => (
-                    <button key={k} onClick={() => { set({ visao: k }); try { localStorage.setItem('clima-tarefas-visao', k) } catch { /* sem armazenamento */ } }} className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm ${visao === k ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}><I className="h-4 w-4" />{r}</button>))}</div>
+              </div>
+              <div className="mb-3 space-y-2">
+                <div className="flex gap-1 overflow-x-auto border-b border-border">{[['geral', 'Visão geral', LayoutDashboard], ...VISOES].map(([k, r, I]) => (
+                  <button key={k} onClick={() => set({ visao: k })} className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm ${visao === k ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}><I className="h-4 w-4" />{r}</button>))}</div>
+                {visao !== 'geral' && visao !== 'painel' && (
                   <div className="flex flex-wrap items-center gap-2">
+                    {pode && visao !== 'calendario' && visao !== 'cronograma' && <Botao tamanho="sm" icone={Plus} onClick={() => setTarefaRapida(true)}>Adicionar tarefa</Botao>}
                     <label className="relative"><Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><input type="search" autoComplete="off" className="campo h-8 w-44 pl-7 text-sm" placeholder="Procurar" value={filtro.q} onChange={(e) => setFiltro({ ...filtro, q: e.target.value })} aria-label="Procurar tarefas" /></label>
                     <select className="campo h-8 w-auto text-sm" value={filtro.resp} onChange={(e) => setFiltro({ ...filtro, resp: e.target.value })} aria-label="Filtrar por responsável"><option value="">Todos</option><option value="eu">Comigo</option><option value="ninguem">Sem responsável</option>{pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
                     <select className="campo h-8 w-auto text-sm" value={filtro.prio} onChange={(e) => setFiltro({ ...filtro, prio: e.target.value })} aria-label="Filtrar por prioridade"><option value="">Qualquer prioridade</option>{Object.entries(PRIO).map(([k, [r]]) => <option key={k} value={k}>{r}</option>)}</select>
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={filtro.concluidas} onChange={(e) => setFiltro({ ...filtro, concluidas: e.target.checked })} className="accent-[hsl(var(--primary))]" />Concluídas</label>
                     {(filtro.q || filtro.resp || filtro.prio) && <button onClick={() => setFiltro({ q: '', resp: '', prio: '', concluidas: filtro.concluidas })} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><Filter className="h-3 w-3" />Limpar</button>}
                   </div>
-                </div>
-                {projeto.descricao && <p className="mb-3 text-sm text-muted-foreground">{projeto.descricao}</p>}
-                {visao === 'lista' && <Lista secoes={dados.secoes} tarefas={tarefas} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} mudar={mudar} criar={criar} mover={mover} pode={pode}
-                  renomearSecao={(sid, nome) => secaoAcao(() => api.put(`/api/tarefas/secoes/${sid}`, { nome }))} apagarSecao={(s) => secaoAcao(() => api.del(`/api/tarefas/secoes/${s.id}`))}
-                  novaSecao={(nome) => secaoAcao(() => api.post(`/api/tarefas/projetos/${pid}/secoes`, { nome }))} />}
-                {visao === 'quadro' && <Quadro secoes={dados.secoes} tarefas={tarefas} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} mudar={mudar} criar={criar} mover={mover} pode={pode}
-                  novaSecao={(nome) => secaoAcao(() => api.post(`/api/tarefas/projetos/${pid}/secoes`, { nome }))} />}
-                {visao === 'calendario' && <Calendario tarefas={tarefas} abrir={(id) => set({ tarefa: id })} mudar={mudar} pode={pode} />}
-                {visao === 'cronograma' && <Cronograma tarefas={tarefas} secoes={dados.secoes} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} />}
-                {visao === 'painel' && <Painel tarefas={dados.tarefas} secoes={dados.secoes} pessoas={pessoas} />}
-              </>
-            )}
+                )}
+              </div>
+              {visao === 'geral' && <VisaoGeral dados={dados} pessoas={pessoas} pode={pode} salvarProjeto={salvarProjeto} publicarStatus={(status, texto) => secaoAcao(() => api.post(`/api/tarefas/projetos/${pid}/status`, { status, texto }).then((r) => { carregarGeral(); return r }))} />}
+              {visao === 'lista' && <Lista secoes={dados.secoes} tarefas={tarefas} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} mudar={mudar} criar={criarTarefa} mover={mover} pode={pode}
+                renomearSecao={(sid, nome) => secaoAcao(() => api.put(`/api/tarefas/secoes/${sid}`, { nome }))} apagarSecao={(s) => secaoAcao(() => api.del(`/api/tarefas/secoes/${s.id}`))}
+                novaSecao={(nome) => secaoAcao(() => api.post(`/api/tarefas/projetos/${pid}/secoes`, { nome }))} />}
+              {visao === 'quadro' && <Quadro secoes={dados.secoes} tarefas={tarefas} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} mudar={mudar} criar={criarTarefa} mover={mover} pode={pode}
+                novaSecao={(nome) => secaoAcao(() => api.post(`/api/tarefas/projetos/${pid}/secoes`, { nome }))} />}
+              {visao === 'calendario' && <Calendario tarefas={tarefas} abrir={(id) => set({ tarefa: id })} mudar={mudar} pode={pode} />}
+              {visao === 'cronograma' && <Cronograma tarefas={tarefas} secoes={dados.secoes} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} />}
+              {visao === 'painel' && <Painel tarefas={dados.tarefas} secoes={dados.secoes} pessoas={pessoas} />}
+            </>
+          )}
         </div>
       </div>
       <AnimatePresence>
         {aberta && <Detalhe key={aberta} id={aberta} pessoas={pessoas} secoes={dados?.secoes || []} pode={pode} aoFechar={() => set({ tarefa: null })} aoMudou={recarregar} abrir={(id) => set({ tarefa: id })} />}
       </AnimatePresence>
-      <NovoProjeto aberto={novo} aoFechar={() => setNovo(false)} aoCriar={async (f) => { try { const r = await api.post('/api/tarefas/projetos', f); setNovo(false); await carregarGeral(); set({ projeto: r.projeto.id, tarefa: null }) } catch (e) { toast(e.message, 'erro') } }} />
+      <NovoProjeto aberto={novo !== null} modeloInicial={novo} modelos={geral?.modelos} pessoas={pessoas} eu={eu} aoFechar={() => setNovo(null)}
+        aoCriar={async (f) => { try { const r = await api.post('/api/tarefas/projetos', f); setNovo(null); await carregarGeral(); irProjeto(r.projeto.id) } catch (e) { toast(e.message, 'erro') } }} />
+      <TarefaRapida aberto={tarefaRapida} aoFechar={() => setTarefaRapida(false)} projetos={ativos} pessoas={pessoas} eu={eu} projetoAtual={pid}
+        aoCriar={async (c) => { try { const t = await api.post('/api/tarefas', c); setTarefaRapida(false); recarregar(); toast('Tarefa criada.'); abrirTarefa(t.id, t.projeto_id) } catch (e) { toast(e.message, 'erro') } }} />
       {geral && <GithubProjeto aberto={gh} aoFechar={() => setGh(false)} projeto={projeto} info={geral.github} gestor={geral.gestor} dono={geral.dono} aoMudou={() => { carregarGeral(); carregar() }} />}
     </div>
+  )
+}
+
+function TarefaRapida({ aberto, aoFechar, aoCriar, projetos, pessoas, eu, projetoAtual }) {
+  const [f, setF] = useState({ titulo: '', projeto_id: '', responsavel_id: '', prazo: '', prioridade: 'nenhuma', descricao: '' })
+  useEffect(() => { if (aberto) setF({ titulo: '', projeto_id: projetoAtual || projetos[0]?.id || '', responsavel_id: eu || '', prazo: '', prioridade: 'nenhuma', descricao: '' }) }, [aberto]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Modal aberto={aberto} titulo="Nova tarefa" onFechar={aoFechar}>
+      {!projetos.length ? <p className="text-sm text-muted-foreground">Crie um projeto antes.</p> : (
+        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); aoCriar({ titulo: f.titulo.trim(), projeto_id: +f.projeto_id, responsavel_id: f.responsavel_id || null, prazo: f.prazo || null, prioridade: f.prioridade, descricao: f.descricao }) }}>
+          <input autoFocus className="campo text-base" placeholder="Nome da tarefa" value={f.titulo} maxLength={300} onChange={(e) => setF({ ...f, titulo: e.target.value })} />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs text-muted-foreground">Projeto<select className="campo mt-1 h-9" value={f.projeto_id} onChange={(e) => setF({ ...f, projeto_id: e.target.value })}>{projetos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></label>
+            <label className="text-xs text-muted-foreground">Responsável<select className="campo mt-1 h-9" value={f.responsavel_id} onChange={(e) => setF({ ...f, responsavel_id: e.target.value })}><option value="">Ninguém</option>{pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></label>
+            <label className="text-xs text-muted-foreground">Prazo<input type="date" className="campo mt-1 h-9" value={f.prazo} onChange={(e) => setF({ ...f, prazo: e.target.value })} /></label>
+            <label className="text-xs text-muted-foreground">Prioridade<select className="campo mt-1 h-9" value={f.prioridade} onChange={(e) => setF({ ...f, prioridade: e.target.value })}>{Object.entries(PRIO).map(([k, [r]]) => <option key={k} value={k}>{r}</option>)}</select></label>
+          </div>
+          <textarea className="campo min-h-[5rem] py-2" placeholder="Descrição (opcional)" value={f.descricao} maxLength={20000} onChange={(e) => setF({ ...f, descricao: e.target.value })} />
+          <div className="flex justify-end gap-2"><Botao type="button" variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao type="submit" disabled={!f.titulo.trim()}>Criar tarefa</Botao></div>
+        </form>
+      )}
+    </Modal>
   )
 }
 

@@ -64,10 +64,17 @@ async def laco():
                     await asyncio.to_thread(testes_seguranca.varredura_semanal)
                 except Exception as e:  # noqa: BLE001
                     log.warning("varredura semanal: %s", e)
+            if ciclo % 3 == 0:   # lembretes do Telegram (/lembrar_30min…): a cada ~1 min
+                try:
+                    from . import telegram_cmds_extra
+                    await asyncio.to_thread(telegram_cmds_extra.lembretes_ciclo)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("lembretes do Telegram: %s", e)
             if ciclo % 15 == 0:   # backup agendado (Backup → Agendar), a cada ~5 min confere se venceu
                 try:
                     from . import backup_sistema
                     await asyncio.to_thread(backup_sistema.ciclo)
+                    await asyncio.to_thread(backup_sistema.copia_local)   # cópia fora da nuvem (se ligada; no máximo a cada 30 min)
                 except Exception as e:  # noqa: BLE001
                     log.warning("backup agendado: %s", e)
             if ciclo % 15 == 0:   # teste de velocidade agendado (Rede → Agendar), a cada ~5 min confere se venceu

@@ -1,6 +1,8 @@
 """Rotas do assistente de IA: conversar, confirmar ação em lote e configuração (só o dono)."""
 import json
 
+import httpx
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -22,6 +24,8 @@ class ConversaIn(BaseModel):
     leitura: bool = False               # modo plano (terminal): só consulta, nenhuma ferramenta que muda algo
     estilo: str | None = Field(None, pattern="^(normal|conciso|explicativo|formal)$")
     pensar: bool = False                # raciocínio estendido ("Pensar mais")
+    esforco: str | None = Field(None, pattern="^(baixo|medio|alto|maximo)$")   # como no Claude: alto/máximo = pensa antes
+    projeto_id: int | None = None       # conversa dentro de um projeto (instruções + arquivos como contexto)
     imagens: list[str] = Field(default_factory=list, max_length=2)   # data:image/… (prints, foto do controle)
 
 
@@ -81,7 +85,9 @@ def conversar(d: ConversaIn):
     if d.mensagens[-1].role != "user":
         raise HTTPException(400, "A última mensagem precisa ser a sua pergunta.")
     try:
-        r = ia.conversar([m.model_dump() for m in d.mensagens], "painel", modelo=d.modelo, leitura=d.leitura, estilo=d.estilo, pensar=d.pensar, imagens=d.imagens)
+        proj = _projeto(d.projeto_id) if d.projeto_id else None
+        r = ia.conversar([m.model_dump() for m in d.mensagens], "painel", modelo=d.modelo, leitura=d.leitura, estilo=d.estilo,
+                         pensar=d.pensar or d.esforco in ("alto", "maximo"), imagens=d.imagens, projeto=proj, esforco=d.esforco)
     except (PermissionError, RuntimeError) as e:
         _erro(e)
     # salva a conversa (nova ou existente) com a resposta; o título nasce da primeira pergunta
@@ -93,8 +99,8 @@ def conversar(d: ConversaIn):
         r["conversa_id"] = d.conversa_id
     else:
         titulo = " ".join(d.mensagens[0].content.split())[:60] or "Nova conversa"
-        r["conversa_id"] = db.um("INSERT INTO ia_conversas (usuario_id, titulo, mensagens, criado_em, atualizado_em) VALUES (?,?,CAST(? AS jsonb),?,?) RETURNING id",
-                                 (uid, titulo, json.dumps(msgs[-80:], ensure_ascii=False), agora, agora))["id"]
+        r["conversa_id"] = db.um("INSERT INTO ia_conversas (usuario_id, titulo, mensagens, criado_em, atualizado_em, projeto_id) VALUES (?,?,CAST(? AS jsonb),?,?,?) RETURNING id",
+                                 (uid, titulo, json.dumps(msgs[-80:], ensure_ascii=False), agora, agora, d.projeto_id))["id"]
         r["titulo"] = titulo
     return r
 
@@ -127,6 +133,14 @@ class PrefIn(BaseModel):
     instrucoes: str | None = Field(None, max_length=1500)
     pensar: bool | None = None
     voz: bool | None = None
+    chamar: str | None = Field(None, max_length=40)        # como a IA deve chamar a pessoa
+    trabalho: str | None = Field(None, max_length=60)      # o que melhor descreve o trabalho
+    esforco: str | None = Field(None, pattern="^(baixo|medio|alto|maximo)$")
+    fonte: str | None = Field(None, pattern="^(padrao|sistema|serifa|mono)$")
+    largura: str | None = Field(None, pattern="^(padrao|larga)$")
+    notificar: bool | None = None                          # aviso do navegador quando a resposta chega com a aba escondida
+    agir: bool | None = None                               # pode mudar ares (desligado = sempre modo plano, só leitura)
+    sugestoes: bool | None = None                          # mostrar as sugestões na tela inicial
 
 
 @rotas_ia.get("/preferencias")
@@ -178,7 +192,7 @@ def conversas(q: str = ""):
 
 @rotas_ia.get("/conversas/{cid}")
 def conversa(cid: int):
-    c = db.um("SELECT id, titulo, fixada, mensagens, atualizado_em FROM ia_conversas WHERE id = ? AND usuario_id = ?", (cid, _uid()))
+    c = db.um("SELECT id, titulo, fixada, mensagens, atualizado_em, projeto_id FROM ia_conversas WHERE id = ? AND usuario_id = ?", (cid, _uid()))
     if not c:
         raise HTTPException(404, "Conversa não encontrada.")
     return c
@@ -257,3 +271,146 @@ def limites(d: LimitesIn, request: Request):
     from .. import ia_uso
     pessoas = {k: v.model_dump(exclude_none=True) for k, v in d.usuarios.items()} if d.usuarios is not None else None
     return ia_uso.salvar(d.sessao, d.semana, d.dono_ilimitado, pessoas)
+
+
+# ---------------- projetos (instruções + arquivos como contexto) ----------------
+from .. import ia_projetos  # noqa: E402
+
+
+def _projeto(pid: int) -> dict:
+    p = db.um("SELECT * FROM ia_projetos WHERE id = ? AND usuario_id = ?", (pid, _uid()))
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado.")
+    p = dict(p)
+    if isinstance(p.get("arquivos"), str):
+        p["arquivos"] = json.loads(p["arquivos"] or "[]")
+    if isinstance(p.get("github"), str):
+        p["github"] = json.loads(p["github"])
+    return p
+
+
+def _publico(p: dict) -> dict:
+    return {**{k: p[k] for k in ("id", "nome", "descricao", "instrucoes", "github", "criado_em", "atualizado_em")},
+            "arquivos": [{"nome": a["nome"], "tamanho": a["tamanho"]} for a in p.get("arquivos") or []],
+            "caracteres": sum(a["tamanho"] for a in p.get("arquivos") or []),
+            "conversas": db.um("SELECT count(*) AS n FROM ia_conversas WHERE projeto_id = ? AND usuario_id = ?", (p["id"], _uid()))["n"]}
+
+
+class ProjetoIaIn(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+    descricao: str = Field("", max_length=500)
+    instrucoes: str = Field("", max_length=8000)
+
+
+@rotas_ia.get("/projetos")
+def projetos_ia():
+    return [_publico(dict(p, arquivos=json.loads(p["arquivos"]) if isinstance(p["arquivos"], str) else p["arquivos"]))
+            for p in db.consultar("SELECT * FROM ia_projetos WHERE usuario_id = ? ORDER BY atualizado_em DESC", (_uid(),))]
+
+
+@rotas_ia.post("/projetos")
+def criar_projeto_ia(d: ProjetoIaIn):
+    from .. import defesa
+    if d.instrucoes and defesa.prompt_injection(d.instrucoes):
+        raise HTTPException(400, "As instruções tentam mudar as regras do assistente. Escreva só o contexto do projeto.")
+    pid = db.um("INSERT INTO ia_projetos (usuario_id, nome, descricao, instrucoes, criado_em, atualizado_em) VALUES (?,?,?,?,?,?) RETURNING id",
+                (_uid(), d.nome.strip(), d.descricao.strip(), d.instrucoes.strip(), db.agora(), db.agora()))["id"]
+    return _publico(_projeto(pid))
+
+
+@rotas_ia.get("/projetos/{pid}")
+def ver_projeto_ia(pid: int):
+    p = _projeto(pid)
+    conv = db.consultar("SELECT id, titulo, atualizado_em FROM ia_conversas WHERE projeto_id = ? AND usuario_id = ? ORDER BY atualizado_em DESC LIMIT 100", (pid, _uid()))
+    return {**_publico(p), "lista_conversas": conv}
+
+
+@rotas_ia.put("/projetos/{pid}")
+def editar_projeto_ia(pid: int, d: ProjetoIaIn):
+    from .. import defesa
+    _projeto(pid)
+    if d.instrucoes and defesa.prompt_injection(d.instrucoes):
+        raise HTTPException(400, "As instruções tentam mudar as regras do assistente. Escreva só o contexto do projeto.")
+    db.executar("UPDATE ia_projetos SET nome = ?, descricao = ?, instrucoes = ?, atualizado_em = ? WHERE id = ?", (d.nome.strip(), d.descricao.strip(), d.instrucoes.strip(), db.agora(), pid))
+    return ver_projeto_ia(pid)
+
+
+@rotas_ia.delete("/projetos/{pid}")
+def apagar_projeto_ia(pid: int):
+    _projeto(pid)
+    db.executar("UPDATE ia_conversas SET projeto_id = NULL WHERE projeto_id = ?", (pid,))   # as conversas continuam, fora do projeto
+    db.executar("DELETE FROM ia_projetos WHERE id = ?", (pid,))
+    return {"ok": True}
+
+
+class ArquivosIn(BaseModel):
+    arquivos: list[dict] = Field(min_length=1, max_length=200)   # [{nome, base64}] (um .zip também serve)
+
+
+def _guardar(pid: int, p: dict, novos: list[tuple[str, str]], github: dict | None = None) -> dict:
+    if not novos:
+        raise HTTPException(400, "Nenhum arquivo de texto aproveitável (código, markdown, json, csv…). Binários, node_modules e .env ficam de fora.")
+    lista, fora = ia_projetos._juntar(p.get("arquivos") or [], novos)
+    db.executar("UPDATE ia_projetos SET arquivos = CAST(? AS jsonb), github = COALESCE(CAST(? AS jsonb), github), atualizado_em = ? WHERE id = ?",
+                (json.dumps(lista, ensure_ascii=False), json.dumps(github) if github else None, db.agora(), pid))
+    return {**ver_projeto_ia(pid), "adicionados": len(novos), "fora_do_limite": fora}
+
+
+@rotas_ia.post("/projetos/{pid}/arquivos")
+def enviar_arquivos_ia(pid: int, d: ArquivosIn):
+    p = _projeto(pid)
+    try:
+        novos = ia_projetos.de_upload(d.arquivos)
+    except ia_projetos.ErroProjeto as e:
+        raise HTTPException(400, str(e)) from e
+    return _guardar(pid, p, novos)
+
+
+class GithubIaIn(BaseModel):
+    repo: str = Field(min_length=3, max_length=140)
+    ref: str = Field("", max_length=100, pattern=r"^[A-Za-z0-9._/-]*$")
+
+
+@rotas_ia.post("/projetos/{pid}/github")
+def github_ia(pid: int, d: GithubIaIn):
+    p = _projeto(pid)
+    repo = d.repo.strip().removeprefix("https://github.com/").removesuffix(".git").strip("/")
+    try:
+        novos, info = ia_projetos.do_github(repo, d.ref.strip())
+    except ia_projetos.ErroProjeto as e:
+        raise HTTPException(400, str(e)) from e
+    except httpx.HTTPError as e:
+        raise HTTPException(424, "O GitHub não respondeu a tempo. Tente de novo.") from e
+    db.registrar("painel", "Assistente: repositório ligado a um projeto", detalhe=f"{repo}@{info['ref']} · {len(novos)} arquivo(s)")
+    return _guardar(pid, p, novos, info)
+
+
+class TirarArquivoIn(BaseModel):
+    nomes: list[str] = Field(min_length=1, max_length=300)
+
+
+@rotas_ia.post("/projetos/{pid}/arquivos/tirar")
+def tirar_arquivos_ia(pid: int, d: TirarArquivoIn):
+    p = _projeto(pid)
+    fora = set(d.nomes)
+    lista = [a for a in p.get("arquivos") or [] if a["nome"] not in fora]
+    db.executar("UPDATE ia_projetos SET arquivos = CAST(? AS jsonb), github = CASE WHEN ? THEN NULL ELSE github END, atualizado_em = ? WHERE id = ?",
+                (json.dumps(lista, ensure_ascii=False), not lista, db.agora(), pid))
+    return ver_projeto_ia(pid)
+
+
+@rotas_ia.delete("/conversas")
+def apagar_todas():
+    """Privacidade: apaga todas as conversas da pessoa (os projetos continuam)."""
+    n = db.um("SELECT count(*) AS n FROM ia_conversas WHERE usuario_id = ?", (_uid(),))["n"]
+    db.executar("DELETE FROM ia_conversas WHERE usuario_id = ?", (_uid(),))
+    db.registrar("painel", "Assistente: todas as conversas apagadas pela própria pessoa", detalhe=f"{n} conversa(s)")
+    return {"apagadas": n}
+
+
+@rotas_ia.get("/exportar")
+def exportar_tudo():
+    """Privacidade: todas as conversas e projetos da pessoa em JSON."""
+    conv = db.consultar("SELECT id, titulo, mensagens, projeto_id, criado_em, atualizado_em FROM ia_conversas WHERE usuario_id = ? ORDER BY criado_em", (_uid(),))
+    proj = db.consultar("SELECT id, nome, descricao, instrucoes, github, criado_em FROM ia_projetos WHERE usuario_id = ?", (_uid(),))
+    return {"exportado_em": db.agora(), "preferencias": ia.preferencias(_uid()), "conversas": conv, "projetos": proj}

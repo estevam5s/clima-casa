@@ -301,6 +301,7 @@ const CAPITULOS = [
       { t: 'Criar um projeto', d: 'Tarefas → Novo projeto: nome, cor e as seções iniciais (Quadro, Sprint, Correções ou Lista simples). As seções viram as colunas do quadro.', link: ['/tarefas', 'Abrir Tarefas'] },
       { t: 'Criar e organizar tarefas', d: 'Adicionar tarefa no fim de cada seção (Enter cria e já abre a próxima). Clique numa tarefa para dar responsável, prazo, prioridade, etiquetas, subtarefas e comentários. Arraste entre seções na Lista ou no Quadro.' },
       { t: 'Acompanhar', d: 'Minhas tarefas junta o que está com você (atrasadas, hoje, próximos 7 dias). Calendário e Cronograma usam o início e o prazo; o Painel mostra o que está aberto por seção, pessoa e prioridade.' },
+      { t: 'Página inicial, Caixa de entrada e Portfólios', d: 'A Página inicial mostra suas tarefas, os projetos recentes e quanto cada pessoa tem aberto. A Caixa de entrada junta os comentários e as mudanças que outras pessoas fizeram nas suas tarefas. Em Visão geral do projeto, publique o status (no caminho, em risco…) e dê um portfólio para acompanhar vários projetos juntos.' },
       { t: 'GitHub Projects (opcional)', d: 'O dono conecta um token que só mexe em Projects (botão GitHub). Depois, ligue o projeto a um Project do GitHub e use Sincronizar: o Status de lá vira a seção daqui, e tarefa nova daqui vira rascunho lá. Apagar aqui não apaga lá.' },
     ],
   },

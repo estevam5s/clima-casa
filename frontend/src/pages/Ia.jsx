@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUp, AudioLines, Brain, Check, ChevronDown, Columns3, Copy, Download, Image as ImagemIcone, KeyRound, Menu, MessageSquare, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
-  Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Settings, SlidersHorizontal, Slash, Sparkles, Square, Terminal, ThumbsDown, ThumbsUp, Trash2, Volume2, VolumeX, X,
+  FolderOpen, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Settings, SlidersHorizontal, Slash, Sparkles, Square, Terminal, ThumbsDown, ThumbsUp, Trash2, Volume2, VolumeX, X,
 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
@@ -9,6 +9,7 @@ import MiniMarkdown from '../components/MiniMarkdown'
 import IconeIA, { EMPRESAS } from '../components/IconeIA'
 import { Aviso, Botao, Carregando, Interruptor, Modal, useDados, useToast } from '../components/ui'
 import { MAX_SEGUNDOS, imagemReduzida, iniciarGravacao } from '../gravadorVoz'
+import { ConfiguracoesIA, ProjetosIA, SeletorModelo as SeletorClaude, SeletorProjeto } from '../components/ia/Extras'
 
 // Assistente de IA (NVIDIA) no formato de chat com histórico: conversas salvas por pessoa (fixar, renomear, apagar,
 // procurar), comandos com "/", anexar arquivo de texto, ditado por voz, escolha do modelo por mensagem, copiar,
@@ -64,7 +65,7 @@ function Acoes({ m }) {
   )
 }
 
-function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar, sessao, executar, recolher, personalizar, comparar }) {
+function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar, sessao, executar, recolher, personalizar, comparar, projetos, configuracoes }) {
   const [menuConta, setMenuConta] = useState(false)
   const toast = useToast()
   const [menu, setMenu] = useState(null)
@@ -109,6 +110,7 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
       </div>
       <div className="space-y-0.5 p-2">
         <button onClick={() => { nova(); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium hover:bg-[var(--ia-realce)]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--ia-acento)] text-[var(--ia-acento-texto)]"><Plus className="h-3.5 w-3.5" /></span>Nova conversa</button>
+        <button onClick={() => { projetos?.(); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-[var(--ia-realce)]"><FolderOpen className="ml-1 h-4 w-4 text-[var(--ia-suave)]" /><span className="ml-0.5">Projetos</span></button>
         <button onClick={() => { executar?.('comandos'); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-[var(--ia-realce)]"><Slash className="ml-1 h-4 w-4 text-[var(--ia-suave)]" /><span className="ml-0.5">Comandos</span></button>
         <label className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm focus-within:bg-[var(--ia-realce)]">
           <Search className="ml-1 h-4 w-4 shrink-0 text-[var(--ia-suave)]" />
@@ -126,7 +128,8 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
             <p className="truncate px-3 pb-1 pt-2 text-xs text-[var(--ia-suave)]">{sessao?.email}</p>
             <button onClick={() => { setMenuConta(false); comparar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Columns3 className="h-4 w-4" />Comparar modelos</button>
             <button onClick={() => { setMenuConta(false); personalizar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><SlidersHorizontal className="h-4 w-4" />Personalizar respostas</button>
-            <button onClick={() => { setMenuConta(false); configurar() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Settings className="h-4 w-4" />Configurações e capacidades</button>
+            <button onClick={() => { setMenuConta(false); configuracoes?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Settings className="h-4 w-4" />Configurações</button>
+            {sessao?.papel === 'dono' && <button onClick={() => { setMenuConta(false); configurar() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Brain className="h-4 w-4" />Chave, modelos e terminal</button>}
             <button onClick={() => { setMenuConta(false); executar?.('ajuda'); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><MessageSquare className="h-4 w-4" />O que dá para fazer</button>
             <button onClick={() => { setMenuConta(false); executar?.('exportar') }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--ia-realce)]"><Download className="h-4 w-4" />Baixar a conversa</button>
           </div>
@@ -365,7 +368,7 @@ function falar(texto) {
   } catch { return false }
 }
 
-function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, setModelo, modelos, executar, grande, escopo, prefs, mudarPrefs }) {
+function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, setModelo, modelos, executar, grande, escopo, prefs, mudarPrefs, extras }) {
   const toast = useToast()
   const ta = useRef(null), arq = useRef(null)
   const [anexo, setAnexo] = useState(null)
@@ -436,7 +439,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
     r.onend = () => setOuvindo(false); r.onerror = () => setOuvindo(false)
     reconhecer.current = r; setOuvindo(true); r.start()
   }
-  const seletor = <SeletorModelo modelo={modelo} setModelo={setModelo} modelos={modelos} />
+  const seletor = <SeletorClaude modelo={modelo} setModelo={setModelo} modelos={modelos} esforco={prefs?.esforco} setEsforco={(v) => mudarPrefs?.({ esforco: v })} IconeIA={IconeIA} />
   return (
     <div className={`relative w-full ${grande ? '' : ''}`}>
       {barra.length > 0 && (
@@ -485,8 +488,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
           <button onClick={() => { setTexto('/'); ta.current?.focus() }} disabled={!ativo} title="Comandos" aria-label="Comandos" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Slash className="h-4 w-4" /></button>
           <select value={prefs?.estilo || 'normal'} onChange={(e) => mudarPrefs?.({ estilo: e.target.value })} disabled={!ativo} aria-label="Estilo da resposta" title="Estilo da resposta"
             className="h-8 rounded-lg border-0 bg-transparent px-1.5 text-xs text-[var(--ia-suave)] outline-none hover:bg-[var(--ia-realce)]">{ESTILOS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
-          <button onClick={() => mudarPrefs?.({ pensar: !prefs?.pensar })} disabled={!ativo} aria-pressed={!!prefs?.pensar} title="Pensar mais (raciocínio estendido)" aria-label="Pensar mais"
-            className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs ${prefs?.pensar ? 'bg-[var(--ia-realce)] text-[var(--ia-acento)]' : 'text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]'}`}><Brain className="h-4 w-4" /><span className="hidden sm:inline">Pensar mais</span></button>
+          {extras && <SeletorProjeto {...extras} />}
           <div className="flex-1" />
           {!grande && seletor}
           {temDitado && <button onClick={ditar} disabled={!ativo} title={ouvindo ? 'Parar o ditado' : 'Ditar (vira texto na caixa)'} aria-label="Ditar por voz" className={`rounded-lg p-2 hover:bg-[var(--ia-realce)] ${ouvindo ? 'text-red-500' : 'text-[var(--ia-suave)]'}`}><Mic className="h-4 w-4" /></button>}
@@ -580,6 +582,12 @@ export default function Ia() {
   const [personalizar, setPersonalizar] = useState(false)
   const [comparar, setComparar] = useState(false)
   const [falando, setFalando] = useState(null)
+  const [cfgIA, setCfgIA] = useState(false)
+  const [projModal, setProjModal] = useState(null)   // null fechado; undefined lista; 'novo'; id
+  const [projetosIA, setProjetosIA] = useState([])
+  const [projetoId, setProjetoId] = useState(null)
+  const carregarProjetos = () => api.get('/api/ia/projetos').then(setProjetosIA).catch(() => {})
+  useEffect(() => { carregarProjetos() }, [])
   useEffect(() => { api.get('/api/ia/preferencias').then(setPrefs).catch(() => {}) }, [])
   const mudarPrefs = async (m) => { setPrefs((p) => ({ ...p, ...m })); try { setPrefs(await api.put('/api/ia/preferencias', m)) } catch (e) { toast(e.message, 'erro') } }
   const pedido = useRef(0), fim = useRef(null)
@@ -589,7 +597,7 @@ export default function Ia() {
   useEffect(() => {
     const u = new URL(location.href); if (atual) u.searchParams.set('c', atual); else u.searchParams.delete('c'); history.replaceState(null, '', u)
     if (!atual) { setMsgs([]); return }
-    api.get(`/api/ia/conversas/${atual}`).then((c) => setMsgs(c.mensagens || [])).catch(() => { setAtual(null) })
+    api.get(`/api/ia/conversas/${atual}`).then((c) => { setMsgs(c.mensagens || []); setProjetoId(c.projeto_id || null) }).catch(() => { setAtual(null) })
   }, [atual])
   useEffect(() => { fim.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }) }, [msgs, pensando])
   useEffect(() => {
@@ -604,7 +612,7 @@ export default function Ia() {
   if (!dados || !sessao) return <Carregando />
   const ativo = dados.configurada && dados.ativo
 
-  const nova = () => { pedido.current++; setPensando(false); setAtual(null); setMsgs([]); setTexto('') }
+  const nova = () => { pedido.current++; setPensando(false); setAtual(null); setMsgs([]); setTexto(''); setProjetoId(null) }
   const enviar = async (pergunta, extra, base = msgs) => {
     const q = (pergunta || '').trim()
     if (!q || pensando) return
@@ -613,10 +621,11 @@ export default function Ia() {
     const meu = ++pedido.current
     try {
       const r = await api.post('/api/ia/conversar', { mensagens: hist.filter((m) => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content: String(content).slice(0, 4000) })).slice(-20), conversa_id: atual, modelo,
-        estilo: prefs.estilo, pensar: !!prefs.pensar, imagens: extra?.imagens || [] })
+        estilo: prefs.estilo, pensar: !!prefs.pensar, esforco: prefs.esforco || 'medio', projeto_id: projetoId, imagens: extra?.imagens || [] })
       if (meu !== pedido.current) return   // parou ou trocou de conversa
       setMsgs([...hist, { role: 'assistant', content: r.texto, acoes: r.acoes, confirmacoes: r.confirmacoes, modelo: r.modelo }])
       if (prefs.voz) { falar(r.texto); setFalando(hist.length) }
+      if (prefs.notificar && document.hidden && 'Notification' in window && Notification.permission === 'granted') { try { new Notification('Resposta do assistente', { body: r.texto.slice(0, 140) }) } catch { /* sem aviso */ } }
       if (r.conversa_id && r.conversa_id !== atual) { pedido.current++; setAtual(r.conversa_id); pedido.current-- }
       carregarLista()
     } catch (e) {
@@ -652,26 +661,26 @@ export default function Ia() {
   const ouvir = (i) => { if (falando === i && window.speechSynthesis?.speaking) { window.speechSynthesis.cancel(); setFalando(null); return } if (falar(msgs[i].content)) setFalando(i) }
   const titulo = lista.find((c) => c.id === atual)?.titulo
   const escopo = projeto ? `Contexto: ${projeto.nome}` : 'Contexto: todos os projetos'
-  const compositor = (grande) => <Compositor texto={texto} setTexto={setTexto} enviar={(q, extra) => enviar(q, extra)} parar={parar} pensando={pensando} ativo={ativo} modelo={modelo} setModelo={setModelo} modelos={dados.modelos} executar={executar} grande={grande} escopo={escopo} prefs={prefs} mudarPrefs={mudarPrefs} />
+  const compositor = (grande) => <Compositor texto={texto} setTexto={setTexto} enviar={(q, extra) => enviar(q, extra)} parar={parar} pensando={pensando} ativo={ativo} modelo={modelo} setModelo={setModelo} modelos={dados.modelos} executar={executar} grande={grande} escopo={escopo} prefs={prefs} mudarPrefs={mudarPrefs} extras={{ projetoId, setProjetoId, projetos: projetosIA, abrirProjetos: () => setProjModal(undefined), novoProjeto: () => setProjModal('novo') }} />
 
   return (
     <div className="tela-ia -mx-4 -mb-16 -mt-6 flex h-[calc(100dvh-4rem)] min-h-[32rem] overflow-hidden bg-[var(--ia-fundo)] text-[var(--ia-texto)] sm:-mx-6 lg:-mx-8 2xl:-mx-10">
       {lateral && (
         <aside className="hidden w-72 shrink-0 border-r border-[var(--ia-borda)] bg-[var(--ia-lateral)] md:block">
-          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} personalizar={() => setPersonalizar(true)} comparar={() => setComparar(true)} />
+          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} personalizar={() => setPersonalizar(true)} comparar={() => setComparar(true)} projetos={() => setProjModal(undefined)} configuracoes={() => setCfgIA(true)} />
         </aside>
       )}
       {gaveta && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Fechar a lista" onClick={() => setGaveta(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} personalizar={() => { setGaveta(false); setPersonalizar(true) }} comparar={() => { setGaveta(false); setComparar(true) }} /></aside>
+          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} personalizar={() => { setGaveta(false); setPersonalizar(true) }} comparar={() => { setGaveta(false); setComparar(true) }} projetos={() => setProjModal(undefined)} configuracoes={() => setCfgIA(true)} /></aside>
         </div>
       )}
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-2 px-3">
           <button onClick={() => setGaveta(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted md:hidden" aria-label="Conversas"><Menu className="h-4 w-4" /></button>
           {!lateral && <button onClick={() => setLateral(true)} className="hidden rounded-md p-1.5 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] md:block" aria-label="Mostrar conversas" title="Mostrar conversas"><PanelLeftOpen className="h-4 w-4" /></button>}
-          <p className="min-w-0 flex-1 truncate text-sm font-medium">{titulo || (msgs.length ? 'Nova conversa' : '')}</p>
+          <p className="min-w-0 flex-1 truncate text-sm font-medium">{projetoId && <button onClick={() => setProjModal(projetoId)} className="mr-1.5 inline-flex items-center gap-1 rounded-md bg-[var(--ia-realce)] px-1.5 py-0.5 text-xs font-normal"><FolderOpen className="h-3 w-3" />{projetosIA.find((p) => p.id === projetoId)?.nome || 'Projeto'}</button>}{titulo || (msgs.length ? 'Nova conversa' : '')}</p>
           {msgs.length > 0 && <button onClick={() => executar('exportar')} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Baixar a conversa" title="Baixar em Markdown"><Download className="h-4 w-4" /></button>}
           {msgs.length > 0 && <button onClick={nova} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Nova conversa" title="Nova conversa"><MessageSquare className="h-4 w-4" /></button>}
         </header>
@@ -682,13 +691,13 @@ export default function Ia() {
             <p className="mt-2 text-center text-sm text-[var(--ia-suave)]">Pergunte ou peça: ele vê o estado real dos ares e só faz o que o seu usuário pode.</p>
             <div className="mt-6 w-full max-w-3xl">{compositor(true)}</div>
             <div className="mt-4 flex max-w-3xl flex-wrap justify-center gap-2">
-              {SUGESTOES.map(([r, s]) => <button key={s} onClick={() => enviar(s)} disabled={!ativo} className="rounded-xl border border-[var(--ia-borda)] px-3 py-1.5 text-xs text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] hover:text-[var(--ia-texto)] disabled:opacity-50"><b className="font-medium text-[var(--ia-texto)]">{r}</b> · {s}</button>)}
+              {prefs.sugestoes !== false && SUGESTOES.map(([r, s]) => <button key={s} onClick={() => enviar(s)} disabled={!ativo} className="rounded-xl border border-[var(--ia-borda)] px-3 py-1.5 text-xs text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] hover:text-[var(--ia-texto)] disabled:opacity-50"><b className="font-medium text-[var(--ia-texto)]">{r}</b> · {s}</button>)}
             </div>
           </div>
         ) : (
           <>
             <div className="min-h-0 flex-1 overflow-y-auto" aria-live="polite">
-              <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
+              <div className={`mx-auto w-full ${prefs.largura === 'larga' ? 'max-w-5xl' : 'max-w-3xl'} space-y-6 px-4 py-6 ${({ sistema: 'font-sans', serifa: 'font-serif', mono: 'font-mono' })[prefs.fonte] || ''}`}>
                 {msgs.map((m, i) => m.role === 'user' ? (
                   <div key={i} className="group flex flex-col items-end">
                     {m.imagens?.length > 0 && <div className="mb-1.5 flex gap-1.5">{m.imagens.map((u, k) => <img key={k} src={u} alt="Imagem enviada" className="h-28 max-w-[12rem] rounded-xl border border-[var(--ia-borda)] object-cover" />)}</div>}
@@ -735,6 +744,8 @@ export default function Ia() {
       </main>
       {config && <Configuracao dados={dados} dono={sessao.papel === 'dono'} recarregar={recarregar} fechar={() => setConfig(false)} />}
       {comparar && <CompararModelos fechar={() => setComparar(false)} />}
+      {cfgIA && <ConfiguracoesIA prefs={prefs} mudarPrefs={mudarPrefs} sessao={sessao} dono={sessao.papel === 'dono'} UsoIA={<UsoIA dono={sessao.papel === 'dono'} />} abrirChave={() => { setCfgIA(false); setConfig(true) }} fechar={(apagou) => { setCfgIA(false); if (apagou === true) { nova(); carregarLista() } }} />}
+      {projModal !== null && <ProjetosIA inicial={projModal} projetos={projetosIA} recarregar={carregarProjetos} fechar={() => setProjModal(null)} usar={(id) => { nova(); setProjetoId(id) }} abrirConversa={(cid, pid) => { setAtual(cid); setProjetoId(pid) }} />}
       {personalizar && <Personalizar prefs={prefs} fechar={() => setPersonalizar(false)} salvar={async (p) => { try { setPrefs(await api.put('/api/ia/preferencias', p)); toast('Preferências salvas.'); setPersonalizar(false) } catch (e) { toast(e.message, 'erro') } }} />}
     </div>
   )

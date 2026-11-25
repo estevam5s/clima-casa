@@ -1,3 +1,4 @@
+import { LogoGithub } from '../components/LogoGithub'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -71,16 +72,17 @@ export default function Login() {
     supabase().then(async (sb) => {
       if (veioGoogle) { await sb.auth.getSession(); window.history.replaceState(null, '', window.location.pathname) }
       if (erroGoogle) {
+        const prov = (() => { try { return sessionStorage.getItem('clima-login-provedor') === 'github' ? 'GitHub' : 'Google' } catch { return 'Google' } })()
         setErro(/signup|not allowed|registr/i.test(erroGoogle)
-          ? 'Essa conta Google não está ligada a nenhum usuário do sistema. Entre com e-mail e senha e conecte o Google em Configurações → Segurança, ou peça ao administrador uma conta com esse e-mail.'
-          : `O Google não concluiu o login: ${erroGoogle}`)
+          ? `Essa conta ${prov} não está ligada a nenhum usuário do sistema. Entre com e-mail e senha e conecte o ${prov} em Configurações → Segurança, ou peça ao administrador uma conta com esse e-mail.`
+          : `O ${prov} não concluiu o login: ${erroGoogle}`)
         return setPronto(true)
       }
       const { data } = await sb.auth.getSession()
       if (data.session) {
         try {
           await api.get('/api/sessao')
-          if (veioGoogle) api.post('/api/sessao/registrar-login', { metodo: 'google' }).catch(() => {})
+          if (veioGoogle) api.post('/api/sessao/registrar-login', { metodo: (() => { try { return sessionStorage.getItem('clima-login-provedor') || 'google' } catch { return 'google' } })() }).catch(() => {})
           return navegar(destino, { replace: true })
         } catch (err) {
           if (err.precisa2fa) { setModo('2fa'); return setPronto(true) }   // conta com autenticador: falta o código
@@ -92,14 +94,15 @@ export default function Login() {
     }).catch((e) => { setErro(e.message); setPronto(true) })
   }, [navegar, destino])
 
-  const entrarGoogle = async () => {
+  const entrarGoogle = (provider = 'google') => async () => {
     if (ocupado) return
     setErro(''); setOcupado(true)
     try {
+      try { sessionStorage.setItem('clima-login-provedor', provider) } catch { /* sem armazenamento */ }
       const sb = await supabase()
       const { error } = await sb.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: `${window.location.origin}/login`, queryParams: { prompt: 'select_account' } },
+        provider,
+        options: { redirectTo: `${window.location.origin}/login`, ...(provider === 'google' ? { queryParams: { prompt: 'select_account' } } : {}) },
       })
       if (error) throw new Error(error.message)
     } catch (err) { setErro(err.message); setOcupado(false) }
@@ -259,7 +262,7 @@ export default function Login() {
                       className="group relative flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--btn)] text-[15px] font-medium text-[var(--btn-ink)] transition-[transform,box-shadow] duration-300 hover:shadow-[0_14px_30px_-12px_var(--accent)] active:scale-[0.985] disabled:opacity-80">
                       {ocupado ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" /> : <>Entrar <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" /></>}
                     </button>
-                    <button type="button" onClick={entrarGoogle} disabled={ocupado}
+                    <button type="button" onClick={entrarGoogle('google')} disabled={ocupado}
                       className="mt-2.5 flex h-12 w-full items-center justify-center gap-2.5 rounded-[14px] border border-[var(--line)] bg-[var(--field)] text-[15px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60">
                       <svg viewBox="0 0 48 48" className="h-[18px] w-[18px]" aria-hidden="true">
                         <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
@@ -268,6 +271,11 @@ export default function Login() {
                         <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
                       </svg>
                       Entrar com Google
+                    </button>
+                    <button type="button" onClick={entrarGoogle('github')} disabled={ocupado}
+                      className="mt-2.5 flex h-12 w-full items-center justify-center gap-2.5 rounded-[14px] border border-[var(--line)] bg-[var(--field)] text-[15px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60">
+                      <LogoGithub className="h-[18px] w-[18px]" />
+                      Entrar com GitHub
                     </button>
                     {temBio && (
                       <button type="button" onClick={entrarBio} disabled={ocupado}

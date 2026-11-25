@@ -86,28 +86,45 @@ class ProjetoIn(BaseModel):
     descricao: str = Field("", max_length=2000)
     cor: str = Field("#0f766a", pattern=COR)
     secoes: list[str] | None = Field(None, max_length=20)
+    modelo: str | None = Field(None, max_length=30)
     arquivado: bool = False
+    membros: list[str] | None = Field(None, max_length=100)
+    portfolio: str = Field("", max_length=80)
+    layout: str = Field("lista", pattern=r"^(lista|quadro|calendario|cronograma|painel)$")
+    prazo: str | None = Field(None, pattern=r"^(\d{4}-\d{2}-\d{2})?$")
 
 
 @rotas_tarefas.get("/tarefas/projetos")
 def projetos():
     linhas = db.consultar("""SELECT p.id, p.nome, p.descricao, p.cor, p.arquivado, p.ordem, p.github IS NOT NULL AS no_github,
+        p.membros, p.status, p.portfolio, p.layout, p.prazo, p.atualizado_em, p.criado_por::text AS criado_por,
         COUNT(t.id) FILTER (WHERE t.pai_id IS NULL) AS total, COUNT(t.id) FILTER (WHERE t.pai_id IS NULL AND t.concluida) AS feitas,
         COUNT(t.id) FILTER (WHERE t.pai_id IS NULL AND NOT t.concluida AND t.prazo < to_char(now() AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')) AS atrasadas
         FROM tarefas_projetos p LEFT JOIN tarefas t ON t.projeto_id = p.id GROUP BY p.id ORDER BY p.arquivado, p.ordem, p.id""")
+    for p in linhas:
+        p["membros"] = _json(p.get("membros"), [])
     gh = db.cfg("github_tarefas") or {}
-    return {"projetos": linhas, "github": {"conectado": bool(gh.get("token")), "login": gh.get("login")},
+    return {"projetos": linhas, "modelos": {k: {"nome": m["nome"], "descricao": m["descricao"], "layout": m["layout"],
+                                                "secoes": [x[0] for x in m["secoes"]]} for k, m in tarefas.MODELOS.items()}, "github": {"conectado": bool(gh.get("token")), "login": gh.get("login")},
             "pode_editar": _u().get("papel") != "visualizador", "gestor": _u().get("papel") in ("dono", "admin"), "dono": _u().get("papel") == "dono"}
 
 
 @rotas_tarefas.post("/tarefas/projetos")
 def criar_projeto(d: ProjetoIn):
     u = _editor()
-    pid = db.um("INSERT INTO tarefas_projetos (nome, descricao, cor, criado_por, criado_em, atualizado_em, ordem) "
-                "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(ordem), 0) + 1 FROM tarefas_projetos)) RETURNING id",
-                (d.nome.strip(), d.descricao.strip(), d.cor, u.get("id"), db.agora(), db.agora()))["id"]
-    for i, nome in enumerate([s.strip()[:80] for s in (d.secoes or tarefas.SECOES_PADRAO) if s.strip()]):
-        db.executar("INSERT INTO tarefas_secoes (projeto_id, nome, ordem) VALUES (?, ?, ?)", (pid, nome, i))
+    modelo = tarefas.MODELOS.get(d.modelo or "")
+    membros = sorted({*(_pessoa_valida(m) for m in (d.membros or []) if m), str(u.get("id"))})
+    pid = db.um("INSERT INTO tarefas_projetos (nome, descricao, cor, criado_por, criado_em, atualizado_em, ordem, membros, portfolio, layout, prazo) "
+                "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(ordem), 0) + 1 FROM tarefas_projetos), CAST(? AS jsonb), ?, ?, ?) RETURNING id",
+                (d.nome.strip(), d.descricao.strip() or (modelo or {}).get("descricao", ""), d.cor, u.get("id"), db.agora(), db.agora(),
+                 json.dumps(membros), d.portfolio.strip(), (modelo or {}).get("layout") or d.layout, d.prazo or None))["id"]
+    secoes = modelo["secoes"] if modelo else [(x, []) for x in (d.secoes or tarefas.SECOES_PADRAO)]
+    for i, (nome, itens) in enumerate([(a.strip()[:80], b) for a, b in secoes if a.strip()]):
+        sid = db.um("INSERT INTO tarefas_secoes (projeto_id, nome, ordem) VALUES (?, ?, ?) RETURNING id", (pid, nome, i))["id"]
+        for j, titulo in enumerate(itens):
+            tid = db.um("INSERT INTO tarefas (projeto_id, secao_id, titulo, ordem, criado_por, criado_em, atualizado_em) VALUES (?,?,?,?,?,?,?) RETURNING id",
+                        (pid, sid, titulo, j + 1, u.get("id"), db.agora(), db.agora()))["id"]
+            _ev(tid, "Criou a tarefa (modelo)")
     db.registrar("painel", f"Tarefas: projeto criado ({d.nome.strip()})")
     return detalhe_projeto(pid)
 
@@ -115,8 +132,10 @@ def criar_projeto(d: ProjetoIn):
 @rotas_tarefas.put("/tarefas/projetos/{pid}")
 def editar_projeto(pid: int, d: ProjetoIn):
     _editor(); _projeto(pid)
-    db.executar("UPDATE tarefas_projetos SET nome = ?, descricao = ?, cor = ?, arquivado = ?, atualizado_em = ? WHERE id = ?",
-                (d.nome.strip(), d.descricao.strip(), d.cor, d.arquivado, db.agora(), pid))
+    membros = None if d.membros is None else json.dumps(sorted({_pessoa_valida(m) for m in d.membros if m}))
+    db.executar("UPDATE tarefas_projetos SET nome = ?, descricao = ?, cor = ?, arquivado = ?, portfolio = ?, layout = ?, prazo = ?, "
+                "membros = COALESCE(CAST(? AS jsonb), membros), atualizado_em = ? WHERE id = ?",
+                (d.nome.strip(), d.descricao.strip(), d.cor, d.arquivado, d.portfolio.strip(), d.layout, d.prazo or None, membros, db.agora(), pid))
     return detalhe_projeto(pid)
 
 
@@ -136,7 +155,59 @@ def detalhe_projeto(pid: int):
         (SELECT COUNT(*) FROM tarefas s WHERE s.pai_id = t.id AND s.concluida) AS subtarefas_feitas,
         (SELECT COUNT(*) FROM tarefas_comentarios c WHERE c.tarefa_id = t.id AND c.tipo = 'comentario') AS comentarios
         FROM tarefas t WHERE t.projeto_id = ? AND t.pai_id IS NULL ORDER BY t.ordem, t.id""", (pid,))
-    return {"projeto": p, "secoes": secoes, "tarefas": [_tarefa(t) for t in itens]}
+    p["membros"] = _json(p.get("membros"), [])
+    hist = db.consultar("SELECT id, status, texto, autor_id::text AS autor_id, autor_nome, criado_em FROM tarefas_status WHERE projeto_id = ? ORDER BY criado_em DESC LIMIT 30", (pid,))
+    return {"projeto": p, "secoes": secoes, "tarefas": [_tarefa(t) for t in itens], "status_historico": hist}
+
+
+class StatusIn(BaseModel):
+    status: str = Field(pattern=r"^(sem_status|no_caminho|em_risco|fora_do_caminho|pausado|concluido)$")
+    texto: str = Field("", max_length=4000)
+
+
+@rotas_tarefas.post("/tarefas/projetos/{pid}/status")
+def atualizar_status(pid: int, d: StatusIn):
+    u = _editor(); _projeto(pid)
+    db.executar("UPDATE tarefas_projetos SET status = ?, atualizado_em = ? WHERE id = ?", (d.status, db.agora(), pid))
+    db.executar("INSERT INTO tarefas_status (projeto_id, status, texto, autor_id, autor_nome, criado_em) VALUES (?, ?, ?, ?, ?, ?)",
+                (pid, d.status, d.texto.strip(), u.get("id"), u.get("nome") or (u.get("email") or "").split("@")[0], db.agora()))
+    return detalhe_projeto(pid)
+
+
+@rotas_tarefas.get("/tarefas/caixa")
+def caixa():
+    """Caixa de entrada: o que aconteceu nas tarefas da pessoa (responsável, criadas por ela ou em que comentou) e
+    nos projetos em que é membro, menos o que ela mesma fez."""
+    uid = str(_u().get("id"))
+    itens = db.consultar("""SELECT c.id, c.tipo, c.texto, c.autor_nome, c.criado_em, t.id AS tarefa_id, t.titulo, t.projeto_id,
+        p.nome AS projeto_nome, p.cor AS projeto_cor FROM tarefas_comentarios c JOIN tarefas t ON t.id = c.tarefa_id
+        JOIN tarefas_projetos p ON p.id = t.projeto_id
+        WHERE c.criado_em > ? AND COALESCE(c.autor_id::text, '') <> ? AND (t.responsavel_id::text = ? OR t.criado_por::text = ?
+          OR p.membros ? ? OR EXISTS (SELECT 1 FROM tarefas_comentarios m WHERE m.tarefa_id = t.id AND m.autor_id::text = ?))
+        ORDER BY c.criado_em DESC LIMIT 200""".replace("p.membros ? ?", "p.membros @> to_jsonb(CAST(? AS text))"),
+                         (db.agora() - 30 * 86400, uid, uid, uid, uid, uid))
+    return {"itens": itens}
+
+
+@rotas_tarefas.get("/tarefas/carga")
+def carga():
+    linhas = db.consultar("""SELECT responsavel_id::text AS id, COUNT(*) AS abertas,
+        COUNT(*) FILTER (WHERE prazo < to_char(now() AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')) AS atrasadas
+        FROM tarefas WHERE NOT concluida AND responsavel_id IS NOT NULL GROUP BY 1""")
+    return {"pessoas": [{"id": r["id"], "abertas": int(r["abertas"]), "atrasadas": int(r["atrasadas"])} for r in linhas]}
+
+
+@rotas_tarefas.get("/tarefas/inicio")
+def inicio():
+    uid = str(_u().get("id"))
+    semana = db.agora() - 7 * 86400
+    r = db.um("""SELECT COUNT(*) FILTER (WHERE concluida AND concluida_em > ? AND responsavel_id::text = ?) AS feitas_semana,
+        COUNT(*) FILTER (WHERE NOT concluida AND responsavel_id::text = ?) AS abertas,
+        COUNT(*) FILTER (WHERE NOT concluida AND responsavel_id::text = ? AND prazo < to_char(now() AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')) AS atrasadas
+        FROM tarefas""", (semana, uid, uid, uid)) or {}
+    colab = db.um("""SELECT COUNT(DISTINCT x) AS n FROM (SELECT jsonb_array_elements_text(membros) AS x FROM tarefas_projetos
+        WHERE membros @> to_jsonb(CAST(? AS text))) y WHERE x <> ?""", (uid, uid)) or {}
+    return {**{k: int(v or 0) for k, v in r.items()}, "colaboradores": int(colab.get("n") or 0)}
 
 
 # ---------------- seções ----------------

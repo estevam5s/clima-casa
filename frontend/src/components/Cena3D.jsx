@@ -86,7 +86,7 @@ function texturaNevoa() {
 }
 
 // Ar-condicionado split em 3D, animado o tempo todo. `estado` = { ligado, modo, ventilador, temperatura }.
-export default function Cena3D({ estado, className = '', escuro }) {
+export default function Cena3D({ estado, className = '', escuro, modeloId = null }) {
   const ref = useRef(null)
   const estadoRef = useRef(estado)
   estadoRef.current = estado
@@ -162,6 +162,27 @@ export default function Cena3D({ estado, className = '', escuro }) {
     }
     unidade.position.y = 1.0
     cena.add(unidade)
+
+    // modelo 3D da marca (Avatares → espécie Ar-condicionado → "Usar nos ares"): entra no lugar da carcaça desenhada,
+    // com a mesma tela de temperatura e o mesmo fluxo de ar. O arquivo fica no cache do navegador (não baixa de novo).
+    const matsModelo = []
+    if (modeloId) {
+      import('./avatares/AvatarViewer').then(({ carregarAvatar }) => carregarAvatar(modeloId)).then((gl) => {
+        if (!ref.current) return
+        const m = gl.scene.clone(true)
+        const caixa = new THREE.Box3().setFromObject(m), tam = caixa.getSize(new THREE.Vector3())
+        const esc = 4.2 / Math.max(0.01, tam.x)
+        m.scale.setScalar(esc)
+        m.position.set(-(caixa.min.x + tam.x / 2) * esc, -(caixa.min.y + tam.y / 2) * esc + 0.05, -0.45 - caixa.min.z * esc)
+        m.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); matsModelo.push(o.material) } })
+        const frenteZ = -0.45 + tam.z * esc
+        ;[unidade.children[0], frente, led, pivoAba, contorno, ...palhetas].forEach((o) => { o.visible = false })
+        tela.position.set(1.3, 0.2, frenteZ + 0.012)
+        faixa.position.z = frenteZ - 0.05
+        unidade.add(m)
+        corAtual = '\u0000'   // reaplica a cor escolhida no mapa ao modelo
+      }).catch((e) => { console.warn("modelo do ar:", e?.message) /* fica o desenho */ })
+    }
 
     const parede = new THREE.Mesh(new THREE.PlaneGeometry(30, 20), new THREE.MeshStandardMaterial({ color: t.parede, roughness: 1 }))
     parede.position.z = -0.5
@@ -245,6 +266,7 @@ export default function Cena3D({ estado, className = '', escuro }) {
       if ((e.cor || '') !== corAtual) {
         corAtual = e.cor || ''
         const c = new THREE.Color(corAtual || t.corpo)
+        matsModelo.forEach((mt) => mt.color.copy(corAtual ? c : new THREE.Color(0xffffff)))
         matCorpo.color.copy(c); frente.material.color.copy(c); aba.material.color.copy(c).offsetHSL(0, 0, corAtual ? -0.04 : 0)
         if (!corAtual) aba.material.color.setHex(t.aba)
         const escura = c.getHSL({}).l < 0.4

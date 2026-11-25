@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { Check, CheckCircle2, Copy, Cpu, Download, Eye, EyeOff, KeyRound, Loader2, Power, PowerOff, RefreshCw, Wifi, Zap } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Selo, useToast, confirmar } from '../ui'
 import { ISRG_ROOT_X1 } from './isrgRootX1'
+const Placa3D = lazy(() => import('./Placa3D'))
 
 // Placa própria (Arduino / ESP) no lugar de um aparelho Smart Life. A placa BUSCA os comandos no servidor a cada 3 s
 // (sai pela internet do escritório, não abre porta nenhuma), manda o estado e confirma o que fez. Token próprio por
@@ -278,6 +279,7 @@ export default function Placa({ d, aoMudar }) {
           <button key={x.id} type="button" onClick={() => setPlaca(x.id)} aria-pressed={placa === x.id} className={`rounded-md border px-2.5 py-2 text-left text-xs ${placa === x.id ? 'border-primary bg-primary/10 font-medium' : 'border-border hover:bg-muted'}`}>{x.nome}</button>))}
         </div>
         <p className="ajuda mt-1">{p.nota}</p>
+        <div className="mt-2"><Suspense fallback={<div className="h-56 rounded-lg border border-border bg-muted/40 sm:h-64" />}><Placa3D key={placa} placaId={placa} nome={p.nome} /></Suspense></div>
       </div>
       <div className="rounded-md border border-border p-3">
         <p className="flex items-center gap-1.5 text-sm font-medium"><Zap className="h-4 w-4 text-muted-foreground" />Ligação</p>

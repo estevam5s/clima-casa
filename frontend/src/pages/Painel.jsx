@@ -123,7 +123,7 @@ function EstadoPeloControle({ ar, aoMudar, fechar }) {
 
 // Um ar: 3D animado (ar saindo, cor do modo) + mostrador, modos e ligar/desligar. "compacto" = 3D em cima e controles
 // embaixo (vários ares lado a lado); senão, 3D à esquerda e controles à direita.
-function ControleAr({ ar, aoMudar, aparencia = {}, fora, compacto = false, cabecalho = null, extra = null }) {
+function ControleAr({ ar, aoMudar, aparencia = {}, modelos = null, fora, compacto = false, cabecalho = null, extra = null }) {
   const { escuro } = useTema()
   const [ocupado, setOcupado] = useState(false)
   const [real, setReal] = useState(false)
@@ -137,7 +137,7 @@ function ControleAr({ ar, aoMudar, aparencia = {}, fora, compacto = false, cabec
     <div className={compacto ? 'flex h-full flex-col' : 'grid md:grid-cols-[1.25fr_1fr]'}>
       <div className={`relative border-b border-border ${compacto ? 'h-56' : 'h-64 md:h-auto md:min-h-[320px] md:border-b-0 md:border-r'}`}>
         <Suspense fallback={<div className="h-full animate-pulse bg-muted" />}>
-          <Cena3D key={escuro ? 'escuro' : 'claro'} escuro={escuro} estado={{ ...ar, cor: aparencia[ar.id]?.cor || '', externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
+          <Cena3D key={`${escuro ? 'escuro' : 'claro'}-${modelos?.ares?.[String(ar.marca || '').trim().toLowerCase()] || 0}`} escuro={escuro} modeloId={modelos?.ares?.[String(ar.marca || '').trim().toLowerCase()] || null} estado={{ ...ar, cor: aparencia[ar.id]?.cor || '', externa: fora?.disponivel ? fora.temperatura : null, umidade: fora?.disponivel ? fora.umidade : null }} />
         </Suspense>
         <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs backdrop-blur">
           <Ponto ativo={ar.ligado} /> {ar.ligado ? `${MODOS[ar.modo]} · ventilação ${VENTILACAO[ar.ventilador].toLowerCase()}` : 'Desligado'}
@@ -187,7 +187,7 @@ function ControleAr({ ar, aoMudar, aparencia = {}, fora, compacto = false, cabec
   )
 }
 
-function Destaque({ aparelhos, aoMudar, aparencia = {}, verSala }) {
+function Destaque({ aparelhos, aoMudar, aparencia = {}, modelos = null, verSala }) {
   // abre num ar que dá para comandar (com transmissor): ligado primeiro. Um ar recém-cadastrado sem transmissor
   // não pode virar o padrão (deixava os botões desativados sem aviso).
   const padrao = () => (aparelhos.find((a) => a.ligado && a.hub_id) || aparelhos.find((a) => a.hub_id) || aparelhos[0])?.id
@@ -199,7 +199,7 @@ function Destaque({ aparelhos, aoMudar, aparencia = {}, verSala }) {
   const daSala = aparelhos.filter((a) => a.projeto_id && a.projeto_id === ar.projeto_id)
   return (
     <motion.div custom={4} variants={entrar} initial="hidden" animate="show" className="cartao overflow-hidden lg:col-span-2">
-      <ControleAr ar={ar} aoMudar={aoMudar} aparencia={aparencia} fora={fora}
+      <ControleAr ar={ar} aoMudar={aoMudar} aparencia={aparencia} modelos={modelos} fora={fora}
         cabecalho={
           <select value={ar.id} onChange={(e) => setId(Number(e.target.value))} aria-label="Escolher aparelho"
             className="-ml-1 w-full truncate rounded-md bg-transparent px-1 text-base font-semibold hover:bg-muted">
@@ -217,7 +217,7 @@ function Destaque({ aparelhos, aoMudar, aparencia = {}, verSala }) {
 
 // Vários ares de uma sala (projeto) lado a lado, cada um com o próprio 3D e os próprios controles. Quando um comando
 // muda os ares que respondem juntos (mesmo transmissor e modelo), todos os cartões mudam juntos, com a animação.
-function AresDaSala({ ares, aoMudar, aparencia = {}, titulo, fechar }) {
+function AresDaSala({ ares, aoMudar, aparencia = {}, modelos = null, titulo, fechar }) {
   const fora = useFora(ares[0]?.projeto_id)
   const ligados = ares.filter((a) => a.ligado).length
   return (
@@ -235,7 +235,7 @@ function AresDaSala({ ares, aoMudar, aparencia = {}, titulo, fechar }) {
       <div className={`grid grid-cols-1 gap-4 ${ares.length >= 3 ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-2'}`}>
         {ares.map((ar, i) => (
           <motion.div key={ar.id} className="cartao overflow-hidden" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 * i, duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}>
-            <ControleAr ar={ar} aoMudar={aoMudar} aparencia={aparencia} fora={fora} compacto />
+            <ControleAr ar={ar} aoMudar={aoMudar} aparencia={aparencia} modelos={modelos} fora={fora} compacto />
           </motion.div>
         ))}
       </div>
@@ -355,10 +355,10 @@ export default function Painel() {
           // projeto escolhido com 2 ou mais ares (ou "ver lado a lado" no destaque): todos os ares da sala juntos
           const pid = salaLado || (projeto && aparelhos.filter((a) => a.projeto_id === projeto.id).length > 1 ? projeto.id : null)
           const daSala = pid ? aparelhos.filter((a) => a.projeto_id === pid) : []
-          if (daSala.length > 1) return <AresDaSala ares={daSala} aoMudar={atualizar} aparencia={planta?.mapa?.ares || {}} titulo={daSala[0].projeto_nome || 'Sala'} fechar={salaLado ? () => setSalaLado(null) : null} />
+          if (daSala.length > 1) return <AresDaSala ares={daSala} aoMudar={atualizar} aparencia={planta?.mapa?.ares || {}} modelos={planta?.mapa?.modelos} titulo={daSala[0].projeto_nome || 'Sala'} fechar={salaLado ? () => setSalaLado(null) : null} />
           return null
         })()}
-        {aparelhos.length > 0 && !(salaLado || (projeto && aparelhos.filter((a) => a.projeto_id === projeto.id).length > 1)) ? <Destaque aparelhos={aparelhos} aoMudar={atualizar} aparencia={planta?.mapa?.ares || {}} verSala={setSalaLado} /> : aparelhos.length > 0 ? null : (
+        {aparelhos.length > 0 && !(salaLado || (projeto && aparelhos.filter((a) => a.projeto_id === projeto.id).length > 1)) ? <Destaque aparelhos={aparelhos} aoMudar={atualizar} aparencia={planta?.mapa?.ares || {}} modelos={planta?.mapa?.modelos} verSala={setSalaLado} /> : aparelhos.length > 0 ? null : (
           <div className="cartao flex flex-col items-center justify-center p-10 text-center lg:col-span-2">
             <AirVent className="mb-3 h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
             <p className="font-medium">Nenhum aparelho neste projeto</p>
