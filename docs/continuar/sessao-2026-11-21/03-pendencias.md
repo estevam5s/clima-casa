@@ -9,3 +9,10 @@
 - clima-ia 1.7.0: instalador testado só no macOS (Docker parado; Linux, Arch e Windows sem teste real).
 - Apps Android/iPhone não ganharam a mensagem de voz nem os estilos da IA (ficaram no painel web; o app de computador mostra o painel).
 - Teste de conexão do transmissor e gravação com reconhecimento: conferir no escritório, com o agente enxergando os transmissores.
+
+## Depois da 0.6.9 (25/11)
+- Regras de Configurações → Geral estão todas desligadas (0): o dono decide a faixa de temperatura e o "desligar depois de N h".
+- Desempenho por rota: os números por rota recomeçam com a medição corrigida; olhar Acessos e SEO → Desempenho → O que melhorar depois de alguns dias de uso.
+- A pessoa de cada ação só existe a partir de 25/11; o histórico antigo aparece como "Painel (pessoa não registrada)".
+- Não testados: comandos do Telegram com uma pessoa de verdade no celular (rodados no servidor com o dono), a regra de desligar sozinho e os avisos de expediente com um ar ligado de verdade, criar tarefa a partir de bug na tela, e o login com GitHub de ponta a ponta (pede a senha do GitHub).
+- O plano de melhorias está em Tarefas → Plano de melhorias (110 tarefas no nome do dono); rodar `scripts/tarefas-melhorias.py` de novo não duplica.
