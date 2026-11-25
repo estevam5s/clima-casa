@@ -1,19 +1,20 @@
 {
   "notas": [
-    "Tela Tarefas no Android e no iPhone; atalho no computador",
-    "Acompanha as versões 0.6.7 e 0.6.8 do sistema (Tarefas, Assistente com Projetos, Backup avançado, login com GitHub)"
+    "Tela Logs no Android e no iPhone (quem ligou, desligou e mudou a temperatura de cada ar); atalho no computador",
+    "A Atividade do Android mostra quem fez cada ação",
+    "Acompanha a versão 0.6.9 do sistema"
   ],
-  "publicado_em": "2026-11-24",
+  "publicado_em": "2026-11-25",
   "android": {
-    "versao": "1.8.0",
+    "versao": "1.8.1",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "desktop": {
-    "versao": "1.8.0",
+    "versao": "1.8.1",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "ios": {
-    "versao": "1.8.0",
+    "versao": "1.8.1",
     "pagina": "https://app.zynio.com.br/apps"
   }
 }
