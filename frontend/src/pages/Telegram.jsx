@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react'
-import { Copy, ExternalLink, KeyRound, Link2, ShieldCheck, Trash2 } from 'lucide-react'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Bot, Copy, ExternalLink, KeyRound, Link2, ListChecks, ScrollText, ShieldCheck, Trash2 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Vazio, confirmar, useDados, useToast } from '../components/ui'
+
+const LogsTelegram = lazy(() => import('../components/telegram/Logs'))
 
 // Bot do Telegram: vincular o próprio Telegram (código de uso único), ver os vínculos, comandos e a segurança.
 // O dono configura o token do bot (fica cifrado no banco).
@@ -60,9 +63,12 @@ export default function Telegram() {
   const [codigo, setCodigo] = useState(null)
   const [token, setToken] = useState('')
   const [ocupado, setOcupado] = useState('')
+  const [params, setParams] = useSearchParams()
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados || !sessao) return <Carregando />
   const dono = sessao.papel === 'dono'
+  const gestor = dono || sessao.papel === 'admin'
+  const aba = ['comandos', ...(gestor ? ['logs'] : [])].includes(params.get('aba')) ? params.get('aba') : 'bot'
   const meus = dados.vinculos.filter((v) => v.usuario_id === sessao.id)
   const gerar = async () => {
     setOcupado('codigo')
@@ -88,7 +94,17 @@ export default function Telegram() {
           { rotulo: 'Pendentes', valor: dados.pendentes ?? 0, dica: 'mensagens esperando o servidor' },
         ]} />
       </div>
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <nav className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-border px-1" aria-label="Seções do Telegram">
+        {[['bot', 'Bot e vínculos', Bot], ['comandos', 'Comandos', ListChecks], ...(gestor ? [['logs', 'Logs de uso e erros', ScrollText]] : [])].map(([k, r, I]) => (
+          <button key={k} onClick={() => setParams(k === 'bot' ? {} : { aba: k }, { replace: true })}
+            className={`relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm ${aba === k ? 'border-primary font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            <I className="h-4 w-4" />{r}
+          </button>
+        ))}
+      </nav>
+      {aba === 'logs' && <Suspense fallback={<Carregando />}><LogsTelegram /></Suspense>}
+      {aba === 'comandos' && <CatalogoComandos comandos={dados.comandos || []} categorias={dados.categorias || []} grande />}
+      {aba === 'bot' && <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-6">
           <section className="cartao p-5">
             <h2 className="titulo-secao flex items-center gap-2"><Link2 className="h-4 w-4" />Vincular o meu Telegram</h2>
@@ -139,7 +155,7 @@ export default function Telegram() {
               <li>Conta desativada no sistema perde o vínculo na hora. Tudo fica na Atividade.</li>
               <li>O ID do Telegram tem que ser o mesmo do vínculo; 3 estouros do limite em 10 min bloqueiam a conversa por 1 h.</li>
               <li>Comandos críticos pedem o PIN de 6 dígitos; vínculo sem uso por 60 dias expira.</li>
-              <li>Toda interação fica na auditoria em Segurança → Telegram.</li>
+              <li>Toda interação fica na auditoria em Segurança → Telegram e nos Logs desta tela, com o tempo de resposta; erro de código vira bug automático.</li>
             </ul>
           </section>
           {dono && (
@@ -153,13 +169,13 @@ export default function Telegram() {
             </section>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
 
 // Catálogo de comandos do bot: categorias, busca e quais pedem confirmação ou permissão.
-function CatalogoComandos({ comandos, categorias }) {
+function CatalogoComandos({ comandos, categorias, grande = false }) {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
   const lista = useMemo(() => {
@@ -178,7 +194,7 @@ function CatalogoComandos({ comandos, categorias }) {
           {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome} ({conta(c.id)})</option>)}
         </select>
       </div>
-      <ul className="mt-3 max-h-[28rem] space-y-1.5 overflow-y-auto pr-1 text-sm">
+      <ul className={`mt-3 space-y-1.5 overflow-y-auto pr-1 text-sm ${grande ? 'max-h-[70vh]' : 'max-h-[28rem]'}`}>
         {lista.map((c) => (
           <li key={c.nome} className="flex flex-wrap items-baseline gap-x-2">
             <code className="text-primary">{c.uso}</code>

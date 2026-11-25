@@ -66,23 +66,23 @@ Tudo roda numa API na Vercel com banco no Supabase e um **agente** num computado
 
 ## Em números
 
-Conferidos no código em 23/11/2026.
+Conferidos no código em 25/11/2026.
 
 | Item | Quantidade |
 |---|---|
-| Telas no painel web | 44 |
-| Rotas da API (contando cada método) | 458 |
-| Tabelas no Postgres, todas com RLS | 49 |
+| Telas no painel web | 43 rotas (muitas com abas: Segurança tem 10, Atividade 7) |
+| Rotas da API (contando cada método) | 519 |
+| Tabelas no Postgres, todas com RLS | 56 |
 | Rotinas agendadas (pg_cron) | 10 |
-| Comandos do bot do Telegram | 1.114, em 28 categorias |
+| Comandos do bot do Telegram | 1.953, em 102 categorias |
 | Perguntas no treinamento de segurança e ISO | 1.017 |
 | Formatos de exportação de relatório | 8 (PDF, DOCX, XLSX, CSV, HTML, XML, JSON, Markdown) |
 | Idiomas do site institucional | 6 (português, inglês, espanhol, francês, russo, coreano) |
-| Versões publicadas do sistema | 66 (numeração em sequência desde 0.0.0), com o horário em que cada uma entrou no ar |
+| Versões publicadas do sistema | 70 (numeração em sequência desde 0.0.0), com o horário em que cada uma entrou no ar |
 | Testes de segurança automáticos | 1.325 (rodam sozinhos toda semana) |
-| Apps nativos | Android, iPhone, macOS (Apple Silicon e Intel), Windows, Linux (x64 e arm64), versão 1.7.1 |
-| Backend Python | ~27 mil linhas |
-| Frontend React | ~39 mil linhas (mais ~5 mil do site) |
+| Apps nativos | Android, iPhone, macOS (Apple Silicon e Intel), Windows, Linux (x64 e arm64), versão 1.8.1 |
+| Backend Python | ~32 mil linhas |
+| Frontend React | ~42 mil linhas (mais ~5 mil do site) |
 
 ---
 
@@ -146,7 +146,7 @@ interruptor de tecla não tem regulagem de brilho.
 |---|---|
 | Alexa e Google Home | Pelo Sinric Pro: ligar, desligar, modo, temperatura, ventilação. Uma zona vira **um** aparelho na Alexa. Diagnóstico ("vai funcionar em outra Alexa?") e teste ao vivo |
 | Comandos da Alexa | Catálogo de frases que a Alexa entende, por aparelho, com botão Testar |
-| Bot do Telegram | 1.114 comandos em 28 categorias, com as permissões de quem vinculou. Painel do ar no estilo do controle remoto, timers, relatórios, lote com confirmação, avisos importantes |
+| Bot do Telegram | 1.953 comandos em 102 categorias, com as permissões de quem vinculou. Painel do ar no estilo do controle remoto, timers, relatórios, logs, auditoria, lote com confirmação, avisos importantes. Tela **Logs de uso e erros**: uso por pessoa, comandos mais usados, tempo de resposta e cada erro (vira bug automático) |
 | Assistente de IA (`/ia`) | Modelos da NVIDIA com ferramentas que veem o estado real e agem **com as permissões de quem pergunta**. Conversas salvas, comandos com `/`, **mensagem de voz** (transcrita no servidor, funciona no Brave), imagens, estilos de resposta, "Pensar mais", instruções pessoais, ouvir a resposta, avaliar |
 | IA no terminal (`clima-ia`) | Cliente no estilo do Claude Code: configuração na primeira execução (tema, cor, tema do código, modo), `/config`, `/retomar`, comandos diretos dos ares. Instaladores para macOS, Linux (Debian/Ubuntu, Fedora, Arch, openSUSE, WSL) e Windows |
 
@@ -184,13 +184,18 @@ trabalho de cada sala, previsão do tempo e chuva reais, trânsito com semáforo
 | Recurso | O que faz |
 |---|---|
 | Relatórios | Período livre, comparação com o período anterior, horas ligado, kWh e custo estimados, mapa de uso, falhas. Exporta em 8 formatos (inclusive no **modelo da Prefeitura**, com brasão) e manda por e-mail |
-| Atividade | Linha do tempo de todo comando e evento, com análise, busca no servidor e exportação |
+| Atividade | Linha do tempo de todo comando e evento **com a pessoa que fez** (desde a 0.6.9), análise, busca no servidor, exportação e as abas Por pessoa, Por sala, Por ar, Mudanças nos ares (ligou, desligou, subiu ou baixou a temperatura) e Comparar períodos |
+| Logs (Segurança → Logs) | Atividade, eventos de segurança, Telegram, dispositivos e e-mails numa linha do tempo só, com filtros por pessoa, sala, ar e origem, ao vivo, auditoria administrativa e exportação |
+| Regras do escritório | Configurações → Geral: faixa de temperatura permitida (vale em todos os canais), desligar ou avisar ar esquecido ligado, aviso fora do expediente, arquivar notificações, feriados, exportar configurações |
+| Tarefas | Estilo Asana: projetos, seções, lista, quadro, calendário, cronograma, painel, Página inicial, Caixa de entrada, Portfólios e GitHub Projects. Projeto **Plano de melhorias** com 110 tarefas (`scripts/tarefas-melhorias.py`) |
 | Notificações | Central com abas, ações direto na notificação, lote, preferências e aviso de versão nova |
 | Backup e restauração | Zip com SHA-256 por tabela no Storage privado; simular, mesclar ou substituir (digitando `RESTAURAR`). Sessões, passkeys e a fila nunca são restaurados |
 | Treinamento | Provas sorteadas de 1.017 perguntas (LGPD, Anexo A da ISO/IEC 27001:2022, Estrutura Harmonizada) com resultado por e-mail |
 | Conformidade | Checagem dos controles da ISO 27001 e minutas de política, termos e declaração de aplicabilidade |
 | Marca própria | Nome, logo, cores, fontes, textos do login e do menu, modo manutenção, histórico de versões |
-| Bugs | Erros de tela viram registro automático, com varredura e acompanhamento |
+| Bugs | Erros de tela, do servidor e do bot viram registro automático. Responsável, prazo, etiquetas, comentários com histórico, duplicado, criar tarefa, ações em lote, estatísticas (tempo até corrigir, recorrentes) e o prompt pronto para a IA corrigir |
+| Uso do sistema | Tempo de cada pessoa em cada tela e o que cada uma fez nos ares e no sistema, com entradas, Telegram e IA |
+| Acessos e SEO | Analytics próprio do site e do sistema; Desempenho com Web Vitals por rota, o elemento que atrasa ou desloca cada página, tendência por dia e celular × computador |
 
 ### Infra (dono e administradores)
 
@@ -501,7 +506,7 @@ Detalhes em [`apps/android/README.md`](apps/android/README.md) e [`apps/desktop/
 
 Toda publicação que muda o que alguém vê ganha uma entrada no topo de `backend/app/novidades.json` (versão em sequência:
 0.0.0 … 0.0.9, 0.1.0 …). Cada pessoa vê o modal "O que há de novo" uma vez, a central de notificações avisa e a página
-`/novidades` (e a do site) mostra o histórico inteiro. Os apps têm numeração própria (1.7.0).
+`/novidades` (e a do site) mostra o histórico inteiro. Os apps têm numeração própria (1.8.1).
 
 ---
 
@@ -528,6 +533,9 @@ Toda publicação que muda o que alguém vê ganha uma entrada no topo de `backe
 | Portão parado em "Verificando…" | Espere 20 s ou "Tentar de novo"; abrir zynio.com.br também libera |
 | Erro de certificado só em certas redes | Firewall corporativo interceptando HTTPS: use `https://clima-casa-lac.vercel.app` ou peça à TI para liberar o domínio |
 | Publicação "BLOCKED" | Use `./publicar-vercel.sh` (cópia sem `.git`) |
+| Página lenta ou pulando | Acessos e SEO → Sistema → Desempenho → O que melhorar: a rota, a métrica e o elemento responsável, medidos em quem usa |
+| Comando recusado "política do escritório" | A temperatura pedida está fora da faixa de Configurações → Geral (dono ou admin muda) |
+| Quem desligou o ar? | Segurança → Logs ou Atividade → Por ar: cada ação tem a pessoa (desde a 0.6.9) |
 
 A lista completa, com dezenas de casos que já aconteceram, está na seção 13 do [`CLAUDE.md`](CLAUDE.md).
 

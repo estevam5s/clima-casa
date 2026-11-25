@@ -281,8 +281,9 @@ const CAPITULOS = [
     resumo: 'Ares, cenas, luzes, notificações e resumo pelo Telegram, com as suas permissões.',
     passos: [
       { t: 'Vincular', d: 'Integrações → Telegram → Gerar código → Abrir no Telegram (o código vale 10 minutos e uma vez só).', link: ['/telegram', 'Abrir Telegram'] },
-      { t: 'Usar', d: 'No @zynio_bot: /menu mostra o estado e os atalhos; Todos os comandos navega pelas 16 categorias (264 comandos). /usar NOME escolhe o ar atual e aí /23, /frio, /mais, /desligar agem nele. /buscar palavra acha um comando; /avisos sim recebe avisos importantes. Ou escreva normalmente: a IA entende.' },
+      { t: 'Usar', d: 'No @zynio_bot: /menu mostra o estado e os atalhos; Todos os comandos navega pelas 102 categorias (1.953 comandos), em páginas. /usar NOME escolhe o ar atual e aí /23, /frio, /mais, /desligar agem nele. /buscar palavra acha um comando; /avisos sim recebe avisos importantes. Ou escreva normalmente: a IA entende.' },
       { t: 'Segurança', d: 'O bot só responde a quem vinculou o Telegram e age com as permissões da pessoa. Ações em lote pedem confirmação. Perdeu o celular? Desvincule na mesma tela.' },
+      { t: 'Logs do bot (dono e admin)', d: 'Telegram → Logs de uso e erros: quem usa, quais comandos e botões, o tempo de resposta e cada erro capturado (o erro de código vira bug automático). Filtre por pessoa, tipo e período e exporte em CSV.', link: ['/telegram?aba=logs', 'Abrir os logs do bot'] },
     ],
   },
   {
@@ -291,7 +292,8 @@ const CAPITULOS = [
     passos: [
       { t: 'Relatar', d: 'Bugs → Relatar bug: título, o que aconteceu e os passos. A tela, o navegador e os últimos erros vão junto, sem dados pessoais.', link: ['/bugs', 'Abrir Bugs'] },
       { t: 'O que o sistema encontra sozinho', d: 'Erros nas telas, erros internos do servidor, falhas repetidas na Atividade e na fila, rotas sem permissão, transmissor com problema e agente parado (procura de hora em hora).' },
-      { t: 'Corrigir', d: 'Abra o bug, copie o "Prompt para a IA corrigir" e cole no clima-ia (terminal) ou no Claude Code, na pasta do projeto. Depois marque como Corrigido.' },
+      { t: 'Corrigir', d: 'Abra o bug, copie o "Prompt para a IA corrigir" e cole no clima-ia (terminal) ou no Claude Code, na pasta do projeto. Depois marque como Corrigido e escreva "Como foi corrigido".' },
+      { t: 'Organizar', d: 'No bug: gravidade, responsável (recebe aviso), prazo, etiquetas, comentários com histórico, "Duplicado de…" (junta as ocorrências) e Criar tarefa (vai para Tarefas → Bugs). Na lista: filtros, ordem, seleção de vários para mudar o estado de uma vez, aba Comigo, Estatísticas (tempo até corrigir, os que mais se repetem, prazos vencidos) e exportação CSV ou JSON.' },
     ],
   },
   {
@@ -331,8 +333,19 @@ const CAPITULOS = [
     passos: [
       { t: 'Contas e acessos', d: 'Configurações → Usuários → Contas e acessos: crie contas, escolha o nível (dono, administrador, operador…), os projetos e os ares de cada pessoa. As permissões valem no servidor, não só na tela.', link: ['/configuracoes?aba=usuarios', 'Abrir Usuários'] },
       { t: 'Uso do sistema', d: 'Na mesma aba, Uso do sistema mostra em 7, 30 ou 90 dias: tempo de uso por dia, telas mais usadas, quem mais usa (clique na pessoa para ver as telas e os dias dela), os caminhos de uma tela para outra e o mapa de calor pessoa × tela.', link: ['/configuracoes?aba=usuarios&ver=uso', 'Abrir Uso do sistema'] },
+      { t: 'O que cada pessoa fez', d: 'No fim do Uso do sistema: quantas vezes cada pessoa ligou, desligou, subiu ou baixou a temperatura, com as ações administrativas. Toque na pessoa para ver cada ação, os ares que mais usou, as entradas, o Telegram e a IA. A pessoa é registrada desde a versão 0.6.9. O dono também troca o e-mail de login de uma conta em Editar.' },
       { t: 'Como o tempo é contado', d: 'Só com a aba do sistema visível e alguém mexendo: depois de 5 minutos parado, o relógio para. Não guarda nada do que foi digitado, só quanto tempo cada tela ficou aberta.' },
       { t: 'Os seus dados', d: 'Cada pessoa baixa uma cópia dos próprios dados (inclusive o tempo de uso) em Configurações → Segurança. Ao apagar uma conta, o tempo de uso dela é apagado junto.' },
+    ],
+  },
+  {
+    id: 'logs', icone: ShieldCheck, titulo: 'Logs, auditoria e regras do escritório',
+    resumo: 'Tudo o que acontece no sistema numa linha do tempo, quem fez cada coisa e as regras que valem para todos os ares.',
+    passos: [
+      { t: 'Logs completos', d: 'Segurança → Logs junta a Atividade (com a pessoa), os eventos de segurança, o Telegram, os dispositivos e os e-mails. Filtre por pessoa, sala, ar, origem e texto, ligue "Ao vivo" e exporte. Toque num registro para ver tudo dele.', link: ['/seguranca?aba=logs', 'Abrir os logs'] },
+      { t: 'Por pessoa, sala e ar', d: 'Em Logs → Por pessoa e Salas e ares, e na Atividade (abas Por pessoa, Por sala, Por ar, Mudanças nos ares e Comparar períodos): cada comando é comparado com o estado anterior do ar e vira Ligou, Desligou, Subiu ou Baixou a temperatura, Modo ou Ventilação.', link: ['/atividade?aba=pessoas', 'Abrir a Atividade'] },
+      { t: 'Auditoria', d: 'Logs → Auditoria mostra só as ações administrativas: usuários, senhas, e-mails de login, sessões, backup, configurações, DNS e integrações.' },
+      { t: 'Regras do escritório', d: 'Configurações → Geral (dono e admin): faixa de temperatura permitida (o pedido fora dela é recusado em qualquer canal; desligar sempre passa), desligar ou avisar o ar esquecido ligado, aviso fora do expediente, arquivar notificações antigas, feriados e exportar as configurações sem senhas.', link: ['/configuracoes?aba=geral', 'Abrir Geral'] },
     ],
   },
   {

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Comparar, Mudancas, PorGrupo } from '../components/atividade/Extras'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { AlertTriangle, ArrowRight, BarChart3, Bot, CalendarClock, Download, FileJson, ListTree, Mic, MonitorSmartphone, Music2, RefreshCw, Search, Settings2, Sparkles, Workflow, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, BarChart3, Bot, Building2, GitCompareArrows, Thermometer, UserRound, AirVent, CalendarClock, Download, FileJson, ListTree, Mic, MonitorSmartphone, Music2, RefreshCw, Search, Settings2, Sparkles, Workflow, X } from 'lucide-react'
 import { api, rotuloOrigem } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, Esqueleto, FaixaMetricas, Interruptor, Selo } from '../components/ui'
 
@@ -93,7 +94,12 @@ function Analise({ filtro }) {
 }
 
 export default function Atividade() {
-  const [aba, setAba] = useState('linha')
+  const [params, setParams] = useSearchParams()
+  const ABAS_ATIV = [['linha', 'Linha do tempo', ListTree], ['analise', 'Análise', BarChart3], ['pessoas', 'Por pessoa', UserRound], ['salas', 'Por sala', Building2],
+    ['ares', 'Por ar', AirVent], ['mudancas', 'Mudanças nos ares', Thermometer], ['comparar', 'Comparar períodos', GitCompareArrows]]
+  const aba = ABAS_ATIV.some(([k]) => k === params.get('aba')) ? params.get('aba') : 'linha'
+  const setAba = (k) => setParams(k === 'linha' ? {} : { aba: k }, { replace: true })
+  const extra = !['linha', 'analise'].includes(aba)
   const [filtro, setFiltro] = useState({ origem: '', aparelho_id: '', falhas: false, periodo: '' })
   const [itens, setItens] = useState(null)
   const [aparelhos, setAparelhos] = useState([])
@@ -128,7 +134,7 @@ export default function Atividade() {
   const mais = async () => { const l = await api.get(url(itens[itens.length - 1].id)); setItens([...itens, ...l]); setFim(l.length < 150) }
   const nomeArq = (ext) => `clima-escritorio-atividade-${new Date().toISOString().slice(0, 10)}.${ext}`
   const exportarCsv = () => {
-    const linhas = [['quando', 'aparelho', 'acao', 'origem', 'resultado', 'detalhe'], ...visiveis.map((t) => [new Date(t.quando * 1000).toISOString(), t.aparelho_nome || '', t.acao, rotuloOrigem(t.origem), t.ok ? 'ok' : 'falhou', t.detalhe || ''])]
+    const linhas = [['quando', 'pessoa', 'aparelho', 'acao', 'origem', 'resultado', 'detalhe'], ...visiveis.map((t) => [new Date(t.quando * 1000).toISOString(), t.usuario || '', t.aparelho_nome || '', t.acao, rotuloOrigem(t.origem), t.ok ? 'ok' : 'falhou', t.detalhe || ''])]
     baixar(nomeArq('csv'), 'text/csv;charset=utf-8', '﻿' + linhas.map((l) => l.map((c) => `"${String(c).replaceAll('"', '""')}"`).join(';')).join('\n'))
   }
   const exportarJson = () => baixar(nomeArq('json'), 'application/json', JSON.stringify(visiveis.map((t) => ({ ...t, quando_iso: new Date(t.quando * 1000).toISOString() })), null, 2))
@@ -139,18 +145,20 @@ export default function Atividade() {
 
   return (
     <div className="w-full">
-      <Cabecalho titulo="Atividade" descricao="Tudo o que aconteceu: cada comando, quem pediu (painel, Alexa, agenda, automação, música) e se deu certo."
+      <Cabecalho titulo="Atividade" descricao="Tudo o que aconteceu: cada comando, quem fez (pessoa, Alexa, agenda, automação, música), em que sala e ar, e se deu certo."
         acoes={<>
           <label className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"><RefreshCw className={`h-3.5 w-3.5 ${aoVivo ? 'animate-spin text-primary [animation-duration:3s]' : 'text-muted-foreground'}`} /> Ao vivo<Interruptor ligado={aoVivo} onChange={setAoVivo} rotulo="Atualizar ao vivo" /></label>
           <Botao variante="secundario" icone={Download} disabled={!total} onClick={exportarCsv}>CSV</Botao>
           <Botao variante="secundario" icone={FileJson} disabled={!total} onClick={exportarJson}>JSON</Botao>
         </>} />
 
-      <div className="mb-5 flex gap-1 border-b border-border">
-        {[['linha', 'Linha do tempo', ListTree], ['analise', 'Análise', BarChart3]].map(([k, n, I]) => <button key={k} onClick={() => setAba(k)} className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm ${aba === k ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}><I className="h-4 w-4" />{n}</button>)}
+      <div className="-mx-1 mb-5 flex gap-1 overflow-x-auto border-b border-border px-1">
+        {ABAS_ATIV.map(([k, n, I]) => <button key={k} onClick={() => setAba(k)} className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm ${aba === k ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}><I className="h-4 w-4" />{n}</button>)}
       </div>
 
-      <div className="mb-5 space-y-3">
+      {extra && (aba === 'mudancas' ? <Mudancas /> : aba === 'comparar' ? <Comparar /> : <PorGrupo key={aba} tipo={aba} />)}
+
+      {!extra && <div className="mb-5 space-y-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           {aba === 'linha' && <div className="relative lg:w-72"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input className="campo pl-9" placeholder="Buscar em tudo (ação, aparelho, detalhe)" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar" />{busca && <button onClick={() => setBusca('')} className="absolute right-2 top-2.5 rounded p-0.5 text-muted-foreground" aria-label="Limpar busca"><X className="h-4 w-4" /></button>}</div>}
           {aba === 'linha' && <div className="flex w-fit rounded-lg border border-border bg-card p-0.5 text-xs">{PERIODOS.map(([k, n]) => <button key={k} onClick={() => setFiltro({ ...filtro, periodo: k })} className={`rounded-md px-2.5 py-1.5 ${filtro.periodo === k ? 'bg-muted font-medium' : 'text-muted-foreground'}`}>{n}</button>)}</div>}
@@ -160,9 +168,9 @@ export default function Atividade() {
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">{ORIGENS.map(([k, r]) => <button key={k} onClick={() => setFiltro({ ...filtro, origem: k })} className={`rounded-full border px-3 py-1 text-xs transition-colors ${filtro.origem === k ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}>{r}</button>)}</div>
-      </div>
+      </div>}
 
-      {aba === 'analise' ? <Analise filtro={filtro} /> : (<>
+      {extra ? null : aba === 'analise' ? <Analise filtro={filtro} /> : (<>
         <FaixaMetricas itens={[
           { rotulo: 'Registros carregados', valor: total, dica: filtrado ? 'com os filtros atuais' : 'mais recentes primeiro' },
           { rotulo: 'Sucesso', valor: total ? Math.round(((total - falhas) / total) * 100) : 0, sufixo: '%', tom: falhas ? 'ruim' : 'bom', dica: falhas ? `${falhas} falha(s)` : 'nenhuma falha' },
@@ -184,7 +192,7 @@ export default function Atividade() {
                           <button onClick={() => setAberto(t)} className="flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/60 sm:flex-row sm:items-center sm:gap-3">
                             <span className="w-12 shrink-0 text-xs text-muted-foreground tabular">{new Date(t.quando * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                             <div className="min-w-0 flex-1"><p className="text-sm">{t.aparelho_nome && <span className="font-medium">{t.aparelho_nome}: </span>}{t.acao}</p>{t.detalhe && <p className="truncate text-xs text-muted-foreground">{t.detalhe}</p>}</div>
-                            <span className="text-xs text-muted-foreground">{rotuloOrigem(t.origem)}</span>
+                            <span className="text-xs text-muted-foreground">{t.usuario ? `${t.usuario} · ` : ''}{rotuloOrigem(t.origem)}</span>
                             {!t.ok && <Selo cor="vermelho">Falhou</Selo>}
                           </button>
                         </motion.li>
@@ -204,7 +212,7 @@ export default function Atividade() {
           <aside className="h-full w-full max-w-md overflow-auto border-l border-border bg-card p-5 shadow-xl"> {/* marca: painel lateral flutua */}
             <div className="mb-4 flex items-start justify-between gap-2"><div><p className="text-xs text-muted-foreground">Registro #{aberto.id}</p><h2 className="text-base font-semibold">{aberto.acao}</h2></div><button onClick={() => setAberto(null)} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Fechar"><X className="h-4 w-4" /></button></div>
             <dl className="space-y-3 text-sm">
-              {[['Quando', new Date(aberto.quando * 1000).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'medium' })], ['Resultado', aberto.ok ? 'Deu certo' : 'Falhou'], ['Origem', `${rotuloOrigem(aberto.origem)} (${aberto.origem})`], ['Aparelho', aberto.aparelho_nome || '—'], ['Detalhe', aberto.detalhe || '—']].map(([k, v]) => <div key={k}><dt className="text-xs text-muted-foreground">{k}</dt><dd className="mt-0.5 whitespace-pre-wrap break-words">{v}</dd></div>)}
+              {[['Quando', new Date(aberto.quando * 1000).toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'medium' })], ['Resultado', aberto.ok ? 'Deu certo' : 'Falhou'], ['Quem', aberto.usuario || 'Não registrado (automático ou antes da 0.6.9)'], ['Origem', `${rotuloOrigem(aberto.origem)} (${aberto.origem})`], ['Aparelho', aberto.aparelho_nome || '—'], ['Detalhe', aberto.detalhe || '—']].map(([k, v]) => <div key={k}><dt className="text-xs text-muted-foreground">{k}</dt><dd className="mt-0.5 whitespace-pre-wrap break-words">{v}</dd></div>)}
             </dl>
             <div className="mt-5 flex flex-wrap gap-2">
               {aberto.aparelho_id && <Link to={`/aparelhos/${aberto.aparelho_id}`} className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted">Abrir o aparelho<ArrowRight className="h-3.5 w-3.5" /></Link>}

@@ -20,6 +20,7 @@ from .rotas import infra as rotas_infra
 from .rotas import correio as rotas_correio
 from .rotas import dispositivos as rotas_dispositivos
 from .rotas import telegram as rotas_telegram
+from .rotas import logs as rotas_logs
 from .rotas import bugs as rotas_bugs
 from .rotas import tarefas as rotas_tarefas
 from .rotas import ia as rotas_ia
@@ -138,7 +139,7 @@ async def cabecalhos(request: Request, chamar):
     if dinamica and "cache-control" not in resp.headers:
         resp.headers["Cache-Control"] = "no-store"
     resp.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data: blob: https://challenges.cloudflare.com https://*.scdn.co https://*.spotifycdn.com https://*.googleusercontent.com; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; img-src 'self' data: blob: https://challenges.cloudflare.com https://*.scdn.co https://*.spotifycdn.com https://*.googleusercontent.com https://avatars.githubusercontent.com; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; "
         "script-src 'self' https://challenges.cloudflare.com https://sdk.scdn.co; frame-src https://challenges.cloudflare.com https://sdk.scdn.co; "
         "font-src 'self'; connect-src 'self' blob: data: https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://api.pwnedpasswords.com https://speed.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests")
     if request.url.scheme == "https":
@@ -190,6 +191,7 @@ app.include_router(rotas_dispositivos.publico_iot)
 app.include_router(rotas_dispositivos.rotas_disp)
 app.include_router(rotas_telegram.publico_telegram)
 app.include_router(rotas_telegram.rotas_telegram)
+app.include_router(rotas_logs.rotas_logs)
 app.include_router(rotas_bugs.rotas_bugs)
 app.include_router(rotas_tarefas.rotas_tarefas)
 app.include_router(rotas_ia.rotas_ia)

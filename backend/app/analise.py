@@ -153,15 +153,20 @@ def resumo(origem: str = "site", dias: int = 7) -> dict:
     # Web Vitals: p75 por métrica e por rota (como o Google conta no Search Console)
     # CLS do sistema medido antes de 22/11/2026 era a soma de toda a vida da aba (não a janela do Google): fica de fora
     sem_cls_antigo = " AND NOT (origem = 'sistema' AND nome = 'CLS' AND (dados->>'janela') IS NULL)"
-    vit = lista(f"SELECT nome, rota, valor FROM analise_eventos WHERE {w} AND tipo = 'vital' AND valor IS NOT NULL{sem_cls_antigo} ORDER BY quando DESC LIMIT 20000")
+    vit = lista(f"SELECT nome, rota, valor, quando, dispositivo, dados->>'el' AS el, dados->>'largura' AS largura FROM analise_eventos "
+                f"WHERE {w} AND tipo = 'vital' AND valor IS NOT NULL{sem_cls_antigo} ORDER BY quando DESC LIMIT 20000")
     geral, por_rota = {}, {}
     for v in vit:
         geral.setdefault(v["nome"], []).append(v["valor"])
+        # no sistema, LCP e CLS de antes da 0.6.9 iam para a tela aberta ao fechar a aba (rota errada): contam no geral, não na rota
+        if origem == "sistema" and v["nome"] in ("LCP", "CLS") and v["largura"] is None:
+            continue
         por_rota.setdefault(v["rota"], {}).setdefault(v["nome"], []).append(v["valor"])
     vitais = {k: {"p75": _p(x, 0.75), "n": len(x), "nota": _nota_vital(k, _p(x, 0.75)),
                   "distribuicao": {n: sum(1 for y in x if _nota_vital(k, y) == n) for n in ("bom", "melhorar", "ruim")}} for k, x in geral.items()}
     vitais_rotas = sorted(({"rota": r, **{k: {"p75": _p(x, 0.75), "n": len(x), "nota": _nota_vital(k, _p(x, 0.75))} for k, x in m.items()},
                             "amostras": sum(len(x) for x in m.values())} for r, m in por_rota.items()), key=lambda x: -x["amostras"])[:25]
+    diag = _diagnostico(vit, por_rota, origem)
     api = []
     if origem == "sistema":
         amostras = lista(f"SELECT alvo, valor, (dados->>'status')::int AS status FROM analise_eventos WHERE {w} AND tipo = 'api' AND valor IS NOT NULL "
@@ -208,12 +213,68 @@ def resumo(origem: str = "site", dias: int = 7) -> dict:
                    "online": len(online)},
         "online": online[:50], "por_dia": por_dia, "por_hora": por_hora, "rotas": rotas, "entradas": entradas, "saidas": saidas, "cliques": cliques,
         "paises": grupo("pais"), "cidades": cidades, "dispositivos": grupo("dispositivo", 5), "navegadores": grupo("navegador", 8), "sistemas": grupo("so", 8),
-        "idiomas": grupo("idioma", 10), "origens": origens, "diretas": int(diretas.get("n") or 0), "vitais": vitais, "vitais_rotas": vitais_rotas,
+        "idiomas": grupo("idioma", 10), "origens": origens, "diretas": int(diretas.get("n") or 0), "vitais": vitais, "vitais_rotas": vitais_rotas, **diag,
         "api": api, "erros": erros, "recomendacoes": _recomendacoes(vitais, vitais_rotas, api, ses, origem),
         "anterior": {k: int(ant.get(k) or 0) for k in ("paginas", "sessoes", "visitantes", "cliques")},
         "visitantes_tipo": {"novos": int(nr.get("novos") or 0), "recorrentes": int(nr.get("recorrentes") or 0), "anonimas": int(anonimas.get("n") or 0)},
         "paginas_tempo": paginas_tempo, "caminhos": caminhos, "semana_hora": semana_hora, "campanhas": campanhas,
     }
+
+
+DICAS_VITAIS = {
+    "LCP": [("canvas", "É o 3D: mostre uma imagem ou o texto antes e monte a cena depois do primeiro quadro (ou no ocioso)."),
+            ("img", "É uma imagem: dê width/height, use fetchpriority=\"high\" na principal e um formato leve (WebP/AVIF)."),
+            ("h1", "É o título: ele espera os dados da API. Mostre o título já na primeira pintura e carregue os números depois."),
+            ("p", "É um texto que depende da API: reserve o lugar e mostre o cache enquanto atualiza."),
+            ("", "O maior elemento depende do JavaScript e da API. Corte o que carrega antes dele, adie gráficos e use o cache da tela.")],
+    "CLS": [("canvas", "O 3D muda de tamanho ao montar: dê altura fixa ao contêiner (h-64, aspect-ratio)."),
+            ("img", "Imagem sem tamanho: defina width/height ou aspect-ratio."),
+            ("section", "Um cartão entra depois e empurra o resto: reserve a altura com um esqueleto do mesmo tamanho."),
+            ("div", "Um bloco aparece depois dos dados: use esqueleto com a mesma altura ou min-height."),
+            ("", "Algo entra depois e empurra o conteúdo: reserve o espaço (esqueleto, min-height) ou coloque abaixo da dobra.")],
+    "INP": [("button", "O clique dispara trabalho pesado na hora: mostre o retorno visual primeiro e faça o resto depois (startTransition, setTimeout)."),
+            ("", "A resposta ao toque demora: divida a tarefa longa e evite remontar a tela inteira.")],
+    "FCP": [("", "A primeira pintura demora: diminua o JavaScript da primeira carga (telas sob demanda) e as fontes bloqueantes.")],
+    "TTFB": [("", "O servidor demora a responder: cache na borda, função mais perto (região) e menos consultas antes da resposta.")],
+}
+
+
+def _dica(metrica: str, el: str) -> str:
+    tag = (el or "").split(" ")[-1].split("#")[0].split(".")[0].replace(">", "").strip()
+    for chave, texto in DICAS_VITAIS.get(metrica, []):
+        if chave and (tag == chave or (el or "").startswith(chave)):
+            return texto
+    return DICAS_VITAIS.get(metrica, [("", "")])[-1][1]
+
+
+def _diagnostico(vit: list[dict], por_rota: dict, origem: str) -> dict:
+    """Tendência por dia, celular × computador e o que atrasa ou desloca cada rota (elemento responsável, quando medido)."""
+    import datetime as _dt
+    brt = _dt.timezone(_dt.timedelta(hours=-3))
+    dias, disp, elems = {}, {}, {}
+    for v in vit:
+        dia = _dt.datetime.fromtimestamp(v["quando"], brt).strftime("%Y-%m-%d")
+        dias.setdefault(dia, {}).setdefault(v["nome"], []).append(v["valor"])
+        d = "celular" if (v.get("dispositivo") or "").lower().startswith(("cel", "mob", "tab")) or (v.get("largura") and str(v["largura"]).isdigit() and int(v["largura"]) < 768) else "computador"
+        disp.setdefault(d, {}).setdefault(v["nome"], []).append(v["valor"])
+        if v.get("el") and not (origem == "sistema" and v["nome"] in ("LCP", "CLS") and v.get("largura") is None):
+            elems.setdefault((v["rota"], v["nome"]), {}).setdefault(v["el"], []).append(v["valor"])
+    vitais_dias = [{"dia": k, **{m: _p(x, 0.75) for m, x in sorted(d.items())}, "n": sum(len(x) for x in d.values())} for k, d in sorted(dias.items())]
+    vitais_disp = {d: {m: {"p75": _p(x, 0.75), "n": len(x), "nota": _nota_vital(m, _p(x, 0.75))} for m, x in ms.items()} for d, ms in disp.items()}
+    diagnostico = []
+    for rota, ms in por_rota.items():
+        for m, x in ms.items():
+            p75 = _p(x, 0.75)
+            nota = _nota_vital(m, p75)
+            if nota not in ("melhorar", "ruim") or len(x) < 3:
+                continue
+            el = sorted(((e, len(vs), _p(vs, 0.75)) for e, vs in (elems.get((rota, m)) or {}).items()), key=lambda t: (-t[1], -(t[2] or 0)))[:3]
+            diagnostico.append({"rota": rota, "metrica": m, "p75": p75, "nota": nota, "n": len(x),
+                                "elementos": [{"el": e, "n": n, "p75": pv} for e, n, pv in el],
+                                "dica": _dica(m, el[0][0] if el else "")})
+    peso = {"ruim": 2, "melhorar": 1}
+    diagnostico.sort(key=lambda d: (-peso[d["nota"]], -d["n"]))
+    return {"vitais_dias": vitais_dias, "vitais_dispositivo": vitais_disp, "diagnostico": diagnostico[:30]}
 
 
 def _recomendacoes(vitais, vitais_rotas, api, ses, origem) -> list[dict]:

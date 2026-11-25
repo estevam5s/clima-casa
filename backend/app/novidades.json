@@ -2,6 +2,44 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.6.9",
+   "data": "2026-11-25",
+   "titulo": "Logs completos, quem fez o quê em cada ar, regras do escritório, Bugs avançado e 461 comandos novos no Telegram",
+   "resumo": "A Atividade passa a guardar quem fez cada ação. Segurança ganha uma aba de Logs com tudo o que acontece no sistema, a Atividade mostra o que cada pessoa fez em cada sala e ar, e Configurações → Geral ganha regras que valem para todos os ares.",
+   "novo": [
+    "Segurança → Logs: atividade, segurança, Telegram, dispositivos e e-mails numa linha do tempo, com filtros por pessoa, sala, ar e origem, ao vivo e exportação",
+    "Cada ação na Atividade guarda a pessoa que fez (painel, app e Telegram)",
+    "Atividade com as abas Por pessoa, Por sala, Por ar, Mudanças nos ares e Comparar períodos: quem ligou, desligou, subiu ou baixou a temperatura",
+    "Logs → Auditoria: só as ações administrativas (usuários, senhas, sessões, backup, configurações, DNS)",
+    "Configurações → Geral: faixa de temperatura permitida, desligar ou avisar ar esquecido ligado, aviso fora do expediente, arquivar notificações, feriados, exportar configurações e resumo do sistema",
+    "Usuários → Uso do sistema: o que cada pessoa fez nos ares e no sistema, com as entradas, o Telegram e a IA de cada uma",
+    "O dono troca o e-mail de login de qualquer conta (o antigo e o novo recebem aviso)",
+    "Bugs: responsável, prazo, etiquetas, comentários com histórico, duplicado de outro bug, criar tarefa, ações em lote, aba Comigo, estatísticas e exportação",
+    "Telegram: 461 comandos novos em 60 categorias novas (1.953 comandos em 102 categorias): logs, quem fez o quê, auditoria, eventos de segurança, sessões, bugs, e-mails, uso da IA e das telas, conversões, glossário, guia e um atalho para cada tela",
+    "Telegram → Logs de uso e erros: uso por pessoa, comandos e botões mais usados, tempo de resposta e cada erro capturado",
+    "Tarefas: projeto Plano de melhorias com 110 tarefas em 17 áreas, em Minhas tarefas do dono",
+    "Acessos e SEO → Desempenho: o que melhorar em cada rota com o elemento que atrasa ou desloca a página, tendência por dia e celular × computador"
+   ],
+   "melhorias": [
+    "Login mais largo, com Google, GitHub e Biometria lado a lado",
+    "Painel abre mais rápido: consultas em paralelo e sem chamadas repetidas na abertura",
+    "Painel não pula mais no celular quando os dados chegam",
+    "Telas extras só começam a baixar depois que a primeira aparece",
+    "Erros do bot do Telegram viram bug automático",
+    "Lista de categorias do bot em páginas (o Telegram aceita até 100 botões)"
+   ],
+   "seguranca": [
+    "PIN digitado com erro no Telegram não fica mais no registro",
+    "Logs completos só para quem gerencia a segurança e vê todos os projetos"
+   ],
+   "correcoes": [
+    "Foto da conta GitHub não aparecia em Configurações → Segurança",
+    "Notificações apagadas pelo sino continuavam na tela de Notificações até recarregar",
+    "O LCP do sistema ia para a tela aberta ao fechar a aba (agora fica na tela em que a página abriu); o CLS do site somava tudo em vez da janela de 5 s",
+    "Rolagem lateral no Uso do sistema no celular"
+   ]
+  },
+  {
    "versao": "0.6.8",
    "data": "2026-11-24",
    "titulo": "Tarefas no padrão Asana, Assistente com Projetos, Backup avançado, placas em 3D e login com GitHub",

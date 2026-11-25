@@ -9,7 +9,7 @@ if (!sessao) {
   try { sessionStorage.setItem('clima-medicao', sessao) } catch { /* sem armazenamento */ }
 }
 const desligado = typeof navigator !== 'undefined' && (navigator.webdriver || /HeadlessChrome/.test(navigator.userAgent))
-let rotaAtual = typeof location !== 'undefined' ? location.pathname : '/'
+let rotaAtual = typeof location !== 'undefined' ? location.pathname.replace(/\/\d+(?=\/|$)/g, '/:id') : '/'
 
 function enviar(final = false) {
   if (!fila.length || desligado) return
@@ -60,34 +60,48 @@ function iniciar() {
     const alvo = el.tagName === 'A' ? (el.getAttribute('href') || '').split('?')[0].slice(0, 120) : ''
     por({ tipo: 'clique', rota: rotaAtual, nome, alvo })
   }, { capture: true, passive: true })
-  // Web Vitals (o mesmo jeito que o Google mede): LCP, CLS, INP aproximado, FCP e TTFB
+  // Web Vitals (o mesmo jeito que o Google mede): LCP, CLS, INP aproximado, FCP e TTFB.
+  // LCP, FCP e TTFB são da CARGA da página: ficam na rota em que a aba abriu (antes, o LCP ia para a tela em que a
+  // pessoa estava ao fechar a aba). CLS e INP vão para a rota em que aconteceram. Junto vai o elemento responsável
+  // (tag, id e classes curtas, nunca texto) para a tela Desempenho dizer o que atrasa ou desloca cada página.
   try {
+    const rotaCarga = rotaAtual
+    const conexao = navigator.connection?.effectiveType || ''
+    const extra = (el) => ({ ...(el ? { el } : {}), ...(conexao ? { conexao } : {}), largura: window.innerWidth })
+    const seletor = (n) => {
+      if (!n || n.nodeType !== 1) return ''
+      const cls = (typeof n.className === 'string' ? n.className : '').split(/\s+/).filter((c) => c && !/[:[\]/]/.test(c)).slice(0, 3).join('.')
+      const pai = n.parentElement && n.parentElement !== document.body ? (n.parentElement.id ? `#${n.parentElement.id} > ` : '') : ''
+      return `${pai}${n.tagName.toLowerCase()}${n.id ? `#${n.id}` : ''}${cls ? `.${cls}` : ''}`.slice(0, 110)
+    }
     const nav = performance.getEntriesByType('navigation')[0]
-    if (nav) por({ tipo: 'vital', nome: 'TTFB', valor: nav.responseStart, rota: rotaAtual })
-    new PerformanceObserver((l) => { for (const x of l.getEntries()) if (x.name === 'first-contentful-paint') por({ tipo: 'vital', nome: 'FCP', valor: x.startTime, rota: rotaAtual }) }).observe({ type: 'paint', buffered: true })
-    let lcp = 0
-    new PerformanceObserver((l) => { const x = l.getEntries().at(-1); if (x) lcp = x.startTime }).observe({ type: 'largest-contentful-paint', buffered: true })
-    // CLS como o Google conta: a pior "janela" de deslocamentos (até 5 s, com menos de 1 s entre um e outro), e não a
-    // soma de tudo enquanto a aba fica aberta. A soma crescia por horas, a cada tela visitada, e chegou a 1,56.
-    let cls = 0, janela = 0, inicioJ = 0, ultimo = 0
+    if (nav) por({ tipo: 'vital', nome: 'TTFB', valor: nav.responseStart, rota: rotaCarga, dados: extra() })
+    new PerformanceObserver((l) => { for (const x of l.getEntries()) if (x.name === 'first-contentful-paint') por({ tipo: 'vital', nome: 'FCP', valor: x.startTime, rota: rotaCarga, dados: extra() }) }).observe({ type: 'paint', buffered: true })
+    let lcp = 0, lcpEl = ''
+    new PerformanceObserver((l) => { const x = l.getEntries().at(-1); if (x) { lcp = x.startTime; lcpEl = seletor(x.element) || (x.url ? `img ${x.url.split('/').pop().split('?')[0]}` : '') } }).observe({ type: 'largest-contentful-paint', buffered: true })
+    // CLS como o Google conta: a pior "janela" de deslocamentos (até 5 s, com menos de 1 s entre um e outro), por rota.
+    const cls = {}
     new PerformanceObserver((l) => {
       for (const x of l.getEntries()) {
         if (x.hadRecentInput) continue
-        if (janela && x.startTime - ultimo < 1000 && x.startTime - inicioJ < 5000) janela += x.value
-        else { janela = x.value; inicioJ = x.startTime }
-        ultimo = x.startTime
-        cls = Math.max(cls, janela)
+        const r = cls[rotaAtual] || (cls[rotaAtual] = { max: 0, janela: 0, inicio: 0, ultimo: 0, fonte: '', maiorFonte: 0 })
+        if (r.janela && x.startTime - r.ultimo < 1000 && x.startTime - r.inicio < 5000) r.janela += x.value
+        else { r.janela = x.value; r.inicio = x.startTime }
+        r.ultimo = x.startTime
+        if (r.janela > r.max) r.max = r.janela
+        if (x.value > r.maiorFonte) { const f = (x.sources || []).slice().sort((a, b) => (b.currentRect?.height || 0) - (a.currentRect?.height || 0))[0]; r.maiorFonte = x.value; r.fonte = seletor(f?.node) }
       }
     }).observe({ type: 'layout-shift', buffered: true })
-    let inp = 0
-    new PerformanceObserver((l) => { for (const x of l.getEntries()) if (x.interactionId) inp = Math.max(inp, x.duration) }).observe({ type: 'event', buffered: true, durationThreshold: 40 })
+    const inp = {}
+    new PerformanceObserver((l) => { for (const x of l.getEntries()) if (x.interactionId && x.duration > (inp[rotaAtual]?.v || 0)) inp[rotaAtual] = { v: x.duration, el: seletor(x.target) } }).observe({ type: 'event', buffered: true, durationThreshold: 40 })
     let fechou = false
     const fechar = () => {
       if (fechou) return
       fechou = true
-      if (lcp) por({ tipo: 'vital', nome: 'LCP', valor: lcp, rota: rotaAtual })
-      por({ tipo: 'vital', nome: 'CLS', valor: Math.round(cls * 1000) / 1000, rota: rotaAtual, dados: { janela: 1 } })
-      if (inp) por({ tipo: 'vital', nome: 'INP', valor: inp, rota: rotaAtual })
+      if (lcp) por({ tipo: 'vital', nome: 'LCP', valor: lcp, rota: rotaCarga, dados: extra(lcpEl) })
+      if (!cls[rotaCarga]) cls[rotaCarga] = { max: 0, fonte: '' }
+      for (const [r, c] of Object.entries(cls)) por({ tipo: 'vital', nome: 'CLS', valor: Math.round(c.max * 1000) / 1000, rota: r, dados: { janela: 1, ...extra(c.fonte) } })
+      for (const [r, c] of Object.entries(inp)) por({ tipo: 'vital', nome: 'INP', valor: c.v, rota: r, dados: extra(c.el) })
     }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { fechar(); fecharRolagem(); enviar(true) } })
   } catch { /* navegador sem PerformanceObserver */ }

@@ -238,3 +238,18 @@ MODELOS = {
     "kanban": {"nome": "Quadro", "layout": "quadro", "descricao": "A fazer, fazendo e feito.", "secoes": [("A fazer", []), ("Fazendo", []), ("Feito", [])]},
 }
 STATUS = ("sem_status", "no_caminho", "em_risco", "fora_do_caminho", "pausado", "concluido")
+
+
+def projeto_por_nome(nome: str, u: dict, cor: str = "#0f766a", descricao: str = "", secoes=SECOES_PADRAO, layout: str = "lista") -> int:
+    """Id do projeto de tarefas com esse nome (não arquivado); cria com as seções se não existir. Usado por Bugs e pelo plano de melhorias."""
+    import json
+    p = db.um("SELECT id FROM tarefas_projetos WHERE lower(nome) = lower(?) AND NOT arquivado ORDER BY id LIMIT 1", (nome,))
+    if p:
+        return p["id"]
+    membros = json.dumps([str(u.get("id"))] if u.get("id") else [])
+    pid = db.um("INSERT INTO tarefas_projetos (nome, descricao, cor, criado_por, criado_em, atualizado_em, ordem, membros, layout) "
+                "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(ordem), 0) + 1 FROM tarefas_projetos), CAST(? AS jsonb), ?) RETURNING id",
+                (nome, descricao, cor, u.get("id"), db.agora(), db.agora(), membros, layout))["id"]
+    for i, s in enumerate(secoes):
+        db.executar("INSERT INTO tarefas_secoes (projeto_id, nome, ordem) VALUES (?, ?, ?) RETURNING id", (pid, s, i))
+    return pid

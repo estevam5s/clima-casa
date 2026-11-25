@@ -16,7 +16,7 @@ const ARQ_PREF = path.join(app.getPath('userData'), 'preferencias.json')
 const ROTAS = [['Painel', '/'], ['Aparelhos', '/aparelhos'], ['Mapa do escritório', '/mapa'], ['Cenas', '/cenas'], ['Automações', '/automacoes'],
   ['Agenda', '/agendamentos'], ['Relatórios', '/relatorios'], ['Atividade', '/atividade'], ['Segurança', '/seguranca']]
 // telas novas (1.4.0): no menu Ir e na bandeja, sem atalho de número (Cmd+1 a 9 já são as de cima)
-const MAIS_TELAS = [['Tarefas', '/tarefas'], ['Assistente de IA', '/ia'], ['Notificações', '/notificacoes'], ['Treinamento e segurança', '/treinamento'], ['Backup e restauração', '/backup'],
+const MAIS_TELAS = [['Tarefas', '/tarefas'], ['Logs', '/seguranca?aba=logs'], ['Assistente de IA', '/ia'], ['Notificações', '/notificacoes'], ['Treinamento e segurança', '/treinamento'], ['Backup e restauração', '/backup'],
   ['Telegram', '/telegram'], ['Música', '/musica'], ['Bugs', '/bugs'], ['Transmissores', '/transmissores'],
   ['Mensagens e Kanban', '/mensagens'], ['Luzes e interruptores', '/luzes'], ['Segurança do Telegram', '/seguranca?aba=telegram'],
   ['Banco (Supabase)', '/supabase'], ['Editor SQL', '/supabase?secao=sql'], ['Avatares e Estúdio', '/avatares'], ['Novidades', '/novidades'],

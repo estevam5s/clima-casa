@@ -803,3 +803,34 @@ create table if not exists public.ia_projetos (
 create index if not exists ia_projetos_usuario on public.ia_projetos (usuario_id, atualizado_em desc);
 alter table public.ia_projetos enable row level security;
 alter table public.ia_conversas add column if not exists projeto_id bigint;
+
+-- 0.6.9: quem fez cada ação (usuário da sessão; vazio = agenda, Alexa, agente)
+alter table public.atividade add column if not exists usuario_id text;
+alter table public.atividade add column if not exists usuario text;
+create index if not exists ix_atividade_usuario on public.atividade (usuario_id, quando desc);
+
+-- 0.6.9: tempo de resposta e erro de cada interação com o bot do Telegram
+alter table public.telegram_eventos add column if not exists ms integer;
+alter table public.telegram_eventos add column if not exists erro text not null default '';
+create index if not exists ix_telegram_eventos_tipo on public.telegram_eventos (tipo, quando desc);
+
+-- 0.6.9: Bugs avançado (responsável, etiquetas, prazo, como foi corrigido, duplicado, tarefa ligada) e histórico/comentários
+alter table public.bugs add column if not exists responsavel_id text;
+alter table public.bugs add column if not exists responsavel_nome text not null default '';
+alter table public.bugs add column if not exists etiquetas jsonb not null default '[]'::jsonb;
+alter table public.bugs add column if not exists prazo text;
+alter table public.bugs add column if not exists correcao text not null default '';
+alter table public.bugs add column if not exists duplicado_de bigint;
+alter table public.bugs add column if not exists tarefa_id bigint;
+alter table public.bugs add column if not exists corrigido_em bigint;
+create table if not exists public.bugs_historico (
+  id bigint generated always as identity primary key,
+  bug_id bigint not null,
+  quando bigint not null,
+  autor_id text,
+  autor_nome text not null default '',
+  tipo text not null,            -- comentario | estado | gravidade | responsavel | etiquetas | prazo | correcao | duplicado | tarefa | criado
+  texto text not null default ''
+);
+create index if not exists ix_bugs_historico_bug on public.bugs_historico (bug_id, quando);
+alter table public.bugs_historico enable row level security;

@@ -74,6 +74,11 @@ def checar_ar(a: dict, novo: dict) -> None:
     aid = a["id"]
     if not novo["ligado"]:
         return   # desligar sempre passa
+    from . import geral
+    motivo = geral.checar_temperatura(a, novo)   # política de temperatura (Configurações → Geral)
+    if motivo:
+        _evento_bloqueio("Comando recusado: fora da política de temperatura", f"{novo.get('temperatura')}°", aid)
+        raise Bloqueado(motivo)
     iso = isolados()["aparelhos"].get(str(aid))
     if iso:
         _evento_bloqueio("Comando recusado: ar isolado", iso.get("motivo", ""), aid)

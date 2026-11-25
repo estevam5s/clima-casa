@@ -177,37 +177,59 @@ def _com_zona(lista):
     return lista
 
 
+def _paralelo(**tarefas):
+    """Roda consultas independentes ao mesmo tempo (cada ida ao banco custa uma viagem de rede). Leva o usuário da
+    requisição (acesso.atual) para cada thread, senão o escopo de projetos se perderia."""
+    import contextvars
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(8, len(tarefas))) as ex:
+        fut = {k: ex.submit(contextvars.copy_context().run, f) for k, f in tarefas.items()}
+        return {k: f.result() for k, f in fut.items()}
+
+
 @api.get("/painel")
 def painel(projeto_id: int | None = None):
     w, p = _filtro_projeto(projeto_id)
-    aparelhos = db.consultar(f"""
-        SELECT a.*, h.nome AS hub_nome, h.online AS hub_online, pr.nome AS projeto_nome,
-               (SELECT COUNT(*) FROM codigos c WHERE c.aparelho_id = a.id) AS total_codigos
-        FROM aparelhos a LEFT JOIN hubs h ON h.id = a.hub_id LEFT JOIN projetos pr ON pr.id = a.projeto_id
-        {w} ORDER BY a.comodo, a.nome""", p)
     wh, ph = _filtro_hubs(projeto_id, "h")
-    hubs = db.consultar(f"SELECT h.id, h.nome, h.online FROM hubs h{wh}", ph)
     hoje = int(time.time()) - 86400
+    r = _paralelo(
+        aparelhos=lambda: db.consultar(f"""
+            SELECT a.*, h.nome AS hub_nome, h.online AS hub_online, pr.nome AS projeto_nome,
+                   (SELECT COUNT(*) FROM codigos c WHERE c.aparelho_id = a.id) AS total_codigos
+            FROM aparelhos a LEFT JOIN hubs h ON h.id = a.hub_id LEFT JOIN projetos pr ON pr.id = a.projeto_id
+            {w} ORDER BY a.comodo, a.nome""", p),
+        hubs=lambda: db.consultar(f"SELECT h.id, h.nome, h.online FROM hubs h{wh}", ph),
+        # as contagens numa ida só
+        n=lambda: db.um("SELECT (SELECT COUNT(*) FROM agendamentos WHERE ativo = 1) AS agendamentos, "
+                        "(SELECT COUNT(*) FROM atividade WHERE quando > ? AND aparelho_id IS NOT NULL) AS comandos_24h, "
+                        "(SELECT COUNT(*) FROM atividade WHERE quando > ? AND ok = 0) AS falhas_24h, (SELECT COUNT(*) FROM projetos) AS projetos, "
+                        "(SELECT COUNT(*) FROM alertas WHERE NOT resolvido) AS alertas, "
+                        "EXISTS (SELECT 1 FROM oauth_tokens WHERE tipo = 'refresh' AND expira > ?) AS alexa", (hoje, hoje, db.agora())),
+        atividade=lambda: _atividade(8),
+        sinric=lambda: (db.cfg("sinric_status") or {}).get("conectado", False),
+        nuvem=tuya_nuvem.conectada,
+        online=transmissor.agente_online,
+        visto=lambda: db.cfg("agente_visto_em"),
+    )
+    aparelhos, hubs, n = r["aparelhos"], r["hubs"], r["n"]
     return {
         "totais": {
             "aparelhos": len(aparelhos),
             "ligados": sum(1 for a in aparelhos if a["ligado"]),
             "hubs": len(hubs),
             "hubs_online": sum(1 for h in hubs if h["online"]),
-            "agendamentos": db.um("SELECT COUNT(*) n FROM agendamentos WHERE ativo = 1")["n"],
-            "comandos_24h": db.um("SELECT COUNT(*) n FROM atividade WHERE quando > ? AND aparelho_id IS NOT NULL",
-                                  (hoje,))["n"],
-            "falhas_24h": db.um("SELECT COUNT(*) n FROM atividade WHERE quando > ? AND ok = 0", (hoje,))["n"],
+            "agendamentos": n["agendamentos"],
+            "comandos_24h": n["comandos_24h"],
+            "falhas_24h": n["falhas_24h"],
         },
         "aparelhos": _com_zona(aparelhos),
-        "atividade": _atividade(8),
-        "projetos": db.um("SELECT COUNT(*) n FROM projetos")["n"],
-        "sinric": (db.cfg("sinric_status") or {}).get("conectado", False),
-        "nuvem": tuya_nuvem.conectada(),
-        "alertas": db.um("SELECT COUNT(*) n FROM alertas WHERE NOT resolvido")["n"],
-        "agente": {"online": transmissor.agente_online(), "visto_em": db.cfg("agente_visto_em"),
-                   "papel": transmissor.PAPEL},
-        "alexa": bool(db.um("SELECT 1 FROM oauth_tokens WHERE tipo = 'refresh' AND expira > ?", (db.agora(),))),
+        "atividade": r["atividade"],
+        "projetos": n["projetos"],
+        "sinric": r["sinric"],
+        "nuvem": r["nuvem"],
+        "alertas": n["alertas"],
+        "agente": {"online": r["online"], "visto_em": r["visto"], "papel": transmissor.PAPEL},
+        "alexa": bool(n["alexa"]),
     }
 
 
@@ -1290,6 +1312,72 @@ def salvar_config(d: ConfigIn):
         db.set_cfg("tarifa_kwh", round(d.tarifa_kwh, 4))
     db.registrar("painel", "Configurações salvas", detalhe=f"envio: {d.modo_envio}")
     return ver_config()
+
+
+class ExpedienteIn(BaseModel):
+    inicio: str = Field("08:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    fim: str = Field("18:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    dias: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5], max_length=7)
+
+
+class GeralIn(BaseModel):
+    temp_min: int = Field(0, ge=0, le=30)
+    temp_max: int = Field(0, ge=0, le=30)
+    desligar_apos_h: int = Field(0, ge=0, le=72)
+    aviso_ligado_h: int = Field(0, ge=0, le=72)
+    aviso_fora_expediente: bool = False
+    expediente: ExpedienteIn = Field(default_factory=ExpedienteIn)
+    arquivar_notif_dias: int = Field(0, ge=0, le=365)
+
+
+@api.get("/config/geral")
+def ver_geral():
+    from .. import geral
+    return {**geral.cfg(), "ultimo": db.cfg("geral_ultimo")}
+
+
+@api.put("/config/geral")
+def salvar_geral(d: GeralIn, request: Request):
+    from .. import geral
+    u = request.state.u
+    if u.get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só o dono e os administradores mudam as regras gerais.")
+    dados = d.model_dump()
+    dados["expediente"]["dias"] = sorted({x for x in dados["expediente"]["dias"] if 0 <= x <= 6})
+    try:
+        c = geral.salvar(dados)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    db.registrar("painel", "Configurações gerais salvas", detalhe=f"temperatura {c['temp_min'] or '-'} a {c['temp_max'] or '-'} · desligar após {c['desligar_apos_h'] or '-'} h · "
+                 f"aviso {c['aviso_ligado_h'] or '-'} h · fora do expediente {'sim' if c['aviso_fora_expediente'] else 'não'} · arquivar {c['arquivar_notif_dias'] or '-'} d")
+    return {**c, "ultimo": db.cfg("geral_ultimo")}
+
+
+@api.get("/config/exportar")
+def exportar_config(request: Request):
+    from .. import geral
+    if request.state.u.get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só o dono e os administradores exportam as configurações.")
+    db.registrar("painel", "Configurações exportadas")
+    return geral.exportar()
+
+
+@api.get("/config/sistema")
+def resumo_sistema():
+    """Números do sistema para Configurações → Geral (sem segredo)."""
+    from .. import coordenador
+    contar = lambda t: db.um(f"SELECT count(*) AS n FROM {t}")["n"]  # noqa: E731  # nosec B608 (lista fixa abaixo)
+    saude = db.um("SELECT tamanho_banco_mb, medido_em FROM saude_sistema ORDER BY medido_em DESC LIMIT 1") or {}
+    import json as _json
+    from pathlib import Path
+    novid = _json.loads((Path(__file__).resolve().parent.parent / "novidades.json").read_text("utf-8"))["versoes"]
+    apps = _json.loads((Path(__file__).resolve().parent.parent / "versao_apps.json").read_text("utf-8"))
+    lider = coordenador.lider() or {}
+    return {"versao": novid[0]["versao"], "versao_data": novid[0]["data"], "versoes": len(novid), "apps": (apps.get("android") or {}).get("versao"),
+            "banco_mb": float(saude.get("tamanho_banco_mb") or 0), "principal": lider.get("nome") if isinstance(lider, dict) else lider,
+            "contagens": {"Ares": contar("aparelhos"), "Transmissores": contar("hubs"), "Salas": contar("projetos"), "Usuários": contar("usuarios"),
+                          "Botões gravados": contar("codigos"), "Dispositivos": contar("dispositivos"), "Cenas": contar("cenas"), "Agendamentos": contar("agendamentos"),
+                          "Automações": contar("automacoes"), "Registros na Atividade": contar("atividade"), "Tarefas": contar("tarefas"), "Modelos 3D": contar("avatares")}}
 
 
 class UserCode(BaseModel):

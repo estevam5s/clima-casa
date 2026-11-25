@@ -70,6 +70,12 @@ async def laco():
                     await asyncio.to_thread(telegram_cmds_extra.lembretes_ciclo)
                 except Exception as e:  # noqa: BLE001
                     log.warning("lembretes do Telegram: %s", e)
+            if ciclo % 15 == 7:   # Configurações → Geral: desligar/avisar ares ligados demais, fora do expediente, arquivar notificações
+                try:
+                    from . import geral
+                    await asyncio.to_thread(geral.ciclo)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("geral: %s", e)
             if ciclo % 15 == 0:   # backup agendado (Backup → Agendar), a cada ~5 min confere se venceu
                 try:
                     from . import backup_sistema

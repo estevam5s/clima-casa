@@ -43,6 +43,7 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
   }))
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const podeEmail = dados.eu.papel === 'dono'
   const total = ['dono', 'admin'].includes(f.papel)
   const minhas = dados.eu.permissoes
   const projetosVisiveis = dados.eu.projetos === '*' ? dados.projetos : dados.projetos.filter((p) => dados.eu.projetos.includes(p.id))
@@ -68,6 +69,8 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
         toast(f.convite ? 'Convite enviado por e-mail.' : 'Usuário criado.')
         aoSalvar(r.senha ? { senha: r.senha, email: f.email } : null)
       } else {
+        const emailNovo = f.email.trim().toLowerCase()
+        if (podeEmail && emailNovo !== (usuario.email || '').toLowerCase()) await api.put(`/api/usuarios/${usuario.id}/email`, { email: emailNovo })
         await api.put(`/api/usuarios/${usuario.id}`, { ...corpo, ativo: f.ativo })
         toast('Usuário atualizado.'); aoSalvar(null)
       }
@@ -79,7 +82,9 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
       <form onSubmit={salvar} className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="rotulo" htmlFor="un">Nome</label><input id="un" className="campo" required maxLength={80} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></div>
-          <div><label className="rotulo" htmlFor="ue">E-mail</label><input id="ue" type="email" className="campo" required disabled={!novo} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
+          <div><label className="rotulo" htmlFor="ue">E-mail</label><input id="ue" type="email" className="campo" required disabled={!novo && !podeEmail} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+            {!novo && podeEmail && f.email.trim().toLowerCase() !== (usuario.email || '').toLowerCase() && <p className="ajuda mt-1">A pessoa passa a entrar com o e-mail novo. O antigo e o novo recebem um aviso.</p>}
+            {!novo && !podeEmail && <p className="ajuda mt-1">Só o dono do sistema troca o e-mail de login.</p>}</div>
           <div><label className="rotulo" htmlFor="uc">Cargo</label><input id="uc" className="campo" maxLength={80} placeholder="Ex.: Recepção, Gerente, TI" value={f.cargo} onChange={(e) => setF({ ...f, cargo: e.target.value })} /></div>
           {!novo && usuario.papel !== 'dono' && <div className="flex items-end gap-3 pb-2 text-sm"><Interruptor ligado={f.ativo} onChange={(v) => setF({ ...f, ativo: v })} rotulo={f.ativo ? 'Conta ativa' : 'Conta desativada'} /><span>{f.ativo ? 'Conta ativa' : 'Conta desativada (não entra)'}</span></div>}
         </div>

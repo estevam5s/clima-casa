@@ -268,7 +268,7 @@ function ContaOAuth({ prov, nome, Logo }) {
       {google === undefined ? <p className="text-sm text-muted-foreground">Carregando…</p> : google ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-            {dados.avatar_url ? <img src={dados.avatar_url} alt="" referrerPolicy="no-referrer" className="h-10 w-10 rounded-full object-cover" /> : <span className="grid h-10 w-10 place-items-center rounded-full bg-muted"><Logo /></span>}
+            <FotoConta url={dados.avatar_url} Logo={Logo} />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 text-sm font-medium"><Logo className="h-4 w-4" />{dados.full_name || dados.name || dados.user_name || `Conta ${nome}`}</p>
               <p className="truncate text-xs text-muted-foreground">{dados.email || google.email}{google.created_at ? ` · conectada ${haQuanto(Math.floor(new Date(google.created_at).getTime() / 1000))}` : ''}</p>
@@ -290,6 +290,13 @@ function ContaOAuth({ prov, nome, Logo }) {
       )}
     </Secao>
   )
+}
+
+// Foto da conta conectada; se não carregar (bloqueio, link vencido), mostra o logo do provedor
+function FotoConta({ url, Logo }) {
+  const [falhou, setFalhou] = useState(false)
+  if (!url || falhou) return <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-muted"><Logo /></span>
+  return <img src={url} alt="" referrerPolicy="no-referrer" onError={() => setFalhou(true)} className="h-10 w-10 shrink-0 rounded-full object-cover" />
 }
 
 // Sessões abertas da conta (aparelho, local, último uso) e encerrar à distância

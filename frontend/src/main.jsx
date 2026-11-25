@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { vigiarErros } from './errosTela'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import './index.css'
-import { api } from './api'
+import { api, sessaoCompartilhada } from './api'
 import Layout from './components/Layout'
 import { Carregando, ToastProvider } from './components/ui'
 import Login from './pages/Login'
@@ -69,7 +69,7 @@ function Protegido({ children }) {
   useEffect(() => {
     const sem = () => { try { localStorage.removeItem('clima-casa-auth') } catch { /* sem storage */ } }  // evita voltar ao login em laço
     const de = window.location.pathname + window.location.search
-    api.get('/api/sessao').then((e) => { if (!e?.logado) sem(); setEstado(e) }).catch((err) => {
+    sessaoCompartilhada().then((e) => { if (!e?.logado) sem(); setEstado(e) }).catch((err) => {
       if (err.precisa2fa) return navegar('/login', { replace: true, state: { de, etapa: '2fa' } })   // falta o código do autenticador
       sem(); setEstado({ logado: false })
     })
@@ -115,7 +115,9 @@ vigiarErros()
   const pre = () => ['Aparelhos', 'Aparelho', 'Projetos', 'Relatorios', 'Atividade', 'Transmissores', 'Configuracoes', 'Cenas', 'Automacoes', 'Agendamentos']
     .forEach((n, i) => setTimeout(() => import(`./pages/${n}.jsx`).catch(() => {}), i * 400))
   const ocioso = window.requestIdleCallback || ((f) => setTimeout(f, 2500))
-  window.addEventListener('load', () => ocioso(pre, { timeout: 6000 }), { once: true })
+  // espera a primeira tela pintar o conteúdo (≈ 4 s) antes de baixar as outras: antes a pré-carga começava em 0,2 s e
+  // disputava a rede e o processador com os dados da tela aberta (piorava o LCP do Painel no celular)
+  window.addEventListener('load', () => setTimeout(() => ocioso(pre, { timeout: 8000 }), 4000), { once: true })
 })()
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

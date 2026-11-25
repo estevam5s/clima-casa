@@ -308,6 +308,50 @@ def editar_usuario(uid: str, d: UsuarioEdit, request: Request):
     return {"ok": True}
 
 
+class EmailAdminIn(BaseModel):
+    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    avisar: bool = True
+
+
+@contas.put("/usuarios/{uid}/email")
+def trocar_email_usuario(uid: str, d: EmailAdminIn, request: Request):
+    """Só o dono troca o e-mail de login de uma conta. Muda no Supabase Auth (já confirmado) e em `usuarios`;
+    a pessoa passa a entrar com o e-mail novo. Avisa o endereço antigo e o novo."""
+    ator = request.state.u
+    if ator.get("papel") != "dono":
+        raise HTTPException(403, "Só o dono do sistema pode trocar o e-mail de uma conta.")
+    alvo = _carregar_alvo(uid)
+    novo = d.email.strip().lower()
+    antigo = (alvo.get("email") or "").strip().lower()
+    if novo == antigo:
+        return {"ok": True, "email": novo, "mudou": False}
+    if db.um("SELECT 1 FROM usuarios WHERE lower(email) = ? AND id <> ?", (novo, uid)):
+        raise HTTPException(409, "Já existe outro usuário com esse e-mail.")
+    _admin("PUT", f"/admin/users/{uid}", json={"email": novo, "email_confirm": True})
+    db.executar("UPDATE usuarios SET email = ? WHERE id = ?", (novo, uid))
+    try:
+        from .. import seguranca
+        seguranca._cache.clear()
+    except Exception:  # noqa: BLE001
+        pass
+    db.registrar("painel", f"E-mail de usuário trocado: {antigo} → {novo}", detalhe=f"por {ator['email']}")
+    if d.avisar:
+        try:
+            from .. import correio, notificacoes
+            texto = f"O e-mail de login da conta {alvo.get('nome') or antigo} mudou de {antigo} para {novo} (feito por {ator.get('nome') or ator['email']})."
+            notificacoes.notificar(f"conta_email:{uid}:{int(time.time())}", "seguranca", "media", "E-mail de login trocado", texto, "/configuracoes?aba=usuarios")
+            if correio.configurado():
+                for para in {antigo, novo}:
+                    if para:
+                        try:
+                            correio.enviar(para, "alerta", {"titulo": "E-mail de login trocado", "detalhe": texto, "gravidade": "media", "link": "/login"})
+                        except Exception:  # noqa: BLE001
+                            pass
+        except Exception:  # noqa: BLE001
+            pass
+    return {"ok": True, "email": novo, "mudou": True}
+
+
 class SenhaAdminIn(BaseModel):
     senha: str | None = Field(None, max_length=200)
     gerar: bool = True

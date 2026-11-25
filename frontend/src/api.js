@@ -135,3 +135,11 @@ export async function validarSenhaNova(s) {
   const n = await senhaVazada(s)
   if (n) throw new Error(`Essa senha já apareceu em ${n.toLocaleString('pt-BR')} vazamentos de dados. Escolha outra.`)
 }
+
+// /api/sessao na abertura: o portão (main.jsx) e o contexto pediam a mesma coisa ao mesmo tempo. Quem pedir em até 5 s
+// recebe a mesma resposta (uma ida ao servidor a menos na primeira pintura).
+let _sessao = null
+export function sessaoCompartilhada() {
+  if (!_sessao || Date.now() - _sessao.t > 5000) _sessao = { t: Date.now(), p: api.get('/api/sessao') }
+  return _sessao.p
+}

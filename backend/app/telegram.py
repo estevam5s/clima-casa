@@ -50,15 +50,33 @@ VINCULO_DIAS = 60
 _ip_atual = {"ip": ""}   # IP do servidor do Telegram que entregou a atualização em processamento
 
 
-def auditar(cid, quem: dict | None, tipo: str, texto: str = "", ok: bool = True, u: dict | None = None):
-    """Uma linha em telegram_eventos. Texto curto (até 160) e sem segredo: PIN nunca é gravado."""
+def auditar(cid, quem: dict | None, tipo: str, texto: str = "", ok: bool = True, u: dict | None = None, erro: str = "", ms: int | None = None):
+    """Uma linha em telegram_eventos. Texto curto (até 160) e sem segredo: PIN nunca é gravado. Devolve o id (para `concluir`)."""
+    if texto and re.match(r"(?i)^\s*/?pin", texto):   # PIN digitado com erro (/pinb123456) nunca vai para o log
+        texto = "/pin ••••••"
     try:
         q = quem or {}
-        db.executar("INSERT INTO telegram_eventos (quando, chat, tg_id, username, usuario_id, usuario_nome, tipo, texto, ok, ip) VALUES (?,?,?,?,CAST(? AS uuid),?,?,?,?,?)",
-                    (db.agora(), str(cid), str(q.get("id") or ""), (q.get("username") or q.get("first_name") or "")[:60], (u or {}).get("id"),
-                     ((u or {}).get("nome") or (u or {}).get("email") or "")[:80], tipo, (texto or "")[:160], ok, _ip_atual["ip"][:45]))
+        r = db.um("INSERT INTO telegram_eventos (quando, chat, tg_id, username, usuario_id, usuario_nome, tipo, texto, ok, ip, erro, ms) "
+                  "VALUES (?,?,?,?,CAST(? AS uuid),?,?,?,?,?,?,?) RETURNING id",
+                  (db.agora(), str(cid), str(q.get("id") or ""), (q.get("username") or q.get("first_name") or "")[:60], (u or {}).get("id"),
+                   ((u or {}).get("nome") or (u or {}).get("email") or "")[:80], tipo, (texto or "")[:160], ok, _ip_atual["ip"][:45], (erro or "")[:400], ms))
+        return (r or {}).get("id")
     except Exception as e:  # noqa: BLE001
         log.warning("telegram auditoria: %s", e)
+        return None
+
+
+def concluir(eid, ms: int, erro: str = ""):
+    """Grava quanto tempo a resposta levou e, se deu erro, o motivo (a tela Telegram → Logs mostra)."""
+    if not eid:
+        return
+    try:
+        if erro:
+            db.executar("UPDATE telegram_eventos SET ms = ?, ok = false, erro = ? WHERE id = ?", (ms, erro[:400], eid))
+        else:
+            db.executar("UPDATE telegram_eventos SET ms = ? WHERE id = ?", (ms, eid))
+    except Exception as e:  # noqa: BLE001
+        log.warning("telegram concluir: %s", e)
 
 
 # ---------------- PIN para comandos críticos ----------------
@@ -352,16 +370,33 @@ def processar(upd: dict, ip: str = ""):
     # PIN digitado: /pin 123456 (nunca vai para a auditoria nem para a Atividade)
     if texto.split()[:1] == ["/pin"]:
         return _pin(cid, quem, u, (texto.split() + [""])[1])
-    auditar(cid, quem, "clique" if cb else ("comando" if texto.startswith("/") else "ia"), (cb or {}).get("data", "") if cb else texto[:120], True, u)
+    eid = auditar(cid, quem, "clique" if cb else ("comando" if texto.startswith("/") else "ia"), (cb or {}).get("data", "") if cb else texto[:120], True, u)
+    t0 = time.monotonic()
     try:
         if cb:
             _clique(cid, cb, u)
         else:
             _comando(cid, texto, u)
+        concluir(eid, int((time.monotonic() - t0) * 1000))
     except Exception as ex:  # noqa: BLE001
         msg_erro = getattr(ex, "detail", None) or str(ex)
+        ms = int((time.monotonic() - t0) * 1000)
         _enviar(cid, f"Não deu: {_e(msg_erro)[:300]}")
         db.registrar("telegram", "Comando do Telegram falhou", ok=False, detalhe=f"{u.get('nome') or u['email']}: {str(msg_erro)[:160]}")
+        # recusa esperada (HTTPException: permissão, validação) fica no próprio registro; erro de código vira um "erro" à parte
+        concluir(eid, ms, str(msg_erro))
+        if not hasattr(ex, "status_code"):
+            import traceback
+            local = "".join(traceback.format_exception(type(ex), ex, ex.__traceback__)[-2:])[-300:]
+            auditar(cid, quem, "erro", (cb or {}).get("data", "") if cb else texto[:120], False, u, f"{type(ex).__name__}: {msg_erro} | {local}", ms)
+            try:
+                from . import bugs
+                cmd_txt = ((cb or {}).get("data", "") if cb else texto.split()[0] if texto else "")[:60]
+                bugs.registrar_auto(f"telegram:{type(ex).__name__}:{cmd_txt}", f"Bot do Telegram: erro em {cmd_txt or 'mensagem'}",
+                                    f"{type(ex).__name__}: {str(msg_erro)[:300]}\n\n{local}", pagina="/telegram", gravidade="media", categoria="telegram",
+                                    contexto={"erros": [{"quando": db.agora(), "comando": cmd_txt, "erro": str(msg_erro)[:300]}]})
+            except Exception:  # noqa: BLE001
+                pass
 
 
 APP_URL = "https://app.zynio.com.br"
@@ -737,6 +772,9 @@ def _clique(cid, cb, u):
         cat, _, pag = arg.partition(":")
         t, bt = telegram_cmds.pagina_categoria(ctx, cat, int(pag or 0))
         return _enviar(cid, t, bt, mid)
+    if tipo == "kp":   # página da grade de categorias
+        n = int(arg or 0) if str(arg or "0").isdigit() else 0
+        return _enviar(cid, f"<b>{len(telegram_cmds.C)} comandos</b> em {len(telegram_cmds.CATS)} categorias. Escolha:", telegram_cmds._grade_categorias(n), mid)
     if tipo == "x":   # executa um comando do catálogo (x:nome ou x:nome:argumentos)
         nome, _, args = arg.partition(":")
         return telegram_cmds.executar(ctx, nome, args)

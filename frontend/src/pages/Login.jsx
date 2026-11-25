@@ -22,6 +22,7 @@ const TEMAS = {
 }
 const GRAO = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
 const ERROS = { 'Invalid login credentials': 'E-mail ou senha incorretos.', 'Email not confirmed': 'E-mail ainda não confirmado.' }
+const botaoAlt = 'flex h-12 min-w-0 items-center justify-center gap-2 rounded-[14px] border border-[var(--line)] bg-[var(--field)] px-2 text-[14px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60'
 const campo = 'mt-2 h-12 w-full rounded-[14px] border border-[var(--line)] bg-[var(--field)] px-4 text-[15px] text-[var(--ink)] shadow-[0_1px_2px_rgb(0_0_0/0.04)_inset] outline-none transition-[border-color,box-shadow] duration-300 placeholder:text-[var(--muted)]/60 focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]'
 
 function lembrado() { try { return localStorage.getItem('clima-email') || '' } catch { return '' } }
@@ -220,7 +221,7 @@ export default function Login() {
           {escuro ? 'Escuro' : 'Claro'}
         </button>
 
-        <div className="w-full max-w-[380px]">
+        <div className="w-full max-w-[460px]">
           <AnimatePresence mode="wait">
             {modo === 'entrar' && (
               <motion.div key="entrar" exit={{ opacity: 0, y: -6 }}>
@@ -262,27 +263,28 @@ export default function Login() {
                       className="group relative flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--btn)] text-[15px] font-medium text-[var(--btn-ink)] transition-[transform,box-shadow] duration-300 hover:shadow-[0_14px_30px_-12px_var(--accent)] active:scale-[0.985] disabled:opacity-80">
                       {ocupado ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" /> : <>Entrar <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" /></>}
                     </button>
-                    <button type="button" onClick={entrarGoogle('google')} disabled={ocupado}
-                      className="mt-2.5 flex h-12 w-full items-center justify-center gap-2.5 rounded-[14px] border border-[var(--line)] bg-[var(--field)] text-[15px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60">
-                      <svg viewBox="0 0 48 48" className="h-[18px] w-[18px]" aria-hidden="true">
+                    <div className="my-5 flex items-center gap-3 text-[12px] text-[var(--muted)]"><span className="h-px flex-1 bg-[var(--line)]" />ou entre com<span className="h-px flex-1 bg-[var(--line)]" /></div>
+                    <div className={`grid gap-2.5 ${temBio ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      <button type="button" onClick={entrarGoogle('google')} disabled={ocupado} aria-label="Entrar com Google" title="Entrar com Google"
+                        className={botaoAlt}>
+                        <svg viewBox="0 0 48 48" className="h-[18px] w-[18px] shrink-0" aria-hidden="true">
                         <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
                         <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
                         <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
                         <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
                       </svg>
-                      Entrar com Google
-                    </button>
-                    <button type="button" onClick={entrarGoogle('github')} disabled={ocupado}
-                      className="mt-2.5 flex h-12 w-full items-center justify-center gap-2.5 rounded-[14px] border border-[var(--line)] bg-[var(--field)] text-[15px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60">
-                      <LogoGithub className="h-[18px] w-[18px]" />
-                      Entrar com GitHub
-                    </button>
-                    {temBio && (
-                      <button type="button" onClick={entrarBio} disabled={ocupado}
-                        className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-[var(--line)] bg-[var(--field)] text-[15px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60">
-                        <Fingerprint className="h-[18px] w-[18px]" /> Entrar com biometria
+                        Google
                       </button>
-                    )}
+                      <button type="button" onClick={entrarGoogle('github')} disabled={ocupado} aria-label="Entrar com GitHub" title="Entrar com GitHub" className={botaoAlt}>
+                        <LogoGithub className="h-[18px] w-[18px] shrink-0" />
+                        GitHub
+                      </button>
+                      {temBio && (
+                        <button type="button" onClick={entrarBio} disabled={ocupado} aria-label="Entrar com biometria" title="Entrar com biometria (digital, rosto ou chave de acesso)" className={botaoAlt}>
+                          <Fingerprint className="h-[18px] w-[18px] shrink-0" /> Biometria
+                        </button>
+                      )}
+                    </div>
                   </motion.div>
                 </form>
               </motion.div>

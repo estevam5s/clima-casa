@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart as GraficoLinha, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { AlertTriangle, ArrowRight, Download, ExternalLink, Gauge, Globe2, KeyRound, LineChart, MapPin, Monitor, MousePointerClick, RefreshCw, Search, Smartphone, Tablet, Timer } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
@@ -212,8 +212,76 @@ function Lugares({ d }) {
   )
 }
 
+// O que melhorar em cada rota: a métrica ruim, o elemento que causa (medido no navegador de quem usa) e a dica
+function OQueMelhorar({ d }) {
+  const lista = d.diagnostico || []
+  return (
+    <Secao titulo="O que melhorar" contexto="Rotas com alguma métrica fora do bom, a causa medida no navegador de quem usa e o que fazer. Atualiza conforme chegam novas medições.">
+      {!lista.length ? (
+        <p className="text-sm text-muted-foreground">Nenhuma rota com métrica ruim ou para melhorar com 3 medições ou mais no período{d.origem === 'sistema' ? '. No sistema, LCP e CLS por rota passaram a ser medidos do jeito certo na versão 0.6.9: as rotas aparecem aqui conforme as pessoas usam' : ''}.</p>
+      ) : (
+        <ul className="divide-y divide-border">{lista.map((x) => (
+          <li key={`${x.rota}-${x.metrica}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start">
+            <div className="flex shrink-0 items-center gap-2 sm:w-56">
+              <Selo cor={COR_NOTA[x.nota]}>{x.metrica} {fmtVital(x.metrica, x.p75)}</Selo>
+              <code className="truncate text-xs">{x.rota}</code>
+            </div>
+            <div className="min-w-0 flex-1 text-sm">
+              <p>{x.dica}</p>
+              {x.elementos.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Elemento: {x.elementos.map((e) => <code key={e.el} className="mr-2 rounded bg-muted px-1">{e.el} ({e.n}×)</code>)}</p>}
+              <p className="text-xs text-muted-foreground">{x.n} medições · {VITAIS[x.metrica][2]}</p>
+            </div>
+          </li>
+        ))}</ul>
+      )}
+    </Secao>
+  )
+}
+
+function Tendencia({ d }) {
+  const [m, setM] = useState('LCP')
+  const serie = (d.vitais_dias || []).map((x) => ({ ...x, rot: `${x.dia.slice(8, 10)}/${x.dia.slice(5, 7)}` }))
+  const limite = { LCP: [2500, 4000], INP: [200, 500], CLS: [0.1, 0.25], FCP: [1800, 3000], TTFB: [800, 1800] }[m]
+  return (
+    <section className="cartao p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="titulo-secao">Tendência por dia (p75)</h2>
+        <div className="flex rounded-lg border border-border p-0.5 text-xs">{Object.keys(VITAIS).map((k) => <button key={k} onClick={() => setM(k)} className={`rounded-md px-2 py-1 ${m === k ? 'bg-muted font-medium' : 'text-muted-foreground'}`}>{k}</button>)}</div>
+      </div>
+      {serie.length ? <div className="h-56"><ResponsiveContainer><GraficoLinha data={serie} margin={{ left: -10, right: 8 }}>
+        <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
+        <XAxis dataKey="rot" tickLine={false} axisLine={false} fontSize={11} stroke="hsl(var(--muted-foreground))" />
+        <YAxis tickLine={false} axisLine={false} fontSize={11} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => fmtVital(m, v)} width={56} />
+        <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} formatter={(v) => fmtVital(m, v)} />
+        <ReferenceLine y={limite[0]} stroke="#10b981" strokeDasharray="4 4" /><ReferenceLine y={limite[1]} stroke="#ef4444" strokeDasharray="4 4" />
+        <Line type="monotone" dataKey={m} name={m} stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+      </GraficoLinha></ResponsiveContainer></div> : <p className="text-sm text-muted-foreground">Sem medições no período.</p>}
+      <p className="mt-2 text-xs text-muted-foreground">Linha verde: limite do bom. Vermelha: acima dela é ruim.</p>
+    </section>
+  )
+}
+
+function PorAparelho({ d, chaves }) {
+  const disp = d.vitais_dispositivo || {}
+  const nomes = { celular: 'Celular', computador: 'Computador' }
+  return (
+    <section className="cartao p-5">
+      <h2 className="titulo-secao mb-3">Celular × computador (p75)</h2>
+      {Object.keys(disp).length ? (
+        <table className="w-full text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 font-medium">Aparelho</th>{chaves.map((k) => <th key={k} className="py-2 font-medium">{k}</th>)}</tr></thead>
+          <tbody>{Object.entries(disp).map(([k, v]) => (
+            <tr key={k} className="border-b border-border/60"><td className="py-2 font-medium">{nomes[k] || k}</td>
+              {chaves.map((m) => <td key={m} className={`py-2 tabular ${v[m]?.nota === 'ruim' ? 'text-red-600 dark:text-red-400' : v[m]?.nota === 'melhorar' ? 'text-amber-600 dark:text-amber-400' : ''}`}>{fmtVital(m, v[m]?.p75)}<span className="block text-[10px] text-muted-foreground">{v[m]?.n || 0} med.</span></td>)}</tr>
+          ))}</tbody></table>
+      ) : <p className="text-sm text-muted-foreground">Sem medições no período.</p>}
+    </section>
+  )
+}
+
 function Desempenho({ d }) {
   const chaves = Object.keys(VITAIS)
+  const [ordem, setOrdem] = useState('')
+  const rotasOrdenadas = useMemo(() => (ordem ? [...d.vitais_rotas].sort((a, b) => (b[ordem]?.p75 ?? -1) - (a[ordem]?.p75 ?? -1)) : d.vitais_rotas), [d.vitais_rotas, ordem])
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -228,11 +296,16 @@ function Desempenho({ d }) {
             </div>}
           </div>) })}
       </div>
-      <Secao titulo="Por rota" contexto="p75 de cada métrica, medido em quem visitou (dado de campo, como no Search Console)">
+      <OQueMelhorar d={d} />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Tendencia d={d} />
+        <PorAparelho d={d} chaves={chaves} />
+      </div>
+      <Secao titulo="Por rota" contexto="p75 de cada métrica, medido em quem visitou (dado de campo, como no Search Console). Toque no nome da métrica para ordenar pelas piores.">
         {d.vitais_rotas.length ? (
           <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm">
-            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 font-medium">Rota</th>{chaves.map((k) => <th key={k} className="py-2 font-medium">{k}</th>)}<th className="py-2 text-right font-medium">Amostras</th></tr></thead>
-            <tbody>{d.vitais_rotas.map((r) => (
+            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 font-medium">Rota</th>{chaves.map((k) => <th key={k} className="py-2 font-medium"><button onClick={() => setOrdem(ordem === k ? '' : k)} className={`hover:text-foreground ${ordem === k ? 'font-semibold text-foreground' : ''}`}>{k}{ordem === k ? ' ↓' : ''}</button></th>)}<th className="py-2 text-right font-medium">Amostras</th></tr></thead>
+            <tbody>{rotasOrdenadas.map((r) => (
               <tr key={r.rota} className="border-b border-border/60">
                 <td className="max-w-[16rem] truncate py-2 font-mono text-xs">{r.rota}</td>
                 {chaves.map((k) => <td key={k} className={`py-2 tabular ${r[k]?.nota === 'ruim' ? 'text-red-600 dark:text-red-400' : r[k]?.nota === 'melhorar' ? 'text-amber-600 dark:text-amber-400' : ''}`}>{fmtVital(k, r[k]?.p75)}</td>)}

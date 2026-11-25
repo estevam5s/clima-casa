@@ -310,7 +310,8 @@ export default function Painel() {
           <p className="mt-1 text-sm text-muted-foreground">
             {totais.ligados} de {totais.aparelhos} aparelho{totais.aparelhos === 1 ? '' : 's'} ligado{totais.ligados === 1 ? '' : 's'} agora
             {dados.alertas > 0 && <> · <Link to="/supabase" className="text-amber-600 hover:underline dark:text-amber-400">{dados.alertas} alerta{dados.alertas > 1 ? 's' : ''}</Link></>}
-            {!atualizado && <span className="ml-2 inline-flex items-center gap-1 text-xs"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />atualizando</span>}
+            {/* sempre no lugar (só some a cor): aparecer e sumir quebrava a linha no celular e empurrava a tela (CLS) */}
+            <span aria-hidden={atualizado} className={`ml-2 inline-flex items-center gap-1 text-xs transition-opacity ${atualizado ? 'opacity-0' : ''}`}><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />atualizando</span>
           </p>
         </div>
         <div className="flex gap-2">

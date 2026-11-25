@@ -124,7 +124,7 @@ REGRAS = [
 ]
 _REGRAS = [(set(m.split("|")) if m != "*" else None, re.compile(p), perm) for m, p, perm in REGRAS]
 # rotas que mostram dados de TODOS os projetos de uma vez (backup, tabelas do banco): só para quem vê todos os projetos
-_SO_ACESSO_TOTAL = re.compile(r"^/api/(backup|supabase/)")
+_SO_ACESSO_TOTAL = re.compile(r"^/api/(backup|supabase/|seguranca/logs)")
 
 atual = contextvars.ContextVar("clima_usuario", default=None)   # usuário da requisição (dict de usuarios + "perm")
 

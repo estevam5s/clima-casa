@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Archive, ArchiveRestore, BellOff, Check, CheckCheck, Download, ExternalLink, Mail, MailOpen, Search, Settings2, X } from 'lucide-react'
 import { api, haQuanto, rotaSegura } from '../api'
@@ -103,6 +103,12 @@ export default function Notificacoes() {
   const tipos = central?.tipos || {}
 
   const mudou = () => { recarregar(); recarregarCentral(); avisarCentral(); setSel(new Set()) }
+  // o sino do topo limpou, arquivou ou marcou como lida: recarrega a lista desta página
+  useEffect(() => {
+    const doSino = () => { recarregar(); recarregarCentral(); setSel(new Set()) }
+    window.addEventListener('clima:sino-mudou', doSino)
+    return () => window.removeEventListener('clima:sino-mudou', doSino)
+  }, [recarregar, recarregarCentral])
 
   const filtrados = useMemo(() => {
     if (!itens) return []

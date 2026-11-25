@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { usePreferencias } from '../preferencias'
 import { motion } from 'framer-motion'
-import { Cookie, Download, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users } from 'lucide-react'
+import { Cookie, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users } from 'lucide-react'
 import { useTema } from '../tema'
 import WhiteLabel from '../components/config/WhiteLabel'
 import ConfigCursor from '../components/config/ConfigCursor'
 import Perfil from '../components/config/Perfil'
+import Geral from '../components/config/Geral'
 import Usuarios from '../components/config/Usuarios'
 import SegurancaConta from '../components/config/SegurancaConta'
 import { useProjeto } from '../contexto'
@@ -15,12 +16,6 @@ import CookiesSite from '../components/config/CookiesSite'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { Aviso, Botao, Cabecalho, Carregando, Interruptor, Ponto, Secao, useDados, useToast } from '../components/ui'
-
-const MODOS_ENVIO = [
-  ['auto', 'Automático', 'Rede local primeiro; se o transmissor não responder, usa a nuvem Tuya.'],
-  ['local', 'Só rede local', 'Nada passa pela internet. Só funciona com o transmissor na mesma rede.'],
-  ['nuvem', 'Só nuvem', 'Sempre pela nuvem Tuya. Útil se este computador estiver em outra rede.'],
-]
 
 function ContaSmartLife({ conta, aoMudar }) {
   const [codigo, setCodigo] = useState('')
@@ -116,15 +111,6 @@ export default function Configuracoes() {
       toast('Configuração salva.')
     } catch (e) { toast(e.message, 'erro') }
   }
-  const baixarBackup = async () => {
-    const dadosBackup = await api.get('/api/backup')
-    const blob = new Blob([JSON.stringify(dadosBackup, null, 2)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `clima-casa-backup-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
 
   const pode = (perm) => !perm || sessao?.permissoes?.includes(perm)
   // [chave, nome, ícone, permissão, grupo, o que tem lá]
@@ -132,7 +118,7 @@ export default function Configuracoes() {
     ['perfil', 'Perfil', UserRound, null, 'Você', 'Nome, foto, e-mail e senha'],
     ['seguranca', 'Segurança', ShieldCheck, null, 'Você', 'Duas etapas, biometria, sessões e firewall'],
     ['usuarios', 'Usuários', Users, 'usuarios.gerenciar', 'Equipe', 'Contas, permissões e uso do sistema'],
-    ['geral', 'Geral', Sliders, 'configuracoes.gerenciar', 'Sistema', 'Envio dos comandos e backup'],
+    ['geral', 'Geral', Sliders, 'configuracoes.gerenciar', 'Sistema', 'Regras do escritório, temperatura, expediente, feriados e envio'],
     ['marca', 'Aparência e marca', Paintbrush, null, 'Você', 'Tema, cursor, logo, favicon, cores e fontes'],
     ['contas', 'Contas', KeyRound, 'integracoes.gerenciar', 'Sistema', 'Smart Life e contas ligadas'],
     ['cookies', 'Cookies do site', Cookie, 'configuracoes.gerenciar', 'Sistema', 'Aviso e consentimentos do site'],
@@ -184,28 +170,7 @@ export default function Configuracoes() {
             <h2 className="text-lg font-semibold tracking-tight">{atual?.[1]}</h2><p className="text-sm text-muted-foreground">{atual?.[5]}</p>
           </div>
       <motion.div key={aba} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
-      {aba === 'geral' && (
-        <div className="grid gap-6 xl:grid-cols-2">
-        <section id="envio" className="cartao p-5">
-          <h2 className="mb-4 text-sm font-semibold">Como os comandos são enviados</h2>
-          <div className="space-y-2">
-            {MODOS_ENVIO.map(([k, r, d]) => (
-              <label key={k} className={`flex cursor-pointer gap-3 rounded-md border p-3 ${dados.modo_envio === k ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                <input type="radio" name="envio" className="mt-1 accent-[hsl(var(--primary))]" checked={dados.modo_envio === k} onChange={() => salvar({ modo_envio: k })} />
-                <span><span className="block text-sm font-medium">{r}</span><span className="text-xs text-muted-foreground">{d}</span></span>
-              </label>
-            ))}
-          </div>
-        </section>
-        <section className="cartao flex flex-col justify-between gap-3 p-5">
-          <div>
-            <h2 className="text-sm font-semibold">Backup agora</h2>
-            <p className="text-sm text-muted-foreground">Exporta aparelhos, botões gravados e agendamentos em JSON. Os backups diários automáticos ficam na tela Supabase.</p>
-          </div>
-          <Botao variante="secundario" icone={Download} onClick={baixarBackup} className="self-start">Baixar backup</Botao>
-        </section>
-        </div>
-      )}
+      {aba === 'geral' && <Geral dados={dados} salvar={salvar} sessao={sessao} />}
       {aba === 'perfil' && <Perfil />}
       {aba === 'marca' && (
         <div className="space-y-10">

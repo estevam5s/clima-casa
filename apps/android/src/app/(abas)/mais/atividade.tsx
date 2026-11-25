@@ -16,7 +16,7 @@ export default function Atividade() {
               <View key={x.id} style={{ flexDirection: 'row', gap: 8, paddingVertical: 10, borderTopWidth: 0.5, borderColor: '#8883' }}>
                 <View style={{ flex: 1 }}>
                   <Texto tam={13}>{x.aparelho_nome ? `${x.aparelho_nome}: ` : ''}{x.acao}</Texto>
-                  <Texto suave tam={11}>{rotuloOrigem(x.origem)} · {haQuanto(x.quando)}{x.detalhe ? ` · ${x.detalhe}` : ''}</Texto>
+                  <Texto suave tam={11}>{x.usuario ? `${x.usuario} · ` : ''}{rotuloOrigem(x.origem)} · {haQuanto(x.quando)}{x.detalhe ? ` · ${x.detalhe}` : ''}</Texto>
                 </View>
                 <Selo rotulo={x.ok ? 'OK' : 'Falhou'} tom={x.ok ? 'ok' : 'erro'} />
               </View>

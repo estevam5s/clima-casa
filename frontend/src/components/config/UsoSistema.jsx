@@ -4,6 +4,7 @@ import { ArrowRight, Clock3, Crown, MousePointerClick, Route, Users } from 'luci
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../api'
 import { Aviso, Carregando, FaixaMetricas, Secao, Vazio, useDados } from '../ui'
+import { DetalheLog, ItemLog, TabelaAcoes } from '../logs/Comum'
 
 // Uso do sistema por pessoa: tempo com cada tela aberta e visível (o relógio para com a aba escondida ou 5 min sem
 // mexer), dias de uso, telas preferidas e caminhos de uma tela para outra. Os números vêm de /api/usuarios/uso.
@@ -119,7 +120,7 @@ export default function UsoSistema() {
             </Secao>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <Secao semPadding titulo="Quem mais usa" contexto="Clique numa pessoa para ver as telas e os dias dela">
               <ol className="divide-y divide-border">
                 {pessoas.map((p, i) => {
@@ -235,6 +236,58 @@ export default function UsoSistema() {
           </Secao>
         </>
       )}
+      <AcoesPessoas dias={dias} usuarios={dados.usuarios} />
     </div>
+  )
+}
+
+// O que cada pessoa fez: comandos nos ares (ligou, desligou, subiu/baixou a temperatura), ações administrativas, entradas,
+// Telegram e IA. Toque numa pessoa para ver a linha do tempo dela.
+function AcoesPessoas({ dias, usuarios }) {
+  const [sel, setSel] = useState(null)
+  const [ver, setVer] = useState(null)
+  const { dados: d, erro } = useDados(() => api.get(`/api/usuarios/acoes?dias=${dias}`), [dias])
+  const { dados: det } = useDados(() => (sel ? api.get(`/api/usuarios/acoes?dias=${dias}&pessoa=${encodeURIComponent(sel.id)}`) : Promise.resolve(null)), [dias, sel?.id])
+  if (erro) return <Aviso>{erro}</Aviso>
+  if (!d) return <Carregando />
+  const pessoas = d.pessoas.filter((p) => !String(p.id).startsWith('origem:'))
+  const outros = d.pessoas.filter((p) => String(p.id).startsWith('origem:'))
+  return (
+    <Secao titulo="O que cada pessoa fez" contexto={`Nos ares e no sistema, nos últimos ${dias} dias. Toque numa pessoa para ver cada ação, as entradas e o uso do Telegram.`}>
+      {pessoas.length ? <TabelaAcoes linhas={pessoas} aoEscolher={(p) => setSel(sel?.id === p.id ? null : p)} />
+        : <p className="text-sm text-muted-foreground">Nenhuma ação com pessoa registrada ainda. A Atividade passou a guardar quem fez cada ação na versão 0.6.9.</p>}
+      {outros.length > 0 && <div className="mt-4"><p className="mb-2 text-xs font-medium text-muted-foreground">Sem pessoa (automático ou anterior à 0.6.9)</p><TabelaAcoes linhas={outros} rotulo="Origem" /></div>}
+      {d.admin.length > 0 && (
+        <div className="mt-5"><p className="mb-2 text-xs font-medium text-muted-foreground">Ações administrativas por pessoa</p>
+          <div className="flex flex-wrap gap-2">{d.admin.map((a) => <span key={a.quem} className="rounded-full bg-muted px-3 py-1 text-xs">{a.quem}: <b className="tabular">{a.n}</b></span>)}</div></div>
+      )}
+      {sel && (
+        <div className="mt-6 rounded-xl border border-border">
+          <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+            <Avatar u={usuarios?.[sel.id] || { nome: sel.nome }} />
+            <div className="min-w-0 flex-1"><p className="font-medium">{sel.nome}</p><p className="text-xs text-muted-foreground">{sel.total} comando(s) nos ares · {sel.falhas} falha(s)</p></div>
+            <button onClick={() => setSel(null)} className="text-xs text-muted-foreground hover:text-foreground">Fechar</button>
+          </div>
+          {!det ? <div className="p-4"><Carregando /></div> : (
+            <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1fr)_18rem]">
+              <ul className="max-h-[28rem] divide-y divide-border overflow-y-auto">{(det.itens || []).map((r) => <ItemLog key={`${r.fonte}-${r.id}`} r={r} aoAbrir={setVer} />)}
+                {!det.itens?.length && <li className="p-4 text-sm text-muted-foreground">Nada no período.</li>}</ul>
+              <div className="space-y-4 border-t border-border p-4 text-sm lg:border-l lg:border-t-0">
+                <div><p className="mb-1 text-xs font-medium text-muted-foreground">Ares que mais usou</p>
+                  <ul className="space-y-1">{(det.ares || []).map((a) => <li key={a.nome} className="flex justify-between gap-2"><span className="truncate">{a.nome}<span className="text-muted-foreground">{a.sala ? ` · ${a.sala}` : ''}</span></span><span className="tabular">{a.n}</span></li>)}
+                    {!det.ares?.length && <li className="text-muted-foreground">Nenhum.</li>}</ul></div>
+                <div><p className="mb-1 text-xs font-medium text-muted-foreground">Telegram e IA</p>
+                  <p>{det.telegram?.n || 0} interação(ões) no bot{det.telegram?.erros ? `, ${det.telegram.erros} com erro` : ''}</p>
+                  <p>{det.ia?.n || 0} pedido(s) à IA, {Number(det.ia?.tokens || 0).toLocaleString('pt-BR')} tokens</p></div>
+                <div><p className="mb-1 text-xs font-medium text-muted-foreground">Últimas entradas</p>
+                  <ul className="space-y-1 text-xs">{(det.entradas || []).slice(0, 8).map((e, i) => <li key={i} className="flex justify-between gap-2"><span>{new Date(e.criado_em * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span><span className="truncate text-muted-foreground">{e.cidade || e.pais || e.ip}{e.revogada ? ' · encerrada' : ''}</span></li>)}
+                    {!det.entradas?.length && <li className="text-muted-foreground">Nenhuma.</li>}</ul></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <DetalheLog r={ver} aoFechar={() => setVer(null)} />
+    </Secao>
   )
 }

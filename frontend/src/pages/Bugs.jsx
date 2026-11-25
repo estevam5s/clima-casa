@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { DetalheBug, Estatisticas, exportarBugs } from '../components/bugs/Avancado'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Bot, Bug, Check, CircleAlert, Copy, FlaskConical, Radar, Search, Trash2, X } from 'lucide-react'
+import { Bug, Check, CircleAlert, Download, FlaskConical, Radar, Search, Trash2, X } from 'lucide-react'
 import { api, haQuanto } from '../api'
+import { useProjeto } from '../contexto'
 import { errosRecentes } from '../errosTela'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, confirmar, useDados, useToast } from '../components/ui'
 
@@ -11,7 +14,9 @@ import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, confi
 const GRAV = { critica: ['Crítica', 'bg-red-600 text-white'], alta: ['Alta', 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300'],
   media: ['Média', 'bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300'], baixa: ['Baixa', 'bg-muted text-muted-foreground'] }
 const ESTADOS = [['aberto', 'Aberto'], ['analisando', 'Analisando'], ['corrigido', 'Corrigido'], ['descartado', 'Descartado']]
-const ABAS = [['abertos', 'Abertos'], ['sistema', 'Encontrados pelo sistema'], ['usuarios', 'Relatados'], ['fechados', 'Corrigidos e descartados']]
+const ABAS = [['abertos', 'Abertos'], ['meus', 'Comigo'], ['sistema', 'Encontrados pelo sistema'], ['usuarios', 'Relatados'], ['fechados', 'Corrigidos e descartados'], ['todos', 'Todos']]
+const ORDENS = [['recentes', 'Mais recentes'], ['gravidade', 'Mais graves'], ['ocorrencias', 'Mais repetidos'], ['antigos', 'Mais antigos'], ['prazo', 'Prazo']]
+const PESO = { critica: 4, alta: 3, media: 2, baixa: 1 }
 const CATEGORIAS = { cadastro: 'Cadastros', tela: 'Telas', servidor: 'Servidor', atividade: 'Comandos', agente: 'Agente', transmissor: 'Transmissores', 'segurança': 'Segurança' }
 const COR_GRAV = { critica: 'bg-red-600', alta: 'bg-red-400', media: 'bg-amber-400', baixa: 'bg-zinc-400' }
 // o que a procura confere (mostrado passo a passo enquanto roda)
@@ -155,70 +160,53 @@ function Relatar({ aoFechar, aoSalvar }) {
   )
 }
 
-function Detalhe({ b, gestor, aoFechar, aoMudar }) {
-  const toast = useToast()
-  const copiar = (t, o) => { navigator.clipboard?.writeText(t); toast(`${o} copiado.`) }
-  const estado = async (e) => { try { await api.put(`/api/bugs/${b.id}`, { estado: e }); toast('Estado atualizado.'); aoMudar() } catch (err) { toast(err.message, 'erro') } }
-  const apagar = async () => {
-    if (!(await confirmar(`Apagar o bug "${b.titulo}"?`, { ok: 'Apagar' }))) return
-    try { await api.del(`/api/bugs/${b.id}`); aoFechar(); aoMudar() } catch (err) { toast(err.message, 'erro') }
-  }
-  const [g, cor] = GRAV[b.gravidade] || GRAV.media
-  return (
-    <Modal aberto titulo={b.titulo} onFechar={aoFechar} largura="max-w-3xl">
-      <div className="space-y-4 text-sm">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className={`rounded px-1.5 py-0.5 font-medium ${cor}`}>{g}</span>
-          <span className="rounded bg-muted px-1.5 py-0.5">{b.origem === 'sistema' ? 'Encontrado pelo sistema' : `Relatado por ${b.autor_nome || 'usuário'}`}</span>
-          {b.pagina && <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{b.pagina}</span>}
-          <span className="text-muted-foreground">{b.ocorrencias}× · última {haQuanto(b.atualizado_em)}</span>
-        </div>
-        <p className="whitespace-pre-line">{b.descricao}</p>
-        {b.passos && <div><p className="rotulo">Passos</p><p className="whitespace-pre-line text-muted-foreground">{b.passos}</p></div>}
-        {b.contexto?.erros?.length > 0 && <div><p className="rotulo">Erros registrados</p><ul className="max-h-32 overflow-y-auto rounded bg-muted p-2 font-mono text-xs">{b.contexto.erros.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
-        {b.contexto?.correcao && <div className="rounded-lg border border-emerald-600/40 bg-emerald-50 p-3 dark:bg-emerald-950/40"><p className="rotulo text-emerald-800 dark:text-emerald-300">Como foi corrigido</p><p>{b.contexto.correcao}</p></div>}
-        <div className="rounded-lg border border-border p-3"><p className="rotulo">Sugestão de correção</p><p>{b.sugestao}</p></div>
-        <div className="rounded-lg border border-border p-3">
-          <div className="flex items-center justify-between gap-2"><p className="rotulo flex items-center gap-1.5"><Bot className="h-4 w-4" />Prompt para a IA corrigir</p>
-            <Botao tamanho="sm" variante="secundario" icone={Copy} onClick={() => copiar(b.prompt, 'Prompt')}>Copiar</Botao></div>
-          <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs">{b.prompt}</pre>
-          <p className="mt-2 text-xs text-muted-foreground">Cole no terminal: <code>clima-ia</code> (agente de IA do projeto) ou no Claude Code, na pasta do projeto.</p>
-        </div>
-        {gestor && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-            <span className="text-xs text-muted-foreground">Estado</span>
-            {ESTADOS.map(([k, r]) => <Botao key={k} tamanho="sm" variante={b.estado === k ? 'primario' : 'secundario'} onClick={() => estado(k)}>{r}</Botao>)}
-            <Botao tamanho="sm" variante="fantasma" icone={Trash2} className="ml-auto" onClick={apagar}>Apagar</Botao>
-          </div>
-        )}
-      </div>
-    </Modal>
-  )
-}
-
 export default function Bugs() {
   const toast = useToast()
   const reduzir = useReducedMotion()
   const { dados, erro, recarregar } = useDados(() => api.get('/api/bugs'))
+  const [params, setParams] = useSearchParams()
   const [aba, setAba] = useState('abertos')
   const [cat, setCat] = useState('')
+  const [grav, setGrav] = useState('')
+  const [resp, setResp] = useState('')
+  const [etiqueta, setEtiqueta] = useState('')
+  const [ordem, setOrdem] = useState('recentes')
   const [q, setQ] = useState('')
+  const [sel, setSel] = useState(new Set())
   const [relatar, setRelatar] = useState(false)
-  const [aberto, setAberto] = useState(null)
+  const [abertoId, setAbertoId] = useState(() => +params.get('bug') || null)
   const [varrendo, setVarrendo] = useState(false)
   const [resultado, setResultado] = useState(null)
+  const [pessoas, setPessoas] = useState([])
+  const { sessao } = useProjeto()
+  useEffect(() => { if (dados?.gestor) api.get('/api/bugs/pessoas').then(setPessoas).catch(() => {}) }, [dados?.gestor])
+  const aberto = abertoId ? (dados?.itens || []).find((b) => b.id === abertoId) : null
+  const abrir = (b) => { setAbertoId(b?.id || null); setParams(b ? { bug: b.id } : {}, { replace: true }) }
+  const etiquetas = useMemo(() => [...new Set((dados?.itens || []).flatMap((b) => b.etiquetas || []))].sort(), [dados])
   const lista = useMemo(() => {
     const t = q.trim().toLowerCase()
-    return (dados?.itens || []).filter((b) => {
+    const l = (dados?.itens || []).filter((b) => {
       const ab = ['aberto', 'analisando'].includes(b.estado)
       if (aba === 'abertos' && !ab) return false
+      if (aba === 'meus' && (!ab || String(b.responsavel_id) !== String(sessao?.id))) return false
       if (aba === 'sistema' && (b.origem !== 'sistema' || !ab)) return false
       if (aba === 'usuarios' && (b.origem !== 'usuario' || !ab)) return false
       if (aba === 'fechados' && ab) return false
       if (cat && (b.categoria || '') !== cat) return false
-      return !t || `${b.titulo} ${b.descricao} ${b.pagina}`.toLowerCase().includes(t)
+      if (grav && b.gravidade !== grav) return false
+      if (resp && (resp === '-' ? b.responsavel_id : String(b.responsavel_id) !== resp)) return false
+      if (etiqueta && !(b.etiquetas || []).includes(etiqueta)) return false
+      return !t || `#${b.id} ${b.titulo} ${b.descricao} ${b.pagina} ${(b.etiquetas || []).join(' ')}`.toLowerCase().includes(t)
     })
-  }, [dados, aba, q, cat])
+    const f = { recentes: (a, b) => b.atualizado_em - a.atualizado_em, antigos: (a, b) => a.criado_em - b.criado_em, ocorrencias: (a, b) => b.ocorrencias - a.ocorrencias,
+      gravidade: (a, b) => PESO[b.gravidade] - PESO[a.gravidade] || b.atualizado_em - a.atualizado_em, prazo: (a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999') }[ordem]
+    return [...l].sort(f)
+  }, [dados, aba, q, cat, grav, resp, etiqueta, ordem, sessao?.id])
+  const lote = async (acao) => {
+    if (acao === 'apagar' && !(await confirmar(`Apagar ${sel.size} bug(s)? Não dá para desfazer.`, { ok: 'Apagar' }))) return
+    try { const r = await api.post('/api/bugs/lote', { ids: [...sel], acao }); toast(`${r.feitos} bug(s) atualizado(s).`); setSel(new Set()); recarregar() } catch (e) { toast(e.message, 'erro') }
+  }
+  const alternarSel = (id) => setSel((v) => { const n = new Set(v); n.has(id) ? n.delete(id) : n.add(id); return n })
   if (erro) return <Aviso>{erro}</Aviso>
   if (!dados) return <Carregando />
   const itens = dados.itens
@@ -237,6 +225,8 @@ export default function Bugs() {
     <div className="w-full">
       <Cabecalho titulo="Bugs" descricao="Relate o que não funciona. O sistema também procura problemas nele mesmo (telas, servidor, comandos, cadastros de ares e transmissores), sugere a correção e gera o prompt para a IA corrigir."
         acoes={<>
+          <Botao variante="fantasma" icone={Download} onClick={() => exportarBugs(lista, 'csv')}>CSV</Botao>
+          <Botao variante="fantasma" onClick={() => exportarBugs(lista, 'json')}>JSON</Botao>
           {dados.gestor && <Botao variante="secundario" icone={Radar} carregando={varrendo} onClick={varrer}>Procurar bugs agora</Botao>}
           <Botao icone={Bug} onClick={() => setRelatar(true)}>Relatar bug</Botao>
         </>} />
@@ -253,7 +243,7 @@ export default function Bugs() {
         <section className="cartao min-w-0 overflow-hidden">
           <div className="space-y-3 border-b border-border p-4">
             <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="tablist">
-              {ABAS.map(([k, r]) => (
+              {[...ABAS, ...(dados.gestor ? [['estatisticas', 'Estatísticas']] : [])].map(([k, r]) => (
                 <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)} className={`relative rounded-md px-3 py-1.5 text-sm ${aba === k ? 'font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
                   {aba === k && <motion.span layoutId="aba-bugs" className="absolute inset-0 rounded-md bg-background shadow-sm" transition={{ duration: reduzir ? 0 : 0.2 }} />} {/* marca: aba ativa flutua */}
                   <span className="relative">{r}</span>
@@ -263,6 +253,10 @@ export default function Bugs() {
             <div className="flex flex-wrap items-center gap-2">
               <label className="relative block w-full max-w-sm"><Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <input className="campo h-9 pl-9" type="search" name="busca-bugs" autoComplete="off" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar no título, descrição ou tela" aria-label="Buscar bugs" /></label>
+              <select className="campo h-9 w-auto" value={grav} onChange={(e) => setGrav(e.target.value)} aria-label="Gravidade"><option value="">Toda gravidade</option><option value="critica">Crítica</option><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select>
+              {dados.gestor && <select className="campo h-9 w-auto" value={resp} onChange={(e) => setResp(e.target.value)} aria-label="Responsável"><option value="">Qualquer responsável</option><option value="-">Sem responsável</option>{pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>}
+              {etiquetas.length > 0 && <select className="campo h-9 w-auto" value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)} aria-label="Etiqueta"><option value="">Toda etiqueta</option>{etiquetas.map((e) => <option key={e} value={e}>{e}</option>)}</select>}
+              <select className="campo h-9 w-auto" value={ordem} onChange={(e) => setOrdem(e.target.value)} aria-label="Ordenar">{ORDENS.map(([k, r]) => <option key={k} value={k}>{r}</option>)}</select>
               {porCat.length > 0 && (
                 <div className="flex flex-wrap gap-1" aria-label="Filtrar por categoria">
                   <button onClick={() => setCat('')} className={`rounded-full border px-2.5 py-1 text-xs ${!cat ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}>Todas</button>
@@ -271,21 +265,33 @@ export default function Bugs() {
               )}
             </div>
           </div>
-          {lista.length === 0 ? <div className="p-4"><Vazio icone={Bug} titulo="Nenhum bug aqui" texto={aba === 'abertos' ? 'Nada aberto. Encontrou algo estranho? Relate.' : 'Nada nesta aba.'} /></div> : (
+          {dados.gestor && sel.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-primary/5 px-4 py-2 text-sm">
+              <b className="font-medium">{sel.size} selecionado(s)</b>
+              {[['analisando', 'Analisando'], ['corrigido', 'Corrigido'], ['descartado', 'Descartar'], ['aberto', 'Reabrir']].map(([k, r]) => <Botao key={k} tamanho="sm" variante="secundario" onClick={() => lote(k)}>{r}</Botao>)}
+              <select className="campo h-8 w-auto text-xs" value="" onChange={(e) => e.target.value && lote(e.target.value)} aria-label="Mudar gravidade"><option value="">Gravidade…</option><option value="critica">Crítica</option><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select>
+              <Botao tamanho="sm" variante="fantasma" icone={Trash2} onClick={() => lote('apagar')}>Apagar</Botao>
+              <button onClick={() => setSel(new Set())} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Limpar seleção</button>
+            </div>
+          )}
+          {aba === 'estatisticas' ? <div className="p-4"><Estatisticas /></div> : lista.length === 0 ? <div className="p-4"><Vazio icone={Bug} titulo="Nenhum bug aqui" texto={aba === 'abertos' ? 'Nada aberto. Encontrou algo estranho? Relate.' : 'Nada nesta aba.'} /></div> : (
             <ul className="divide-y divide-border">
               <AnimatePresence initial={!reduzir}>
                 {lista.map((b, i) => {
                   const [g, cor] = GRAV[b.gravidade] || GRAV.media
                   return (
                     <motion.li key={b.id} layout={!reduzir} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ delay: reduzir ? 0 : Math.min(i, 12) * 0.03 }}>
-                      <button onClick={() => setAberto(b)} className="group flex w-full flex-wrap items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50">
+                      <div className="flex items-start">
+                      {dados.gestor && <label className="flex shrink-0 cursor-pointer items-center py-3.5 pl-4"><input type="checkbox" checked={sel.has(b.id)} onChange={() => alternarSel(b.id)} className="h-4 w-4 accent-[hsl(var(--primary))]" aria-label={`Selecionar bug ${b.id}`} /></label>}
+                      <button onClick={() => abrir(b)} className="group flex min-w-0 flex-1 flex-wrap items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50">
                         <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${cor}`}>{g}</span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium">{b.titulo}</span>
+                          <span className="block truncate text-sm font-medium"><span className="text-muted-foreground">#{b.id}</span> {b.titulo}{(b.etiquetas || []).map((e) => <span key={e} className="ml-1.5 rounded-full border border-border px-1.5 text-[10px] font-normal text-muted-foreground">{e}</span>)}</span>
                           <span className="block truncate text-xs text-muted-foreground">{b.origem === 'sistema' ? 'Sistema' : b.autor_nome} · {CATEGORIAS[b.categoria] || b.categoria || 'geral'} · {b.pagina || 'sem tela'} · {b.ocorrencias}× · {ESTADOS.find(([k]) => k === b.estado)?.[1]}</span>
                         </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">{haQuanto(b.atualizado_em)}</span>
+                        <span className="shrink-0 text-right text-xs text-muted-foreground">{haQuanto(b.atualizado_em)}{b.responsavel_nome ? <span className="block">{b.responsavel_nome}</span> : null}{b.prazo ? <span className={`block ${b.prazo < new Date().toISOString().slice(0, 10) && ['aberto', 'analisando'].includes(b.estado) ? 'text-red-600 dark:text-red-400' : ''}`}>prazo {b.prazo.split('-').reverse().slice(0, 2).join('/')}</span> : null}</span>
                       </button>
+                      </div>
                     </motion.li>
                   )
                 })}
@@ -310,7 +316,7 @@ export default function Bugs() {
         </div>
       </div>
       {relatar && <Relatar aoFechar={() => setRelatar(false)} aoSalvar={() => { setRelatar(false); recarregar() }} />}
-      {aberto && <Detalhe b={aberto} gestor={dados.gestor} aoFechar={() => setAberto(null)} aoMudar={() => { setAberto(null); recarregar() }} />}
+      {aberto && <DetalheBug key={aberto.id} b={aberto} gestor={dados.gestor} pessoas={pessoas} todos={itens} aoFechar={() => abrir(null)} aoMudar={() => recarregar()} />}
     </div>
   )
 }

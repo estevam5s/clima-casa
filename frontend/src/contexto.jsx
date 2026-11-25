@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { api } from './api'
+import { api, sessaoCompartilhada } from './api'
 
 const Ctx = createContext(null)
 const CHAVE = 'clima-projeto'
@@ -23,7 +23,7 @@ export function ProjetoProvider({ children }) {
 
   useEffect(() => {
     recarregar()
-    api.get('/api/sessao').then(setSessao).catch(() => {})
+    sessaoCompartilhada().then(setSessao).catch(() => {})
   }, [recarregar])
 
   const setAtual = (v) => {

@@ -20,7 +20,7 @@ DADOS = Path(os.environ.get("CLIMA_DADOS", RAIZ / "data"))
 if not os.environ.get("VERCEL"):  # na Vercel o disco é só leitura
     DADOS.mkdir(exist_ok=True)
 
-_TABELAS_COM_ID = {"aparelhos", "codigos", "agendamentos", "atividade", "alertas", "backups", "fila_comandos", "projetos", "cenas", "automacoes", "temporizadores", "seguranca_ips", "seguranca_eventos", "notificacoes", "site_mensagens", "passkeys", "site_respostas", "site_consentimentos", "dispositivos", "dispositivos_eventos", "avatares", "aceites", "treinamentos", "bugs", "telegram_eventos", "analise_eventos", "newsletter_inscritos", "newsletter_campanhas", "tarefas_projetos", "tarefas_secoes", "tarefas", "tarefas_comentarios", "tarefas_status", "ia_projetos"}
+_TABELAS_COM_ID = {"aparelhos", "codigos", "agendamentos", "atividade", "alertas", "backups", "fila_comandos", "projetos", "cenas", "automacoes", "temporizadores", "seguranca_ips", "seguranca_eventos", "notificacoes", "site_mensagens", "passkeys", "site_respostas", "site_consentimentos", "dispositivos", "dispositivos_eventos", "avatares", "aceites", "treinamentos", "bugs", "telegram_eventos", "analise_eventos", "newsletter_inscritos", "newsletter_campanhas", "tarefas_projetos", "tarefas_secoes", "tarefas", "tarefas_comentarios", "tarefas_status", "ia_projetos", "bugs_historico"}
 _RE_INSERT = re.compile(r"^\s*INSERT\s+INTO\s+(\w+)", re.I)
 _pool: queue.LifoQueue = queue.LifoQueue(maxsize=2 if os.environ.get("VERCEL") else 6)
 _criadas = 0
@@ -182,8 +182,18 @@ def set_cfg(chave, valor):
         )
 
 
-def registrar(origem, acao, ok=True, aparelho_id=None, detalhe=""):
+def registrar(origem, acao, ok=True, aparelho_id=None, detalhe="", usuario=None):
+    """Grava na Atividade. Quem fez vem do usuário da requisição (acesso.atual) ou de `usuario` (ex.: Telegram);
+    sem ninguém (agenda, Alexa, agente) fica vazio e a tela mostra a origem."""
+    uid = nome = None
+    try:
+        from . import acesso
+        u = usuario or acesso.atual.get()
+        if u and u.get("id"):
+            uid, nome = str(u["id"]), str(u.get("nome") or u.get("email") or "")[:80]
+    except Exception:  # noqa: BLE001
+        pass
     executar(
-        "INSERT INTO atividade (quando, aparelho_id, origem, acao, ok, detalhe) VALUES (?, ?, ?, ?, ?, ?)",
-        (agora(), aparelho_id, origem, acao, 1 if ok else 0, str(detalhe)[:500]),
+        "INSERT INTO atividade (quando, aparelho_id, origem, acao, ok, detalhe, usuario_id, usuario) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (agora(), aparelho_id, origem, acao, 1 if ok else 0, str(detalhe)[:500], uid, nome),
     )

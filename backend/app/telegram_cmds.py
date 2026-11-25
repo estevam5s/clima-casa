@@ -2051,7 +2051,7 @@ def c_comandos(ctx, a):
 
 @cmd("categorias", "ia", "Lista as categorias")
 def c_categorias(ctx, a):
-    ctx.enviar("\n".join(f"• <b>{_e(r)}</b>: {_e(d)} ({sum(1 for c in C.values() if c['cat'] == k)})" for k, r, d in CATS), _grade_categorias())
+    ctx.enviar("\n".join(f"• <b>{_e(r)}</b> ({sum(1 for c in C.values() if c['cat'] == k)})" for k, r, d in CATS)[:4000], _grade_categorias())
 
 
 @cmd("buscar", "ia", "Procura um comando pelo nome ou descrição", "/buscar temperatura", arg="texto", top=68)
@@ -2096,9 +2096,22 @@ def cabecalho(ctx) -> str:
     return "\n".join(partes)
 
 
-def _grade_categorias():
-    bt = [[{"text": f"{r} ({sum(1 for c in C.values() if c['cat'] == k)})", "callback_data": f"k:{k}:0"} for k, r, _ in CATS[i:i + 2]] for i in range(0, len(CATS), 2)]
-    return bt + [[{"text": "Menu", "callback_data": "m:menu"}]]
+CATS_POR_PAGINA = 30   # o Telegram aceita no máximo 100 botões por mensagem: com 100+ categorias, a grade vai em páginas
+
+
+def _grade_categorias(pag: int = 0):
+    total = (len(CATS) + CATS_POR_PAGINA - 1) // CATS_POR_PAGINA
+    pag = max(0, min(pag, total - 1))
+    parte = CATS[pag * CATS_POR_PAGINA:(pag + 1) * CATS_POR_PAGINA]
+    bt = [[{"text": f"{r} ({sum(1 for c in C.values() if c['cat'] == k)})", "callback_data": f"k:{k}:0"} for k, r, _ in parte[i:i + 2]] for i in range(0, len(parte), 2)]
+    nav = []
+    if pag > 0:
+        nav.append({"text": "Anterior", "callback_data": f"kp:{pag - 1}"})
+    if total > 1:
+        nav.append({"text": f"{pag + 1} de {total}", "callback_data": f"kp:{pag}"})
+    if pag < total - 1:
+        nav.append({"text": "Próxima", "callback_data": f"kp:{pag + 1}"})
+    return bt + ([nav] if nav else []) + [[{"text": "Menu", "callback_data": "m:menu"}]]
 
 
 def menu_principal(ctx):
@@ -2116,6 +2129,7 @@ def menu_principal(ctx):
            [{"text": "Minhas tarefas", "callback_data": "x:tarefas"}, {"text": "Lembretes", "callback_data": "k:lembretes:0"}, {"text": "Previsão", "callback_data": "k:previsao:0"}],
            [{"text": "Fechamento", "callback_data": "x:checklist_fechamento"}, {"text": "Backup", "callback_data": "k:backup:0"}, {"text": "Acessos", "callback_data": "k:acessos:0"}],
            [{"text": "Por ar", "callback_data": "k:porar:0"}, {"text": "Por sala", "callback_data": "k:porsala:0"}, {"text": "Comparar", "callback_data": "k:comparar:0"}],
+           [{"text": "Logs", "callback_data": "k:logs:0"}, {"text": "Quem fez o quê", "callback_data": "k:pessoas:0"}, {"text": "Meu histórico", "callback_data": "k:meuhist:0"}],
            [{"text": "Guia e glossário", "callback_data": "k:guia:0"}, {"text": "Conversar com a IA", "callback_data": "m:ia"}, {"text": "Novidades", "callback_data": "k:versoes:0"}],
            [{"text": f"Todos os comandos ({len(C)})", "callback_data": "x:comandos"}]]
     rec = [n for n in (p.get("recentes") or []) if n in C][:3]
@@ -2902,3 +2916,4 @@ for _k, _t, _d in _PROB:
 NOVOS_044 = len(C) - _ANTES_044
 
 from . import telegram_cmds_extra  # noqa: E402,F401  (14 categorias novas da 0.6.8: tarefas, backup, acessos, lembretes…)
+from . import telegram_cmds_logs  # noqa: E402,F401  (0.6.9: logs, quem fez o quê, auditoria, segurança, uso, conversões, glossário, telas…)

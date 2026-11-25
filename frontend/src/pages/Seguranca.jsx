@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Activity, AlertOctagon, Bot, Mail, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
+import { Activity, AlertOctagon, Bot, Mail, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, ScrollText, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
 import { avisoEmail } from '../emailAviso'
 import { api, dataHora, haQuanto } from '../api'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Secao, useDados, useToast, confirmar } from '../components/ui'
@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Acessos, Conformidade, Incidentes, Integridade, Riscos, TestesAoVivo } from '../components/seguranca/Governanca'
 import TelegramSeg from '../components/seguranca/TelegramSeg'
 import Fisico from '../components/seguranca/Fisico'
+const LogsSeg = lazy(() => import('../components/seguranca/Logs'))
 
 const Globo3D = lazy(() => import('../components/Globo3D'))
 
@@ -270,7 +271,7 @@ function Checklist() {
   )
 }
 
-const ABAS = [['monitoramento', 'Monitoramento', Activity], ['conformidade', 'Conformidade ISO', Scale], ['riscos', 'Riscos', ClipboardList], ['incidentes', 'Incidentes', AlertOctagon],
+const ABAS = [['monitoramento', 'Monitoramento', Activity], ['logs', 'Logs', ScrollText], ['conformidade', 'Conformidade ISO', Scale], ['riscos', 'Riscos', ClipboardList], ['incidentes', 'Incidentes', AlertOctagon],
   ['fisico', 'Comandos físicos', ShieldCheck], ['acessos', 'Acessos', Users], ['telegram', 'Telegram', Bot], ['testes', 'Testes ao vivo', Radar], ['integridade', 'Integridade', FileLock2]]
 
 export default function Seguranca() {
@@ -287,8 +288,9 @@ export default function Seguranca() {
     </nav>
   )
   if (aba !== 'monitoramento') {
-    const Comp = { conformidade: Conformidade, riscos: Riscos, incidentes: Incidentes, fisico: Fisico, acessos: Acessos, telegram: TelegramSeg, testes: TestesAoVivo, integridade: Integridade }[aba]
-    const desc = { conformidade: 'ISO/IEC 27001:2022 e 27002 com ligação para 27005, 27017, 27018, 27701, 27035, 22301 e LGPD. O que dá para conferir sozinho é conferido na hora.',
+    const Comp = { logs: LogsSeg, conformidade: Conformidade, riscos: Riscos, incidentes: Incidentes, fisico: Fisico, acessos: Acessos, telegram: TelegramSeg, testes: TestesAoVivo, integridade: Integridade }[aba]
+    const desc = { logs: 'Tudo o que acontece no sistema: quem ligou, desligou e mudou a temperatura de cada ar em cada sala, ações administrativas, logins, bloqueios, Telegram, dispositivos e e-mails. Filtros, ao vivo e exportação.',
+      conformidade: 'ISO/IEC 27001:2022 e 27002 com ligação para 27005, 27017, 27018, 27701, 27035, 22301 e LGPD. O que dá para conferir sozinho é conferido na hora.',
       riscos: 'Avaliação e tratamento de riscos (ISO 27005, cláusula 6.1 da 27001).', incidentes: 'Registro, resposta e lições de incidentes (ISO 27035 e LGPD).',
       fisico: 'Travas que valem para todo comando que mexe em equipamento real, aparelhos isolados e comandos recusados.',
       acessos: 'Quem tem acesso a quê, duas etapas e revisão periódica (A.5.15 a A.5.18).', telegram: 'Auditoria do bot do Telegram: cada interação, quem fez, o resultado, os IPs que entregaram, vínculos, PINs e bloqueios.', testes: 'Conferência externa de HTTPS, certificado, cabeçalhos, arquivos expostos e CORS.',
@@ -297,7 +299,7 @@ export default function Seguranca() {
       <>
         <Cabecalho titulo="Segurança" descricao={desc} />
         {barra}
-        <Comp />
+        <Suspense fallback={<Esqueleto className="h-96" />}><Comp /></Suspense>
       </>
     )
   }

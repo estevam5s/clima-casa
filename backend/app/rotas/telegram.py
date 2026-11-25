@@ -142,6 +142,49 @@ def seguranca_telegram(horas: int = 168):
                        "redes": [str(n) for n in telegram.REDES_TELEGRAM]}}
 
 
+@rotas_telegram.get("/telegram/logs")
+def logs_telegram(request: Request, dias: int = 7, pessoa: str = "", tipo: str = "", q: str = "", so_erros: bool = False, limite: int = 200):
+    """Logs de uso do bot (dono/admin): volume por dia, por pessoa, comandos mais usados, erros e tempo de resposta."""
+    u = request.state.u
+    if u.get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só dono e administradores veem os logs do bot.")
+    dias = max(1, min(90, dias))
+    desde = db.agora() - dias * 86400
+    w, p = " WHERE quando > ?", [desde]
+    if pessoa:
+        w += " AND (usuario_id::text = ? OR chat = ?)"; p += [pessoa[:60], pessoa[:60]]
+    if tipo:
+        w += " AND tipo = ?"; p.append(tipo[:30])
+    if so_erros:
+        w += " AND (tipo = 'erro' OR erro <> '')"
+    if q.strip():
+        w += " AND (texto ILIKE ? OR erro ILIKE ? OR usuario_nome ILIKE ?)"; p += [f"%{q.strip()[:60]}%"] * 3
+    pt = tuple(p)
+    resumo = db.um(f"SELECT count(*) AS total, count(DISTINCT chat) AS conversas, count(DISTINCT usuario_id) AS pessoas, "  # nosec B608
+                   f"count(*) FILTER (WHERE tipo = 'erro') AS erros, count(*) FILTER (WHERE NOT ok AND tipo <> 'erro') AS negados, "
+                   f"avg(ms) FILTER (WHERE ms IS NOT NULL) AS ms_medio, percentile_cont(0.95) WITHIN GROUP (ORDER BY ms) FILTER (WHERE ms IS NOT NULL) AS ms_p95 "
+                   f"FROM telegram_eventos{w}", pt)
+    por_dia = db.consultar(f"SELECT to_char(to_timestamp(quando - 10800) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS dia, count(*) AS total, "  # nosec B608
+                           f"count(*) FILTER (WHERE tipo = 'erro') AS erros FROM telegram_eventos{w} GROUP BY 1 ORDER BY 1", pt)
+    por_hora = db.consultar(f"SELECT EXTRACT(HOUR FROM to_timestamp(quando - 10800) AT TIME ZONE 'UTC')::int AS hora, count(*) AS n FROM telegram_eventos{w} GROUP BY 1 ORDER BY 1", pt)  # nosec B608
+    por_pessoa = db.consultar(f"SELECT COALESCE(usuario_id::text, chat) AS id, max(COALESCE(NULLIF(usuario_nome, ''), NULLIF(username, ''), chat)) AS nome, count(*) AS total, "  # nosec B608
+                              f"count(*) FILTER (WHERE tipo = 'comando') AS comandos, count(*) FILTER (WHERE tipo = 'clique') AS cliques, count(*) FILTER (WHERE tipo = 'ia') AS ia, "
+                              f"count(*) FILTER (WHERE tipo = 'erro') AS erros, count(*) FILTER (WHERE NOT ok) AS falhas, avg(ms) FILTER (WHERE ms IS NOT NULL) AS ms_medio, max(quando) AS ultimo "
+                              f"FROM telegram_eventos{w} GROUP BY 1 ORDER BY 3 DESC LIMIT 50", pt)
+    comandos = db.consultar(f"SELECT split_part(split_part(texto, ' ', 1), '@', 1) AS comando, count(*) AS n, count(*) FILTER (WHERE NOT ok) AS falhas, avg(ms) AS ms "  # nosec B608
+                            f"FROM telegram_eventos{w} AND tipo = 'comando' GROUP BY 1 ORDER BY 2 DESC LIMIT 25", pt)
+    cliques = db.consultar(f"SELECT split_part(texto, ':', 1) || ':' || split_part(texto, ':', 2) AS botao, count(*) AS n FROM telegram_eventos{w} AND tipo = 'clique' GROUP BY 1 ORDER BY 2 DESC LIMIT 15", pt)  # nosec B608
+    por_tipo = db.consultar(f"SELECT tipo, count(*) AS n FROM telegram_eventos{w} GROUP BY 1 ORDER BY 2 DESC", pt)  # nosec B608
+    erros = db.consultar(f"SELECT id, quando, usuario_nome, username, texto, erro, ms FROM telegram_eventos{w} AND (tipo = 'erro' OR erro <> '') ORDER BY id DESC LIMIT 40", pt)  # nosec B608
+    lentos = db.consultar(f"SELECT quando, usuario_nome, texto, ms FROM telegram_eventos{w} AND ms IS NOT NULL ORDER BY ms DESC LIMIT 10", pt)  # nosec B608
+    eventos = db.consultar(f"SELECT id, quando, chat, usuario_id::text AS usuario_id, usuario_nome, username, tipo, texto, ok, ms, erro FROM telegram_eventos{w} "  # nosec B608
+                           f"ORDER BY id DESC LIMIT ?", (*pt, max(10, min(500, limite))))
+    pessoas = db.consultar("SELECT DISTINCT COALESCE(usuario_id::text, chat) AS id, COALESCE(NULLIF(usuario_nome, ''), NULLIF(username, ''), chat) AS nome FROM telegram_eventos WHERE quando > ? ORDER BY 2", (desde,))
+    r = {k: (float(v) if v is not None and k.startswith("ms") else v) for k, v in (resumo or {}).items()}
+    return {"dias": dias, "resumo": r, "por_dia": por_dia, "por_hora": por_hora, "por_pessoa": por_pessoa, "comandos": comandos, "cliques": cliques,
+            "por_tipo": por_tipo, "erros": erros, "lentos": lentos, "eventos": eventos, "pessoas": pessoas}
+
+
 class ChatIn(BaseModel):
     chat: str = Field(pattern=r"^-?\d{1,20}$")
     horas: int = Field(24, ge=1, le=24 * 365)

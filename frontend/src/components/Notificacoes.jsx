@@ -58,7 +58,8 @@ export function useCentral() {
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', voltou) }
   }, [carregar])
   useEffect(() => { window.addEventListener('clima:notificacoes-mudou', carregar); return () => window.removeEventListener('clima:notificacoes-mudou', carregar) }, [carregar])
-  useEffect(() => { carregar() }, [local.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+  const primeiraRota = useRef(true)   // na montagem o efeito de cima já carregou: não pedir duas vezes
+  useEffect(() => { if (primeiraRota.current) { primeiraRota.current = false; return } carregar() }, [local.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
   return { dados, aba, setAba, carregar }
 }
 
@@ -205,10 +206,12 @@ export default function Notificacoes({ central }) {
     if (!n.lida) api.post(`/api/notificacoes/${n.id}/lida`).catch(() => {})
     setAberto(false)
     if (para) navegar(rotaSegura(para))
-    carregar()
+    mudouNoSino()
   }
-  const lerTodas = async () => { await api.post('/api/notificacoes/ler-todas'); carregar() }
-  const limpar = async (somente) => { setMenuLimpar(false); await api.post(`/api/notificacoes/limpar?somente=${somente}`); toast('Notificações limpas.'); carregar() }
+  // avisa a página /notificacoes (se aberta) que o sino mudou algo, para ela recarregar sem F5
+  const mudouNoSino = () => { carregar(); window.dispatchEvent(new Event('clima:sino-mudou')) }
+  const lerTodas = async () => { await api.post('/api/notificacoes/ler-todas'); mudouNoSino() }
+  const limpar = async (somente) => { setMenuLimpar(false); await api.post(`/api/notificacoes/limpar?somente=${somente}`); toast('Notificações limpas.'); mudouNoSino() }
 
   return (
     <div className="relative" ref={ref}>
@@ -251,7 +254,7 @@ export default function Notificacoes({ central }) {
                 </div>
               )}
             </div>
-            {config ? <Preferencias dados={dados} voltar={() => setConfig(false)} aoAtualizar={carregar} /> : (
+            {config ? <Preferencias dados={dados} voltar={() => setConfig(false)} aoAtualizar={mudouNoSino} /> : (
               <>
                 <div className="px-4">
                   <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-muted p-1">
@@ -277,7 +280,7 @@ export default function Notificacoes({ central }) {
                     return grupos.map(([g, lista]) => (
                       <li key={g}>
                         <p className="sticky top-0 z-[1] bg-card/95 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground backdrop-blur">{g}</p>
-                        <ul><AnimatePresence initial={false}>{lista.map((n) => <Item key={n.id} n={n} aoAbrir={abrir} aoAtualizar={carregar} />)}</AnimatePresence></ul>
+                        <ul><AnimatePresence initial={false}>{lista.map((n) => <Item key={n.id} n={n} aoAbrir={abrir} aoAtualizar={mudouNoSino} />)}</AnimatePresence></ul>
                       </li>
                     ))
                   })()}

@@ -29,7 +29,7 @@ caminhos de serviço e o projeto da Vercel).
 8. **Diário de sessão**: toda sessão de trabalho termina com a pasta `docs/continuar/sessao-AAAA-MM-DD/` (00-LEIA-PRIMEIRO,
    01-historico, 02-estado-atual, 03-pendencias, 04-decisoes, 05-testes, PROMPT.md, continuar.sh), e atualiza
    `docs/continuar/INDICE.md` (todas as sessões) e `docs/continuar/ATUAL.md` (a mais recente). O gancho SessionStart do
-   `.claude/settings.json` mostra o `ATUAL.md` no começo de toda sessão nova. A última é `sessao-2026-11-21` (continuada em 22, 23 e 24/11).
+   `.claude/settings.json` mostra o `ATUAL.md` no começo de toda sessão nova. A última é `sessao-2026-11-21` (continuada em 22, 23, 24 e 25/11).
 9. **Toda atualização do sistema atualiza também os apps** (pedido do dono, 20/11/2026): o que entrou no painel ganha a tela ou o
    atalho correspondente no **Android** (`apps/android`, telas em `src/app/(abas)/mais/`), no **computador** (`apps/desktop/src/main.js`,
    `MAIS_TELAS`) e no **iPhone** (`apps/ios`, `Telas/` + `Mais.swift`). Na mesma entrega: versão nova dos três (Android `app.json`/
@@ -102,7 +102,7 @@ caminhos de serviço e o projeto da Vercel).
 | Área de Bugs | `backend/app/bugs.py` (`varrer`, `registrar_auto(ultimo=)`), `rotas/bugs.py`, `pages/Bugs.jsx`, `frontend/src/errosTela.js` |
 | Editor de aparência dos avatares (cores, recolorir, pincel, material, forma) | `components/avatares/EditorAparencia.jsx`, `textura.js` (pipeline sobre o original), `avatares.py` (`preparar_versao`, `confirmar_versao`, `restaurar`, colunas `arquivo_original`/`ajustes`) |
 | Carros dirigíveis no mapa (física, som, painel) | `components/veiculo3d.js` (`criarVeiculo`, `colisorCidade`, `criarSom`, `criarMarcas`), `Mapa3D.jsx` (`E.alternarCarro`, `dirigir`, `E.veiculos`), `PainelCarro.jsx`, `config.mapa_veiculos` (`PUT /api/mapa/veiculos`, `POST /api/mapa/veiculos/{id}/posicao`) |
-| Comandos do bot do Telegram (catálogo de 1.490 em 42 categorias, menu por categoria, ar atual, favoritos, avisos) | `backend/app/telegram_cmds.py` (`@cmd`, `executar`, `menu_principal`, `pagina_categoria`, `para_telegram` = 100 do menu "/", `avisar` chamado por `notificacoes.notificar`), `telegram.py` (`_comando`/`_clique`: `k:`, `x:`, `xs:`, `fv:`, confirmação `cmd`), config `telegram_prefs`. Comando novo: um `@cmd` com `perm`/`papel`/`confirmar` |
+| Comandos do bot do Telegram (catálogo de 1.953 em 102 categorias, menu por categoria, ar atual, favoritos, avisos) | `backend/app/telegram_cmds.py` (`@cmd`, `executar`, `menu_principal`, `pagina_categoria`, `para_telegram` = 100 do menu "/", `avisar` chamado por `notificacoes.notificar`), `telegram.py` (`_comando`/`_clique`: `k:`, `x:`, `xs:`, `fv:`, confirmação `cmd`), config `telegram_prefs`. Comando novo: um `@cmd` com `perm`/`papel`/`confirmar` |
 | Física do carro: ESC, automático P/R/N/D, nitro, elétrico, moto, voo (propulsores) | `components/veiculo3d.js` (`passo`, `passoVoo`, `propulsores`, `FISICA_PADRAO`; `comprimento` escala modelos de ~1 m), `rotas/api.py` (`FISICA_LIMITES`), `pages/Avatares.jsx` (`OPCOES`) |
 | Pegar carro do trânsito/estacionamento, trânsito que freia para o jogador, cidade (estacionamentos, posto, pontos, chafarizes, outdoors) | `Mapa3D.jsx` (`pegarDaRua`, `E.colideCarro`, `E.propulsores`), `predio3d.js` (`carro(cor, tipo)`, `TIPOS_TRANSITO`, `transito`), `cidade3d.js` (`estacionados`) |
 | Assistente de IA estilo chat (conversas salvas, comandos /, modelo por mensagem) | `pages/Ia.jsx` (`Lateral`, `Compositor`, `COMANDOS`), `rotas/ia.py` (`/ia/conversas…`, `conversar` salva com `conversa_id`), tabela `ia_conversas` (por `usuario_id`), `ia.py` (ferramentas `relatorio`, `listar_salas`, `agentes`, `zonas`, `dispositivos`, `notificacoes`) |
@@ -157,6 +157,17 @@ caminhos de serviço e o projeto da Vercel).
 | Placas Arduino/ESP em 3D (download .glb) | `components/dispositivos/Placa3D.jsx` (`MODELOS` com medidas reais em mm, `peca`, GLTFExporter), mostrado em `Placa.jsx` ao escolher a placa |
 | Login com GitHub | `pages/Login.jsx` (`entrarGoogle('github')`, `sessionStorage['clima-login-provedor']`), `components/config/SegurancaConta.jsx` (`ContaOAuth`), provedor GitHub ligado no Supabase (cadastro novo bloqueado: só entra conta com e-mail de usuário ou conectada) |
 | Bot do Telegram: 376 comandos da 0.6.8 e lembretes | `backend/app/telegram_cmds_extra.py` (importado no fim de `telegram_cmds.py`), `lembretes_ciclo` no `agenda.laco` (config `telegram_lembretes`) |
+| Log completo (Segurança → Logs): atividade + segurança + Telegram + dispositivos + e-mails, com filtros, ao vivo, auditoria | `backend/app/logs.py` (`consultar` com as fontes em paralelo, `resumo`, `classificar` = ligou/desligou/subiu/baixou comparando com o estado anterior do ar), `rotas/logs.py` (`/api/seguranca/logs[/resumo]` = seguranca.gerenciar + acesso a todos os projetos; `/api/atividade/pessoas|linha` com escopo; `/api/usuarios/acoes`), `components/logs/Comum.jsx` (`ItemLog`, `DetalheLog`, `TabelaAcoes`, `useLinhaLogs`), `components/seguranca/Logs.jsx` |
+| Quem fez cada ação | `db.registrar` grava `atividade.usuario_id`/`usuario` a partir de `acesso.atual` (painel, app, Telegram); sem pessoa = automático (agenda, Alexa, agente) ou anterior à 0.6.9 (`logs.SEM_PESSOA` dá o rótulo) |
+| Atividade: Por pessoa, Por sala, Por ar, Mudanças nos ares, Comparar períodos | `pages/Atividade.jsx` (`?aba=`), `components/atividade/Extras.jsx` |
+| Regras do escritório (Configurações → Geral): faixa de temperatura, desligar/avisar ar esquecido, fora do expediente, arquivar notificações, exportar configurações | `backend/app/geral.py` (`config.geral`, `checar_temperatura` chamado por `fisico.checar_ar`, `ciclo` no `agenda.laco` a cada ~5 min, `exportar` só chaves sem segredo), rotas `GET|PUT /api/config/geral`, `/api/config/exportar`, `/api/config/sistema`, `components/config/Geral.jsx` |
+| Dono troca o e-mail de login de uma conta | `PUT /api/usuarios/{uid}/email` (`rotas/contas.py`, só papel dono; Auth admin + `usuarios.email`; aviso no sino e e-mail ao antigo e ao novo), campo E-mail no `FormUsuario` |
+| Uso do sistema: o que cada pessoa fez | `components/config/UsoSistema.jsx` (`AcoesPessoas`) → `/api/usuarios/acoes?pessoa=` |
+| Bugs avançado (responsável, prazo, etiquetas, histórico, duplicado, tarefa, lote, estatísticas) | `rotas/bugs.py` (`PUT /bugs/{id}/editar`, `/historico`, `/comentar`, `/lote`, `/duplicado`, `/tarefa` → `tarefas.projeto_por_nome("Bugs")`, `/estatisticas`), tabela `bugs_historico`, `components/bugs/Avancado.jsx`, `?bug=ID` abre o detalhe |
+| Telegram: 461 comandos da 0.6.9 e logs do bot | `backend/app/telegram_cmds_logs.py` (`_reg` nunca pisa num nome existente), grade de categorias paginada (`_grade_categorias(pag)`, clique `kp:N`: o Telegram aceita 100 botões), `telegram.auditar` devolve o id e `concluir` grava `ms`/`erro`; erro de código vira tipo `erro` + bug automático; `/api/telegram/logs`, `components/telegram/Logs.jsx` (`/telegram?aba=logs`) |
+| Plano de melhorias (110 tarefas em Minhas tarefas do dono) | `scripts/tarefas-melhorias.py` (rodar de novo não duplica) |
+| Desempenho: o que melhorar por rota, tendência, celular × computador | coletores `frontend/src/medicao.js` e `site/components/Medicao.jsx` (LCP/FCP/TTFB na rota da carga, CLS em janela de 5 s e INP na rota em que aconteceram, com `dados.el` = elemento, `largura`, `conexao`), `analise._diagnostico` (`DICAS_VITAIS`), `pages/Analise.jsx` (`OQueMelhorar`, `Tendencia`, `PorAparelho`) |
+| Painel rápido: consultas em paralelo e sessão compartilhada | `rotas/api._paralelo` (leva `acesso.atual` com contextvars; na Vercel o pool tem 2 conexões), `api.sessaoCompartilhada` (main.jsx + contexto.jsx), `useCentral` sem carga dupla, pré-carga das telas 4 s depois do `load` |
 | Usuário responsável só por alguns ares | `usuarios.aparelhos` (`"*"` ou lista de ids), `acesso.aparelhos_permitidos/filtro_aparelhos/checar_aparelho`, `rotas/api.py` (`_escopo("a.projeto_id")` já inclui o filtro por ar, `_ids_aparelhos_permitidos`), `rotas/contas.py` (`_resolver_aparelhos`), `components/config/Usuarios.jsx` |
 
 ---
@@ -354,7 +365,11 @@ curl -s -o /dev/null -w "%{http_code}" https://app.zynio.com.br/saude   # 200
 **Testar logado sem senha** (servidor local `CLIMA_PAPEL=nuvem` na 8097 + Playwright): gerar sessão com
 `/auth/v1/admin/generate_link` (magiclink) → `/auth/v1/verify`, gravar o `session_id` em `sessoes_fortes` e o JSON em
 `localStorage['clima-casa-auth']`. A sessão vale 1 h. **Apague depois** (`sessoes_fortes`, `sessoes_uso`, `auth.sessions`).
-Scripts de exemplo ficam no scratchpad da sessão; não versionar.
+Scripts de exemplo ficam no scratchpad da sessão; não versionar. Receita mínima (refazer se o rascunho for limpo):
+`sessao_teste.py criar saida.json` = `POST /auth/v1/admin/generate_link {type: magiclink, email do dono}` → `POST /auth/v1/verify {type, token_hash}` →
+`session_id` do JWT em `sessoes_fortes`; `apagar <sid>` apaga de `sessoes_fortes`, `sessoes_uso` e `auth.sessions`. No Playwright (`playwright-core`
+instalado no rascunho, Chromium headless de `~/Library/Caches/ms-playwright`): `addInitScript` grava o JSON em `localStorage['clima-casa-auth']`, `route`
+de `/api/novidades/vista` devolve 200 sem gravar, e conferir `pageerror`, respostas 4xx/5xx de `/api/` e `scrollWidth > innerWidth`.
 
 ---
 
@@ -948,12 +963,19 @@ Release: nomes fixos (`ClimaCasa-android.apk`, `-mac-apple-silicon.dmg`, `-mac-i
 | `vercel deploy` termina com "Error: fetch failed" | falha de rede no envio: rode o `publicar-vercel.sh` de novo (num worktree limpo) e confira a linha "Versão X confirmada no ar" |
 | Egress do Supabase subindo sem uso | abas antigas (código de antes de uma versão) seguem consultando até recarregar; o agente sozinho gasta ~44 MB/dia; abrir o mapa baixa os modelos uma vez por navegador. Medir: `nettop` no processo do agente, `pg_stat_statements` em 3 min |
 | Teste do treinamento manda e-mail | `corrigir` envia a nota por e-mail para quem fez a prova: em teste, avise que chegam e-mails no endereço da conta de teste |
+| `ProgrammingError: the query has N placeholders` com SQL certo | `db._sql` troca TODO `?` por `%s`, inclusive dentro de texto ('?' num COALESCE): use outro caractere no literal |
+| LCP do sistema na rota errada (ex.: /notificacoes) | o coletor mandava o LCP com a tela aberta ao fechar a aba. Desde 0.6.9 vai na rota da carga; os dados antigos de LCP/CLS sem `dados.largura` contam no geral, não por rota |
+| Grade de categorias do Telegram some/erro com 100+ categorias | o Telegram aceita até 100 botões por mensagem: paginar (`kp:N`) |
+| PIN digitado com erro aparecendo no log do bot | `/pinb123456` não casava com "/pin": `telegram.auditar` mascara tudo que começa com "/pin" |
+| Consultas em paralelo sem o usuário (escopo some) | `acesso.atual` é contextvar: cada thread precisa de `contextvars.copy_context().run` (`_paralelo` em `rotas/api.py` e `logs.py`) |
+| Scripts de teste do Playwright sumiram | o rascunho da sessão é limpo às vezes. Receita na seção 4 (sessão temporária + `base.mjs`) |
 | Infra lenta / "agente não respondeu" | antes a fila era 1 por vez e as ops da Vercel seguravam tudo; agora `infra` roda em paralelo. Se voltar, medir a op direto no agente (`infra.executar`) |
 
 ---
 
 ## 14. Estado atual e pendências
 
+- **25/11/2026 (0.6.9, apps 1.8.1)**: Logs completos (Segurança → Logs), Atividade com a pessoa e abas por pessoa/sala/ar, regras do escritório em Configurações → Geral, dono troca e-mail de conta, Bugs avançado, 461 comandos novos no Telegram (1.953 em 102 categorias) com logs e erros do bot, 110 tarefas do Plano de melhorias, Desempenho com o elemento responsável por rota, Painel mais rápido (consultas em paralelo, sem chamadas repetidas, sem deslocamento no celular), login com os botões lado a lado, foto do GitHub (CSP), sino e página de notificações sincronizados. As 12 persianas estão cadastradas (3 na Reunião). Regras novas de Geral começam desligadas (0 = sem efeito).
 - **24/11/2026, noite (0.6.8)**: Tarefas no padrão Asana, Assistente com Projetos/Esforço/Configurações, Backup avançado, placas em 3D, ar Gree no Painel, login com GitHub, 1.490 comandos no Telegram. Gravação no GitHub Projects e import de repositório privado não testados de ponta a ponta.
 - **24/11/2026 (0.6.7, apps 1.8.0)**: Tarefas no estilo Asana com GitHub Projects (escrita no GitHub não testada), ar Gree em 3D (avatar 74) com visor, avatar 73 com pesos refeitos (original guardado: Restaurar), sala de reunião com 3 persianas (dispositivos 1, 25, 26), Acessos e SEO completo, download pelos agentes atualizados (estado `qualquer` na fila). PC do João (preferido) ainda roda agente antigo: rodar o instalador uma vez.
 - **23/11/2026 (0.5.2 a 0.6.5, apps 1.7.1)**: diário em `docs/continuar/sessao-2026-11-21/`. Agente por código em Windows, Mac, Linux

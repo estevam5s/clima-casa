@@ -19,7 +19,7 @@ export const MENU = [
     ] },
     { titulo: 'Recursos', itens: [
       { rotulo: 'Assistente de IA', href: '/assistente-ia', icone: 'Bot', desc: 'Converse e mande no escritório' },
-      { rotulo: 'Bot do Telegram', href: '/bot-telegram', icone: 'Send', desc: '1.114 comandos no celular' },
+      { rotulo: 'Bot do Telegram', href: '/bot-telegram', icone: 'Send', desc: '1.953 comandos no celular' },
       { rotulo: 'Mapa 3D', href: '/mapa-3d', icone: 'Building2', desc: 'O prédio, a equipe e a cidade' },
       { rotulo: 'Música com Spotify', href: '/escritorio-inteligente/musica', icone: 'Music2', desc: 'Toca no Echo e em rotinas' },
       { rotulo: 'Relatórios', href: '/funcionalidades/relatorios', icone: 'BarChart3', desc: 'Consumo e custo em 8 formatos' },
@@ -177,7 +177,7 @@ export const FUNCIONALIDADES = [
     texto: 'O assistente usa modelos da NVIDIA com ferramentas que leem o sistema de verdade: ares, salas, zonas, transmissores, agentes, atividade, relatórios, tempo lá fora e os aparelhos do escritório. Mudar um ar acontece na hora; desligar todos e executar cenas só depois de você confirmar. No painel as conversas ficam salvas; no terminal (clima-ia) ele também conhece o código do projeto e nunca envia segredos.',
     lista: ['Chat com conversas salvas, comandos com /, anexos e ditado', 'No Telegram: escreva normalmente', 'No celular: tela própria no app Android', 'No terminal: clima-ia com modos de permissão'] },
   { slug: 'telegram', icone: 'Send', titulo: 'Bot do Telegram',
-    resumo: '1.114 comandos com as suas permissões: o painel de cada ar no jeito do controle remoto, timers, relatórios, luzes, persianas, música e avisos.',
+    resumo: '1.953 comandos com as suas permissões: o painel de cada ar no jeito do controle remoto, timers, relatórios, luzes, persianas, música e avisos.',
     texto: 'Cada pessoa vincula o próprio Telegram com um código de uso único gerado no painel. O menu mostra o estado no topo e navega por 28 categorias. Ações em lote pedem confirmação, e os avisos importantes podem chegar no Telegram.',
     lista: ['Ar atual e atalhos /23, /frio23, /mais', 'Timers prontos e relatórios por período', 'Confirmação em toda ação em lote', 'Avisos importantes no Telegram'] },
   { slug: 'backup-e-treinamento', icone: 'ShieldCheck', titulo: 'Backup, restauração e treinamento',
@@ -240,7 +240,7 @@ export const NUMEROS = [
   { onde: 'API', o_que: '426 rotas, todas com regra de permissão', quando: '0.4.9' },
   { onde: 'Supabase', o_que: '47 tabelas com RLS em todas', quando: '0.4.9' },
   { onde: 'Telegram', o_que: '1.114 comandos em 28 categorias, com as permissões de cada pessoa', quando: '0.4.9' },
-  { onde: 'Versões', o_que: '69 versões publicadas, 596 mudanças registradas', quando: '0.6.8' },
+  { onde: 'Versões', o_que: '70 versões publicadas, 620 mudanças registradas', quando: '0.6.9' },
   { onde: 'Treinamento', o_que: '1.017 perguntas de segurança e ISO', quando: '1.24' },
   { onde: 'Idiomas', o_que: 'Site em 6 idiomas: português, inglês, espanhol, francês, russo e coreano', quando: '0.4.9' },
   { onde: 'Relatórios', o_que: '8 formatos de exportação', quando: '1.0' },
@@ -250,7 +250,7 @@ export const CONTADORES = [
   { n: 426, sufixo: '', rotulo: 'rotas de API' },
   { n: 47, sufixo: '', rotulo: 'tabelas no banco' },
   { n: 1114, sufixo: '', rotulo: 'comandos no Telegram' },
-  { n: 69, sufixo: '', rotulo: 'versões publicadas' },
+  { n: 70, sufixo: '', rotulo: 'versões publicadas' },
   { n: 6, sufixo: '', rotulo: 'idiomas no site' },
 ]
 
