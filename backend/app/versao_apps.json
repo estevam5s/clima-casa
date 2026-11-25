@@ -1,20 +1,19 @@
 {
   "notas": [
-    "Android: abre direto no Início (antes aparecia \"rota não encontrada\")",
-    "Tela Uso do sistema no Android e no iPhone; atalho no computador",
-    "Acompanha a versão 0.5.9 do sistema"
+    "Tela Tarefas no Android e no iPhone; atalho no computador",
+    "Acompanha as versões 0.6.7 e 0.6.8 do sistema (Tarefas, Assistente com Projetos, Backup avançado, login com GitHub)"
   ],
-  "publicado_em": "2026-11-22",
+  "publicado_em": "2026-11-24",
   "android": {
-    "versao": "1.7.1",
+    "versao": "1.8.0",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "desktop": {
-    "versao": "1.7.1",
+    "versao": "1.8.0",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "ios": {
-    "versao": "1.7.1",
+    "versao": "1.8.0",
     "pagina": "https://app.zynio.com.br/apps"
   }
 }
