@@ -1,5 +1,19 @@
 [
  {
+  "versao": "0.7.1",
+  "data": "2026-11-26",
+  "titulo": "Ainda menos tráfego no Supabase",
+  "resumo": "Menos leituras do banco no agente, no Painel e no sino.",
+  "novo": [],
+  "melhorias": [
+   "O agente só lê a lista de cafeteira, persianas, luzes e fechadura quando existe algum aparelho conectado (antes lia tudo a cada 20 s)",
+   "Painel aberto atualiza a cada 30 s (era 15 s)",
+   "Sino de notificações traz as 40 mais recentes (eram 80)"
+  ],
+  "seguranca": [],
+  "correcoes": []
+ },
+ {
   "versao": "0.7.0",
   "data": "2026-11-26",
   "titulo": "Menos tráfego no Supabase com telas abertas",
