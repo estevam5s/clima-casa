@@ -600,6 +600,12 @@ def _migrar_id(antigo: dict, novo_id: str) -> dict:
     return hub(novo_id)
 
 
+def _mesmo_nome(a: str | None, b: str | None) -> bool:
+    import unicodedata
+    n = lambda x: unicodedata.normalize("NFKD", (x or "").strip().lower()).encode("ascii", "ignore").decode()  # noqa: E731
+    return bool(n(a)) and n(a) == n(b)
+
+
 def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
     """Tenta deixar o transmissor funcionando sozinho. Retorna (ok, mensagem)."""
     mudancas: list[str] = []
@@ -643,6 +649,11 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
             if h["id"] not in ids_nuvem or not ids_nuvem[h["id"]].get("online"):
                 cadastrados = {x["id"] for x in db.consultar("SELECT id FROM hubs")}
                 novos = [i for i in ids_nuvem if i not in cadastrados and (h["id"] not in ids_nuvem or ids_nuvem[i].get("online"))]
+                if h["id"] in ids_nuvem:
+                    # o antigo continua na conta (só offline): vários podem estar sendo reconfigurados um por vez, então um
+                    # ID novo qualquer NÃO é prova de que é este. Só troca quando o novo tem o mesmo nome no Smart Life.
+                    # (26/11/2026: o "Fábio" offline foi passado para o ID do "Área do Eugênio", que acabava de ser pareado.)
+                    novos = [i for i in novos if _mesmo_nome(ids_nuvem[i].get("nome"), h.get("nome"))]
                 if len(novos) == 1:
                     h = _migrar_id(h, novos[0])
                     mudancas.append(f"novo ID {novos[0]}")

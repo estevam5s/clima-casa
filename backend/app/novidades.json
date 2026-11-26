@@ -2,6 +2,20 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.7.3",
+   "data": "2026-11-26",
+   "titulo": "Transmissores reconfigurados um por vez",
+   "resumo": "O ajuste automático não confunde mais um transmissor recém-pareado com outro que está offline.",
+   "novo": [],
+   "melhorias": [
+    "Transmissor pareado de novo no Smart Life só troca de cadastro sozinho quando o antigo saiu da conta ou quando o novo tem o mesmo nome."
+   ],
+   "seguranca": [],
+   "correcoes": [
+    "Reconfigurar vários transmissores, um de cada vez, podia passar o cadastro de um transmissor offline (e os ares dele) para o que acabou de ser pareado."
+   ]
+  },
+  {
    "versao": "0.7.2",
    "data": "2026-11-26",
    "titulo": "Teste do transmissor acha o IP sozinho",
