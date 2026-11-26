@@ -125,7 +125,7 @@ export function TesteConexao({ hubId, nome, aoTerminar, proximo = true }) {
   const ate = r ? ordem.indexOf(r.etapa === 'erro' ? 'agente' : r.etapa) : -1
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Testando <b className="text-foreground">{nome || hubId}</b> pelo computador do escritório…</p>
+      <p className="text-sm text-muted-foreground">Testando <b className="text-foreground">{nome || hubId}</b> pelo computador do escritório…{rodando ? ' Se ele ainda não tem IP, o agente procura na rede (pode levar até 1 minuto).' : ''}</p>
       <ul className="space-y-2">{passos.map(([k, t], i) => {
         const estado = rodando || !r ? 'esperando' : r.ok || i < ate ? 'ok' : i === ate ? 'falhou' : 'pulado'
         return (

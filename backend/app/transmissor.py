@@ -405,12 +405,80 @@ def job(job_id: int) -> dict:
             "restante": max(0, int(inicio + dados.get("duracao", 30) - time.time()))}
 
 
+def _redes_do_agente() -> list[str]:
+    """Prefixos /24 onde procurar um transmissor: a rede deste computador e a dos transmissores já cadastrados."""
+    prefixos = set()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))   # UDP não envia nada: só descobre o IP da rota padrão
+        prefixos.add(s.getsockname()[0].rsplit(".", 1)[0])
+        s.close()
+    except OSError:
+        pass
+    for o in db.consultar("SELECT ip FROM hubs WHERE COALESCE(ip, '') <> ''"):
+        if o["ip"].startswith(("192.168.", "10.", "172.")):
+            prefixos.add(o["ip"].rsplit(".", 1)[0])
+    return sorted(p for p in prefixos if not p.startswith("127."))[:3]
+
+
+def localizar(h: dict, limite_s: float = 40) -> dict:
+    """Acha o IP de um transmissor que está sem IP (importado da nuvem, que só conhece o IP público).
+    1) varredura UDP (o transmissor se anuncia a cada ~5 s); 2) se nada vier (firewall do Windows no perfil "Público",
+    roteador que não repassa broadcast), procura a porta 6668 nas redes do agente e confirma com a Local Key.
+    Devolve {ip, versao, como} ou {ip: None, detalhe}."""
+    from concurrent.futures import ThreadPoolExecutor
+    fim = time.time() + limite_s
+    try:
+        achados = _varrer(8)
+    except Exception:  # noqa: BLE001
+        achados = {}
+    for ip, d in achados.items():
+        if d.get("gwId") == h["id"]:
+            return {"ip": ip, "versao": d.get("version") or h.get("versao"), "como": "anúncio na rede"}
+    ocupados = set(achados) | {o["ip"] for o in db.consultar("SELECT ip FROM hubs WHERE id <> ? AND COALESCE(ip, '') <> ''", (h["id"],))}
+    redes = _redes_do_agente()
+    ips = [f"{p}.{i}" for p in redes for i in range(1, 255) if f"{p}.{i}" not in ocupados]
+    with ThreadPoolExecutor(64) as ex:
+        abertos = [ip for ip, ok in zip(ips, ex.map(lambda i: porta_aberta(i, timeout=0.6), ips)) if ok]
+    versoes = [str(h.get("versao") or "3.3")] + [v for v in VERSOES_TUYA if v != str(h.get("versao") or "3.3")]
+    if h.get("local_key"):
+        for ip in abertos:
+            for v in versoes:
+                if time.time() > fim:
+                    break
+                try:
+                    if diagnosticar({**h, "ip": ip, "versao": v}) == "ok":
+                        return {"ip": ip, "versao": v, "como": "procura pela porta 6668"}
+                except Exception:  # noqa: BLE001
+                    pass
+    return {"ip": None, "redes": redes, "anunciados": len(achados), "portas": len(abertos)}
+
+
 def testar_local(h: dict) -> dict:
     """Teste de conexão de um transmissor (no agente): chega na rede? a chave e o protocolo estão certos?
-    Se outro protocolo funcionar, grava o certo. Devolve o que a tela precisa para dizer o próximo passo."""
+    Se outro protocolo funcionar, grava o certo. Sem IP, procura o transmissor na rede antes de desistir.
+    Devolve o que a tela precisa para dizer o próximo passo."""
     t0 = time.time()
     if not h.get("ip"):
-        return {"etapa": "ip", "ok": False, "mensagem": "Sem IP cadastrado: use Procurar na rede ou importe da conta Smart Life."}
+        achou = localizar(h)
+        if achou["ip"]:
+            db.executar("UPDATE hubs SET ip = ?, versao = ?, problema = NULL WHERE id = ?", (achou["ip"], achou["versao"], h["id"]))
+            db.registrar("sistema", f"Transmissor {h['nome']}: IP encontrado na rede", detalhe=f"{achou['ip']} (protocolo {achou['versao']}, {achou['como']})")
+            h = hub(h["id"])
+        else:
+            redes = ", ".join(f"{p}.x" for p in achou["redes"]) or "nenhuma"
+            nuvem = ""
+            try:
+                online = next((d["online"] for d in tuya_nuvem.listar_aparelhos() if d["id"] == h["id"]), None)
+                if online is not None:
+                    nuvem = (" Na conta Smart Life ele aparece online: está no Wi-Fi, mas numa rede que este computador não alcança."
+                             if online else " Na conta Smart Life ele aparece offline: confira se está na tomada e no Wi-Fi 2,4 GHz.")
+            except Exception:  # noqa: BLE001
+                pass
+            return {"etapa": "ip", "ok": False, "ms": round((time.time() - t0) * 1000),
+                    "mensagem": f"Este computador ({socket.gethostname()}) procurou o transmissor nas redes {redes} e não achou "
+                                f"({achou['anunciados']} aparelho(s) Tuya se anunciaram, {achou['portas']} porta(s) 6668 abertas).{nuvem} "
+                                "Ligue o agente num computador do mesmo Wi-Fi do transmissor ou digite o IP em Editar."}
     if not h.get("local_key"):
         return {"etapa": "chave", "ok": False, "mensagem": "Falta a Local Key: importe da conta Smart Life (traz a chave sozinho) ou cole em Editar."}
     if not porta_aberta(h["ip"], timeout=3):
@@ -437,7 +505,7 @@ def testar(hub_id: str) -> dict:
         return testar_local(hub(hub_id))
     if not agente_online():
         return {"etapa": "agente", "ok": False, "mensagem": sem_agente()}
-    f = aguardar(enfileirar("testar", hub_id, {}), 25)
+    f = aguardar(enfileirar("testar", hub_id, {}), 55)   # sem IP, o agente procura na rede (até ~50 s)
     if f["estado"] != "ok":
         return {"etapa": "agente", "ok": False, "mensagem": f["erro"] or "O agente não respondeu a tempo. " + sem_agente()}
     return f["resultado"] if isinstance(f["resultado"], dict) else json.loads(f["resultado"])
