@@ -1,5 +1,21 @@
 [
  {
+  "versao": "0.7.2",
+  "data": "2026-11-26",
+  "titulo": "Teste do transmissor acha o IP sozinho",
+  "resumo": "Transmissor importado da conta Smart Life sem IP agora é procurado na rede pelo próprio teste de conexão.",
+  "novo": [],
+  "melhorias": [
+   "Testar conexão de um transmissor sem IP procura o aparelho na rede do agente e grava o IP e o protocolo certos.",
+   "Quando o computador do agente não recebe os anúncios da rede (firewall do Windows), a procura passa pela porta do transmissor e confirma com a Local Key.",
+   "Se não achar, a tela diz em quais redes procurou e se o transmissor está online na conta Smart Life."
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "“Sem IP cadastrado” logo depois de importar um transmissor da conta Smart Life."
+  ]
+ },
+ {
   "versao": "0.7.1",
   "data": "2026-11-26",
   "titulo": "Ainda menos tráfego no Supabase",
