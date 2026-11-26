@@ -9,6 +9,7 @@ import {
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { devePuxar } from '../ocioso'
 
 const CORES = ['#0f766a', '#2563a8', '#c2410c', '#7c3aed', '#be123c', '#4d7c0f', '#0e7490', '#52525b']
 const TIPOS = { escritorio: ['Escritório', Building2], sala: ['Sala', LayoutGrid], casa: ['Casa', Home], loja: ['Loja', Store], consultorio: ['Consultório', Stethoscope], outro: ['Outro', FolderKanban] }
@@ -294,7 +295,7 @@ export default function Projetos() {
     window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f)
   }, [])
   const navegar = useNavigate()
-  useEffect(() => { const t = setInterval(() => { if (!document.hidden) recarregar() }, 30000); return () => clearInterval(t) }, [recarregar])
+  useEffect(() => { const t = setInterval(() => { if (devePuxar('projetos')) recarregar() }, 30000); return () => clearInterval(t) }, [recarregar])
   useEffect(() => { try { localStorage.setItem('clima-projetos-vista', vista) } catch { /* */ } }, [vista])
 
   const lista = useMemo(() => {

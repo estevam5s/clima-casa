@@ -3,6 +3,7 @@ const Raspberry3D = lazy(() => import('../Raspberry3D'))
 import { ArrowUpCircle, Check, Container, Copy, Cpu, HardDrive, KeyRound, Laptop, MemoryStick, Monitor, Network, Radio, RotateCw, Server, Star, Thermometer, Trash2, Wifi } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Esqueleto, Selo, useToast, confirmar } from '../ui'
+import { devePuxar } from '../../ocioso'
 
 // Computadores com o agente: quem fica no comando (preferido + regra "quem não enxerga os transmissores não manda")
 // e a instalação de um PC Windows com código de uso único (o .env vai cifrado; só o código decifra, no PC).
@@ -274,7 +275,7 @@ export default function Agentes({ dono, admin }) {
   const carregar = useCallback(() => api.get('/api/agentes').then(setD).catch((e) => toast(e.message, 'erro')), [toast])
   const pode = dono || admin
   // o dono vê a seção de instalação: atualiza a cada 5 s para avisar logo que o PC conectou
-  useEffect(() => { carregar(); const t = setInterval(() => { if (!document.hidden) carregar() }, pode ? 5000 : 10000); return () => clearInterval(t) }, [carregar, pode])
+  useEffect(() => { carregar(); const t = setInterval(() => { if (devePuxar('agentes')) carregar() }, pode ? 5000 : 10000); return () => clearInterval(t) }, [carregar, pode])
   const preferir = async (id) => { try { setD(await api.post('/api/agentes/preferido', { id })); toast(id ? 'Salvo. Ele assume em até 1 minuto se estiver ligado e enxergar os transmissores.' : 'Sem preferência: fica no comando quem já está, desde que enxergue os transmissores.') } catch (e) { toast(e.message, 'erro') } }
   const reiniciar = async (m) => { if (!await confirmar(`Reiniciar o agente em ${m.nome}? Ele fica uns 30 a 60 segundos sem mandar comandos.`)) return; try { const r = await api.post('/api/agentes/reiniciar', { id: m.id }); toast(r.mensagem) } catch (e) { toast(e.message, 'erro') } }
   const atualizar = async (m) => { if (!await confirmar(`Atualizar o agente em ${m.nome} para a ${d.versao_publicada}? Ele baixa o código, confere e reinicia (1 a 3 minutos sem mandar comandos; se for o principal, um reserva assume).`)) return; try { const r = await api.post('/api/agentes/atualizar', { id: m.id }); toast(r.mensagem) } catch (e) { toast(e.message, 'erro') } }

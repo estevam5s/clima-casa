@@ -24,6 +24,7 @@ import { caixaReal, carregarAvatar } from './avatares/AvatarViewer'
 import { clone as clonarComOssos } from 'three/examples/jsm/utils/SkeletonUtils.js'
 const VistaIlha3D = lazy(() => import('./VistaIlha3D'))
 import { ROTULO_PAPEL, desenharTela, papelDaSala, sementeDe } from './telas3d'
+import { devePuxar } from '../ocioso'
 
 // Escritório em 3D montado a partir da mesma planta do mapa 2D (config.mapa):
 // paredes com vão de porta e janela, pisos por sala (cor do projeto), mesas com PCs e cadeiras, ares de parede
@@ -561,7 +562,7 @@ export default function Mapa3D({ mapa, ares, projetos, filtro = 'todos', selecio
       E.aplicarLuzes?.(est)
     }).catch(() => {})
     ler()
-    const t = setInterval(() => { if (!document.hidden) ler() }, 60000)
+    const t = setInterval(() => { if (devePuxar('mapa3d')) ler() }, 60000)
     return () => { vivo = false; clearInterval(t) }
   }, [])
   useEffect(() => {

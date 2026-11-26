@@ -5,6 +5,7 @@ import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
 import { baixarArquivo, paraCsv } from '../components/FerramentasLista'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Secao, Selo, useToast } from '../components/ui'
+import { devePuxar } from '../ocioso'
 
 // Acessos e SEO (backend/app/analise.py): quem acessa o site zynio.com.br e o sistema, por onde entra, o que clica, de onde é,
 // quanto as páginas demoram (Web Vitals medidos em quem visita) e a auditoria de SEO de cada página do site.
@@ -458,7 +459,7 @@ export default function Analise() {
     let vivo = true
     const ler = () => api.get(`/api/analise/resumo?origem=${origem}&dias=${dias}`).then((r) => { if (vivo) { setD(r); setErro(null) } }).catch((e) => vivo && setErro(e.message))
     setD(null); ler()
-    const t = setInterval(() => { if (!document.hidden) ler() }, 30000)
+    const t = setInterval(() => { if (devePuxar('analise')) ler() }, 30000)
     return () => { vivo = false; clearInterval(t) }
   }, [origem, dias, emSeo, pode])
   const abas = useMemo(() => ABAS, [])

@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Acessos, Conformidade, Incidentes, Integridade, Riscos, TestesAoVivo } from '../components/seguranca/Governanca'
 import TelegramSeg from '../components/seguranca/TelegramSeg'
 import Fisico from '../components/seguranca/Fisico'
+import { devePuxar } from '../ocioso'
 const LogsSeg = lazy(() => import('../components/seguranca/Logs'))
 
 const Globo3D = lazy(() => import('../components/Globo3D'))
@@ -314,10 +315,10 @@ function Monitoramento({ barra }) {
   const [buscaIp, setBuscaIp] = useState('')
   const { dados, erro, recarregar } = useDados(() => api.get(`/api/seguranca/resumo?dias=${dias}`), [dias])
   const { dados: escudo, setDados: setEscudo, recarregar: recarregarEscudo } = useDados(() => api.get('/api/seguranca/escudo'))
-  useEffect(() => { const t = setInterval(() => { if (!document.hidden) recarregarEscudo() }, 5000); return () => clearInterval(t) }, [recarregarEscudo])
+  useEffect(() => { const t = setInterval(() => { if (devePuxar('seguranca')) recarregarEscudo() }, 5000); return () => clearInterval(t) }, [recarregarEscudo])
   useEffect(() => {
     if (!aoVivo) return undefined
-    const t = setInterval(() => { if (!document.hidden) recarregar() }, 30000)
+    const t = setInterval(() => { if (devePuxar('seguranca')) recarregar() }, 30000)
     return () => clearInterval(t)
   }, [aoVivo, recarregar])
   const t = dados?.totais

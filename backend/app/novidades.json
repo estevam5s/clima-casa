@@ -2,6 +2,19 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.7.0",
+   "data": "2026-11-26",
+   "titulo": "Menos tráfego no Supabase com telas abertas",
+   "resumo": "Telas deixadas abertas consultam o servidor bem menos quando ninguém está mexendo, e o resumo da Segurança é reaproveitado por 1 minuto.",
+   "novo": [],
+   "melhorias": [
+    "Painel, Mapa, Segurança, Agentes, Infra, Notificações, Logs, Atividade, Projetos, E-mails, Mensagens e Acessos atualizam no ritmo normal só com alguém usando; com a tela parada há 10 minutos, no máximo 1 vez a cada 5 minutos",
+    "Resumo da Segurança guardado por 1 minuto (várias abas e atualizações seguidas leem o banco uma vez só); bloquear ou liberar um IP aparece na hora"
+   ],
+   "seguranca": [],
+   "correcoes": []
+  },
+  {
    "versao": "0.6.9",
    "data": "2026-11-25",
    "titulo": "Logs completos, quem fez o quê em cada ar, regras do escritório, Bugs avançado e 461 comandos novos no Telegram",

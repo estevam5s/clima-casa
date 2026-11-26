@@ -6,6 +6,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { AlertTriangle, ArrowRight, BarChart3, Bot, Building2, GitCompareArrows, Thermometer, UserRound, AirVent, CalendarClock, Download, FileJson, ListTree, Mic, MonitorSmartphone, Music2, RefreshCw, Search, Settings2, Sparkles, Workflow, X } from 'lucide-react'
 import { api, rotuloOrigem } from '../api'
 import { Aviso, Botao, Cabecalho, Carregando, Esqueleto, FaixaMetricas, Interruptor, Selo } from '../components/ui'
+import { devePuxar } from '../ocioso'
 
 // Atividade: tudo o que aconteceu (comandos, Alexa, agenda, automações, música, sistema), com linha do tempo
 // filtrável (período, origem, aparelho, falhas, busca no servidor), detalhe de cada registro, exportação e análise.
@@ -125,7 +126,7 @@ export default function Atividade() {
   useEffect(() => { setItens(null); api.get(url()).then((l) => { setItens(l); setFim(l.length < 150) }).catch((e) => setErro(e.message)) }, [url])
   useEffect(() => { // ao vivo: o que chegou de novo a cada 15 s
     if (!aoVivo || aba !== 'linha') return undefined
-    const t = setInterval(() => { if (!document.hidden) api.get(url()).then((novos) => setItens((atual) => { if (!atual) return novos; const ids = new Set(atual.map((x) => x.id)); return [...novos.filter((x) => !ids.has(x.id)), ...atual] })).catch(() => {}) }, 15000)
+    const t = setInterval(() => { if (devePuxar('atividade')) api.get(url()).then((novos) => setItens((atual) => { if (!atual) return novos; const ids = new Set(atual.map((x) => x.id)); return [...novos.filter((x) => !ids.has(x.id)), ...atual] })).catch(() => {}) }, 15000)
     return () => clearInterval(t)
   }, [aoVivo, url, aba])
 

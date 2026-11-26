@@ -8,6 +8,7 @@ import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, useDados, useToast, 
 import { completar, postosDoMapa } from '../mapaUtil'
 import { CORES_ITEM, ITEM, larguraTV, MODELOS_AR, CORES_AR } from '../catalogoMapa'
 import { EditorPessoa, LojaMapa, novaPessoa, PainelEquipe } from '../components/EquipeMapa'
+import { devePuxar } from '../ocioso'
 
 // Mapa do escritório: planta em SVG onde cada sala é um projeto e cada sala pode ter vários ares.
 // Ver: estado ao vivo de cada ar (cor do modo, fluxo de ar animado quando ligado) e controle direto.
@@ -256,7 +257,7 @@ export default function Mapa() {
   // ao vivo: atualiza o estado dos ares a cada 10 s (fora da edição)
   useEffect(() => {
     if (editando) return undefined
-    const t = setInterval(() => { if (!document.hidden) recarregar() }, 10000)
+    const t = setInterval(() => { if (devePuxar('mapa')) recarregar() }, 10000)
     return () => clearInterval(t)
   }, [editando, recarregar])
 

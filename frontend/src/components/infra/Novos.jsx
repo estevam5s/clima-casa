@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, Cpu, ExternalLink, Globe, Lock, Mail, RefreshCw, Server, ShieldCheck, ShieldHalf, Wifi, XCircle } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Esqueleto, Selo } from '../ui'
+import { devePuxar } from '../../ocioso'
 
 // Telas novas da Infra: Vercel → Domínios (como a aba Domains da Vercel), Cloudflare → Visão geral da zona (como a
 // página inicial do painel da Cloudflare) e Placas IoT (Arduino / ESP32 / ESP8266 ligados ao sistema).
@@ -110,7 +111,7 @@ const PAGINA = { luz: '/luzes', cafeteira: '/cafeteira', persiana: '/persianas',
 export function PlacasIoT() {
   const [lista, setLista] = useState(null), [erro, setErro] = useState('')
   const ler = () => api.get('/api/dispositivos').then((r) => setLista(r.dispositivos || r)).catch((e) => setErro(e.message))
-  useEffect(() => { ler(); const t = setInterval(() => { if (!document.hidden) ler() }, 10000); return () => clearInterval(t) }, [])
+  useEffect(() => { ler(); const t = setInterval(() => { if (devePuxar('infra')) ler() }, 10000); return () => clearInterval(t) }, [])
   const placas = useMemo(() => (lista || []).filter((d) => d.driver === 'placa'), [lista])
   const semAparelho = useMemo(() => (lista || []).filter((d) => !d.conectado && d.driver !== 'placa'), [lista])
   if (erro) return <Aviso>{erro}</Aviso>

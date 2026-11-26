@@ -8,6 +8,7 @@ import {
 import { api, haQuanto } from '../api'
 import { Aviso, Botao, Modal, useToast, confirmar } from '../components/ui'
 import Kanban from '../components/mensagens/Kanban'
+import { devePuxar } from '../ocioso'
 
 // Caixa de mensagens do site no formato de conversa: lista à esquerda (uma conversa por e-mail),
 // conversa em balões à direita, respostas e notas internas, respostas prontas e painel do contato.
@@ -332,7 +333,7 @@ export default function Mensagens() {
   useEffect(() => { const t = setTimeout(carregarLista, busca ? 250 : 0); return () => clearTimeout(t) }, [carregarLista, busca])
   // ao vivo: atualiza a cada 10 s e na hora em que a central avisa mensagem nova
   useEffect(() => {
-    const t = setInterval(() => { if (!document.hidden) { carregarLista(); if (aberta) carregarConversa(aberta) } }, 10000)
+    const t = setInterval(() => { if (devePuxar('mensagens')) { carregarLista(); if (aberta) carregarConversa(aberta) } }, 10000)
     const nova = () => { carregarLista(); if (aberta) carregarConversa(aberta) }
     window.addEventListener('clima:notificacao', nova)
     return () => { clearInterval(t); window.removeEventListener('clima:notificacao', nova) }

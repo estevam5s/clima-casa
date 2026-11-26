@@ -8,6 +8,7 @@ import { api, haQuanto, rotaSegura } from '../api'
 import { atualizarAba } from '../favicon'
 import { Interruptor, useToast } from './ui'
 import { TONS, avisar, tocar } from '../som'
+import { devePuxar } from '../ocioso'
 
 export const ICONES = {
   alerta: [AlertTriangle, 'bg-amber-500/15 text-amber-600 dark:text-amber-400'],
@@ -52,8 +53,8 @@ export function useCentral() {
   }).catch(() => {}), [aba])
   // a cada 60 s e só com a aba visível (antes 15 s mesmo escondida: era a maior fonte de consultas ao banco); volta na hora ao reabrir a aba
   useEffect(() => {
-    carregar(); const t = setInterval(() => { if (!document.hidden) carregar() }, 60000)
-    const voltou = () => { if (!document.hidden) carregar() }
+    carregar(); const t = setInterval(() => { if (devePuxar('sino')) carregar() }, 60000)
+    const voltou = () => { if (devePuxar('sino')) carregar() }
     document.addEventListener('visibilitychange', voltou)
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', voltou) }
   }, [carregar])

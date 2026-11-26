@@ -5,6 +5,7 @@ import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
 import Newsletter from '../components/emails/Newsletter'
 import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Interruptor, Modal, Selo, useToast } from '../components/ui'
+import { devePuxar } from '../ocioso'
 
 // E-mails: Resend (envio) + Cloudflare (DNS do domínio). Conexões, modelos com prévia e teste, histórico com os
 // eventos de entrega (webhook) e quais e-mails o sistema manda sozinho.
@@ -141,7 +142,7 @@ function Historico() {
   const [itens, setItens] = useState(null), [q, setQ] = useState(''), [estado, setEstado] = useState(''), [det, setDet] = useState(null)
   const carregar = useCallback(() => { const p = new URLSearchParams({ limite: 200 }); if (q.trim()) p.set('q', q.trim()); if (estado) p.set('estado', estado); api.get(`/api/email/envios?${p}`).then(setItens).catch(() => setItens([])) }, [q, estado])
   useEffect(() => { const t = setTimeout(carregar, 250); return () => clearTimeout(t) }, [carregar])
-  useEffect(() => { const t = setInterval(() => { if (!document.hidden) carregar() }, 30000); return () => clearInterval(t) }, [carregar])
+  useEffect(() => { const t = setInterval(() => { if (devePuxar('emails')) carregar() }, 30000); return () => clearInterval(t) }, [carregar])
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">

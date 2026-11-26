@@ -133,7 +133,22 @@ def veredito(i: dict) -> dict:
 RISCO = {"ataque": 70, "suspeito": 30, "robo": 8, "visitante": 3, "confiavel": 0}
 
 
+_CACHE_RESUMO: dict = {}   # dias -> (quando, resultado): a tela atualiza sozinha e cada leitura trazia ~1.300 eventos do banco
+
+
 def resumo(dias: int) -> dict:
+    """Mesmo resultado por 60 s para o mesmo período (várias abas e atualizações automáticas leem uma vez só)."""
+    import copy
+    import time as _t
+    c = _CACHE_RESUMO.get(dias)
+    if c and _t.time() - c[0] < 60:
+        return copy.deepcopy(c[1])
+    r = _resumo(dias)
+    _CACHE_RESUMO[dias] = (_t.time(), r)
+    return copy.deepcopy(r)
+
+
+def _resumo(dias: int) -> dict:
     agora = db.agora()
     desde = agora - dias * 86400
     ev = db.consultar("SELECT id, quando, ip, tipo, rota, detalhe, pais, cidade, regiao, lat, lon, agente FROM seguranca_eventos "

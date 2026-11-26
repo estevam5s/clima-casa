@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Bot, Mail, MonitorSmartphone, Power, PowerOff, Settings2, ShieldAlert, SlidersHorizontal, Wind, X } from 'lucide-react'
 import { api } from '../../api'
 import { Botao, Modal } from '../ui'
+import { devePuxar } from '../../ocioso'
 
 // Peças do log completo usadas em Segurança → Logs, Atividade (Pessoas, Salas, Ares, Mudanças) e Uso do sistema.
 export const ACOES = [
@@ -130,7 +131,7 @@ export function useLinhaLogs(rota, params, { aoVivo = false } = {}) {
   useEffect(() => { setItens(null); carregar() }, [carregar])
   useEffect(() => {
     if (!aoVivo) return undefined
-    const t = setInterval(() => { if (!document.hidden) carregar() }, 15000)
+    const t = setInterval(() => { if (devePuxar('logs')) carregar() }, 15000)
     return () => clearInterval(t)
   }, [aoVivo, carregar])
   const carregarMais = () => itens?.length && carregar(itens[itens.length - 1].quando)

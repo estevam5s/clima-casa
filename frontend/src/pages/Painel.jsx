@@ -16,6 +16,7 @@ const Cena3D = lazy(carregarCena3D)
 const Mapa3D = lazy(() => import('../components/Mapa3D'))
 const Barras3D = lazy(() => import('../components/Barras3D'))
 import MapaUso from '../components/MapaUso'
+import { devePuxar } from '../ocioso'
 const CORES_ORIGEM = ['hsl(var(--primary))', '#2563a8', '#c2410c', '#7c3aed', '#0891b2', '#71717a']
 const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const NOMES_ORIGEM = { painel: 'Painel', alexa: 'Alexa', sinric: 'Alexa/Google', agenda: 'Agenda', automacao: 'Automação', cena: 'Cena', sistema: 'Sistema', app: 'App' }
@@ -272,13 +273,13 @@ export default function Painel() {
   // estado ao vivo: o que mudou pela Alexa, pelo celular, pela agenda ou por outra pessoa aparece sozinho (a cada 15 s,
   // só com a aba visível; volta a buscar na hora quando a aba volta)
   useEffect(() => {
-    const buscar = () => { if (!document.hidden) api.get(comFiltro('/api/painel', filtro)).then(chegou).catch(() => {}) }
+    const buscar = () => { if (devePuxar('painel')) api.get(comFiltro('/api/painel', filtro)).then(chegou).catch(() => {}) }
     const t = setInterval(buscar, 15000)
     document.addEventListener('visibilitychange', buscar)
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', buscar) }
   }, [filtro])
   useEffect(() => {
-    const buscar = () => { if (!document.hidden) api.get('/api/mapa').then(setPlanta).catch(() => {}) }
+    const buscar = () => { if (devePuxar('painel')) api.get('/api/mapa').then(setPlanta).catch(() => {}) }
     buscar(); const t = setInterval(buscar, 60000); return () => clearInterval(t)   // planta do mapa muda pouco: 60 s
   }, [])
   const plantaPronta = useMemo(() => (planta ? { ...planta, mapa: completar(planta.mapa, planta.projetos, planta.ares) } : null), [planta])

@@ -122,6 +122,11 @@ def config() -> dict:
 def invalidar():
     _cache["lista_em"] = 0
     _cache["cfg_em"] = 0
+    try:   # a tela Segurança guarda o resumo por 60 s: bloqueio/liberação aparece na hora
+        from . import seguranca_relatorio
+        seguranca_relatorio._CACHE_RESUMO.clear()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _lista() -> list[dict]:

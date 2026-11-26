@@ -3,6 +3,7 @@ import { Check, CheckCircle2, Copy, Cpu, Download, Eye, EyeOff, KeyRound, Loader
 import { api, haQuanto } from '../../api'
 import { Aviso, Botao, Selo, useToast, confirmar } from '../ui'
 import { ISRG_ROOT_X1 } from './isrgRootX1'
+import { devePuxar } from '../../ocioso'
 const Placa3D = lazy(() => import('./Placa3D'))
 
 // Placa própria (Arduino / ESP) no lugar de um aparelho Smart Life. A placa BUSCA os comandos no servidor a cada 3 s
@@ -246,7 +247,7 @@ export default function Placa({ d, aoMudar }) {
   // depois de gerar o token: acompanha a placa até ela aparecer (a 1ª sincronização chega em ~3 s depois de ligar)
   useEffect(() => {
     if (!token && vivo.driver !== 'placa') return undefined
-    const t = setInterval(() => { if (!document.hidden) api.get(`/api/dispositivos/um/${d.id}`).then((n) => { setVivo(n); if (n.online && !vivo.online) { toast('A placa conectou.'); aoMudar?.(n) } }).catch(() => {}) }, 3000)
+    const t = setInterval(() => { if (devePuxar('placa')) api.get(`/api/dispositivos/um/${d.id}`).then((n) => { setVivo(n); if (n.online && !vivo.online) { toast('A placa conectou.'); aoMudar?.(n) } }).catch(() => {}) }, 3000)
     return () => clearInterval(t)
   }, [token, vivo.online, vivo.driver]) // eslint-disable-line react-hooks/exhaustive-deps
   const testar = async (acao) => { setTestando(acao); try { const n = await api.post(`/api/dispositivos/${d.id}/comando`, { acao }); setVivo(n); toast('Comando na fila: a placa busca em até 3 s.') } catch (e) { toast(e.message, 'erro') } finally { setTestando('') } }
