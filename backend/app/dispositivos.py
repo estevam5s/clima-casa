@@ -413,6 +413,11 @@ def _hhmm(dt) -> str:
 
 
 def ciclo(contador: int = 0):
+    # roda a cada ~20 s no agente: antes lia a tabela inteira (22 linhas com as funções Tuya) mesmo sem nenhum aparelho
+    # conectado. Agora confere numa leitura mínima se existe algum conectado ou com placa (tráfego do Supabase).
+    tem = db.um("SELECT EXISTS (SELECT 1 FROM dispositivos WHERE COALESCE(tuya_id, '') <> '' OR token_hash IS NOT NULL OR driver = 'placa') AS t")
+    if not (tem or {}).get("t"):
+        return
     agora = datetime.datetime.now()
     dia = agora.isoweekday()   # 1 = segunda
     for d in listar():

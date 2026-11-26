@@ -132,7 +132,7 @@ def sincronizar(forcar: bool = False):
         db.executar("UPDATE notificacoes SET arquivada = true WHERE resolvida AND NOT arquivada AND atualizado_em < ?", (agora - horas * 3600,))
 
 
-def listar(filtro: str = "todas", limite: int = 80) -> dict:
+def listar(filtro: str = "todas", limite: int = 40) -> dict:
     sincronizar()
     pref = preferencias()
     ocultos = pref["tipos_ocultos"] or ["-"]

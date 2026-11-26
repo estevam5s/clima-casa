@@ -274,7 +274,7 @@ export default function Painel() {
   // só com a aba visível; volta a buscar na hora quando a aba volta)
   useEffect(() => {
     const buscar = () => { if (devePuxar('painel')) api.get(comFiltro('/api/painel', filtro)).then(chegou).catch(() => {}) }
-    const t = setInterval(buscar, 15000)
+    const t = setInterval(buscar, 30000)   // 30 s (era 15 s): cada leitura conta no tráfego do Supabase
     document.addEventListener('visibilitychange', buscar)
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', buscar) }
   }, [filtro])
