@@ -421,17 +421,20 @@ def _redes_do_agente() -> list[str]:
     return sorted(p for p in prefixos if not p.startswith("127."))[:3]
 
 
-def localizar(h: dict, limite_s: float = 40) -> dict:
+def localizar(h: dict, limite_s: float = 40, varredura: dict | None = None) -> dict:
     """Acha o IP de um transmissor que está sem IP (importado da nuvem, que só conhece o IP público).
     1) varredura UDP (o transmissor se anuncia a cada ~5 s); 2) se nada vier (firewall do Windows no perfil "Público",
     roteador que não repassa broadcast), procura a porta 6668 nas redes do agente e confirma com a Local Key.
     Devolve {ip, versao, como} ou {ip: None, detalhe}."""
     from concurrent.futures import ThreadPoolExecutor
     fim = time.time() + limite_s
-    try:
-        achados = _varrer(8)
-    except Exception:  # noqa: BLE001
-        achados = {}
+    if varredura is not None:   # o autorreparo já varreu: não repete os 8 s de escuta
+        achados = {v["ip"]: {"gwId": k, "version": v.get("versao")} for k, v in varredura.items()}
+    else:
+        try:
+            achados = _varrer(8)
+        except Exception:  # noqa: BLE001
+            achados = {}
     for ip, d in achados.items():
         if d.get("gwId") == h["id"]:
             return {"ip": ip, "versao": d.get("version") or h.get("versao"), "como": "anúncio na rede"}
@@ -628,6 +631,12 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
             import tinytuya
             varredura = {d.get("gwId"): {"ip": ip, "versao": d.get("version")} for ip, d in _varrer(6).items()}
         achado = varredura.get(h["id"])
+        if not achado and not varredura and h.get("local_key"):
+            # varredura vazia = os anúncios não chegam neste computador (firewall do Windows, rede que não repassa
+            # broadcast). Procura pela porta 6668 e confirma com a chave (mesma procura do "Testar conexão").
+            r = localizar(h, 25, varredura={})
+            if r["ip"]:
+                achado = {"ip": r["ip"], "versao": r["versao"]}
         if achado:
             if achado["ip"] != h["ip"]:
                 mudancas.append(f"IP {h['ip'] or '—'} → {achado['ip']}")

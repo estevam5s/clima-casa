@@ -9,6 +9,7 @@ import {
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Botao, Esqueleto, Modal, Vazio, useToast } from '../components/ui'
+import QuadroKanban from '../components/tarefas/QuadroKanban'
 
 // Tarefas no estilo Asana (backend/app/tarefas.py, rotas/tarefas.py): projetos com seções, lista, quadro, calendário,
 // cronograma e painel; detalhe com subtarefas, comentários e histórico; integração com o GitHub Projects.
@@ -146,57 +147,6 @@ function NovaSecao({ aoCriar }) {
 }
 
 // --------- Quadro (colunas = seções) ---------
-function Quadro({ secoes, tarefas, pessoas, abrir, mudar, criar, mover, pode, novaSecao }) {
-  const [arrastando, setArrastando] = useState(null)
-  const [alvo, setAlvo] = useState(null)
-  const soltar = (sid, antesDe) => {
-    if (!arrastando) return
-    const lista = tarefas.filter((t) => (t.secao_id || 0) === (sid || 0) && t.id !== arrastando.id)
-    const i = antesDe ? lista.findIndex((t) => t.id === antesDe) : lista.length
-    const ant = lista[i - 1]?.ordem ?? (lista[0] ? lista[0].ordem - 2 : 0), prox = lista[i]?.ordem ?? ant + 2
-    mover(arrastando, sid, (ant + prox) / 2); setArrastando(null); setAlvo(null)
-  }
-  return (
-    <div className="-mx-4 overflow-x-auto px-4 pb-3 lg:mx-0 lg:px-0">
-      <div className="flex min-h-[60vh] gap-3">
-        {secoes.map((s) => {
-          const itens = tarefas.filter((t) => t.secao_id === s.id)
-          return (
-            <div key={s.id} onDragOver={(e) => { e.preventDefault(); setAlvo(`s${s.id}`) }} onDrop={() => soltar(s.id, null)}
-              className={`flex w-72 shrink-0 flex-col rounded-xl border border-border bg-muted/40 ${alvo === `s${s.id}` && arrastando ? 'ring-2 ring-primary/40' : ''}`}>
-              <div className="flex items-center gap-2 px-3 py-2.5"><span className="truncate text-sm font-semibold">{s.nome}</span><span className="text-xs text-muted-foreground tabular">{itens.length}</span></div>
-              <div className="flex flex-1 flex-col gap-2 px-2 pb-2">
-                {itens.map((t) => {
-                  const p = pessoas.find((x) => x.id === t.responsavel_id)
-                  return (
-                    <motion.div layout key={t.id} draggable={pode} onDragStart={() => setArrastando(t)} onDragEnd={() => { setArrastando(null); setAlvo(null) }}
-                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setAlvo(`t${t.id}`) }} onDrop={(e) => { e.stopPropagation(); soltar(s.id, t.id) }}
-                      onClick={() => abrir(t.id)}
-                      className={`cursor-pointer rounded-lg border bg-card p-3 text-sm hover:border-muted-foreground/40 ${alvo === `t${t.id}` && arrastando?.id !== t.id ? 'border-t-2 border-t-primary' : 'border-border'} ${arrastando?.id === t.id ? 'opacity-40' : ''}`}>
-                      {t.prioridade !== 'nenhuma' && <span className={`mb-1.5 block h-1 w-8 rounded-full ${PRIO[t.prioridade][2]}`} title={PRIO[t.prioridade][0]} />}
-                      <div className="flex items-start gap-2"><Concluir t={t} aoMudar={mudar} pode={pode} /><span className={`min-w-0 break-words ${t.concluida ? 'text-muted-foreground line-through' : ''}`}>{t.titulo}</span></div>
-                      {t.etiquetas?.length > 0 && <div className="mt-2"><Etiquetas lista={t.etiquetas} /></div>}
-                      <div className="mt-2.5 flex items-center gap-2"><Avatar pessoa={p} /><Prazo t={t} />
-                        <span className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
-                          {t.subtarefas > 0 && <span className="tabular">{t.subtarefas_feitas}/{t.subtarefas}</span>}
-                          {t.comentarios > 0 && <span className="flex items-center gap-0.5"><MessageSquare className="h-3 w-3" />{t.comentarios}</span>}
-                          {t.github_item && <Github className="h-3 w-3" />}
-                        </span>
-                      </div>
-                    </motion.div>
-                  )
-                })}
-                {pode && <div className="rounded-lg"><NovaLinha rotulo="Adicionar" aoCriar={(titulo) => criar({ titulo, secao_id: s.id })} /></div>}
-              </div>
-            </div>
-          )
-        })}
-        {pode && <div className="w-72 shrink-0 rounded-xl border border-dashed border-border"><NovaSecao aoCriar={novaSecao} /></div>}
-      </div>
-    </div>
-  )
-}
-
 // --------- Calendário (mês) ---------
 function Calendario({ tarefas, abrir, mudar, pode }) {
   const [ref, setRef] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
@@ -933,7 +883,8 @@ export default function Tarefas() {
               {visao === 'lista' && <Lista secoes={dados.secoes} tarefas={tarefas} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} mudar={mudar} criar={criarTarefa} mover={mover} pode={pode}
                 renomearSecao={(sid, nome) => secaoAcao(() => api.put(`/api/tarefas/secoes/${sid}`, { nome }))} apagarSecao={(s) => secaoAcao(() => api.del(`/api/tarefas/secoes/${s.id}`))}
                 novaSecao={(nome) => secaoAcao(() => api.post(`/api/tarefas/projetos/${pid}/secoes`, { nome }))} />}
-              {visao === 'quadro' && <Quadro secoes={dados.secoes} tarefas={tarefas} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} mudar={mudar} criar={criarTarefa} mover={mover} pode={pode}
+              {visao === 'quadro' && <QuadroKanban secoes={dados.secoes} tarefas={tarefas} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} mudar={mudar} criar={criarTarefa} mover={mover} pode={pode}
+                renomearSecao={(sid, nome) => secaoAcao(() => api.put(`/api/tarefas/secoes/${sid}`, { nome }))} apagarSecao={(s) => secaoAcao(() => api.del(`/api/tarefas/secoes/${s.id}`))}
                 novaSecao={(nome) => secaoAcao(() => api.post(`/api/tarefas/projetos/${pid}/secoes`, { nome }))} />}
               {visao === 'calendario' && <Calendario tarefas={tarefas} abrir={(id) => set({ tarefa: id })} mudar={mudar} pode={pode} />}
               {visao === 'cronograma' && <Cronograma tarefas={tarefas} secoes={dados.secoes} pessoas={pessoas} abrir={(id) => set({ tarefa: id })} />}

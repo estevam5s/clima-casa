@@ -2,6 +2,24 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.7.4",
+   "data": "2026-11-26",
+   "titulo": "Quadro de tarefas novo",
+   "resumo": "O Quadro de Tarefas ganhou cartões mais completos e arrastar com animação, e o agente acha sozinho o transmissor que mudou de IP.",
+   "novo": [
+    "Quadro de Tarefas redesenhado: cartões com prioridade, etiqueta, descrição, prazo, progresso das subtarefas e responsável.",
+    "Arrastar cartões com animação: o cartão segue o cursor, um espaço abre onde ele vai cair e os outros deslizam para o lugar.",
+    "No teclado: espaço pega o cartão, as setas movem, espaço solta e Esc devolve ao lugar.",
+    "Colunas com menu para recolher, renomear e apagar; criar tarefa e coluna direto no quadro."
+   ],
+   "melhorias": [
+    "No celular, segurar o cartão começa a arrastar e passar o dedo continua rolando o quadro.",
+    "Transmissor que mudou de IP é achado sozinho também quando o computador do agente não recebe os anúncios da rede (Windows)."
+   ],
+   "seguranca": [],
+   "correcoes": []
+  },
+  {
    "versao": "0.7.3",
    "data": "2026-11-26",
    "titulo": "Transmissores reconfigurados um por vez",
