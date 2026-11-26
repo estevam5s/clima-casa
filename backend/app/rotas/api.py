@@ -81,10 +81,27 @@ def sessao(request: Request):
             "totp_ativo": tem_totp(u), "passkeys": db.um("SELECT count(*) AS n FROM passkeys WHERE usuario_id = ?", (u["id"],))["n"]}
 
 
+class RegistrarLoginIn(BaseModel):
+    metodo: str = Field("", max_length=20)
+
+
 @api.post("/sessao/registrar-login")
-def registrar_login(request: Request):
-    from .. import firewall
+def registrar_login(request: Request, d: RegistrarLoginIn | None = None):
+    from .. import acesso, firewall
+    u = request.state.u
+    metodo = (d.metodo if d else "") or ""
+    if metodo == "google" and not acesso.email_permitido(u.get("email"), u.get("papel")):
+        # login com Google só para conta da Prefeitura: encerra a sessão que acabou de abrir
+        sid = (getattr(request.state, "claims", None) or {}).get("session_id")
+        try:
+            db.executar("DELETE FROM auth.sessions WHERE user_id = CAST(? AS uuid)" + (" AND id = CAST(? AS uuid)" if sid else ""), (u["id"], sid) if sid else (u["id"],))
+        except Exception:  # noqa: BLE001
+            pass
+        firewall.registrar(firewall.ip_do_pedido(request), "login_negado", "/api/sessao/registrar-login", "Google fora da Prefeitura", "", request.headers.get("user-agent", ""))
+        raise HTTPException(403, f"O login com Google só vale para contas da Prefeitura (@{acesso.DOMINIO_LOGIN}). Entre com o GitHub ou a biometria.")
     db.registrar("sistema", "Login do administrador", detalhe=request.state.usuario.get("email", ""))
+    if metodo in ("google", "github"):
+        db.registrar("sistema", "Entrou no sistema", detalhe=metodo, usuario=u)
     email, pais = request.state.usuario.get("email", ""), request.headers.get("x-vercel-ip-country", "")
     try:
         # "viagem impossível": a mesma conta entrou de outro país há menos de 6 h (sinal clássico de senha vazada)
@@ -101,6 +118,20 @@ def registrar_login(request: Request):
     except Exception:  # noqa: BLE001
         pass
     return {"ok": True}
+
+
+@api.get("/presenca/entradas")
+def entradas_recentes(request: Request, desde: int = 0):
+    """Quem entrou no sistema depois de `desde` (aviso no canto da tela, com som, só para dono e admins). Até 10 min para trás."""
+    u = request.state.u
+    if u.get("papel") not in ("dono", "admin"):
+        return {"itens": [], "agora": db.agora()}
+    desde = max(int(desde or 0), db.agora() - 600)
+    itens = db.consultar("SELECT a.id, a.quando, a.usuario_id, COALESCE(NULLIF(us.nome, ''), a.usuario) AS nome, a.detalhe AS metodo, us.papel, us.avatar "
+                         "FROM atividade a LEFT JOIN usuarios us ON us.id::text = a.usuario_id "
+                         "WHERE a.acao = 'Entrou no sistema' AND a.quando > ? AND COALESCE(a.usuario_id, '') <> ? ORDER BY a.quando LIMIT 10",
+                         (desde, str(u.get("id"))))
+    return {"itens": itens, "agora": db.agora()}
 
 
 # ---------------- painel ----------------
@@ -4063,6 +4094,12 @@ def entrar(d: EntrarIn, request: Request):
         raise HTTPException(403, "Acesso bloqueado: tentativas em várias contas.")
     if firewall.falhas_recentes(ip, ("login_falhou",), janela, marca) >= limite or firewall.falhas_da_conta(marca, janela) >= limite * 3:
         raise HTTPException(429, f"Muitas tentativas para este e-mail. Tente de novo em {janela} minutos.")
+    from .. import acesso as _ac
+    if not _ac.email_permitido(d.email):
+        dono = db.um("SELECT 1 FROM usuarios WHERE lower(email) = lower(?) AND papel = 'dono'", (d.email.strip(),))
+        if not dono:
+            firewall.registrar(ip, "login_negado", "/api/auth/entrar", f"domínio fora da Prefeitura ({marca})", pais, agente)
+            raise HTTPException(403, f"Entre com o seu e-mail da Prefeitura (@{_ac.DOMINIO_LOGIN}).")
     r = httpx.post(f"{db.ENV['SUPABASE_URL']}/auth/v1/token?grant_type=password", timeout=12,
                    headers={"apikey": db.ENV["SUPABASE_PUBLISHABLE_KEY"]}, json={"email": d.email.strip(), "password": d.senha, **turnstile.corpo_supabase(d.turnstile)})
     dados = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
@@ -4086,6 +4123,7 @@ def entrar(d: EntrarIn, request: Request):
     except HTTPException as e:
         firewall.registrar(ip, "login_negado", "/api/auth/entrar", marca, pais, agente)
         raise e
+    db.registrar("sistema", "Entrou no sistema", detalhe="senha", usuario=u)   # aviso de entrada para dono e admins
     conhecido = firewall.falhas_recentes(ip, ("login_ok",), 30 * 1440) > 0
     if c.get("registrar_logins_ok", True):
         firewall.registrar(ip, "login_ok", "/api/auth/entrar", marca, pais, agente)

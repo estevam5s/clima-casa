@@ -2,6 +2,34 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.7.5",
+   "data": "2026-11-26",
+   "titulo": "Rotinas numa tela só, bugs viram tarefas e login da Prefeitura",
+   "resumo": "Cenas, automações e agenda juntas em Rotinas; cada bug vira tarefa no Plano de melhorias e no GitHub; login por e-mail e Google só com conta @floripa.sc.gov.br.",
+   "novo": [
+    "Rotinas: cenas, automações e agenda numa tela só, com visão geral (executar cena, próximos horários, automações ativas, últimas execuções) e histórico com busca e filtro de falhas.",
+    "Todo bug aberto vira tarefa no Plano de melhorias (seção Bugs e qualidade), com a prioridade tirada da gravidade: crítica = Urgente, alta = Alta, média = Média, baixa = Baixa.",
+    "Bug corrigido conclui a tarefa, bug que volta reabre a tarefa, e tarefa concluída em Tarefas marca o bug como corrigido.",
+    "Plano de melhorias ligado a um Project do GitHub, com Status pelas seções, Prioridade e Prazo.",
+    "Aviso no canto da tela, com som, quando alguém entra no sistema (só para o dono e os administradores).",
+    "Som curto ao clicar em botões e links, com liga/desliga e volume em Configurações → Cursor."
+   ],
+   "melhorias": [
+    "Login: digite só o começo do e-mail da Prefeitura (ex.: estevam.egov); o @floripa.sc.gov.br é completado.",
+    "Procurar bugs agora também confere rotinas do banco, fila parada, cenas/automações/agendamentos que apontam para ar apagado ou sem transmissor, e-mails não entregues, telas lentas, banco perto do limite, backup atrasado, agente que não se atualiza e transmissores com o mesmo IP.",
+    "Arquivo .env.example no repositório, com cada variável explicada e sem valores."
+   ],
+   "seguranca": [
+    "Login por e-mail e senha e login com Google só para contas @floripa.sc.gov.br (a conta do dono é a exceção). GitHub e biometria continuam como estavam.",
+    "Contas novas e troca de e-mail só aceitam o e-mail da Prefeitura.",
+    "A regra de permissão que faltava na gravação das regras do escritório (Configurações → Geral) foi incluída."
+   ],
+   "correcoes": [
+    "Download dos apps pelo agente falhava quando o computador no comando não tinha acesso ao GitHub; agora vai para o computador que tem.",
+    "Formulários de conta aceitavam e-mail com dois pontos seguidos, que depois não recebia mensagens."
+   ]
+  },
+  {
    "versao": "0.7.4",
    "data": "2026-11-26",
    "titulo": "Quadro de tarefas novo",

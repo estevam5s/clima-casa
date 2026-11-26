@@ -100,6 +100,12 @@ async def laco():
                     await asyncio.to_thread(bugs.varrer)
                 except Exception as e:  # noqa: BLE001
                     log.warning("varredura de bugs: %s", e)
+            if ciclo % 30 == 11:   # Tarefas ↔ GitHub Projects a cada ~10 min (só com o token do dono cadastrado em Tarefas → GitHub)
+                try:
+                    from . import tarefas
+                    await asyncio.to_thread(tarefas.sincronizar_todos)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("tarefas → GitHub: %s", e)
         except Exception as e:  # noqa: BLE001
             log.exception("erro no laço da agenda: %s", e)
         ciclo += 1

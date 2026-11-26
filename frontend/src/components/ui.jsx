@@ -24,11 +24,16 @@ export function Botao({ variante = 'primario', carregando, icone: Icone, childre
   )
 }
 
+// Dentro de uma tela com abas (ex.: Rotinas), o cabeçalho da tela embutida vira subtítulo (h2 menor), sem repetir o h1.
+export const CabecalhoSecundario = createContext(false)
+
 export function Cabecalho({ titulo, descricao, acoes }) {
+  const secundario = useContext(CabecalhoSecundario)
+  const H = secundario ? 'h2' : 'h1'
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className={`${secundario ? 'mb-5' : 'mb-6'} flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between`}>
       <div className="min-w-0 sm:flex-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>
+        <H className={secundario ? 'text-lg font-semibold tracking-tight' : 'text-2xl font-semibold tracking-tight'}>{titulo}</H>
         {descricao && <p className="mt-1 text-sm text-muted-foreground">{descricao}</p>}
       </div>
       {acoes && <div className="flex min-w-0 flex-wrap gap-2 sm:shrink-0 sm:justify-end">{acoes}</div>}

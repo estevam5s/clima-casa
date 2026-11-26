@@ -20,6 +20,15 @@ from . import db
 PRIORIDADES = ("nenhuma", "baixa", "media", "alta", "urgente")
 SECOES_PADRAO = ("A fazer", "Fazendo", "Feito")
 FEITO = re.compile(r"^(done|feito|conclu[ií]d[oa]s?|finalizad[oa]|pronto|closed|fechad[oa])$", re.I)
+PRIO_GITHUB = {"urgente": "urgente", "urgent": "urgente", "critica": "urgente", "alta": "alta", "high": "alta", "media": "media", "medium": "media",
+               "normal": "media", "baixa": "baixa", "low": "baixa"}
+
+
+def _sem_acento(t: str) -> str:
+    import unicodedata
+    return unicodedata.normalize("NFKD", (t or "").strip().lower()).encode("ascii", "ignore").decode()
+
+
 ESCOPOS_OK = {"project", "read:project", "read:org", "read:user", "user:email"}
 GQL = "https://api.github.com/graphql"
 
@@ -95,8 +104,10 @@ def projeto_github(dono: str, numero: int) -> dict:
             status = next((c for c in campos if c.get("options") is not None and c["name"].lower() == "status"), None) \
                 or next((c for c in campos if c.get("options") is not None), None)
             datas = {c["name"].lower(): c["id"] for c in campos if c.get("dataType") == "DATE"}
+            prio = next((c for c in campos if c.get("options") is not None and c["name"].strip().lower() in ("prioridade", "priority")), None)
             return {"id": p["id"], "titulo": p["title"], "url": p["url"], "dono": dono, "numero": numero,
                     "campo_status": status["id"] if status else None, "opcoes": status["options"] if status else [],
+                    "campo_prioridade": prio["id"] if prio else None, "opcoes_prioridade": prio["options"] if prio else [],
                     "campo_prazo": datas.get("prazo") or datas.get("due date") or datas.get("due") or datas.get("end date") or datas.get("target date")}
     raise ErroGithub(f"Project {numero} de {dono} não encontrado (ou o token não tem acesso).")
 
@@ -147,6 +158,10 @@ def sincronizar(pid: int, autor: dict) -> dict:
     por_opcao = {s["github_opcao"]: s["id"] for s in secoes if s["github_opcao"]}
     op_da_secao = {s["id"]: s["github_opcao"] for s in secoes}
     op_feito = next((o["id"] for o in g.get("opcoes", []) if FEITO.match(o["name"].strip())), None)
+    por_opcao.pop(op_feito, None)   # "Concluído" no GitHub só marca a tarefa como feita: ela continua na sua seção aqui
+    # Prioridade (campo "Prioridade"/"Priority" no Project): Urgente/Alta/Média/Baixa ↔ urgente/alta/media/baixa
+    prio_da_opcao = {o["id"]: PRIO_GITHUB.get(_sem_acento(o["name"])) for o in g.get("opcoes_prioridade", []) if PRIO_GITHUB.get(_sem_acento(o["name"]))}
+    opcao_da_prio = {v: k for k, v in prio_da_opcao.items()}
     feitos = {"vieram": 0, "atualizadas": 0, "enviadas": 0, "status": 0}
     # 1) GitHub → aqui
     depois, vistos = None, set()
@@ -159,21 +174,24 @@ def sincronizar(pid: int, autor: dict) -> dict:
             c = it["content"]
             opcao = next((v.get("optionId") for v in it["fieldValues"]["nodes"] if v and v.get("field", {}).get("id") == g.get("campo_status") and v.get("optionId")), None)
             prazo = next((v.get("date") for v in it["fieldValues"]["nodes"] if v and v.get("date") and v.get("field", {}).get("id") == g.get("campo_prazo")), None)
+            op_prio = next((v.get("optionId") for v in it["fieldValues"]["nodes"] if v and v.get("field", {}).get("id") == g.get("campo_prioridade") and v.get("optionId")), None)
+            prio = prio_da_opcao.get(op_prio)
             fechada = c.get("state") in ("CLOSED", "MERGED") or (opcao and opcao == op_feito)
             loc = db.um("SELECT id, atualizado_em FROM tarefas WHERE projeto_id = ? AND github_item = ?", (pid, it["id"]))
             if not loc:
                 ordem = (db.um("SELECT COALESCE(MAX(ordem), 0) + 1 AS o FROM tarefas WHERE projeto_id = ?", (pid,)) or {}).get("o") or 1
-                tid = db.um("INSERT INTO tarefas (projeto_id, secao_id, titulo, descricao, prazo, concluida, concluida_em, ordem, github_item, github_url, "
-                            "github_rascunho, criado_por, criado_em, atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
-                            (pid, por_opcao.get(opcao), (c.get("title") or "Sem título")[:300], (c.get("body") or "")[:20000], prazo, bool(fechada),
+                tid = db.um("INSERT INTO tarefas (projeto_id, secao_id, titulo, descricao, prazo, prioridade, concluida, concluida_em, ordem, github_item, github_url, "
+                            "github_rascunho, criado_por, criado_em, atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+                            (pid, por_opcao.get(opcao), (c.get("title") or "Sem título")[:300], (c.get("body") or "")[:20000], prazo, prio or "nenhuma", bool(fechada),
                              agora() if fechada else None, ordem, it["id"], c.get("url"), c.get("id"), autor.get("id"), agora(), agora()))["id"]
                 evento(tid, autor, "Veio do GitHub Projects")
                 feitos["vieram"] += 1
             elif _ts(it["updatedAt"]) > desde and _ts(it["updatedAt"]) > int(loc["atualizado_em"] or 0) - 5:
-                db.executar("UPDATE tarefas SET titulo = ?, descricao = ?, secao_id = COALESCE(?, secao_id), prazo = COALESCE(?, prazo), concluida = ?, "
+                db.executar("UPDATE tarefas SET titulo = ?, descricao = ?, secao_id = COALESCE(?, secao_id), prazo = COALESCE(?, prazo), "
+                            "prioridade = COALESCE(?, prioridade), concluida = ?, "
                             "concluida_em = CASE WHEN ? AND concluida_em IS NULL THEN ? WHEN NOT ? THEN NULL ELSE concluida_em END, github_url = COALESCE(?, github_url), "
                             "atualizado_em = ? WHERE id = ?",
-                            ((c.get("title") or "Sem título")[:300], (c.get("body") or "")[:20000], por_opcao.get(opcao), prazo, bool(fechada),
+                            ((c.get("title") or "Sem título")[:300], (c.get("body") or "")[:20000], por_opcao.get(opcao), prazo, prio, bool(fechada),
                              bool(fechada), agora(), bool(fechada), c.get("url"), agora(), loc["id"]))
                 feitos["atualizadas"] += 1
         if not d["pageInfo"]["hasNextPage"]:
@@ -196,6 +214,9 @@ def sincronizar(pid: int, autor: dict) -> dict:
             _gql("mutation($p: ID!, $i: ID!, $f: ID!, $o: String!) { updateProjectV2ItemFieldValue(input: {projectId: $p, itemId: $i, fieldId: $f, value: {singleSelectOptionId: $o}}) { projectV2Item { id } } }",
                  {"p": g["id"], "i": item, "f": g["campo_status"], "o": opcao})
             feitos["status"] += 1
+        if g.get("campo_prioridade") and opcao_da_prio.get(t["prioridade"]):
+            _gql("mutation($p: ID!, $i: ID!, $f: ID!, $o: String!) { updateProjectV2ItemFieldValue(input: {projectId: $p, itemId: $i, fieldId: $f, value: {singleSelectOptionId: $o}}) { projectV2Item { id } } }",
+                 {"p": g["id"], "i": item, "f": g["campo_prioridade"], "o": opcao_da_prio[t["prioridade"]]})
         if t["prazo"] and g.get("campo_prazo"):
             _gql("mutation($p: ID!, $i: ID!, $f: ID!, $d: Date!) { updateProjectV2ItemFieldValue(input: {projectId: $p, itemId: $i, fieldId: $f, value: {date: $d}}) { projectV2Item { id } } }",
                  {"p": g["id"], "i": item, "f": g["campo_prazo"], "d": t["prazo"]})
@@ -204,6 +225,20 @@ def sincronizar(pid: int, autor: dict) -> dict:
     db.registrar("painel", f"Tarefas: projeto sincronizado com o GitHub ({g.get('titulo')})",
                  detalhe=f"{feitos['vieram']} vieram, {feitos['atualizadas']} atualizadas, {feitos['enviadas']} enviadas")
     return {**feitos, "sincronizado_em": g["sincronizado_em"]}
+
+
+def sincronizar_todos() -> list[dict]:
+    """Todos os projetos ligados a um Project do GitHub (chamado pelo agente a cada ~10 min). Sem token, não faz nada."""
+    if not token():
+        return []
+    autor = db.um("SELECT id::text AS id, COALESCE(NULLIF(nome, ''), 'GitHub') AS nome FROM usuarios WHERE papel = 'dono' ORDER BY criado_em LIMIT 1") or {}
+    feitos = []
+    for p in db.consultar("SELECT id FROM tarefas_projetos WHERE github IS NOT NULL AND NOT arquivado"):
+        try:
+            feitos.append({"projeto": p["id"], **sincronizar(p["id"], autor)})
+        except Exception as e:  # noqa: BLE001  (um projeto com problema não trava os outros)
+            feitos.append({"projeto": p["id"], "erro": str(e)[:200]})
+    return feitos
 
 
 # ---------------- histórico ----------------

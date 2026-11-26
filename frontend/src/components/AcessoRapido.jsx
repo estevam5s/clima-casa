@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Activity, AirVent, ArchiveRestore, BarChart3, Bell, Bot, Bug, CalendarClock, DatabaseBackup, LayoutGrid, Lightbulb, Map as IconeMapa, Music, Radio,
-  Search, Send, Server, ShieldCheck, Sparkles, Workflow,
+  Activity, AirVent, ArchiveRestore, BarChart3, Bell, Bot, Bug, DatabaseBackup, LayoutGrid, Lightbulb, Map as IconeMapa, Music, Radio,
+  Search, Send, Server, ShieldCheck, Workflow,
 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
@@ -12,7 +12,7 @@ import { useToast } from './ui'
 // Atalhos do topo: busca rápida entre as áreas, as mais usadas a um clique e, para dono/admin, o backup COMPLETO do
 // sistema na hora (o mesmo da página Backup: banco inteiro num .zip com segredos cifrados) e o upload para restaurar.
 const GRUPOS = [
-  ['Controle', [['/aparelhos', 'Aparelhos', AirVent], ['/cenas', 'Cenas', Sparkles], ['/automacoes', 'Automações', Workflow], ['/agendamentos', 'Agenda', CalendarClock],
+  ['Controle', [['/aparelhos', 'Aparelhos', AirVent], ['/rotinas', 'Rotinas', Workflow],
     ['/transmissores', 'Transmissores', Radio], ['/luzes', 'Iluminação', Lightbulb]]],
   ['Acompanhar', [['/mapa', 'Mapa 3D', IconeMapa], ['/relatorios', 'Relatórios', BarChart3, 'relatorios.ver'], ['/atividade', 'Atividade', Activity, 'atividade.ver'],
     ['/notificacoes', 'Notificações', Bell], ['/bugs', 'Bugs', Bug], ['/musica', 'Música', Music]]],

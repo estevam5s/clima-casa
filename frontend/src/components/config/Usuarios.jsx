@@ -82,7 +82,8 @@ function FormUsuario({ dados, usuario, aoSalvar, aoFechar }) {
       <form onSubmit={salvar} className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="rotulo" htmlFor="un">Nome</label><input id="un" className="campo" required maxLength={80} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></div>
-          <div><label className="rotulo" htmlFor="ue">E-mail</label><input id="ue" type="email" className="campo" required disabled={!novo && !podeEmail} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+          <div><label className="rotulo" htmlFor="ue">E-mail</label><input id="ue" type="email" className="campo" required disabled={!novo && !podeEmail} placeholder="nome.sobrenome@floripa.sc.gov.br" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+            {(novo || podeEmail) && f.papel !== 'dono' && f.email.includes('@') && !/@floripa\.sc\.gov\.br$/i.test(f.email.trim()) && <p className="ajuda text-amber-700 dark:text-amber-400">Só e-mails @floripa.sc.gov.br entram no sistema por e-mail e Google.</p>}
             {!novo && podeEmail && f.email.trim().toLowerCase() !== (usuario.email || '').toLowerCase() && <p className="ajuda mt-1">A pessoa passa a entrar com o e-mail novo. O antigo e o novo recebem um aviso.</p>}
             {!novo && !podeEmail && <p className="ajuda mt-1">Só o dono do sistema troca o e-mail de login.</p>}</div>
           <div><label className="rotulo" htmlFor="uc">Cargo</label><input id="uc" className="campo" maxLength={80} placeholder="Ex.: Recepção, Gerente, TI" value={f.cargo} onChange={(e) => setF({ ...f, cargo: e.target.value })} /></div>

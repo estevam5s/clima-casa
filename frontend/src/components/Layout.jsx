@@ -3,7 +3,7 @@ import { limparCache } from '../cacheTela'
 import IconeMarca from './IconeMarca'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, ListTodo, Languages, LineChart, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, CalendarClock, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sparkles, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
+import { Activity, ListTodo, Languages, LineChart, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -13,6 +13,7 @@ import AcessoRapido from './AcessoRapido'
 import Notificacoes, { useCentral } from './Notificacoes'
 import Atalhos from './Atalhos'
 import NovidadesModal from './Novidades'
+import AvisoEntradas from './AvisoEntradas'
 import TermoAceite from './TermoAceite'
 import { siteComSessao } from '../site'
 import { Avatar } from './config/Perfil'
@@ -30,9 +31,7 @@ export const GRUPOS = [
   ] },
   { titulo: 'Controle', itens: [
     { para: '/aparelhos', rotulo: 'Aparelhos', icone: AirVent },
-    { para: '/cenas', rotulo: 'Cenas', icone: Sparkles },
-    { para: '/automacoes', rotulo: 'Automações', icone: Workflow },
-    { para: '/agendamentos', rotulo: 'Agenda', icone: CalendarClock },
+    { para: '/rotinas', rotulo: 'Rotinas', icone: Workflow },
     { para: '/transmissores', rotulo: 'Transmissores IR', icone: Radio },
     { para: '/musica', rotulo: 'Música', icone: Music2 },
   ] },
@@ -74,8 +73,8 @@ const TODAS = GRUPOS.flatMap((g) => g.itens)
 // sinônimos para a busca do menu (o rótulo já conta)
 const CHAVES = {
   '/': 'inicio dashboard resumo', '/tarefas': 'todo to-do tarefa projeto kanban quadro asana github projects prazo sprint', '/notificacoes': 'avisos alertas sino central historico', '/luzes': 'luz lampada iluminacao anoitecer interruptor', '/telegram': 'bot telegram celular mensagem', '/bugs': 'erro problema defeito falha corrigir ia prompt', '/backup': 'backup restaurar upload copia seguranca dados zip exportar importar', '/ia': 'ia inteligencia artificial nvidia chat conversar terminal clima-ia assistente', '/projetos': 'salas lugares', '/mapa': 'planta 3d predio escritorio ilha florianopolis elevador',
-  '/relatorios': 'pdf exportar consumo gasto energia', '/aparelhos': 'ar condicionado ares split botoes gravar', '/cenas': 'atalhos',
-  '/automacoes': 'regras gatilhos', '/agendamentos': 'horario agenda temporizador', '/transmissores': 'ir infravermelho smart ir tuya hub controle remoto',
+  '/relatorios': 'pdf exportar consumo gasto energia', '/aparelhos': 'ar condicionado ares split botoes gravar', '/rotinas': 'cenas atalhos automacoes regras gatilhos agenda agendamentos horario temporizador timer',
+  '/transmissores': 'ir infravermelho smart ir tuya hub controle remoto',
   '/musica': 'spotify som', '/integracoes': 'alexa google sinric echo voz', '/comandos-alexa': 'frases voz alexa', 
   '/alexa': 'skill', '/supabase': 'banco dados tabelas sql backup', '/infra': 'vercel cloudflare dns agentes raspberry pi computador servidor',
   '/atividade': 'historico log eventos', '/seguranca': 'firewall conformidade iso 27001 ips ataques', '/mensagens': 'contato site', '/analise': 'seo visitantes analytics desempenho performance cliques rotas web vitals pagespeed', '/idiomas': 'traducao ingles espanhol frances russo coreano idioma lingua', '/emails': 'resend correio newsletter campanha inscritos',
@@ -609,6 +608,7 @@ export default function Layout() {
         </header>
         <Banner />
         <NovidadesModal />
+        <AvisoEntradas />
         <TermoAceite />
         <main className="w-full px-4 pb-16 pt-6 sm:px-6 lg:px-8 2xl:px-10">
           {/* altura mínima de uma tela: enquanto a página carrega, o rodapé fica abaixo da dobra e não "pula" quando os dados

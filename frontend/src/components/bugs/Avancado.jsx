@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Bot, Copy, CopyCheck, Link2, ListTodo, MessageSquare, Save, Trash2 } from 'lucide-react'
 import { api, haQuanto } from '../../api'
@@ -21,13 +21,14 @@ export function DetalheBug({ b, gestor, pessoas, todos, aoFechar, aoMudar }) {
   const [texto, setTexto] = useState('')
   const [dup, setDup] = useState('')
   const [ocupado, setOcupado] = useState('')
+  const navegar = useNavigate()
   useEffect(() => { api.get(`/api/bugs/${b.id}/historico`).then(setHist).catch(() => setHist([])) }, [b.id])
   const copiar = (t, o) => { navigator.clipboard?.writeText(t); toast(`${o} copiado.`) }
   const executar = async (chave, fn, ok) => { setOcupado(chave); try { await fn(); if (ok) toast(ok); aoMudar(false) } catch (e) { toast(e.message, 'erro') } finally { setOcupado('') } }
   const salvar = () => executar('salvar', () => api.put(`/api/bugs/${b.id}/editar`, { ...f, etiquetas: f.etiquetas.split(',').map((x) => x.trim()).filter(Boolean) }), 'Bug atualizado.')
   const estado = (e) => executar(e, () => api.put(`/api/bugs/${b.id}`, { estado: e }), 'Estado atualizado.')
   const comentar = async (e) => { e.preventDefault(); if (!texto.trim()) return; setOcupado('coment'); try { setHist(await api.post(`/api/bugs/${b.id}/comentar`, { texto })); setTexto('') } catch (err) { toast(err.message, 'erro') } finally { setOcupado('') } }
-  const tarefa = () => executar('tarefa', async () => { const r = await api.post(`/api/bugs/${b.id}/tarefa`); toast(r.ja_existia ? `Já existe a tarefa #${r.tarefa_id}.` : `Tarefa #${r.tarefa_id} criada em Tarefas → Bugs.`) })
+  const tarefa = () => executar('tarefa', async () => { const r = await api.post(`/api/bugs/${b.id}/tarefa`); toast(r.ja_existia ? `Já existe a tarefa #${r.tarefa_id}.` : `Tarefa #${r.tarefa_id} criada em Tarefas → Plano de melhorias.`) })
   const duplicado = () => executar('dup', () => api.post(`/api/bugs/${b.id}/duplicado`, { de: +dup }), `Juntado ao bug #${dup}.`)
   const apagar = async () => { if (!(await confirmar(`Apagar o bug "${b.titulo}"?`, { ok: 'Apagar' }))) return; executar('apagar', async () => { await api.del(`/api/bugs/${b.id}`); aoFechar() }) }
   const [g, cor] = GRAV[b.gravidade] || GRAV.media
@@ -42,7 +43,7 @@ export function DetalheBug({ b, gestor, pessoas, todos, aoFechar, aoMudar }) {
             {(b.etiquetas || []).map((e) => <span key={e} className="rounded-full border border-border px-2 py-0.5">{e}</span>)}
             <span className="text-muted-foreground">{b.ocorrencias}× · última {haQuanto(b.atualizado_em)}</span>
             {b.duplicado_de && <span className="rounded bg-muted px-1.5 py-0.5">duplicado de #{b.duplicado_de}</span>}
-            {b.tarefa_id && <Link to="/tarefas?projeto=projetos" className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">tarefa #{b.tarefa_id}</Link>}
+            {b.tarefa_id && <Link to={`/tarefas?projeto=${b.tarefa_projeto || 'projetos'}&tarefa=${b.tarefa_id}`} title="Abrir a tarefa no Plano de melhorias" className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">tarefa #{b.tarefa_id}{b.tarefa_prioridade ? ` · ${{ urgente: 'Urgente', alta: 'Alta', media: 'Média', baixa: 'Baixa' }[b.tarefa_prioridade] || b.tarefa_prioridade}` : ''}{b.tarefa_concluida ? ' · concluída' : ''}</Link>}
           </div>
           <p className="whitespace-pre-line">{b.descricao}</p>
           {b.passos && <div><p className="rotulo">Passos</p><p className="whitespace-pre-line text-muted-foreground">{b.passos}</p></div>}
@@ -87,7 +88,7 @@ export function DetalheBug({ b, gestor, pessoas, todos, aoFechar, aoMudar }) {
             <div><label className="rotulo" htmlFor="bc">Como foi corrigido</label><textarea id="bc" rows={3} className="campo" value={f.correcao} onChange={(e) => setF({ ...f, correcao: e.target.value })} placeholder="Commit, arquivo, o que mudou" /></div>
             <Botao className="w-full" icone={Save} carregando={ocupado === 'salvar'} onClick={salvar}>Salvar</Botao>
             <div className="space-y-2 border-t border-border pt-4">
-              <Botao className="w-full" variante="secundario" icone={ListTodo} carregando={ocupado === 'tarefa'} onClick={tarefa}>{b.tarefa_id ? 'Ver a tarefa' : 'Criar tarefa'}</Botao>
+              <Botao className="w-full" variante="secundario" icone={ListTodo} carregando={ocupado === 'tarefa'} onClick={b.tarefa_id ? () => navegar(`/tarefas?projeto=${b.tarefa_projeto || 'projetos'}&tarefa=${b.tarefa_id}`) : tarefa}>{b.tarefa_id ? 'Ver a tarefa' : 'Criar tarefa'}</Botao>
               <div className="flex gap-2"><select className="campo h-9 min-w-0 flex-1" value={dup} onChange={(e) => setDup(e.target.value)} aria-label="Duplicado de"><option value="">Duplicado de…</option>{(todos || []).filter((x) => x.id !== b.id).slice(0, 200).map((x) => <option key={x.id} value={x.id}>#{x.id} {x.titulo.slice(0, 40)}</option>)}</select>
                 <Botao tamanho="sm" variante="secundario" icone={CopyCheck} disabled={!dup} carregando={ocupado === 'dup'} onClick={duplicado}>Juntar</Botao></div>
               <Botao className="w-full" variante="fantasma" icone={Trash2} onClick={apagar}>Apagar</Botao>

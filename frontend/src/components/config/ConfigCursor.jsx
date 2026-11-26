@@ -3,6 +3,7 @@ import { MousePointer2, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { MAX_CURSORES, PADRAO, lerCursores, salvarCursores, usePreferencias } from '../../preferencias'
 import { MODELOS, cursorDeImagem, cursorEmbutido, lerArquivoCursor } from '../../cursores'
 import { Botao, Interruptor, useToast } from '../ui'
+import { clique } from '../../som'
 
 const ESTILOS = [['anel_ponto', 'Anel com ponto'], ['anel', 'Só o anel'], ['ponto', 'Só o ponto'], ['mira', 'Mira'], ['quadrado', 'Quadrado'],
   ['bolha', 'Bolha de luz'], ['sem_ponteiro', 'Sem ponteiro'], ['nenhum', 'Nenhum (só efeitos)']]
@@ -75,6 +76,14 @@ export default function ConfigCursor() {
         <span><span className="font-medium">Efeito do cursor</span><span className="block text-xs text-muted-foreground">Forma que acompanha o mouse, cresce sobre botões e links e encolhe no clique.</span></span>
         <Interruptor ligado={p.cursor} onChange={(v) => setP({ cursor: v })} rotulo="Efeito do cursor" />
       </label>
+      <div className="flex flex-wrap items-center justify-between gap-4 text-sm">
+        <span><span className="font-medium">Som ao clicar</span><span className="block text-xs text-muted-foreground">Um clique curto e baixo em botões e links. Vale só neste navegador.</span></span>
+        <span className="flex items-center gap-3">
+          {p.som_clique && <input type="range" min={5} max={100} step={5} value={p.som_clique_volume ?? 35} onChange={(e) => setP({ som_clique_volume: +e.target.value })}
+            onPointerUp={() => clique(p.som_clique_volume ?? 35)} aria-label="Volume do clique" className="w-28 accent-[hsl(var(--primary))]" />}
+          <Interruptor ligado={p.som_clique} onChange={(v) => setP({ som_clique: v })} rotulo="Som ao clicar" />
+        </span>
+      </div>
       {(toque || calmo) && <p className="text-xs text-amber-600">{toque ? 'Este aparelho usa toque: o cursor só muda com mouse ou trackpad.' : 'O sistema está com “reduzir movimento” ligado: o efeito que segue o mouse fica desligado. O modelo do ponteiro continua valendo.'}</p>}
 
       <div className={p.cursor ? 'space-y-5' : 'pointer-events-none space-y-5 opacity-50'}>

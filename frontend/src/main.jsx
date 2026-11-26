@@ -11,7 +11,7 @@ import Painel from './pages/Painel'
 const Aparelhos = lazy(() => import('./pages/Aparelhos'))
 const Aparelho = lazy(() => import('./pages/Aparelho'))
 const Transmissores = lazy(() => import('./pages/Transmissores'))
-const Agendamentos = lazy(() => import('./pages/Agendamentos'))
+const Rotinas = lazy(() => import('./pages/Rotinas'))
 const Atividade = lazy(() => import('./pages/Atividade'))
 const Notificacoes = lazy(() => import('./pages/Notificacoes'))
 const Luzes = lazy(() => import('./pages/Luzes'))
@@ -29,7 +29,6 @@ const Supabase = lazy(() => import('./pages/Supabase'))
 const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha'))
 const Projetos = lazy(() => import('./pages/Projetos'))
 const Mapa = lazy(() => import('./pages/Mapa'))
-const Cenas = lazy(() => import('./pages/Cenas'))
 const Relatorios = lazy(() => import('./pages/Relatorios'))
 const Seguranca = lazy(() => import('./pages/Seguranca'))
 const Mensagens = lazy(() => import('./pages/Mensagens'))
@@ -38,7 +37,6 @@ const Integracoes = lazy(() => import('./pages/Integracoes'))
 import { ProjetoProvider } from './contexto'
 import { TemaProvider } from './tema'
 import { MarcaProvider } from './marca'
-const Automacoes = lazy(() => import('./pages/Automacoes'))
 const ComandosAlexa = lazy(() => import('./pages/ComandosAlexa'))
 const Apps = lazy(() => import('./pages/Apps'))
 const Musica = lazy(() => import('./pages/Musica'))
@@ -89,6 +87,8 @@ function Protegido({ children }) {
 
 import NaoEncontrado from './pages/NaoEncontrado'
 import Cursor from './components/Cursor'
+import { ligarSomDeClique } from './som'
+import { lerPreferencias } from './preferencias'
 
 // Volta do login do Spotify (/musica?code=…&state=…): troca o código na hora, antes da checagem de login do painel.
 // Funciona mesmo se o Spotify devolveu num navegador/app onde o painel não está logado; o resultado fica guardado
@@ -112,13 +112,14 @@ vigiarErros()
 ;(() => {
   const conexao = navigator.connection
   if (conexao?.saveData || /2g/.test(conexao?.effectiveType || '')) return
-  const pre = () => ['Aparelhos', 'Aparelho', 'Projetos', 'Relatorios', 'Atividade', 'Transmissores', 'Configuracoes', 'Cenas', 'Automacoes', 'Agendamentos']
+  const pre = () => ['Aparelhos', 'Aparelho', 'Projetos', 'Relatorios', 'Atividade', 'Transmissores', 'Configuracoes', 'Rotinas']
     .forEach((n, i) => setTimeout(() => import(`./pages/${n}.jsx`).catch(() => {}), i * 400))
   const ocioso = window.requestIdleCallback || ((f) => setTimeout(f, 2500))
   // espera a primeira tela pintar o conteúdo (≈ 4 s) antes de baixar as outras: antes a pré-carga começava em 0,2 s e
   // disputava a rede e o processador com os dados da tela aberta (piorava o LCP do Painel no celular)
   window.addEventListener('load', () => setTimeout(() => ocioso(pre, { timeout: 8000 }), 4000), { once: true })
 })()
+ligarSomDeClique(lerPreferencias)   // som ao clicar (preferência de cada navegador)
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <TemaProvider>
@@ -139,7 +140,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="aparelhos" element={<Aparelhos />} />
             <Route path="aparelhos/:id" element={<Aparelho />} />
             <Route path="transmissores" element={<Transmissores />} />
-            <Route path="agendamentos" element={<Agendamentos />} />
+            <Route path="rotinas" element={<Rotinas />} />
+            <Route path="agendamentos" element={<Navigate to="/rotinas?aba=agenda" replace />} />
             <Route path="atividade" element={<Atividade />} />
             <Route path="notificacoes" element={<Notificacoes />} />
             <Route path="luzes" element={<Luzes />} />
@@ -152,12 +154,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="supabase" element={<Supabase />} />
             <Route path="projetos" element={<Projetos />} />
             <Route path="mapa" element={<Mapa />} />
-            <Route path="cenas" element={<Cenas />} />
+            <Route path="cenas" element={<Navigate to="/rotinas?aba=cenas" replace />} />
             <Route path="relatorios" element={<Relatorios />} />
             <Route path="seguranca" element={<Seguranca />} />
             <Route path="mensagens" element={<Mensagens />} />
             <Route path="integracoes" element={<Integracoes />} />
-            <Route path="automacoes" element={<Automacoes />} />
+            <Route path="automacoes" element={<Navigate to="/rotinas?aba=automacoes" replace />} />
             <Route path="comandos-alexa" element={<ComandosAlexa />} />
             <Route path="apps" element={<Apps />} />
             <Route path="musica" element={<Musica />} />

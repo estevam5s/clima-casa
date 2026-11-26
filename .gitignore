@@ -7,6 +7,7 @@ backend/static/
 *.log
 .vercel
 .env*
+!.env.example
 apps/*/node_modules/
 apps/desktop/dist/
 apps/android/.expo/

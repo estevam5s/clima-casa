@@ -6,8 +6,8 @@ import { usePreferencias } from '../preferencias'
 
 // Atalhos de teclado do sistema: "?" mostra a lista, "g" + letra navega (como no Gmail e no GitHub).
 export const IR = [
-  ['p', 'Painel', '/'], ['a', 'Aparelhos', '/aparelhos'], ['m', 'Mapa do escritório', '/mapa'], ['c', 'Cenas', '/cenas'], ['u', 'Automações', '/automacoes'],
-  ['g', 'Agenda', '/agendamentos'], ['r', 'Relatórios', '/relatorios'], ['t', 'Atividade', '/atividade'], ['s', 'Segurança', '/seguranca'],
+  ['p', 'Painel', '/'], ['a', 'Aparelhos', '/aparelhos'], ['m', 'Mapa do escritório', '/mapa'], ['c', 'Cenas', '/rotinas?aba=cenas'], ['u', 'Automações', '/rotinas?aba=automacoes'],
+  ['g', 'Agenda', '/rotinas?aba=agenda'], ['r', 'Relatórios', '/relatorios'], ['t', 'Atividade', '/atividade'], ['s', 'Segurança', '/seguranca'],
   ['e', 'Mensagens', '/mensagens'], ['j', 'Projetos', '/projetos'], ['i', 'Transmissores', '/transmissores'], ['b', 'Supabase', '/supabase'], ['o', 'Configurações', '/configuracoes'],
 ]
 const GERAIS = [['⌘ K', 'Buscar em todo o sistema'], ['?', 'Mostrar esta lista'], ['Esc', 'Fechar janelas e menus'], ['g depois uma letra', 'Ir para uma tela (veja ao lado)']]

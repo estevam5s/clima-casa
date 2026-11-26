@@ -25,6 +25,9 @@ def _papel(*permitidos):
     return u
 
 
+QUALQUER_AGENTE = {"app_link"}   # precisa do GitHub, que só alguns computadores têm
+
+
 def _via_agente(op: str, args: dict, espera: float = 40):
     from .. import infra
     if transmissor.PAPEL == "agente":
@@ -37,9 +40,16 @@ def _via_agente(op: str, args: dict, espera: float = 40):
     lid = coordenador.lider() or {}
     principal = db.cfg(f"agente_maquina:{lid.get('id')}") if lid.get("id") else None
     antigo = bool(principal) and not principal.get("versao")
-    # principal com código de antes da 0.6.6 recusa operações novas: o pedido vai para qualquer agente atualizado (reserva também)
-    fid = transmissor.enfileirar("infra", None, {"op": op, "args": args}, estado="qualquer" if antigo else "pendente")
-    f = transmissor.aguardar(fid, max(espera, 35) if antigo else espera)
+    # principal com código de antes da 0.6.6 recusa operações novas: o pedido vai para qualquer agente atualizado (reserva também).
+    # Operações que dependem de um acesso que nem todo computador tem (GitHub) vão sempre para "qualquer": quem tem o acesso
+    # pega (infra.capaz), mesmo de reserva. Antes ia para o principal (PC sem GitHub) e falhava toda vez (bug #35, 26/11/2026).
+    qualquer = antigo or op in QUALQUER_AGENTE
+    fid = transmissor.enfileirar("infra", None, {"op": op, "args": args}, estado="qualquer" if qualquer else "pendente")
+    f = transmissor.aguardar(fid, max(espera, 35) if qualquer else espera)
+    if f.get("estado") != "ok" and op in QUALQUER_AGENTE and not antigo:
+        # ninguém com o acesso respondeu: quem chamou tem um caminho alternativo; não deixa erro na fila (viraria bug falso)
+        db.executar("DELETE FROM fila_comandos WHERE id = ?", (fid,))
+        raise HTTPException(502, "Nenhum computador do agente com acesso a este serviço respondeu agora.")
     if f.get("estado") != "ok":
         erro = f.get("erro") or "O agente não conseguiu falar com a Vercel."
         if antigo and (erro.startswith("Tempo") or erro == transmissor.sem_agente()):

@@ -25,7 +25,24 @@ const ERROS = { 'Invalid login credentials': 'E-mail ou senha incorretos.', 'Ema
 const botaoAlt = 'flex h-12 min-w-0 items-center justify-center gap-2 rounded-[14px] border border-[var(--line)] bg-[var(--field)] px-2 text-[14px] font-medium transition-[transform,border-color] duration-300 hover:border-[var(--muted)]/50 active:scale-[0.985] disabled:opacity-60'
 const campo = 'mt-2 h-12 w-full rounded-[14px] border border-[var(--line)] bg-[var(--field)] px-4 text-[15px] text-[var(--ink)] shadow-[0_1px_2px_rgb(0_0_0/0.04)_inset] outline-none transition-[border-color,box-shadow] duration-300 placeholder:text-[var(--muted)]/60 focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent)_18%,transparent)]'
 
-function lembrado() { try { return localStorage.getItem('clima-email') || '' } catch { return '' } }
+// Login por e-mail: só contas @floripa.sc.gov.br (a do dono é a exceção, conferida no servidor). A pessoa digita só o começo
+// (ex.: estevam.egov) e o domínio é completado; quem digitar um "@" escreve o endereço inteiro.
+const DOMINIO = 'floripa.sc.gov.br'
+const completo = (v) => { const t = (v || '').trim().toLowerCase(); return !t ? '' : t.includes('@') ? t : `${t}@${DOMINIO}` }
+const soInicio = (v) => (v || '').replace(new RegExp(`@${DOMINIO.replace(/\./g, '\\.')}$`, 'i'), '')
+function lembrado() { try { return soInicio(localStorage.getItem('clima-email') || '') } catch { return '' } }
+
+function CampoEmail({ id, valor, mudar, autoFocus, className }) {
+  const comArroba = valor.includes('@')
+  return (
+    <div className="relative">
+      <input id={id} type="text" inputMode="email" required autoComplete="username" autoCapitalize="none" spellCheck={false}
+        placeholder="seu.nome" value={valor} onChange={(e) => mudar(e.target.value.replace(/\s/g, ''))} aria-describedby={`${id}-dominio`}
+        className={`${className} ${comArroba ? '' : 'pr-[168px]'}`} autoFocus={autoFocus} />
+      {!comArroba && <span id={`${id}-dominio`} className="pointer-events-none absolute right-4 top-1/2 mt-1 -translate-y-1/2 text-[15px] text-[var(--muted)]">@{DOMINIO}</span>}
+    </div>
+  )
+}
 
 export default function Login() {
   const [pronto, setPronto] = useState(false)
@@ -83,7 +100,8 @@ export default function Login() {
       if (data.session) {
         try {
           await api.get('/api/sessao')
-          if (veioGoogle) api.post('/api/sessao/registrar-login', { metodo: (() => { try { return sessionStorage.getItem('clima-login-provedor') || 'google' } catch { return 'google' } })() }).catch(() => {})
+          // o servidor confere a conta (Google só para @floripa.sc.gov.br) e recusa com 403 encerrando a sessão
+          if (veioGoogle) await api.post('/api/sessao/registrar-login', { metodo: (() => { try { return sessionStorage.getItem('clima-login-provedor') || 'google' } catch { return 'google' } })() })
           return navegar(destino, { replace: true })
         } catch (err) {
           if (err.precisa2fa) { setModo('2fa'); return setPronto(true) }   // conta com autenticador: falta o código
@@ -154,10 +172,10 @@ export default function Login() {
       const sb = await supabase()
       // login passa pelo firewall do sistema (conta tentativas por IP e e-mail, bloqueio progressivo)
       if (robo === '') throw new Error('Aguarde a verificação contra robôs terminar e tente de novo.')
-      const sessao = await api.post('/api/auth/entrar', { email: email.trim(), senha, turnstile: robo })
+      const sessao = await api.post('/api/auth/entrar', { email: completo(email), senha, turnstile: robo })
       const { error } = await sb.auth.setSession({ access_token: sessao.access_token, refresh_token: sessao.refresh_token })
       if (error) throw new Error(ERROS[error.message] || error.message)
-      try { lembrar ? localStorage.setItem('clima-email', email.trim()) : localStorage.removeItem('clima-email') } catch { /* sem storage */ }
+      try { lembrar ? localStorage.setItem('clima-email', completo(email)) : localStorage.removeItem('clima-email') } catch { /* sem storage */ }
       if (sessao.precisa_2fa) { setModo('2fa'); setOcupado(false); return }   // senha certa: falta o Google Authenticator
       try { await api.get('/api/sessao') } catch (err) { await sb.auth.signOut(); throw err }
       navegar(destino, { replace: true })
@@ -172,7 +190,7 @@ export default function Login() {
     setErro(''); setOcupado(true)
     try {
       if (robo === '') throw new Error('Aguarde a verificação contra robôs terminar e tente de novo.')
-      await api.post('/api/auth/esqueci', { email: email.trim(), turnstile: robo, voltar_para: `${window.location.origin}/redefinir-senha` })
+      await api.post('/api/auth/esqueci', { email: completo(email), turnstile: robo, voltar_para: `${window.location.origin}/redefinir-senha` })
       setModo('enviado')
     } catch (err) { setErro(err.message); roboRef.current?.reiniciar() } finally { setOcupado(false) }
   }
@@ -232,8 +250,8 @@ export default function Login() {
                 <form onSubmit={entrar} className="mt-9 space-y-4">
                   <motion.div {...sobe(4)}>
                     <label htmlFor="email" className="text-[13px] font-medium">E-mail</label>
-                    <input id="email" type="email" required autoComplete="username" placeholder="voce@empresa.com.br" value={email}
-                      onChange={(e) => setEmail(e.target.value)} className={campo} autoFocus={!email} />
+                    <CampoEmail id="email" valor={email} mudar={setEmail} className={campo} autoFocus={!email} />
+                    <p className="mt-1.5 text-[12px] text-[var(--muted)]">Digite só o começo do seu e-mail da Prefeitura (ex.: estevam.egov).</p>
                   </motion.div>
                   <motion.div {...sobe(5)}>
                     <div className="flex items-baseline justify-between">
@@ -317,7 +335,7 @@ export default function Login() {
                 <form onSubmit={recuperar} className="mt-8 space-y-4">
                   <div>
                     <label htmlFor="email2" className="text-[13px] font-medium">E-mail</label>
-                    <input id="email2" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} autoFocus />
+                    <CampoEmail id="email2" valor={email} mudar={setEmail} className={campo} autoFocus />
                   </div>
                   <Turnstile key="ts-esqueci" ref={roboRef} aoMudar={setRobo} tema={escuro ? 'dark' : 'light'} acao="esqueci" aparencia="always" className="min-h-[65px]" />
                   {erro && <p role="alert" className="text-[13px] text-red-600 dark:text-red-400">{erro}</p>}
@@ -332,7 +350,7 @@ export default function Login() {
               <motion.div key="enviado" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
                 <MailCheck className="mx-auto h-10 w-10 text-[var(--accent)]" strokeWidth={1.5} />
                 <h1 className="mt-4 text-[26px] font-semibold tracking-[-0.04em]">Confira o e-mail</h1>
-                <p className="mt-2 text-[15px] text-[var(--muted)]">Se {email} for o administrador, o link para criar uma senha nova chega em instantes.</p>
+                <p className="mt-2 text-[15px] text-[var(--muted)]">Se {completo(email)} for o administrador, o link para criar uma senha nova chega em instantes.</p>
                 <button onClick={() => setModo('entrar')} className="mt-6 text-[13px] font-medium underline-offset-4 hover:underline">Voltar para o login</button>
               </motion.div>
             )}

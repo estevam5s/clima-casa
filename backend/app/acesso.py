@@ -46,6 +46,14 @@ PAPEIS = {
 
 # Regras por rota: (métodos, padrão da rota do FastAPI, permissão). A primeira que casar vale.
 # Rotas não listadas: GET liberado para qualquer usuário logado; o resto exige "configuracoes.gerenciar".
+# Login por e-mail/senha e Google só com conta da Prefeitura (pedido do dono, 26/11/2026). A conta do dono é a exceção.
+DOMINIO_LOGIN = "floripa.sc.gov.br"
+
+
+def email_permitido(email: str, papel: str | None = None) -> bool:
+    return papel == "dono" or (email or "").strip().lower().endswith("@" + DOMINIO_LOGIN)
+
+
 REGRAS = [
     ("*", r"^/api/(sessao|perfil|notificacoes|conta|clima-externo|apps/qr|novidades)", None),
     ("POST", r"^/api/aparelhos/\{aid\}/(estado|estado-real|botoes/\{chave\}/enviar|temporizador)$", "aparelhos.controlar"),
@@ -121,6 +129,7 @@ REGRAS = [
     ("*", r"^/api/(backup|supabase/)", "configuracoes.gerenciar"),
     ("*", r"^/api/marca/", "configuracoes.gerenciar"),
     ("PUT", r"^/api/(config|marca)$", "configuracoes.gerenciar"),
+    ("PUT", r"^/api/config/geral$", "configuracoes.gerenciar"),   # regras do escritório (a rota ainda exige dono/admin)
 ]
 _REGRAS = [(set(m.split("|")) if m != "*" else None, re.compile(p), perm) for m, p, perm in REGRAS]
 # rotas que mostram dados de TODOS os projetos de uma vez (backup, tabelas do banco): só para quem vê todos os projetos

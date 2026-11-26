@@ -102,7 +102,7 @@ export default function ComandosAlexa() {
           </div>
           <div className="cartao p-5 text-sm text-muted-foreground">
             <p className="titulo-secao mb-2 text-foreground">Rotinas com gatilho</p>
-            Além da voz, a Rotina pode começar por horário, nascer/pôr do sol, chegar ou sair de casa (localização do celular) ou um alarme. Combine com as <a href="/automacoes" className="text-primary underline">automações</a> do Clima Escritório, como "desligar 3 h depois".
+            Além da voz, a Rotina pode começar por horário, nascer/pôr do sol, chegar ou sair de casa (localização do celular) ou um alarme. Combine com as <a href="/rotinas?aba=automacoes" className="text-primary underline">automações</a> do Clima Escritório, como "desligar 3 h depois".
           </div>
         </aside>
       </div>

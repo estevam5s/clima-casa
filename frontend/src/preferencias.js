@@ -5,7 +5,7 @@ const CHAVE = 'clima-preferencias'
 export const PADRAO = {
   cursor: false, cursor_estilo: 'anel_ponto', cursor_cor: 'marca', cursor_cor_hex: '#14b8a6', cursor_tamanho: 36,
   cursor_ponto_tamanho: 6, cursor_espessura: 1.5, cursor_suavidade: 20, cursor_esconder_seta: false, cursor_efeitos: [],
-  cursor_modelo: 'sistema', cursor_modelo_tamanho: 32, atalhos: true,
+  cursor_modelo: 'sistema', cursor_modelo_tamanho: 32, atalhos: true, som_clique: true, som_clique_volume: 35,
 }
 // a empresa pode definir um padrão para quem nunca mexeu (White label → Cursor padrão)
 let padraoEmpresa = {}

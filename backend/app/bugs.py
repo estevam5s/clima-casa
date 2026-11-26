@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 
 from . import db
+
+log = logging.getLogger("clima.bugs")
 
 # rota da tela → arquivos prováveis (mesmo mapa do CLAUDE.md "Onde mexer")
 ARQUIVOS = {
@@ -107,6 +110,10 @@ def registrar_auto(chave: str, titulo: str, descricao: str, pagina: str = "", gr
     r = db.um("INSERT INTO bugs (chave, titulo, descricao, pagina, gravidade, origem, categoria, contexto, sugestao, prompt, criado_em, atualizado_em) "
               "VALUES (?,?,?,?,?,'sistema',?,CAST(? AS jsonb),?,?,?,?) RETURNING id",
               (chave, b["titulo"], b["descricao"], b["pagina"], gravidade, categoria, json.dumps(b["contexto"], default=str)[:20000], b["sugestao"], b["prompt"], agora, agora))
+    try:   # bug novo já entra em Tarefas → Plano de melhorias
+        sincronizar_tarefas([r["id"]])
+    except Exception as e:  # noqa: BLE001
+        log.warning("bug %s → tarefa: %s", r["id"], e)
     return r["id"]
 
 
@@ -198,8 +205,17 @@ def varrer() -> dict:
         registrar_auto(_chave("cadastro", c["codigo"], c.get("alvo", "")), c["titulo"], c["descricao"], pagina=c.get("pagina", ""),
                        gravidade=c["gravidade"], categoria="cadastro", contexto={"erros": [c["descricao"][:200]]})
         achados += 1
+    for c in checar_profundo():
+        registrar_auto(_chave("profundo", c["codigo"], c.get("alvo", "")), c["titulo"], c["descricao"], pagina=c.get("pagina", ""),
+                       gravidade=c["gravidade"], categoria=c["categoria"], contexto={"erros": [c["descricao"][:200]]}, ultimo=c.get("ultimo"))
+        achados += 1
+    try:
+        tarefas_r = sincronizar_tarefas()
+    except Exception as e:  # noqa: BLE001
+        log.warning("bugs → tarefas: %s", e)
+        tarefas_r = {"erro": str(e)[:200]}
     db.set_cfg("bugs_ultima_varredura", db.agora())
-    return {"achados": achados, "em": db.agora()}
+    return {"achados": achados, "em": db.agora(), "tarefas": tarefas_r}
 
 
 # ---------------- cadastros inconsistentes (ares, transmissores, botões, zonas) ----------------
@@ -324,3 +340,175 @@ def _sem_achados():
     if a:
         raise AssertionError(f"{len(a)} problema(s): " + "; ".join(x["titulo"] for x in a[:4]))
     return "nenhum problema"
+
+
+# ---------------- varredura profunda: o que quebra sem ninguém perceber ----------------
+def checar_profundo() -> list[dict]:
+    """Checagens além das falhas repetidas: rotinas do banco, fila travada, automações apontando para ares apagados,
+    e-mails que não chegam, desempenho ruim de verdade (LCP p75 > 4 s, o limite "ruim" do Google), banco perto do limite,
+    backup atrasado, agente que não consegue se atualizar e transmissores com o mesmo IP. Só fatos medidos no banco."""
+    achados = []
+
+    def add(codigo, titulo, descricao, gravidade="media", pagina="", categoria="sistema", alvo="", ultimo=None):
+        achados.append({"codigo": codigo, "titulo": titulo, "descricao": descricao, "gravidade": gravidade, "pagina": pagina,
+                        "categoria": categoria, "alvo": str(alvo), "ultimo": ultimo})
+
+    def tenta(fn):
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001  (uma checagem com problema não derruba as outras)
+            log.warning("checagem profunda: %s", e)
+
+    def cron():
+        for r in db.consultar("SELECT j.jobname, count(*) n, max(d.return_message) m, extract(epoch FROM max(d.start_time))::bigint ultimo "
+                              "FROM cron.job_run_details d JOIN cron.job j ON j.jobid = d.jobid "
+                              "WHERE d.status = 'failed' AND d.start_time > now() - interval '1 day' GROUP BY 1"):
+            add("cron", f"Rotina do banco falhando: {r['jobname']}", f"{r['n']} falha(s) em 24 h. Última mensagem: {(r['m'] or '-')[:300]}",
+                "alta", "/supabase", "banco", r["jobname"], ultimo=r["ultimo"])
+
+    def fila():
+        for r in db.consultar("SELECT tipo, estado, count(*) n FROM fila_comandos WHERE estado IN ('executando', 'pendente') AND criado_em < ? "
+                              "AND criado_em > ? GROUP BY 1, 2", (db.agora() - 600, db.agora() - 86400)):
+            add("fila_presa", f"Fila: {r['n']} pedido(s) '{r['tipo']}' parados em '{r['estado']}'",
+                "Há mais de 10 minutos sem resposta. O agente pode ter travado no meio (veja Infra → Agentes e o log do agente).",
+                "media", "/infra?aba=agentes", "agente", f"{r['tipo']}:{r['estado']}")
+
+    def automacoes():
+        ids = {r["id"] for r in db.consultar("SELECT id FROM aparelhos")}
+
+        def ares_de(acoes):
+            lista = acoes if isinstance(acoes, list) else json.loads(acoes or "[]")
+            return [a.get("aparelho_id") for a in lista if isinstance(a, dict) and a.get("aparelho_id")]
+        for c in db.consultar("SELECT id, nome, acoes FROM cenas"):
+            fora = [i for i in ares_de(c["acoes"]) if i not in ids]
+            if fora:
+                add("cena_orfa", f"Cena {c['nome']} manda comando para ar apagado", f"Ar(es) {fora} não existem mais: a cena falha nessa parte. Edite a cena.",
+                    "media", "/rotinas?aba=cenas", "cadastro", c["id"])
+        for a in db.consultar("SELECT id, nome, acoes, gatilho FROM automacoes WHERE ativo = 1"):
+            g = a["gatilho"] if isinstance(a["gatilho"], dict) else json.loads(a["gatilho"] or "{}")
+            fora = [i for i in ares_de(a["acoes"]) + ([g.get("aparelho_id")] if g.get("aparelho_id") else []) if i not in ids]
+            if fora:
+                add("automacao_orfa", f"Automação {a['nome']} usa ar apagado", f"Ar(es) {fora} não existem mais: ela não dispara ou falha. Edite a automação.",
+                    "media", "/rotinas?aba=automacoes", "cadastro", a["id"])
+        for g in db.consultar("SELECT g.id, g.nome FROM agendamentos g WHERE g.ativo = 1 AND NOT EXISTS (SELECT 1 FROM aparelhos a WHERE a.id = g.aparelho_id)"):
+            add("agenda_orfa", f"Agendamento {g['nome']} de um ar apagado", "Ele nunca vai rodar. Apague ou escolha outro ar.", "media", "/rotinas?aba=agenda", "cadastro", g["id"])
+        for g in db.consultar("SELECT g.id, g.nome, a.nome ar FROM agendamentos g JOIN aparelhos a ON a.id = g.aparelho_id WHERE g.ativo = 1 AND a.hub_id IS NULL"):
+            add("agenda_sem_tx", f"Agendamento {g['nome']} de um ar sem transmissor", f"O {g['ar']} não tem transmissor: o horário chega e o comando falha.",
+                "media", "/rotinas?aba=agenda", "cadastro", g["id"])
+
+    def emails():
+        r = db.um("SELECT count(*) n, max(erro) erro, max(criado_em) ultimo FROM email_envios WHERE estado IN ('falhou', 'devolvido') AND criado_em > ?",
+                  (db.agora() - 7 * 86400,))
+        if r and r["n"] >= 3:   # `ultimo`: só reabre se houver falha nova depois de corrigido
+            add("email_falhas", f"{r['n']} e-mails não entregues em 7 dias", f"Falharam ou voltaram. Último erro: {(r['erro'] or '-')[:200]}. Veja E-mails → Histórico.",
+                "media", "/emails", "e-mail", ultimo=int(r["ultimo"] or 0))
+
+    def desempenho():
+        for r in db.consultar("SELECT rota, count(*) n, percentile_cont(0.75) WITHIN GROUP (ORDER BY valor) p75 FROM analise_eventos "
+                              "WHERE origem = 'sistema' AND nome = 'LCP' AND quando > ? GROUP BY rota HAVING count(*) >= 5", (db.agora() - 7 * 86400,)):
+            if (r["p75"] or 0) > 4000:
+                add("lcp", f"Tela lenta: {r['rota']}", f"O conteúdo principal leva {r['p75'] / 1000:.1f} s para aparecer (75% das {r['n']} aberturas em 7 dias). "
+                    "Acima de 4 s o Google considera ruim. Veja Acessos e SEO → O que melhorar.", "baixa", r["rota"], "desempenho", r["rota"])
+
+    def banco():
+        r = db.um("SELECT tamanho_banco_mb FROM saude_sistema ORDER BY medido_em DESC LIMIT 1")
+        if r and float(r["tamanho_banco_mb"] or 0) > 400:
+            add("banco_cheio", "Banco perto do limite do plano", f"{float(r['tamanho_banco_mb']):.0f} MB de 500 MB. Limpe registros antigos ou mude de plano.",
+                "alta", "/supabase", "banco")
+
+    def backup():
+        r = db.um("SELECT max(criado_em) ultimo FROM backups")
+        ultimo = r and r["ultimo"]
+        ts = ultimo.timestamp() if hasattr(ultimo, "timestamp") else (ultimo or 0)
+        if ts and db.agora() - ts > 2 * 86400:
+            add("backup_atrasado", "Backup diário do banco parado", f"O último é de {int((db.agora() - ts) / 86400)} dia(s) atrás. Confira a rotina clima_backup_diario.",
+                "alta", "/backup", "banco")
+
+    def agentes():
+        for r in db.consultar("SELECT chave, valor FROM config WHERE chave LIKE 'agente_atualizar_falhou:%'"):
+            v = r["valor"] if isinstance(r["valor"], dict) else json.loads(r["valor"] or "{}")
+            if v and db.agora() - int(v.get("em") or 0) < 86400:
+                nome = (db.cfg(f"agente_maquina:{r['chave'].split(':', 1)[1]}") or {}).get("nome") or r["chave"].split(":", 1)[1]
+                add("agente_atualizar", f"Agente {nome} não consegue se atualizar", f"{(v.get('erro') or '-')[:300]}", "media", "/infra?aba=agentes", "agente", nome)
+
+    def transmissores():
+        for r in db.consultar("SELECT ip, string_agg(nome, ', ') nomes, count(*) n FROM hubs WHERE COALESCE(ip, '') <> '' GROUP BY ip HAVING count(*) > 1"):
+            add("hub_ip_repetido", f"Transmissores com o mesmo IP ({r['ip']})", f"{r['nomes']}: um deles está com o IP velho e os comandos podem ir para o errado. "
+                "Use Testar conexão em cada um (o sistema procura o IP certo).", "alta", "/transmissores", "cadastro", r["ip"])
+
+    for f in (cron, fila, automacoes, emails, desempenho, banco, backup, agentes, transmissores):
+        tenta(f)
+    return achados
+
+
+# ---------------- bugs ↔ Tarefas (Plano de melhorias) ----------------
+PROJETO_TAREFAS = "Plano de melhorias"
+SECAO_TAREFAS = "Bugs e qualidade"
+PRIO_DO_BUG = {"critica": "urgente", "alta": "alta", "media": "media", "baixa": "baixa"}
+ABERTOS = ("aberto", "analisando")
+
+
+def _destino_tarefas() -> tuple[int, int, dict]:
+    from . import tarefas
+    dono = db.um("SELECT id::text AS id, COALESCE(NULLIF(nome, ''), 'Sistema') AS nome FROM usuarios WHERE papel = 'dono' ORDER BY criado_em LIMIT 1") or {}
+    pid = tarefas.projeto_por_nome(PROJETO_TAREFAS, dono, cor="#2563eb", descricao="Melhorias do sistema e correções vindas da tela Bugs.")
+    sec = db.um("SELECT id FROM tarefas_secoes WHERE projeto_id = ? AND lower(nome) = lower(?)", (pid, SECAO_TAREFAS)) or \
+        db.um("INSERT INTO tarefas_secoes (projeto_id, nome, ordem) VALUES (?, ?, (SELECT COALESCE(MAX(ordem), 0) + 1 FROM tarefas_secoes WHERE projeto_id = ?)) RETURNING id",
+              (pid, SECAO_TAREFAS, pid))
+    return pid, sec["id"], dono
+
+
+def _descricao_tarefa(b: dict) -> str:
+    return (f"Bug #{b['id']} · gravidade {b['gravidade']} · {b['ocorrencias']} ocorrência(s) · {b.get('pagina') or 'sem tela'}\n\n"
+            f"{(b.get('descricao') or '')[:2000]}\n\nSugestão: {b.get('sugestao') or '-'}\n\nhttps://app.zynio.com.br/bugs?bug={b['id']}")
+
+
+def sincronizar_tarefas(ids: list[int] | None = None) -> dict:
+    """Mantém cada bug ligado a uma tarefa em Tarefas → Plano de melhorias (seção "Bugs e qualidade"):
+    bug aberto sem tarefa ganha uma (prioridade = gravidade: crítica → Urgente, alta → Alta, média → Média, baixa → Baixa);
+    mudar a gravidade muda a prioridade; bug corrigido/descartado conclui a tarefa; bug que reabre reabre a tarefa;
+    tarefa concluída em Tarefas (depois da última mudança do bug) marca o bug como corrigido."""
+    from . import tarefas
+    pid, sid, dono = _destino_tarefas()
+    feitos = {"criadas": 0, "prioridade": 0, "concluidas": 0, "reabertas": 0, "bugs_corrigidos": 0}
+    filtro, ps = ("WHERE b.id = ANY(?)", ([int(i) for i in ids],)) if ids else ("", ())
+    linhas = db.consultar("SELECT b.*, t.id AS t_id, t.concluida AS t_concluida, t.prioridade AS t_prio, t.atualizado_em AS t_atual "  # nosec B608 (filtro fixo)
+                          f"FROM bugs b LEFT JOIN tarefas t ON t.id = b.tarefa_id {filtro} ORDER BY b.id", ps)
+    autor = {"id": dono.get("id"), "nome": "Bugs"}
+    for b in linhas:
+        prio = PRIO_DO_BUG.get(b["gravidade"], "media")
+        aberto = b["estado"] in ABERTOS
+        if not b["t_id"]:
+            if not aberto:
+                continue
+            etiq = sorted({"bug", *([b["categoria"]] if b.get("categoria") else [])})
+            ordem = (db.um("SELECT COALESCE(MIN(ordem), 0) - 1 AS o FROM tarefas WHERE secao_id = ?", (sid,)) or {}).get("o") or 0
+            t = db.um("INSERT INTO tarefas (projeto_id, secao_id, titulo, descricao, prioridade, prazo, responsavel_id, etiquetas, ordem, criado_por, criado_em, atualizado_em) "
+                      "VALUES (?,?,?,?,?,?,CAST(NULLIF(?, '') AS uuid),CAST(? AS jsonb),?,CAST(NULLIF(?, '') AS uuid),?,?) RETURNING id",
+                      (pid, sid, f"Bug #{b['id']}: {b['titulo'][:270]}", _descricao_tarefa(b), prio, b.get("prazo") or None, b.get("responsavel_id") or "",
+                       json.dumps(etiq), ordem, dono.get("id") or "", db.agora(), db.agora()))
+            db.executar("UPDATE bugs SET tarefa_id = ? WHERE id = ?", (t["id"], b["id"]))
+            db.executar("INSERT INTO bugs_historico (bug_id, quando, autor_nome, tipo, texto) VALUES (?, ?, 'Sistema', 'tarefa', ?)",
+                        (b["id"], db.agora(), f"Tarefa #{t['id']} criada em Tarefas → {PROJETO_TAREFAS} (prioridade {prio})"))
+            tarefas.evento(t["id"], autor, f"Criada a partir do bug #{b['id']}")
+            feitos["criadas"] += 1
+            continue
+        if aberto and b["t_concluida"] and int(b["t_atual"] or 0) >= int(b["atualizado_em"] or 0):
+            db.executar("UPDATE bugs SET estado = 'corrigido', corrigido_em = ?, atualizado_em = ? WHERE id = ?", (db.agora(), db.agora(), b["id"]))
+            db.executar("INSERT INTO bugs_historico (bug_id, quando, autor_nome, tipo, texto) VALUES (?, ?, 'Tarefas', 'estado', ?)",
+                        (b["id"], db.agora(), f"Corrigido: a tarefa #{b['t_id']} foi concluída em Tarefas"))
+            feitos["bugs_corrigidos"] += 1
+            continue
+        if aberto and b["t_concluida"]:
+            db.executar("UPDATE tarefas SET concluida = false, concluida_em = NULL, atualizado_em = ? WHERE id = ?", (db.agora(), b["t_id"]))
+            tarefas.evento(b["t_id"], autor, f"Reaberta: o bug #{b['id']} voltou a acontecer")
+            feitos["reabertas"] += 1
+        elif not aberto and not b["t_concluida"]:
+            db.executar("UPDATE tarefas SET concluida = true, concluida_em = ?, atualizado_em = ? WHERE id = ?", (db.agora(), db.agora(), b["t_id"]))
+            tarefas.evento(b["t_id"], autor, f"Concluída: o bug #{b['id']} foi marcado como {b['estado']}")
+            feitos["concluidas"] += 1
+        if b["t_prio"] != prio:
+            db.executar("UPDATE tarefas SET prioridade = ?, atualizado_em = ? WHERE id = ?", (prio, db.agora(), b["t_id"]))
+            tarefas.evento(b["t_id"], autor, f"Prioridade {prio}: gravidade do bug #{b['id']} é {b['gravidade']}")
+            feitos["prioridade"] += 1
+    return feitos

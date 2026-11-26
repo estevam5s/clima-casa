@@ -12,8 +12,8 @@ const PALETAS = [
   ['Verde', '#15803d', '#0d9488'], ['Vinho', '#9f1239', '#be123c'], ['Laranja', '#c2410c', '#b45309'],
   ['Índigo', '#4338ca', '#0369a1'], ['Petróleo', '#155e75', '#0f766a'],
 ]
-const ROTAS = [['/', 'Painel'], ['/projetos', 'Projetos'], ['/relatorios', 'Relatórios'], ['/aparelhos', 'Aparelhos'], ['/cenas', 'Cenas'],
-  ['/automacoes', 'Automações'], ['/agendamentos', 'Agenda'], ['/transmissores', 'Transmissores IR'], ['/integracoes', 'Alexa e Google'],
+const ROTAS = [['/', 'Painel'], ['/projetos', 'Projetos'], ['/relatorios', 'Relatórios'], ['/aparelhos', 'Aparelhos'], ['/rotinas', 'Rotinas'],
+  ['/transmissores', 'Transmissores IR'], ['/integracoes', 'Alexa e Google'],
   ['/comandos-alexa', 'Comandos de voz'], ['/alexa', 'Skill própria'], ['/supabase', 'Supabase'], ['/atividade', 'Atividade'], ['/apps', 'Baixar apps']]
 const RECURSOS = ['Nome do sistema', 'Nome curto (app instalado)', 'Slogan e descrição', 'Logo', 'Ícone da aba', 'Cor principal', 'Cor de destaque',
   'Cor de alerta', 'Paletas prontas', 'Tema padrão', 'Fonte', 'Tamanho do texto', 'Cantos arredondados', 'Densidade', 'Título e subtítulo do login',

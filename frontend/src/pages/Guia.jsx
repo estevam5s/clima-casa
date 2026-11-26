@@ -93,9 +93,9 @@ const CAPITULOS = [
     passos: [
       { t: 'Desligar o ar de qualquer lugar', d: 'Pelo painel (app.zynio.com.br), pelo app do celular ou “Alexa, desligar o ar do escritório”. Funciona fora do escritório porque o comando vai pela internet até o agente de lá. Precisa de: um agente ligado no escritório, transmissor online e o botão Desligar gravado.', link: ['/', 'Abrir o Painel'] },
       { t: 'Desligar daqui a X tempo', d: 'Na tela do aparelho: Desligar automaticamente (30 min, 1 h, 2 h…).' },
-      { t: 'Cenas: vários ares com um toque', d: 'Ex.: “Fim do expediente” desliga todos.', link: ['/cenas', 'Abrir Cenas'] },
-      { t: 'Agenda: horários fixos', d: 'Ex.: seg a sex, 18:30, desligar todos.', link: ['/agendamentos', 'Abrir Agenda'] },
-      { t: 'Automações: regras', d: 'Ex.: quando o ar ligar fora do horário, desligar depois de 2 h.', link: ['/automacoes', 'Abrir Automações'] },
+      { t: 'Cenas: vários ares com um toque', d: 'Ex.: “Fim do expediente” desliga todos.', link: ['/rotinas?aba=cenas', 'Abrir Cenas'] },
+      { t: 'Agenda: horários fixos', d: 'Ex.: seg a sex, 18:30, desligar todos.', link: ['/rotinas?aba=agenda', 'Abrir Agenda'] },
+      { t: 'Automações: regras', d: 'Ex.: quando o ar ligar fora do horário, desligar depois de 2 h.', link: ['/rotinas?aba=automacoes', 'Abrir Automações'] },
     ],
   },
   {

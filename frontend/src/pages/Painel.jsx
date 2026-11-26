@@ -316,7 +316,7 @@ export default function Painel() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Link to="/cenas"><Botao variante="secundario" icone={Sparkles}>Cenas</Botao></Link>
+          <Link to="/rotinas?aba=cenas"><Botao variante="secundario" icone={Sparkles}>Cenas</Botao></Link>
           <Link to="/aparelhos?novo=1"><Botao icone={Plus}>Novo aparelho</Botao></Link>
         </div>
       </motion.div>

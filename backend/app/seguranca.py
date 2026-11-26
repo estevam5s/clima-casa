@@ -100,6 +100,7 @@ def _validar(request: Request) -> dict:
     u = acesso.carregar(usuario)
     request.state.usuario = usuario
     request.state.u = u
+    request.state.claims = claims
     acesso.atual.set(u)   # vale para checar_escopo abaixo (mesma thread)
     rota = getattr(request.scope.get("route"), "path", request.url.path)
     from . import firewall, sessoes

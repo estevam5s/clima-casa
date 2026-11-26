@@ -188,7 +188,7 @@ def listar_usuarios(request: Request):
 
 class UsuarioIn(BaseModel):
     nome: str = Field(min_length=1, max_length=80)
-    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s.]+(\.[^@\s.]+)*@[^@\s.]+(\.[^@\s.]+)+$")
     cargo: str = Field("", max_length=80)
     papel: str
     permissoes: list[str] = Field(default_factory=list, max_length=40)
@@ -210,6 +210,8 @@ def criar_usuario(d: UsuarioIn, request: Request):
         raise HTTPException(403, "Você não pode criar um usuário com esse papel.")
     perms = acesso.TODAS if d.papel in ("dono", "admin") else _validar_permissoes(ator, d.permissoes or acesso.PAPEIS[d.papel]["permissoes"])
     email = d.email.strip().lower()
+    if not acesso.email_permitido(email, d.papel if d.papel == "dono" and ator.get("papel") == "dono" else None):
+        raise HTTPException(400, f"Use o e-mail da Prefeitura (@{acesso.DOMINIO_LOGIN}): só ele entra no sistema por e-mail e Google.")
     if db.um("SELECT 1 FROM usuarios WHERE lower(email) = ?", (email,)):
         raise HTTPException(409, "Já existe um usuário com esse e-mail.")
     senha = None
@@ -309,7 +311,7 @@ def editar_usuario(uid: str, d: UsuarioEdit, request: Request):
 
 
 class EmailAdminIn(BaseModel):
-    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s.]+(\.[^@\s.]+)*@[^@\s.]+(\.[^@\s.]+)+$")
     avisar: bool = True
 
 
@@ -325,6 +327,8 @@ def trocar_email_usuario(uid: str, d: EmailAdminIn, request: Request):
     antigo = (alvo.get("email") or "").strip().lower()
     if novo == antigo:
         return {"ok": True, "email": novo, "mudou": False}
+    if not acesso.email_permitido(novo, alvo.get("papel")):
+        raise HTTPException(400, f"Use o e-mail da Prefeitura (@{acesso.DOMINIO_LOGIN}): só ele entra no sistema por e-mail e Google.")
     if db.um("SELECT 1 FROM usuarios WHERE lower(email) = ? AND id <> ?", (novo, uid)):
         raise HTTPException(409, "Já existe outro usuário com esse e-mail.")
     _admin("PUT", f"/admin/users/{uid}", json={"email": novo, "email_confirm": True})
@@ -740,6 +744,7 @@ def entrar_com_passkey(d: LoginPasskeyIn, request: Request):
     db.executar("UPDATE usuarios SET ultimo_acesso = ? WHERE id = ?", (db.agora(), u["id"]))
     firewall.registrar(ip, "login_ok", "/api/auth/passkey/entrar", "biometria")
     db.registrar("sistema", "Login com biometria", detalhe=f"{u['email']} · {pk['nome']}")
+    db.registrar("sistema", "Entrou no sistema", detalhe="biometria", usuario=u)   # aviso de entrada para dono e admins
     return {k: sessao.get(k) for k in ("access_token", "refresh_token", "expires_in", "expires_at", "token_type")}
 
 

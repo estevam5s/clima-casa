@@ -61,3 +61,32 @@ export function avisar(n, p) {
     } catch { /* sem suporte */ }
   }
 }
+
+// Clique do mouse (Configurações → Aparência → Cursor → Som ao clicar): um "tique" curto e baixo, sintetizado aqui mesmo.
+// Toca em botões, links e controles; não toca em campos de texto (digitar não faz som). Preferência de cada navegador.
+let ultimoClique = 0
+export function clique(volume = 35) {
+  const agora = performance.now()
+  if (agora - ultimoClique < 40) return   // duplo evento (pointerdown + click de label) não vira dois sons
+  ultimoClique = agora
+  const c = contexto()
+  if (!c || !volume) return
+  const t = c.currentTime + 0.005
+  const saida = c.createGain(); saida.gain.value = Math.min(1, volume / 100) * 0.5; saida.connect(c.destination)
+  nota(c, saida, t, 1850, 0.035, 0.55, 'triangle', 0.7)
+  nota(c, saida, t, 3700, 0.018, 0.12, 'sine')
+}
+const ALVO_CLIQUE = 'button, a[href], [role="button"], [role="tab"], [role="menuitem"], [role="switch"], [role="option"], summary, select, input[type="checkbox"], input[type="radio"], label[for]'
+export function ligarSomDeClique(ler) {
+  if (typeof window === 'undefined') return () => {}
+  const ouvir = (e) => {
+    if (e.button !== 0 || e.pointerType === 'touch') return
+    const p = ler()
+    if (!p.som_clique) return
+    const el = e.target?.closest?.(ALVO_CLIQUE)
+    if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return
+    clique(p.som_clique_volume ?? 35)
+  }
+  window.addEventListener('pointerdown', ouvir, { capture: true, passive: true })
+  return () => window.removeEventListener('pointerdown', ouvir, { capture: true })
+}

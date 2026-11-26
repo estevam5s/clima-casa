@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import time
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -33,7 +32,9 @@ def _linha(b: dict) -> dict:
 @rotas_bugs.get("/bugs")
 def listar():
     w, p = ("", ()) if _gestor() else (" WHERE autor_id = ?", (_u().get("id"),))
-    itens = [_linha(b) for b in db.consultar(f"SELECT * FROM bugs{w} ORDER BY (estado IN ('aberto','analisando')) DESC, atualizado_em DESC LIMIT 400", p)]
+    itens = [_linha(b) for b in db.consultar("SELECT b.*, t.projeto_id AS tarefa_projeto, t.prioridade AS tarefa_prioridade, t.concluida AS tarefa_concluida "  # nosec B608 (filtro fixo)
+                                              f"FROM bugs b LEFT JOIN tarefas t ON t.id = b.tarefa_id{w.replace('autor_id', 'b.autor_id')} "
+                                              "ORDER BY (b.estado IN ('aberto','analisando')) DESC, b.atualizado_em DESC LIMIT 400", p)]
     return {"itens": itens, "gestor": _gestor(), "ultima_varredura": db.cfg("bugs_ultima_varredura"),
             "autoteste": db.cfg("bugs_autoteste") if _gestor() else None,
             "abertos": sum(1 for b in itens if b["estado"] in ("aberto", "analisando"))}
@@ -117,6 +118,16 @@ def _mudar_estado(bid: int, estado: str, titulo: str = ""):
                 (estado, agora, estado, agora, bid))
     _hist(bid, "estado", ROTULO_ESTADO[estado])
     db.registrar("painel", f"Bug {estado}", detalhe=(titulo or f"#{bid}")[:120])
+    _sync_tarefa(bid)
+
+
+def _sync_tarefa(bid: int):
+    """Estado/gravidade do bug → tarefa do Plano de melhorias (concluir, reabrir, prioridade)."""
+    from .. import bugs
+    try:
+        bugs.sincronizar_tarefas([bid])
+    except Exception:  # noqa: BLE001  (a mudança no bug vale mesmo se a tarefa falhar; a varredura de hora em hora tenta de novo)
+        pass
 
 
 @rotas_bugs.put("/bugs/{bid}")
@@ -168,6 +179,7 @@ def editar(bid: int, d: EditarIn):
         sets.append("titulo = ?"); ps.append(d.titulo.strip()); _hist(bid, "titulo", d.titulo.strip())
     if sets:
         db.executar(f"UPDATE bugs SET {', '.join(sets)}, atualizado_em = ? WHERE id = ?", (*ps, db.agora(), bid))  # nosec B608 (colunas fixas)
+        _sync_tarefa(bid)
     return _linha(db.um("SELECT * FROM bugs WHERE id = ?", (bid,)))
 
 
@@ -238,25 +250,16 @@ def marcar_duplicado(bid: int, d: DuplicadoIn):
 
 @rotas_bugs.post("/bugs/{bid}/tarefa")
 def criar_tarefa(bid: int):
-    """Cria uma tarefa no projeto "Bugs" das Tarefas (cria o projeto se não existir) e liga as duas."""
+    """Liga o bug a uma tarefa em Tarefas → Plano de melhorias (seção Bugs e qualidade). Bug novo já ganha a tarefa sozinho."""
     if not _gestor():
         raise HTTPException(403, "Só quem gerencia o sistema cria tarefa a partir de um bug.")
     b = _bug_visivel(bid)
-    if b.get("tarefa_id") and db.um("SELECT 1 FROM tarefas WHERE id = ?", (b["tarefa_id"],)):
-        return {"tarefa_id": b["tarefa_id"], "ja_existia": True}
-    from .. import tarefas
-    u = _u()
-    pid = tarefas.projeto_por_nome("Bugs", u, cor="#dc2626", descricao="Correções vindas da tela Bugs.")
-    sec = db.um("SELECT id FROM tarefas_secoes WHERE projeto_id = ? ORDER BY ordem LIMIT 1", (pid,))
-    prio = {"critica": "urgente", "alta": "alta", "media": "media", "baixa": "baixa"}.get(b["gravidade"], "media")
-    desc = f"Bug #{bid} ({b['gravidade']}, {b['ocorrencias']}×) em {b['pagina'] or 'sem tela'}.\n\n{b['descricao'][:2000]}\n\nSugestão: {b['sugestao'] or '-'}\n\nhttps://app.zynio.com.br/bugs?bug={bid}"
-    t = db.um("INSERT INTO tarefas (projeto_id, secao_id, titulo, descricao, prioridade, prazo, responsavel_id, ordem, criado_por, criado_em, atualizado_em) "
-              "VALUES (?,?,?,?,?,?,CAST(? AS uuid),?,?,?,?) RETURNING id",
-              (pid, (sec or {}).get("id"), f"Corrigir: {b['titulo'][:280]}", desc, prio, b.get("prazo"), b.get("responsavel_id"), time.time(), u.get("id"), db.agora(), db.agora()))
-    db.executar("UPDATE bugs SET tarefa_id = ?, atualizado_em = ? WHERE id = ?", (t["id"], db.agora(), bid))
-    _hist(bid, "tarefa", f"Tarefa #{t['id']} criada em Tarefas → Bugs")
-    tarefas.evento(t["id"], u, f"Criou a tarefa a partir do bug #{bid}")
-    return {"tarefa_id": t["id"], "projeto_id": pid}
+    from .. import bugs
+    if b["estado"] not in bugs.ABERTOS:
+        raise HTTPException(400, "Este bug já foi encerrado: reabra antes de criar a tarefa.")
+    bugs.sincronizar_tarefas([bid])
+    t = db.um("SELECT b.tarefa_id, t.projeto_id FROM bugs b JOIN tarefas t ON t.id = b.tarefa_id WHERE b.id = ?", (bid,)) or {}
+    return {"tarefa_id": t.get("tarefa_id"), "projeto_id": t.get("projeto_id"), "ja_existia": bool(b.get("tarefa_id"))}
 
 
 @rotas_bugs.get("/bugs/estatisticas")
