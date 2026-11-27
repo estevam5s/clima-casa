@@ -131,7 +131,11 @@ def registrar_excecao(rota: str, metodo: str, exc: BaseException):
 
 
 def registrar_formulario(rota: str, metodo: str, campos: list, u: dict):
-    """422 de quem está logado: a tela mandou o formulário no formato errado (campo faltando, tipo trocado)."""
+    """422 de quem está logado: a tela mandou o formulário no formato errado (campo faltando, tipo trocado).
+    Contas de teste (@clima-teste.invalid) mandam dados inválidos de propósito para testar a validação: não é bug
+    (26/11/2026: uma bateria de testes local abriu 39 bugs falsos de uma vez)."""
+    if str(u.get("email") or "").lower().endswith("@clima-teste.invalid"):
+        return
     try:
         rota_norm = re.sub(r"/[0-9a-z]{16,}(?=/|$)|/\d+(?=/|$)", "/{id}", rota)
         cat = "cadastro" if re.search(r"/(hubs|aparelhos|projetos|cenas|automacoes|agendamentos|dispositivos)", rota_norm) else "tela"
