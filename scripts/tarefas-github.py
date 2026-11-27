@@ -44,7 +44,15 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     pid = int(args[0]) if args else 5
     if "--gh" in sys.argv:
-        t = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True).stdout.strip()
+        import re
+        t = ""
+        for _ in range(5):   # com o Mac bloqueado o chaveiro às vezes devolve uma mensagem no lugar do token
+            t = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True).stdout.strip()
+            if re.fullmatch(r"gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}", t):
+                break
+            time.sleep(10)
+        else:
+            raise SystemExit("O gh não devolveu um token válido (chaveiro trancado?). Desbloqueie o Mac e rode de novo.")
         tarefas.token = lambda: t
     p = db.um("SELECT github FROM tarefas_projetos WHERE id = ?", (pid,))
     g = p and p["github"]
