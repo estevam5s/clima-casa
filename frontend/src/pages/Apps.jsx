@@ -111,7 +111,7 @@ const compararVersao = (a, b) => {
   return 0
 }
 const COLUNAS = [['android', 'Android'], ['mac', 'macOS'], ['windows', 'Windows'], ['linux', 'Linux'], ['pwa', 'Web/PWA']]
-const VERIFICAR = { mac: 'shasum -a 256 ~/Downloads/', linux: 'sha256sum ~/Downloads/', windows: 'certutil -hashfile %USERPROFILE%\\Downloads\\', android: 'sha256sum ' }
+const VERIFICAR = { mac: 'shasum -a 256 ~/Downloads/', linux: 'sha256sum ~/Downloads/', windows: 'certutil -hashfile %USERPROFILE%\\Downloads\\', android: 'sha256sum ', extensao: 'sha256sum ~/Downloads/' }
 
 function Copiar({ texto, rotulo = 'Copiar' }) {
   const [ok, setOk] = useState(false)

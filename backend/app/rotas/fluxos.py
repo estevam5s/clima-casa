@@ -11,7 +11,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .. import acesso, db, fluxos
+from .. import acesso, db, fluxos, fluxos_catalogo, ia
 from ..seguranca import exigir_login
 
 rotas_fluxos = APIRouter(prefix="/api", dependencies=[Depends(exigir_login)])
@@ -59,7 +59,13 @@ def catalogo():
             "dispositivo": [{"id": d["id"], "nome": f"{d['nome']} ({d['tipo']})"} for d in db.consultar("SELECT id, nome, tipo FROM dispositivos ORDER BY tipo, nome")],
             "projeto": [{"id": p["id"], "nome": p["nome"]} for p in db.consultar("SELECT id, nome FROM projetos ORDER BY nome")],
             "pessoas": [{"id": str(u["id"]), "nome": u["nome"] or u["email"]} for u in db.consultar("SELECT id, nome, email FROM usuarios WHERE ativo ORDER BY nome")],
+            "fluxo": [{"id": x["id"], "nome": x["nome"]} for x in db.consultar("SELECT id, nome FROM fluxos ORDER BY nome")],
+            "automacao": [{"id": x["id"], "nome": x["nome"]} for x in db.consultar("SELECT id, nome FROM automacoes ORDER BY nome")],
+            "tarefa_projeto": [{"id": x["id"], "nome": x["nome"]} for x in db.consultar("SELECT id, nome FROM tarefas_projetos WHERE NOT arquivado ORDER BY nome")],
+            "modelo": [{"id": k, "nome": v} for k, v in ia.MODELOS.items()],
+            "conexao": [{"id": k, "nome": v.get("nome") or k, "servico": v.get("servico")} for k, v in fluxos_catalogo.conexoes().items()],
         },
+        "contagem": fluxos_catalogo.contagem(),
     }
 
 
@@ -84,7 +90,11 @@ def _salvar(f_id: int | None, d: FluxoIn, request: Request) -> dict:
                      (d.nome.strip(), d.descricao.strip(), json.dumps(grafo), bool(d.ativo), u.get("email"), agora, agora))["id"]
         db.registrar("painel", f"Fluxo criado: {d.nome.strip()}", detalhe=f"{len(grafo['nos'])} bloco(s)")
     else:
-        _fluxo(f_id)
+        antigo = _fluxo(f_id)
+        if json.dumps(antigo["grafo"], sort_keys=True) != json.dumps(grafo, sort_keys=True):   # guarda a versão anterior (as 30 mais novas)
+            db.executar("INSERT INTO fluxos_versoes (fluxo_id, nome, grafo, autor, criado_em) VALUES (?, ?, CAST(? AS jsonb), ?, ?)",
+                        (f_id, antigo["nome"], json.dumps(antigo["grafo"]), u.get("nome") or u.get("email"), agora))
+            db.executar("DELETE FROM fluxos_versoes WHERE fluxo_id = ? AND id NOT IN (SELECT id FROM fluxos_versoes WHERE fluxo_id = ? ORDER BY id DESC LIMIT 30)", (f_id, f_id))
         ativo_sql, extra = (", ativo = ?", (bool(d.ativo),)) if d.ativo is not None else ("", ())
         db.executar(f"UPDATE fluxos SET nome = ?, descricao = ?, grafo = CAST(? AS jsonb), atualizado_em = ?{ativo_sql} WHERE id = ?",
                     (d.nome.strip(), d.descricao.strip(), json.dumps(grafo), agora, *extra, f_id))
@@ -165,6 +175,132 @@ def execucoes(fid: int, limite: int = 30):
     _fluxo(fid)
     return db.consultar("SELECT id, inicio, fim, estado, origem, passos, erro FROM fluxos_execucoes WHERE fluxo_id = ? ORDER BY id DESC LIMIT ?",
                         (fid, max(1, min(limite, 100))))
+
+
+@rotas_fluxos.get("/fluxos/{fid}/versoes")
+def versoes(fid: int):
+    _fluxo(fid)
+    return [{**v, "blocos": len((v.pop("grafo") or {}).get("nos", []))} for v in
+            db.consultar("SELECT id, nome, grafo, autor, criado_em FROM fluxos_versoes WHERE fluxo_id = ? ORDER BY id DESC LIMIT 30", (fid,))]
+
+
+@rotas_fluxos.post("/fluxos/{fid}/versoes/{vid}/restaurar")
+def restaurar_versao(fid: int, vid: int, request: Request):
+    f = _fluxo(fid)
+    v = db.um("SELECT grafo FROM fluxos_versoes WHERE id = ? AND fluxo_id = ?", (vid, fid))
+    if not v:
+        raise HTTPException(404, "Versão não encontrada.")
+    return _salvar(fid, FluxoIn(nome=f["nome"], descricao=f["descricao"] or "", grafo=v["grafo"]), request)
+
+
+@rotas_fluxos.get("/fluxos-execucoes")
+def todas_execucoes(estado: str = "", limite: int = 100):
+    """Execuções de todos os fluxos (Rotinas → Execuções)."""
+    filtro, p = (" AND e.estado = ?", [estado]) if estado in ("ok", "erro", "rodando", "ignorada") else ("", [])
+    return db.consultar(f"SELECT e.id, e.fluxo_id, f.nome AS fluxo, e.inicio, e.fim, e.estado, e.origem, e.erro, jsonb_array_length(e.passos) AS passos "
+                        f"FROM fluxos_execucoes e JOIN fluxos f ON f.id = e.fluxo_id WHERE true{filtro} ORDER BY e.id DESC LIMIT ?", (*p, max(1, min(limite, 300))))
+
+
+@rotas_fluxos.get("/fluxos-execucoes/{eid}")
+def uma_execucao(eid: int):
+    e = db.um("SELECT e.*, f.nome AS fluxo FROM fluxos_execucoes e JOIN fluxos f ON f.id = e.fluxo_id WHERE e.id = ?", (eid,))
+    if not e:
+        raise HTTPException(404, "Execução não encontrada.")
+    return e
+
+
+# ---------------- variáveis globais ----------------
+@rotas_fluxos.get("/fluxos-variaveis")
+def variaveis():
+    return db.cfg("fluxos_variaveis") or {}
+
+
+class VariaveisIn(BaseModel):
+    variaveis: dict = Field(default_factory=dict)
+
+
+@rotas_fluxos.put("/fluxos-variaveis")
+def salvar_variaveis(d: VariaveisIn):
+    if len(d.variaveis) > 200:
+        raise HTTPException(422, "Até 200 variáveis.")
+    limpo = {}
+    for k, v in d.variaveis.items():
+        nome = "".join(c for c in str(k) if c.isalnum() or c == "_")[:40]
+        if nome:
+            limpo[nome] = v if isinstance(v, (int, float, bool)) else str(v)[:2000]
+    db.set_cfg("fluxos_variaveis", limpo)
+    db.registrar("painel", "Variáveis dos fluxos salvas", detalhe=f"{len(limpo)} variável(is)")
+    return limpo
+
+
+# ---------------- conexões (integrações externas, cifradas) ----------------
+def _so_gestor(request: Request):
+    if (request.state.u or {}).get("papel") not in ("dono", "admin"):
+        raise HTTPException(403, "Só o dono ou um administrador mexe nas conexões.")
+
+
+def _mascarar(c: dict) -> dict:
+    segredos = {nome for nome, _r, seg in fluxos_catalogo.SERVICOS.get(c.get("servico"), ("", []))[1] if seg}
+    return {k: (("•" * 6 + str(v)[-4:]) if k in segredos and v else v) for k, v in c.items()}
+
+
+@rotas_fluxos.get("/fluxos-conexoes")
+def listar_conexoes():
+    return {"servicos": {k: {"nome": n, "campos": [{"nome": c, "rotulo": r, "segredo": s} for c, r, s in campos], "rede_local": loc}
+                         for k, (n, campos, loc) in fluxos_catalogo.SERVICOS.items()},
+            "conexoes": [{"id": k, **_mascarar(v)} for k, v in fluxos_catalogo.conexoes().items()]}
+
+
+class ConexaoIn(BaseModel):
+    id: str = Field("", max_length=40)
+    servico: str = Field(max_length=40)
+    nome: str = Field(min_length=1, max_length=60)
+    campos: dict = Field(default_factory=dict)
+    rede_local: bool = False
+
+
+@rotas_fluxos.post("/fluxos-conexoes")
+def salvar_conexao(d: ConexaoIn, request: Request):
+    _so_gestor(request)
+    if d.servico not in fluxos_catalogo.SERVICOS:
+        raise HTTPException(422, "Serviço desconhecido.")
+    nome_s, campos, permite_local = fluxos_catalogo.SERVICOS[d.servico]
+    if d.rede_local and (not permite_local or request.state.u.get("papel") != "dono"):
+        raise HTTPException(403, "Conexão da rede local: só o dono, e só para Home Assistant, Node-RED ou n8n.")
+    todas = fluxos_catalogo.conexoes()
+    cid = "".join(c for c in d.id if c.isalnum() or c in "_-")[:40]
+    antigo = todas.get(cid) or {}
+    if not cid:
+        if len(todas) >= 60:
+            raise HTTPException(409, "Limite de 60 conexões.")
+        import secrets
+        cid = f"{d.servico}-{secrets.token_hex(3)}"
+    novo = {"servico": d.servico, "nome": d.nome.strip(), "rede_local": bool(d.rede_local), "atualizado_em": db.agora()}
+    for c, rotulo, seg in campos:
+        v = str(d.campos.get(c) or "").strip()[:2000]
+        if seg and (not v or v.startswith("••")):
+            v = antigo.get(c, "")   # vazio ou mascarado = mantém
+        if not v and c not in ("token", "cabecalho") and rotulo.find("opcional") < 0:
+            raise HTTPException(422, f"{nome_s}: preencha {rotulo}.")
+        if c == "url" and v and not (v.startswith("https://") or (d.rede_local and v.startswith("http://"))):
+            raise HTTPException(422, f"{nome_s}: o endereço precisa começar com https://.")
+        novo[c] = v
+    todas[cid] = novo
+    db.set_cfg(fluxos_catalogo.CONEXOES_CFG, todas)
+    db.registrar("painel", f"Conexão salva: {d.nome.strip()}", detalhe=nome_s)
+    return {"id": cid, **_mascarar(novo)}
+
+
+@rotas_fluxos.delete("/fluxos-conexoes/{cid}")
+def apagar_conexao(cid: str, request: Request):
+    _so_gestor(request)
+    todas = fluxos_catalogo.conexoes()
+    c = todas.pop(cid, None)
+    if not c:
+        raise HTTPException(404, "Conexão não encontrada.")
+    db.set_cfg(fluxos_catalogo.CONEXOES_CFG, todas)
+    db.registrar("painel", f"Conexão apagada: {c.get('nome')}")
+    return {"ok": True}
 
 
 # ---------------- webhook público ----------------

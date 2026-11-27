@@ -16,6 +16,7 @@ struct MaisView: View {
             Section("Automação") {
                 NavigationLink { AgendaView() } label: { Label("Agenda", systemImage: "calendar") }
                 NavigationLink { AutomacoesView() } label: { Label("Automações", systemImage: "point.3.connected.trianglepath.dotted") }
+                NavigationLink { FluxosView() } label: { Label("Fluxos", systemImage: "flowchart") }
             }
             Section("Acompanhar") {
                 NavigationLink { NotificacoesView() } label: { Label("Notificações", systemImage: "bell") }
@@ -36,6 +37,7 @@ struct MaisView: View {
                     NavigationLink { SupabaseView() } label: { Label("Banco (Supabase)", systemImage: "cylinder.split.1x2") }
                     NavigationLink { SiteView() } label: { Label("Site e acessos", systemImage: "chart.line.uptrend.xyaxis") }
                     if sessao.pode("usuarios.gerenciar") { NavigationLink { UsoSistemaView() } label: { Label("Uso do sistema", systemImage: "chart.bar.xaxis") } }
+                    if sessao.pode("configuracoes.gerenciar") { NavigationLink { DiagnosticoSistemaView() } label: { Label("Diagnóstico", systemImage: "stethoscope") } }
                 }
             }
             Section("Conta") {

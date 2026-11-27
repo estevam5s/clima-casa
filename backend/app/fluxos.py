@@ -123,6 +123,14 @@ def validar(grafo: dict, aparelhos_ok: set | None) -> dict:
                     v = float(v)
                     if extra and not (extra["min"] <= v <= extra["max"]):
                         raise ValueError(f"{CATALOGO[tipo]['rotulo']}: {_r} precisa ficar entre {extra['min']} e {extra['max']}.")
+            elif t in ("fluxo", "automacao", "tarefa_projeto"):
+                v = None if v in (None, "") else int(v)
+            elif t == "conexao":
+                v = re.sub(r"[^a-zA-Z0-9_-]", "", str(v or ""))[:40]
+            elif t == "modelo":
+                from . import ia
+                v = str(v or "")
+                v = v if v in ia.MODELOS else ""
             elif t in ("ar", "ar_ou_evento", "cena", "dispositivo", "projeto"):
                 v = None if v in (None, "", "evento") else int(v)
                 if t == "ar_ou_evento" and cfg_in.get(nome) == "evento":
@@ -147,7 +155,7 @@ def validar(grafo: dict, aparelhos_ok: set | None) -> dict:
             else:
                 v = str(v or "")[:4000 if t == "textao" else 500]
             cfg[nome] = v
-        if tipo == "http":
+        if tipo == "http" or tipo.startswith("http_"):
             u = cfg.get("url") or ""
             if u and not u.startswith("https://"):
                 raise ValueError("Chamar URL: só endereços https://.")
@@ -182,6 +190,8 @@ def resumo_gatilhos(grafo: dict) -> list[str]:
             out.append(f"ar ligado há {int(c.get('minutos') or 0)} min")
         elif t == "gatilho_temperatura":
             out.append(f"rua {'acima' if c.get('sentido') == 'acima' else 'abaixo'} de {c.get('valor')} °C")
+        elif t not in ("gatilho_webhook", "gatilho_manual") and CATALOGO.get(t, {}).get("cat") == "gatilho":
+            out.append(CATALOGO[t]["rotulo"].lower())
         elif t == "gatilho_webhook":
             out.append("webhook")
         elif t == "gatilho_manual":
@@ -401,6 +411,9 @@ def _rodar_no(fluxo: dict, n: dict, ctx: dict, prazo: dict) -> tuple[str, str]:
         txt = ia.gerar("Você ajuda a automatizar um escritório. Responda em português do Brasil, curto e direto, sem markdown.", P("pedido")[:4000], max_tokens=600, temperatura=0.4)
         ctx["ia"] = {"texto": (txt or "").strip()[:3000]}
         return "saida", ctx["ia"]["texto"][:120]
+    from . import fluxos_catalogo
+    if t in fluxos_catalogo.EXEC:
+        return fluxos_catalogo.EXEC[t](fluxo, n, ctx, prazo, P)
     raise RuntimeError(f"Bloco sem execução: {t}")
 
 
@@ -450,6 +463,8 @@ def executar(fluxo: dict, gatilho_id: str | None, origem: str, ctx_inicial: dict
                 passos.append({"no": nid, "tipo": n["tipo"], "ok": False, "erro": str(e)[:300], "ms": int((time.time() - t0) * 1000)})
                 erro = erro or f"{CATALOGO[n['tipo']]['rotulo']}: {str(e)[:200]}"
                 continue
+            if ctx.pop("_parar", False):
+                continue
             fila.extend(saidas.get((nid, porta), []))
         if n_passos >= LIMITE_PASSOS:
             erro = erro or f"Parou em {LIMITE_PASSOS} passos (o fluxo tem um laço?)."
@@ -463,7 +478,7 @@ def executar(fluxo: dict, gatilho_id: str | None, origem: str, ctx_inicial: dict
         db.executar("DELETE FROM fluxos_execucoes WHERE fluxo_id = ? AND id NOT IN (SELECT id FROM fluxos_execucoes WHERE fluxo_id = ? ORDER BY id DESC LIMIT 200)", (fid, fid))
     db.executar("UPDATE fluxos SET ultima_exec = ?, execucoes = execucoes + 1, ultimo_estado = ? WHERE id = ?", (db.agora(), estado, fid))
     db.registrar(f"fluxo:{fluxo['nome']}"[:60], f"Fluxo executado: {fluxo['nome']}", ok=not erro, detalhe=(erro or f"{len(passos)} bloco(s) · {origem}")[:300])
-    return {"id": eid, "estado": estado, "erro": erro, "passos": passos, "contexto": {k: v for k, v in ctx.items() if k in ("ar", "fora", "http", "ia", "var", "evento", "webhook")}}
+    return {"id": eid, "estado": estado, "erro": erro, "passos": passos, "contexto": {k: v for k, v in ctx.items() if k in ("ar", "fora", "http", "ia", "var", "evento", "webhook", "integracao")}}
 
 
 def _rodar_em_fundo(fluxo, gid, origem, ctx=None):
@@ -538,8 +553,24 @@ def ciclo():
                 passou = temp > float(c.get("valor") or 0) if c.get("sentido") == "acima" else temp < float(c.get("valor") or 0)
                 if _marcar(f, f"t:{n['id']}", bool(passou)) and passou:
                     _rodar_em_fundo(f, n["id"], f"rua a {temp} °C", {"fora": fora})
+            _gatilhos_catalogo(f)
         except Exception as e:  # noqa: BLE001
             log.warning("fluxo %s: %s", f.get("id"), e)
+
+
+def _gatilhos_catalogo(f: dict):
+    """Gatilhos do catálogo ampliado (fluxos_catalogo.GATILHO): evento por tabela, estado que cruza um limite, tempo."""
+    from . import fluxos_catalogo
+    g = f["grafo"] if isinstance(f["grafo"], dict) else json.loads(f["grafo"])
+    for n in g.get("nos", []):
+        fn = fluxos_catalogo.GATILHO.get(n["tipo"])
+        if not fn:
+            continue
+        try:
+            for ctx in fn(f, n) or []:
+                _rodar_em_fundo(f, n["id"], CATALOGO[n["tipo"]]["rotulo"][:60], ctx)
+        except Exception as e:  # noqa: BLE001
+            log.warning("fluxo %s gatilho %s: %s", f.get("id"), n["tipo"], e)
 
 
 def evento_ar(aparelho_id: int, origem: str, ligado: bool):
@@ -566,3 +597,6 @@ def por_token(token: str) -> tuple[dict, str] | None:
             if secrets.compare_digest(str(n["config"].get("token") or ""), token):
                 return f, n["id"]
     return None
+
+
+from . import fluxos_catalogo as _catalogo  # noqa: E402,F401  (registra os blocos ampliados no CATALOGO)

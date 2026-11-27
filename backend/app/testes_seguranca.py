@@ -178,6 +178,16 @@ async def _um(cli, x, assin) -> tuple[bool, str]:
         r = await cli.get(f"https://{h}/.well-known/security.txt", headers=assin)
         if r.status_code == 403:   # proteção anti-robô da hospedagem: confere como um navegador comum
             r = await cli.get(f"https://{h}/.well-known/security.txt", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/131"})
+        if r.status_code == 403 and (r.headers.get("x-vercel-mitigated") or "vercel" in (r.headers.get("server") or "").lower()):
+            # a Vercel desafia o cliente do teste pela impressão da conexão (não pelo User-Agent); o curl passa. Confere com ele.
+            import shutil
+            import subprocess
+            if shutil.which("curl"):
+                p = await asyncio.to_thread(subprocess.run, ["curl", "-s", "-m", "10", "-w", "\n%{http_code}", "-A", "Mozilla/5.0 (Windows NT 10.0) Chrome/131",
+                                                             f"https://{h}/.well-known/security.txt"], capture_output=True, text=True)
+                corpo, _, cod = p.stdout.rpartition("\n")
+                tem = "Contact:" in corpo and "Expires:" in corpo
+                return cod == "200" and tem, f"{cod} (conferido com curl: a Vercel desafia o cliente do teste)"
         tem = "Contact:" in r.text and "Expires:" in r.text
         return r.status_code == 200 and tem, f"{r.status_code}{'' if tem or r.status_code != 200 else ' sem Contact/Expires'}"
     if tp == "redir_aberto":   # ninguém pode usar o domínio para mandar a pessoa a um site de fora

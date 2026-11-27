@@ -16,13 +16,15 @@ const ARQ_PREF = path.join(app.getPath('userData'), 'preferencias.json')
 const ROTAS = [['Painel', '/'], ['Aparelhos', '/aparelhos'], ['Mapa do escritório', '/mapa'], ['Cenas', '/cenas'], ['Automações', '/automacoes'],
   ['Agenda', '/agendamentos'], ['Relatórios', '/relatorios'], ['Atividade', '/atividade'], ['Segurança', '/seguranca']]
 // telas novas (1.4.0): no menu Ir e na bandeja, sem atalho de número (Cmd+1 a 9 já são as de cima)
-const MAIS_TELAS = [['Tarefas', '/tarefas'], ['Logs', '/seguranca?aba=logs'], ['Assistente de IA', '/ia'], ['Notificações', '/notificacoes'], ['Treinamento e segurança', '/treinamento'], ['Backup e restauração', '/backup'],
+const MAIS_TELAS = [['Tarefas', '/tarefas'], ['Logs', '/seguranca?aba=logs'], ['Assistente de IA', '/ia'], ['Notificações', '/notificacoes'], ['Treinamento e segurança', '/seguranca?aba=treinamento'], ['Backup e restauração', '/backup'],
   ['Telegram', '/telegram'], ['Música', '/musica'], ['Bugs', '/bugs'], ['Transmissores', '/transmissores'],
   ['Mensagens e Kanban', '/mensagens'], ['Luzes e interruptores', '/luzes'], ['Segurança do Telegram', '/seguranca?aba=telegram'],
   ['Banco (Supabase)', '/supabase'], ['Editor SQL', '/supabase?secao=sql'], ['Avatares e Estúdio', '/avatares'], ['Novidades', '/novidades'],
   ['Projetos e salas', '/projetos'], ['Mapa e Ilha 3D', '/mapa'], ['Uso da IA e limites', '/ia'], ['Passo a passo', '/guia'], ['Baixar apps', '/apps'],
   ['Acessos e SEO', '/analise'], ['Idiomas do site', '/idiomas'], ['Newsletter', '/emails?aba=newsletter'],
-  ['Rede e velocidade', '/rede'], ['Uso do sistema por pessoa', '/configuracoes?aba=usuarios&ver=uso']]
+  ['Rede e velocidade', '/rede'], ['Uso do sistema por pessoa', '/configuracoes?aba=usuarios&ver=uso'],
+  ['Fluxos', '/rotinas?aba=fluxos'], ['Execuções dos fluxos', '/rotinas?aba=execucoes'], ['Conexões dos fluxos', '/rotinas?aba=conexoes'],
+  ['Diagnóstico do sistema', '/configuracoes?aba=diagnostico'], ['Acessibilidade', '/configuracoes?aba=acessibilidade']]
 let janela = null, bandeja = null, saindo = false, travado = false, escondidaEm = null, novaVersao = null
 
 if (!app.requestSingleInstanceLock()) app.quit()

@@ -131,7 +131,7 @@ TRILHAS = {
 
 
 def _id(texto: str) -> str:
-    return hashlib.sha1(texto.encode()).hexdigest()[:12]
+    return hashlib.sha1(texto.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def _q(trilha, texto, opcoes, certa, explicacao, rnd):

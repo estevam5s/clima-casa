@@ -48,6 +48,7 @@ class BugIn(BaseModel):
     gravidade: str = Field("media", pattern="^(baixa|media|alta|critica)$")
     navegador: str = Field("", max_length=300)
     erros: list[str] = Field([], max_length=10)
+    trilha: list[str] = Field([], max_length=25)
 
 
 @rotas_bugs.post("/bugs")
@@ -56,7 +57,7 @@ def relatar(d: BugIn):
     recentes = db.um("SELECT count(*) n FROM bugs WHERE autor_id = ? AND criado_em > ?", (u.get("id"), db.agora() - 3600))["n"]
     if recentes >= 10:
         raise HTTPException(429, "Muitos relatos na última hora. Tente de novo mais tarde.")
-    ctx = {"navegador": d.navegador, "erros": [e[:300] for e in d.erros]}
+    ctx = {"navegador": d.navegador, "erros": [e[:300] for e in d.erros], "trilha": [t[:160] for t in d.trilha]}
     b = {"titulo": d.titulo.strip(), "descricao": d.descricao.strip(), "passos": d.passos.strip(), "pagina": d.pagina, "gravidade": d.gravidade,
          "origem": "usuario", "autor_nome": u.get("nome") or u.get("email"), "contexto": ctx, "ocorrencias": 1}
     b["sugestao"] = bugs.sugestao_para(f"{b['titulo']} {b['descricao']} {' '.join(d.erros)}")
@@ -77,6 +78,8 @@ class ErroClienteIn(BaseModel):
     pilha: str = Field("", max_length=3000)
     pagina: str = Field("", max_length=200)
     navegador: str = Field("", max_length=300)
+    trilha: list[str] = Field([], max_length=25)
+    tipo: str = Field("js", pattern="^(js|api|travamento|branco)$")
 
 
 @rotas_bugs.post("/bugs/erro-cliente")
@@ -87,8 +90,11 @@ def erro_cliente(d: ErroClienteIn):
         return {"ok": False}
     msg = re.sub(r"\b[0-9a-f]{8,}\b|\d+", "N", d.mensagem)[:160]
     pagina = re.sub(r"/\d+(?=/|$)", "/{id}", d.pagina.split("?")[0])
-    bugs.registrar_auto(bugs._chave("tela", pagina, msg), f"Erro na tela {pagina or '/'}: {d.mensagem[:100]}", d.mensagem, pagina=pagina, gravidade="media",
-                        categoria="tela", contexto={"detalhe": d.pilha, "navegador": d.navegador, "erros": [f"{u.get('nome') or u.get('email') or ''}: {d.mensagem[:200]}"]})
+    rotulo = {"js": "Erro na tela", "api": "API falhando na tela", "travamento": "Tela travando", "branco": "Tela em branco"}[d.tipo]
+    bugs.registrar_auto(bugs._chave("tela", pagina, msg) if d.tipo == "js" else bugs._chave("tela", d.tipo, pagina, msg), f"{rotulo} {pagina or '/'}: {d.mensagem[:100]}", d.mensagem, pagina=pagina,
+                        gravidade="alta" if d.tipo == "branco" else "media", categoria="tela" if d.tipo == "js" else d.tipo,
+                        contexto={"detalhe": d.pilha, "navegador": d.navegador, "trilha": [t[:160] for t in d.trilha],
+                                  "erros": [f"{u.get('nome') or u.get('email') or ''}: {d.mensagem[:200]}"]})
     return {"ok": True}
 
 

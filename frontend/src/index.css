@@ -230,3 +230,22 @@ header[data-cabecalho-app] { container: topo / inline-size; }
 @keyframes fluxo-correr { to { stroke-dashoffset: -26; } }
 .fluxo-correndo { animation: fluxo-correr 0.9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .fluxo-correndo { animation: none; } }
+
+/* Tarefas no tema do Asana (só nesta tela): coral da marca como cor principal e a barra lateral escura do Asana */
+.tela-asana { --primary: 0 82% 68%; --primary-foreground: 0 0% 100%; --ring: 0 82% 68%; }
+.tela-asana .asana-lateral { background: #2e2e30; color: #f5f4f3; }
+.tela-asana .asana-lateral button { color: #c9c7c5; }
+.tela-asana .asana-lateral button:hover { background: rgb(255 255 255 / 0.08); color: #fff; }
+.tela-asana .asana-lateral .bg-muted { background: rgb(255 255 255 / 0.14) !important; color: #fff; }
+.tela-asana .asana-lateral .border-border { border-color: rgb(255 255 255 / 0.14); }
+.tela-asana .asana-lateral .text-muted-foreground { color: #a2a0a2; }
+.tela-asana .asana-lateral .bg-card { background: #3d3c3e; color: #fff; }
+
+/* acessibilidade (Configurações → Acessibilidade) */
+html.alto-contraste { --border: 0 0% 35%; --muted-foreground: 0 0% 20%; }
+html.alto-contraste.dark { --border: 0 0% 70%; --muted-foreground: 0 0% 85%; }
+html.reduzir-movimento *, html.reduzir-movimento *::before, html.reduzir-movimento *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+html.densidade-compacta .cartao { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+html.densidade-compacta main { --espaco: 0.75rem; }
+html.sublinhar-links main a { text-decoration: underline; text-underline-offset: 2px; }
+html.foco-forte *:focus-visible { outline: 3px solid hsl(var(--primary)) !important; outline-offset: 2px !important; }

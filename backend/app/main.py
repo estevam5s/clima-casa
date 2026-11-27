@@ -121,7 +121,9 @@ async def cabecalhos(request: Request, chamar):
     # Bloqueia POST/PUT/DELETE vindos de outros sites (CSRF) nas rotas de sessão
     if request.method not in ("GET", "HEAD", "OPTIONS") and request.url.path.startswith("/api/"):
         origem = request.headers.get("origin")
-        if origem and origem.split("://", 1)[-1] != request.headers.get("host"):
+        extensao = (origem or "").startswith(("chrome-extension://", "moz-extension://", "safari-web-extension://")) and \
+            request.headers.get("authorization", "").startswith("Bearer ")   # extensão do navegador: só com o token (Bearer não é enviado por outro site)
+        if origem and not extensao and origem.split("://", 1)[-1] != request.headers.get("host"):
             return JSONResponse({"detail": "Origem não permitida."}, status_code=403)
     resp = await chamar(request)
     if dinamica and resp.status_code in (401, 403) and not de_teste:

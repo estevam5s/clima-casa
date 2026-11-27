@@ -3,7 +3,7 @@ import { limparCache } from '../cacheTela'
 import IconeMarca from './IconeMarca'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, ListTodo, Languages, LineChart, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
+import { Loader2 as Loader, Activity, ListTodo, Languages, LineChart, AirVent, BarChart3, Bell, Blinds, BookOpen, Bot, Bug, Check, ChevronDown, Coffee, DoorClosed, ChevronsUpDown, Database, Download, FolderKanban, Gauge, Globe, GraduationCap, Inbox, Laptop, LifeBuoy, Lightbulb, LogOut, Mail, Megaphone, Map as MapIcon, Send, Menu, MessageSquareQuote, Mic, Moon, Music2, PersonStanding, Pin, PinOff, Plug, Radio, Search, Server, Settings, ShieldCheck, Sun, Wifi, Workflow, Wrench, X, DatabaseBackup } from 'lucide-react'
 import { api } from '../api'
 import { supabase } from '../supabase'
 import { useProjeto } from '../contexto'
@@ -285,54 +285,95 @@ function ConteudoSidebar({ aberta, aoNavegar, fixada, alternarFixar, contadores,
   )
 }
 
+// Busca do topo (⌘K): telas e ares na hora; no servidor, o sistema inteiro com o escopo da pessoa (GET /api/busca); e "Perguntar
+// à IA" (POST /api/busca/ia), que conhece todas as telas e consulta os dados, só lendo. Pergunta ("como…", "onde…", "?") chama a IA sozinha.
+const PERGUNTA = /\?\s*$|^(como|onde|qual|quais|quanto|quantos|quando|por que|porque|o que|quem|posso|tem como|preciso)\b/i
 function Paleta({ aberta, fechar }) {
   const [q, setQ] = useState('')
-  const [aparelhos, setAparelhos] = useState([])
+  const [remotos, setRemotos] = useState([])
+  const [buscando, setBuscando] = useState(false)
+  const [ia, setIa] = useState(null)        // { carregando } | { texto, links } | { erro }
   const [sel, setSel] = useState(0)
   const navegar = useNavigate()
   const ref = useRef(null)
+  const pedidoIa = useRef(0)
   useEffect(() => {
     if (!aberta) return
-    setQ(''); setSel(0)
-    api.get('/api/aparelhos').then(setAparelhos).catch(() => {})
+    setQ(''); setSel(0); setRemotos([]); setIa(null)
     setTimeout(() => ref.current?.focus(), 10)
   }, [aberta])
+  const perguntarIa = async (texto = q) => {
+    const t = texto.trim()
+    if (t.length < 3) return
+    const meu = ++pedidoIa.current
+    setIa({ carregando: true, q: t })
+    try { const r = await api.post('/api/busca/ia', { q: t }); if (meu === pedidoIa.current) setIa({ ...r, q: t }) } catch (e) { if (meu === pedidoIa.current) setIa({ erro: e.message, q: t }) }
+  }
+  useEffect(() => {
+    const t = q.trim()
+    if (t.length < 2) { setRemotos([]); return undefined }
+    setBuscando(true)
+    const h = setTimeout(() => api.get(`/api/busca?q=${encodeURIComponent(t)}`).then((r) => setRemotos(r.resultados || [])).catch(() => setRemotos([])).finally(() => setBuscando(false)), 220)
+    const hIa = PERGUNTA.test(t) && t.length > 8 ? setTimeout(() => perguntarIa(t), 900) : null
+    return () => { clearTimeout(h); if (hIa) clearTimeout(hIa) }
+  }, [q])   // eslint-disable-line react-hooks/exhaustive-deps
   const itens = useMemo(() => {
-    const t = q.toLowerCase()
-    return [
-      ...TODAS.map((i) => ({ rotulo: i.rotulo, tipo: 'Página', para: i.para, icone: i.icone })),
-      ...aparelhos.map((a) => ({ rotulo: a.nome, tipo: a.projeto_nome || 'Aparelho', para: `/aparelhos/${a.id}`, icone: AirVent })),
-    ].filter((i) => i.rotulo.toLowerCase().includes(t)).slice(0, 9)
-  }, [q, aparelhos])
-  const ir = (i) => { navegar(i.para); fechar() }
+    const t = q.toLowerCase().trim()
+    const telas = TODAS.filter((i) => !t || i.rotulo.toLowerCase().includes(t)).map((i) => ({ titulo: i.rotulo, tipo: 'Tela', link: i.para, icone: i.icone }))
+    const vistos = new Set(telas.map((x) => x.link))
+    const rem = remotos.filter((r) => !(r.tipo === 'Tela' && vistos.has(r.link))).map((r) => ({ ...r, icone: ICONE_TIPO[r.tipo] || Search }))
+    const lista = [...(t.length >= 3 ? [{ ia: true, titulo: `Perguntar à IA: “${q.trim()}”`, tipo: 'IA', icone: Bot }] : []), ...telas.slice(0, t ? 6 : 8), ...rem]
+    return lista.slice(0, 40)
+  }, [q, remotos])
+  const ir = (i) => { if (i.ia) return perguntarIa(); navegar(i.link); fechar() }
+  const grupos = []
+  itens.forEach((i, n) => { const g = i.ia ? 'Inteligência artificial' : i.tipo === 'Tela' ? 'Telas' : i.tipo; const x = grupos.find((y) => y[0] === g); if (x) x[1].push([i, n]); else grupos.push([g, [[i, n]]]) })
   return (
     <AnimatePresence>
       {aberta && (
-        <motion.div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/40 px-4 pt-[12vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={fechar}>
+        <motion.div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/40 px-4 pt-[10vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={fechar}>
           <motion.div initial={{ scale: 0.97, y: -8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.97, opacity: 0 }} transition={{ duration: 0.14 }}
-            className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-2xl" /* marca: paleta flutua */ onMouseDown={(e) => e.stopPropagation()}>
+            className="flex max-h-[78vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl" /* marca: paleta flutua */ onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-border px-3">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <input ref={ref} value={q} onChange={(e) => { setQ(e.target.value); setSel(0) }} placeholder="Buscar páginas e aparelhos…" type="search" name="busca-paginas" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other"
+              {buscando ? <Loader className="h-4 w-4 animate-spin text-muted-foreground" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+              <input ref={ref} value={q} onChange={(e) => { setQ(e.target.value); setSel(0) }} placeholder="Buscar ou perguntar (ex.: onde vejo o gasto do mês?)" type="search" name="busca-paginas" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other"
                 className="campo-embutido h-12 flex-1 bg-transparent text-sm outline-none focus-visible:ring-0 placeholder:text-muted-foreground" aria-label="Buscar" /* marca: o foco aparece na borda da paleta */
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, itens.length - 1)) }
                   if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)) }
                   if (e.key === 'Enter' && itens[sel]) ir(itens[sel])
+                  if (e.key === 'Tab' && q.trim().length >= 3) { e.preventDefault(); perguntarIa() }
                   if (e.key === 'Escape') fechar()
                 }} />
+              <kbd className="hidden rounded border border-border px-1.5 text-[10px] text-muted-foreground sm:block">Tab = IA</kbd>
               <kbd className="rounded border border-border px-1.5 text-[10px] text-muted-foreground">ESC</kbd>
             </div>
-            <ul className="max-h-80 overflow-y-auto p-1.5">
-              {itens.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted-foreground">Nada encontrado.</li>}
-              {itens.map((i, n) => (
-                <li key={i.para}>
-                  <button onMouseEnter={() => setSel(n)} onClick={() => ir(i)}
-                    className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-sm ${n === sel ? 'bg-muted' : ''}`}>
-                    <i.icone className="h-4 w-4 text-muted-foreground" />
-                    <span className="flex-1 truncate">{i.rotulo}</span>
-                    <span className="text-xs text-muted-foreground">{i.tipo}</span>
-                  </button>
+            <AnimatePresence>
+              {ia && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-b border-border bg-muted/30">
+                  <div className="max-h-64 overflow-y-auto px-4 py-3 text-sm">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><Bot className="h-3.5 w-3.5 text-primary" />Resposta da IA{ia.q ? ` · “${ia.q.slice(0, 60)}”` : ''}</p>
+                    {ia.carregando ? <p className="flex items-center gap-2 text-muted-foreground"><Loader className="h-3.5 w-3.5 animate-spin" />Consultando o sistema…</p>
+                      : ia.erro ? <p className="text-red-600 dark:text-red-400">{ia.erro}</p>
+                        : <><div className="leading-relaxed [&_a]:text-primary"><MiniMarkdownBusca texto={ia.texto} ir={(l) => { navegar(l); fechar() }} /></div>
+                          {ia.links?.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{ia.links.map((l) => <button key={l.link} onClick={() => { navegar(l.link); fechar() }} className="rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/15">Abrir {l.titulo} →</button>)}</div>}</>}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <ul className="min-h-0 flex-1 overflow-y-auto p-1.5">
+              {itens.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted-foreground">{q.trim().length < 2 ? 'Digite o que procura: ar, sala, tarefa, bug, pessoa, tela… ou faça uma pergunta.' : buscando ? 'Procurando…' : 'Nada encontrado. Aperte Tab para perguntar à IA.'}</li>}
+              {grupos.map(([g, lst]) => (
+                <li key={g}>
+                  <p className="px-2.5 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">{g}</p>
+                  <ul>{lst.map(([i, n]) => (
+                    <li key={`${i.tipo}-${i.link || 'ia'}-${n}`}>
+                      <button onMouseEnter={() => setSel(n)} onClick={() => ir(i)} className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-sm ${n === sel ? 'bg-muted' : ''}`}>
+                        <i.icone className={`h-4 w-4 shrink-0 ${i.ia ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <span className="min-w-0 flex-1"><span className="block truncate">{i.titulo}</span>{i.sub && <span className="block truncate text-[11px] text-muted-foreground">{i.sub}</span>}</span>
+                        {i.ia ? <kbd className="rounded border border-border px-1 text-[10px] text-muted-foreground">Tab</kbd> : <span className="shrink-0 text-xs text-muted-foreground">{i.tipo}</span>}
+                      </button>
+                    </li>))}</ul>
                 </li>
               ))}
             </ul>
@@ -341,6 +382,18 @@ function Paleta({ aberta, fechar }) {
       )}
     </AnimatePresence>
   )
+}
+const ICONE_TIPO = { Ar: AirVent, Sala: FolderKanban, Transmissor: Radio, Cena: Workflow, Automação: Workflow, Agenda: Workflow, Fluxo: Workflow, Tarefa: ListTodo,
+  Bug, Pessoa: Settings, 'Aparelho do escritório': Lightbulb, 'Conversa com a IA': Bot, Versão: Megaphone, Tela: Search }
+// links [texto](/rota) da resposta da IA viram navegação interna; o resto é texto (sem HTML cru)
+function MiniMarkdownBusca({ texto, ir }) {
+  return (texto || '').split('\n').filter((l) => l.trim()).map((linha, k) => (
+    <p key={k} className="mb-1">{linha.split(/(\[[^\]]+\]\(\/[^)\s]*\)|\*\*[^*]+\*\*)/g).map((p, j) => {
+      const m = p.match(/^\[([^\]]+)\]\((\/[^)\s]*)\)$/)
+      if (m) return <button key={j} onClick={() => ir(m[2])} className="text-primary underline-offset-2 hover:underline">{m[1]}</button>
+      const b = p.match(/^\*\*([^*]+)\*\*$/)
+      return b ? <b key={j} className="font-semibold">{b[1]}</b> : <span key={j}>{p.replace(/^[-*]\s+/, '• ')}</span>
+    })}</p>))
 }
 
 

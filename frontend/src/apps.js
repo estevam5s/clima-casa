@@ -23,6 +23,8 @@ export const DOWNLOADS = [
     passos: ['Dê permissão de execução: chmod +x ClimaCasa-linux-x64.AppImage', 'Abra com dois cliques ou ./ClimaCasa-linux-x64.AppImage'] },
   { id: 'linux-arm', plataforma: 'linux', nome: 'Linux · ARM64', detalhe: 'Raspberry Pi 4/5 e outros ARM', requisitos: 'Raspberry Pi OS 64 bits ou equivalente', arquivo: 'ClimaCasa-linux-arm64.AppImage',
     passos: ['chmod +x ClimaCasa-linux-arm64.AppImage', './ClimaCasa-linux-arm64.AppImage'] },
+  { id: 'extensao', plataforma: 'extensao', nome: 'Extensão do navegador', detalhe: 'Chrome, Edge, Brave e Firefox', requisitos: 'Chrome 121+, Edge 121+ ou Firefox 121+', arquivo: 'ClimaCasa-extensao.zip',
+    passos: ['Baixe e descompacte o .zip numa pasta.', 'Chrome/Edge/Brave: abra chrome://extensions, ligue o Modo do desenvolvedor e clique em Carregar sem compactação → a pasta.', 'Firefox: about:debugging → Este Firefox → Carregar extensão temporária → manifest.json.', 'Entre no painel neste navegador: a extensão usa a mesma sessão.'] },
 ].map((d) => ({ ...d, url: `${base}/${d.arquivo}`, ...(porNome[d.arquivo] ? { tamanho: porNome[d.arquivo].tamanho, sha256: porNome[d.arquivo].sha256, baixados: porNome[d.arquivo].downloads } : {}) }))
 
 export function sistemaAtual() {

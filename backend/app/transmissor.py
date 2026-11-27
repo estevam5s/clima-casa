@@ -699,7 +699,7 @@ def reparar(h: dict, varredura: dict | None = None) -> tuple[bool, str]:
     if diag == "ok":
         _registrar_reparo(h, mudancas or ["reconectado"])
         return True, "; ".join(mudancas) or "reconectado"
-    msg = "Transmissor fora da rede. Confira se ele e o Mac estão no mesmo Wi-Fi (2,4 GHz)."
+    msg = "Transmissor fora da rede. Confira se ele está ligado e no mesmo Wi-Fi (2,4 GHz) do computador do agente."
     db.executar("UPDATE hubs SET problema = ? WHERE id = ?", (msg, h["id"]))
     return False, msg
 

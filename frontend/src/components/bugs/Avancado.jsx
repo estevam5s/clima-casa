@@ -47,6 +47,7 @@ export function DetalheBug({ b, gestor, pessoas, todos, aoFechar, aoMudar }) {
           </div>
           <p className="whitespace-pre-line">{b.descricao}</p>
           {b.passos && <div><p className="rotulo">Passos</p><p className="whitespace-pre-line text-muted-foreground">{b.passos}</p></div>}
+          {b.contexto?.trilha?.length > 0 && <div><p className="rotulo">O que a pessoa fez antes (mais recente primeiro)</p><ol className="max-h-40 overflow-y-auto rounded bg-muted p-2 font-mono text-xs">{b.contexto.trilha.map((t, i) => <li key={i}>{t}</li>)}</ol></div>}
           {b.contexto?.erros?.length > 0 && <div><p className="rotulo">Erros registrados</p><ul className="max-h-32 overflow-y-auto rounded bg-muted p-2 font-mono text-xs">{b.contexto.erros.map((e, i) => <li key={i}>{typeof e === 'string' ? e : JSON.stringify(e)}</li>)}</ul></div>}
           {b.contexto?.detalhe && <details><summary className="cursor-pointer text-xs text-muted-foreground">Pilha do erro</summary><pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs">{b.contexto.detalhe}</pre></details>}
           {b.correcao && <div className="rounded-lg border border-emerald-600/40 bg-emerald-50 p-3 dark:bg-emerald-950/40"><p className="rotulo text-emerald-800 dark:text-emerald-300">Como foi corrigido</p><p className="whitespace-pre-line">{b.correcao}</p></div>}

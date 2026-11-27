@@ -66,7 +66,7 @@ Tudo roda numa API na Vercel com banco no Supabase e um **agente** num computado
 
 ## Em números
 
-Conferidos no código em 25/11/2026.
+Conferidos no código em 27/11/2026.
 
 | Item | Quantidade |
 |---|---|
@@ -78,9 +78,10 @@ Conferidos no código em 25/11/2026.
 | Perguntas no treinamento de segurança e ISO | 1.017 |
 | Formatos de exportação de relatório | 8 (PDF, DOCX, XLSX, CSV, HTML, XML, JSON, Markdown) |
 | Idiomas do site institucional | 6 (português, inglês, espanhol, francês, russo, coreano) |
-| Versões publicadas do sistema | 70 (numeração em sequência desde 0.0.0), com o horário em que cada uma entrou no ar |
+| Blocos dos Fluxos (estilo N8N) | 366: 107 gatilhos, 146 de lógica e dados, 113 ações e integrações (30 serviços externos) |
+| Versões publicadas do sistema | 80 (numeração em sequência desde 0.0.0), com o horário em que cada uma entrou no ar |
 | Testes de segurança automáticos | 1.325 (rodam sozinhos toda semana) |
-| Apps nativos | Android, iPhone, macOS (Apple Silicon e Intel), Windows, Linux (x64 e arm64), versão 1.8.1 |
+| Apps nativos | Android, iPhone, macOS (Apple Silicon e Intel), Windows, Linux (x64 e arm64), versão 1.8.2, e extensão para Chrome, Edge, Brave e Firefox |
 | Backend Python | ~32 mil linhas |
 | Frontend React | ~42 mil linhas (mais ~5 mil do site) |
 
@@ -171,6 +172,8 @@ irm https://app.zynio.com.br/instalar-ia.ps1 | iex
 | Temporizadores | "Desligar em 90 min", um por aparelho |
 | Música | Spotify (conta Premium): player, aparelhos (Echo incluso), rotinas por horário ou quando um ar liga |
 | Luzes, cafeteira, persianas, fechadura | Telas próprias, agendas, automações e travas de segurança por aparelho |
+| Fluxos | Editor em blocos estilo N8N, com cara de IDE (desfazer, copiar e colar, versões, dados de teste, painel de problemas): 107 gatilhos (eventos da Atividade, segurança, bugs, tarefas, e-mails, aparelhos do escritório, tempo lá fora, gasto, sol, expediente, cron), 146 blocos de lógica e dados e 113 ações e integrações (Slack, Discord, Teams, WhatsApp, SMS, ntfy, GitHub, Trello, Notion, Jira, Home Assistant, n8n e outros), com escolha do modelo de IA |
+| Rotinas | Nove abas: visão geral, cenas, automações, agenda, fluxos, execuções, conexões (chaves cifradas), variáveis globais e calendário |
 
 ### Mapa 3D
 
@@ -187,13 +190,15 @@ trabalho de cada sala, previsão do tempo e chuva reais, trânsito com semáforo
 | Atividade | Linha do tempo de todo comando e evento **com a pessoa que fez** (desde a 0.6.9), análise, busca no servidor, exportação e as abas Por pessoa, Por sala, Por ar, Mudanças nos ares (ligou, desligou, subiu ou baixou a temperatura) e Comparar períodos |
 | Logs (Segurança → Logs) | Atividade, eventos de segurança, Telegram, dispositivos e e-mails numa linha do tempo só, com filtros por pessoa, sala, ar e origem, ao vivo, auditoria administrativa e exportação |
 | Regras do escritório | Configurações → Geral: faixa de temperatura permitida (vale em todos os canais), desligar ou avisar ar esquecido ligado, aviso fora do expediente, arquivar notificações, feriados, exportar configurações |
-| Tarefas | Estilo Asana: projetos, seções, lista, quadro, calendário, cronograma, painel, Página inicial, Caixa de entrada, Portfólios e GitHub Projects. Projeto **Plano de melhorias** com 110 tarefas (`scripts/tarefas-melhorias.py`) |
+| Tarefas | Estilo Asana: projetos, seções, lista, quadro, calendário, cronograma, painel, Página inicial, Caixa de entrada, Portfólios, Metas, tarefas que se repetem, cores do Asana e GitHub Projects. Projeto **Plano de melhorias** com 110 tarefas (`scripts/tarefas-melhorias.py`) |
 | Notificações | Central com abas, ações direto na notificação, lote, preferências e aviso de versão nova |
 | Backup e restauração | Zip com SHA-256 por tabela no Storage privado; simular, mesclar ou substituir (digitando `RESTAURAR`). Sessões, passkeys e a fila nunca são restaurados |
 | Treinamento | Provas sorteadas de 1.017 perguntas (LGPD, Anexo A da ISO/IEC 27001:2022, Estrutura Harmonizada) com resultado por e-mail |
 | Conformidade | Checagem dos controles da ISO 27001 e minutas de política, termos e declaração de aplicabilidade |
 | Marca própria | Nome, logo, cores, fontes, textos do login e do menu, modo manutenção, histórico de versões |
-| Bugs | Erros de tela, do servidor e do bot viram registro automático. Responsável, prazo, etiquetas, comentários com histórico, duplicado, criar tarefa, ações em lote, estatísticas (tempo até corrigir, recorrentes) e o prompt pronto para a IA corrigir |
+| Bugs | Erros de tela, do servidor e do bot viram registro automático. Responsável, prazo, etiquetas, comentários com histórico, duplicado, criar tarefa, ações em lote, estatísticas (tempo até corrigir, recorrentes) e o prompt pronto para a IA corrigir. O relato leva os últimos passos da visita; tela travada, tela em branco e API falhando seguido também viram bug |
+| Busca (⌘K) | Procura em ares, salas, transmissores, rotinas, tarefas, bugs, pessoas e versões, e responde perguntas com a IA apontando a tela |
+| Configurações | Perfil, segurança, usuários, regras do escritório, marca, contas, cookies, sistema, **Diagnóstico** ao vivo, **Acessibilidade** (tamanho do texto, contraste, animações, foco) e **Atalhos de teclado** |
 | Uso do sistema | Tempo de cada pessoa em cada tela e o que cada uma fez nos ares e no sistema, com entradas, Telegram e IA |
 | Acessos e SEO | Analytics próprio do site e do sistema; Desempenho com Web Vitals por rota, o elemento que atrasa ou desloca cada página, tendência por dia e celular × computador |
 
@@ -494,6 +499,7 @@ curl -s -o /dev/null -w "%{http_code}" https://app.zynio.com.br/saude   # 200
 | macOS | `ClimaCasa-mac-apple-silicon.dmg`, `ClimaCasa-mac-intel.dmg` | `apps/desktop` | `electron-builder` |
 | Windows | `ClimaCasa-windows.exe` | `apps/desktop` | `electron-builder` |
 | Linux | `ClimaCasa-linux-x64.AppImage`, `ClimaCasa-linux-arm64.AppImage` | `apps/desktop` | `electron-builder` |
+| Extensão do navegador | `ClimaCasa-extensao.zip` | `apps/extensao` | `cd apps/extensao && zip -r ../../ClimaCasa-extensao.zip . -x README.md` (Chrome, Edge, Brave e Firefox; usa a sessão do painel) |
 | Web / PWA | instalável pelo navegador | `frontend/public` | junto com o build |
 
 Os downloads também saem pela tela **Apps** do painel, sem precisar de acesso ao GitHub (link temporário pedido pelo servidor).

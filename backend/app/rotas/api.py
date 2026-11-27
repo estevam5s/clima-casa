@@ -1412,6 +1412,54 @@ def resumo_sistema():
                           "Automações": contar("automacoes"), "Registros na Atividade": contar("atividade"), "Tarefas": contar("tarefas"), "Modelos 3D": contar("avatares")}}
 
 
+@api.get("/config/diagnostico")
+def diagnostico_sistema():
+    """Configurações → Diagnóstico: confere ao vivo o que faz o sistema funcionar (só leitura, sem segredo)."""
+    import time as _t
+    from .. import coordenador, correio, backup_sistema
+    itens = []
+
+    def item(nome, ok, detalhe, link="", alerta=False):
+        itens.append({"nome": nome, "estado": "ok" if ok else ("alerta" if alerta else "falha"), "detalhe": detalhe, "link": link})
+
+    t0 = _t.time(); db.um("SELECT 1 AS ok"); ms = int((_t.time() - t0) * 1000)
+    item("Banco de dados", ms < 800, f"respondeu em {ms} ms", "/supabase", alerta=ms < 2000)
+    maqs = coordenador.maquinas()
+    princ = next((m for m in maqs if m.get("principal")), None)
+    item("Agente do escritório", bool(princ), f"{princ['nome']} no comando" if princ else "nenhum computador no comando: os ares não recebem comandos", "/infra?aba=agentes")
+    if princ:
+        ve, tot = princ.get("ve_transmissores") or 0, princ.get("total_transmissores") or 0
+        item("Transmissores ao alcance", tot > 0 and ve == tot, f"o agente enxerga {ve} de {tot}", "/transmissores", alerta=ve > 0)
+    hubs = db.um("SELECT count(*) FILTER (WHERE online = 1) AS on, count(*) AS n FROM hubs") or {}
+    item("Transmissores online", hubs.get("n", 0) and hubs["on"] == hubs["n"], f"{hubs.get('on', 0)} de {hubs.get('n', 0)} online", "/transmissores", alerta=bool(hubs.get("on")))
+    sem = db.um("SELECT count(*) AS n FROM aparelhos WHERE hub_id IS NULL") or {}
+    item("Ares com transmissor", not sem.get("n"), "todos têm transmissor" if not sem.get("n") else f"{sem['n']} ar(es) sem transmissor", "/aparelhos", alerta=True)
+    falhas = db.um("SELECT count(*) AS n FROM atividade WHERE ok = 0 AND aparelho_id IS NOT NULL AND quando > ?", (db.agora() - 86400,)) or {}
+    item("Comandos nas últimas 24 h", falhas.get("n", 0) < 3, f"{falhas.get('n', 0)} falha(s)", "/atividade?falhas=1", alerta=falhas.get("n", 0) < 10)
+    fila = db.um("SELECT count(*) AS n FROM fila_comandos WHERE estado = 'pendente' AND criado_em < ?", (db.agora() - 120,)) or {}
+    item("Fila do agente", not fila.get("n"), "sem pedidos parados" if not fila.get("n") else f"{fila['n']} pedido(s) esperando há mais de 2 min", "/infra?aba=agentes")
+    try:
+        c = correio.cfg()
+        item("E-mail (Resend)", bool(c.get("api_key")) and (c.get("dominio") or {}).get("status") == "verified",
+             "domínio verificado" if (c.get("dominio") or {}).get("status") == "verified" else "domínio não verificado ou sem chave", "/emails", alerta=True)
+    except Exception:  # noqa: BLE001
+        item("E-mail (Resend)", False, "não deu para ler a configuração", "/emails", alerta=True)
+    try:
+        horas = backup_sistema.saude().get("horas_desde")
+        item("Backup", horas is not None and horas < 30, f"último há {horas:.0f} h" if horas is not None else "nenhum backup ainda", "/backup", alerta=horas is not None and horas < 72)
+    except Exception:  # noqa: BLE001
+        pass
+    saude = db.um("SELECT tamanho_banco_mb FROM saude_sistema ORDER BY medido_em DESC LIMIT 1") or {}
+    mb = float(saude.get("tamanho_banco_mb") or 0)
+    item("Espaço do banco", mb < 400, f"{mb:.0f} MB de 500 MB", "/supabase", alerta=mb < 470)
+    abertos = db.um("SELECT count(*) AS n FROM bugs WHERE estado = 'aberto'") or {}
+    item("Bugs abertos", not abertos.get("n"), f"{abertos.get('n', 0)} aberto(s)", "/bugs", alerta=True)
+    integ = db.cfg("integridade_ultima") or {}
+    if integ:
+        item("Integridade dos registros", bool(integ.get("ok", True)), integ.get("resumo") or "conferida", "/seguranca?aba=integridade", alerta=True)
+    return {"itens": itens, "medido_em": db.agora(), "ok": sum(1 for i in itens if i["estado"] == "ok"), "total": len(itens)}
+
+
 class UserCode(BaseModel):
     user_code: str = Field(min_length=4, max_length=20)
 
@@ -2295,7 +2343,7 @@ def apps_codigo(arquivo: str):
 # link temporário (~5 min) que o GitHub gera. O token nunca vai para o navegador.
 REPO_APPS = "estevam5s/clima-casa"
 ARQUIVOS_APPS = {"ClimaCasa-android.apk", "ClimaCasa-mac-apple-silicon.dmg", "ClimaCasa-mac-intel.dmg", "ClimaCasa-windows.exe",
-                 "ClimaCasa-linux-x64.AppImage", "ClimaCasa-linux-arm64.AppImage", "ClimaCasa-ios.ipa"}
+                 "ClimaCasa-linux-x64.AppImage", "ClimaCasa-linux-arm64.AppImage", "ClimaCasa-ios.ipa", "ClimaCasa-extensao.zip"}
 
 
 def _gh(token: str, caminho: str, **kw):
@@ -4856,6 +4904,26 @@ def ver_integridade():
     return conformidade.verificar()
 
 
+class ReselarIn(BaseModel):
+    motivo: str = Field(min_length=10, max_length=300)
+
+
+@api.post("/seguranca/integridade/reselar")
+def reselar_integridade(d: ReselarIn):
+    """Reconhece as alterações (com motivo) e refaz a cadeia. Só o dono; fica tudo registrado no histórico."""
+    from .. import acesso, conformidade
+    u = acesso.atual.get() or {}
+    if u.get("papel") != "dono":
+        raise HTTPException(403, "Só o dono reconhece alterações nos registros.")
+    return conformidade.reselar(d.motivo.strip(), u.get("nome") or u.get("email") or "dono")
+
+
+@api.get("/seguranca/integridade/reselos")
+def historico_reselos():
+    from .. import conformidade
+    return list(reversed(conformidade._lista("integridade_reselos")))[:50]
+
+
 @api.post("/seguranca/integridade/selar")
 def selar_integridade():
     from .. import conformidade
@@ -5446,3 +5514,23 @@ def guia_pdf(d: GuiaIn, request: Request):
     corpo = documentos._pdf("Guia de Uso do Clima Escritório", meta, secoes, db.agora(), rodape="guia de uso")
     db.registrar("painel", "Guia exportado em PDF", detalhe=f"{len(d.capitulos)} capítulo(s)")
     return Response(corpo, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="guia-clima-{time.strftime("%Y%m%d")}.pdf"'})
+
+
+# ---------------- busca do topo (⌘K): sistema inteiro + IA (backend/app/busca.py) ----------------
+@api.get("/busca")
+def busca_sistema(q: str = ""):
+    from .. import busca
+    return {"q": q[:120], "resultados": busca.buscar(q[:120])}
+
+
+class BuscaIaIn(BaseModel):
+    q: str = Field(min_length=2, max_length=400)
+
+
+@api.post("/busca/ia")
+def busca_ia(d: BuscaIaIn):
+    from .. import busca
+    try:
+        return busca.perguntar(d.q)
+    except (PermissionError, RuntimeError) as e:
+        raise HTTPException(429 if "limite" in str(e).lower() else 424, str(e)[:300])

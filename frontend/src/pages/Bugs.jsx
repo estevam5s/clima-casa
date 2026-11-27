@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Bug, Check, CircleAlert, Download, FlaskConical, Radar, Search, Trash2, X } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
-import { errosRecentes } from '../errosTela'
+import { errosRecentes, trilha } from '../errosTela'
 import { Aviso, Botao, Cabecalho, Carregando, FaixaMetricas, Modal, Vazio, confirmar, useDados, useToast } from '../components/ui'
 
 // Bugs: quem usa relata (o sistema anexa a página, o navegador e os últimos erros da tela) e o próprio sistema encontra
@@ -156,7 +156,7 @@ function Relatar({ aoFechar, aoSalvar }) {
   const enviar = async (e) => {
     e.preventDefault(); setSalvando(true)
     try {
-      await api.post('/api/bugs', { ...f, navegador: navigator.userAgent.slice(0, 300), erros: errosRecentes.slice(0, 10) })
+      await api.post('/api/bugs', { ...f, navegador: navigator.userAgent.slice(0, 300), erros: errosRecentes.slice(0, 10), trilha: trilha.slice(0, 25) })
       toast('Bug relatado. Obrigado: ele já tem uma sugestão de correção.'); aoSalvar()
     } catch (err) { toast(err.message, 'erro') } finally { setSalvando(false) }
   }
@@ -173,7 +173,7 @@ function Relatar({ aoFechar, aoSalvar }) {
               {Object.entries(GRAV).map(([k, [r]]) => <option key={k} value={k}>{r}</option>)}
             </select></label>
         </div>
-        <p className="text-xs text-muted-foreground">Vai junto: o navegador e {errosRecentes.length ? `os ${errosRecentes.length} último(s) erro(s) desta visita` : 'nenhum erro registrado nesta visita'}. Nada de senha ou dado pessoal.</p>
+        <p className="text-xs text-muted-foreground">Vai junto: o navegador e {errosRecentes.length ? `os ${errosRecentes.length} último(s) erro(s) desta visita` : 'nenhum erro registrado nesta visita'} e os últimos {trilha.length} passo(s) (telas abertas e botões clicados). Nada de senha ou do que foi digitado.</p>
         <div className="flex justify-end gap-2"><Botao type="button" variante="secundario" onClick={aoFechar}>Cancelar</Botao><Botao type="submit" carregando={salvando}>Enviar</Botao></div>
       </form>
     </Modal>

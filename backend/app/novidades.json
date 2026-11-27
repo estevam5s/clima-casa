@@ -2,6 +2,40 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.7.9",
+   "data": "2026-11-27",
+   "titulo": "Fluxos com 366 blocos e conexões externas, busca com IA, Rotinas em nove abas e Configurações com diagnóstico",
+   "resumo": "Os Fluxos viraram um editor completo (desfazer, copiar, versões, dados de teste) com mais de 100 gatilhos, 100 blocos de lógica e 100 ações e integrações; a busca do topo responde com IA; Rotinas ganhou Execuções, Conexões, Variáveis e Calendário.",
+   "novo": [
+    "Fluxos: 107 gatilhos (comando que falhou, IP bloqueado, bug novo, tarefa criada, luz ligou, porta destrancada, começou a chover, pôr do sol, fim do expediente, expressão cron e outros).",
+    "Fluxos: 146 blocos de lógica e dados (comparar, matemática, texto, data e hora, listas e JSON, escolher por valor, só uma vez por dia, contador, leitura do gasto, da previsão e dos transmissores).",
+    "Fluxos: 113 ações e integrações, com escolha do modelo de IA e 30 serviços de fora: Slack, Discord, Teams, WhatsApp (Evolution), SMS, ntfy, GitHub, GitLab, Trello, Notion, Asana, Jira, Home Assistant, n8n, Zapier e outros.",
+    "Fluxos: editor no jeito de uma IDE, com desfazer e refazer, copiar, colar e duplicar bloco, exportar e importar JSON, painel de problemas, contexto da execução, dados de teste e versões guardadas a cada salvamento.",
+    "Rotinas: abas novas Execuções (todas as execuções dos fluxos com cada bloco), Conexões (chaves cifradas dos serviços de fora), Variáveis globais e Calendário do que roda em cada dia.",
+    "Busca do topo (⌘K): procura em ares, salas, transmissores, rotinas, tarefas, bugs, pessoas e versões, e responde perguntas com a IA apontando a tela certa.",
+    "Configurações: Diagnóstico (confere ao vivo banco, agente, transmissores, e-mail, backup e bugs), Acessibilidade (tamanho do texto, contraste, animações, foco) e Atalhos de teclado.",
+    "Extensão para Chrome, Edge, Brave e Firefox: liga e desliga os ares, roda cenas e mostra os avisos não lidos no ícone, usando a sessão do painel.",
+    "Tarefas: metas, tarefas que se repetem e as cores do Asana."
+   ],
+   "melhorias": [
+    "Menu de atalhos redesenhado: descrições, grupos, fixar os preferidos, recentes e navegação pelas setas.",
+    "Projetos: cartões com o que cada sala está fazendo agora, média de temperatura e números animados.",
+    "Tradução do painel: todos os textos das telas foram traduzidos antes, nos 5 idiomas, e frases com destaque mantêm a ordem certa.",
+    "Bugs: o relato leva os últimos passos da visita (telas abertas e botões clicados); o sistema também registra tela travada, tela em branco e API falhando seguido, e confere fluxos com erro, conexões apagadas e ares sem o botão Desligar.",
+    "Segurança: os selos de integridade podem ser refeitos pelo dono com um motivo, e o histórico fica registrado."
+   ],
+   "seguranca": [
+    "Páginas do sistema com os cabeçalhos de isolamento (COOP, CORP e outros) também na verificação de segurança.",
+    "Chaves dos serviços de fora ficam cifradas e aparecem mascaradas; só o dono e os administradores mexem, e chamadas só vão para endereços https públicos."
+   ],
+   "correcoes": [
+    "Teste ao vivo do security.txt dava erro porque a Vercel desafiava o próprio teste.",
+    "Dois relatos do mesmo erro ao mesmo tempo davam erro no servidor.",
+    "Zona antiga de um transmissor que saiu do cadastro continuava salva.",
+    "Aviso de transmissor fora da rede citava o Mac mesmo com o agente em outro computador."
+   ]
+  },
+  {
    "versao": "0.7.8",
    "data": "2026-11-26",
    "titulo": "Assistente no jeito do Claude, modo anônimo, Backup e Infra mais completos e varredura de bugs mais funda",

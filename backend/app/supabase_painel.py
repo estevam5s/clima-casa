@@ -8,7 +8,6 @@ Regras de segurança:
 """
 import datetime as dt
 import decimal
-import json
 import re
 import time
 import uuid

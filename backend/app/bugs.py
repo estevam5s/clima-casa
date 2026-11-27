@@ -108,8 +108,10 @@ def registrar_auto(chave: str, titulo: str, descricao: str, pagina: str = "", gr
          "sugestao": sugestao_para(f"{titulo} {descricao} {json.dumps(contexto or {}, default=str)}"), "ocorrencias": 1}
     b["prompt"] = montar_prompt(b)
     r = db.um("INSERT INTO bugs (chave, titulo, descricao, pagina, gravidade, origem, categoria, contexto, sugestao, prompt, criado_em, atualizado_em) "
-              "VALUES (?,?,?,?,?,'sistema',?,CAST(? AS jsonb),?,?,?,?) RETURNING id",
+              "VALUES (?,?,?,?,?,'sistema',?,CAST(? AS jsonb),?,?,?,?) ON CONFLICT (chave) DO NOTHING RETURNING id",
               (chave, b["titulo"], b["descricao"], b["pagina"], gravidade, categoria, json.dumps(b["contexto"], default=str)[:20000], b["sugestao"], b["prompt"], agora, agora))
+    if not r:   # outro pedido criou o mesmo bug ao mesmo tempo (duas abas com o mesmo erro): soma a ocorrência
+        return registrar_auto(chave, titulo, descricao, pagina, gravidade, categoria, contexto)
     try:   # bug novo já entra em Tarefas → Plano de melhorias
         sincronizar_tarefas([r["id"]])
     except Exception as e:  # noqa: BLE001
@@ -145,6 +147,12 @@ def registrar_formulario(rota: str, metodo: str, campos: list, u: dict):
                        contexto={"erros": [f"{time.strftime('%d/%m %H:%M')} {u.get('email', '')}: {', '.join(campos)}"]})
     except Exception:  # noqa: BLE001
         pass
+
+
+# achados que dependem de alguém agir (configurar 2FA, ligar backup, renovar, atualizar um computador), não de corrigir código:
+# viram aviso no sino (some sozinho quando resolve), não bug. Mesma regra do agente desligado e do transmissor fora da rede.
+OPERACAO = {"admin_sem_2fa", "conta_parada", "backup_nunca", "backup_completo_atrasado", "certificado", "agente_versao", "agente_antigo",
+            "tabela_grande", "backup_atrasado", "banco_cheio", "email_falhas"}
 
 
 def varrer() -> dict:
@@ -222,6 +230,11 @@ def varrer() -> dict:
             lista = []
             log.warning("varredura %s: %s", prefixo, e)
         for c in lista:
+            if c["codigo"] in OPERACAO:   # situação de operação (pessoa, agenda, plano), não defeito do código: aviso no sino
+                from . import notificacoes
+                notificacoes.notificar(f"varredura:{c['codigo']}:{c.get('alvo', '')}"[:160], "sistema", "alta" if c["gravidade"] in ("alta", "critica") else "media",
+                                       c["titulo"], c["descricao"], c.get("pagina", ""))
+                continue
             registrar_auto(_chave(prefixo, c["codigo"], c.get("alvo", "")), c["titulo"], c["descricao"], pagina=c.get("pagina", ""),
                            gravidade=c["gravidade"], categoria=c["categoria"], contexto={"erros": [c["descricao"][:200]]}, ultimo=c.get("ultimo"))
         achados += len(lista)
@@ -454,7 +467,36 @@ def checar_profundo() -> list[dict]:
             add("hub_ip_repetido", f"Transmissores com o mesmo IP ({r['ip']})", f"{r['nomes']}: um deles está com o IP velho e os comandos podem ir para o errado. "
                 "Use Testar conexão em cada um (o sistema procura o IP certo).", "alta", "/transmissores", "cadastro", r["ip"])
 
-    for f in (cron, fila, automacoes, emails, desempenho, banco, backup, agentes, transmissores):
+    def fluxos_falhando():   # 0.7.9: fluxo ligado cujas 3 últimas execuções deram erro
+        for f in db.consultar("SELECT id, nome FROM fluxos WHERE ativo"):
+            ult = db.consultar("SELECT estado, erro, inicio FROM fluxos_execucoes WHERE fluxo_id = ? ORDER BY id DESC LIMIT 3", (f["id"],))
+            if len(ult) == 3 and all(e["estado"] == "erro" for e in ult):
+                add("fluxo_erro", f"Fluxo falhando seguido: {f['nome']}", f"As 3 últimas execuções deram erro. Último: {(ult[0]['erro'] or '-')[:300]}",
+                    "media", "/rotinas?aba=execucoes", "fluxo", f["id"], ultimo=ult[0]["inicio"])
+
+    def fluxos_conexao():   # bloco de integração apontando para conexão apagada
+        cx = set((db.cfg("fluxos_conexoes") or {}).keys())
+        for f in db.consultar("SELECT id, nome, grafo FROM fluxos WHERE ativo"):
+            g = f["grafo"] if isinstance(f["grafo"], dict) else json.loads(f["grafo"] or "{}")
+            sem = [n.get("nome") or n["tipo"] for n in g.get("nos", []) if "conexao" in (n.get("config") or {}) and n["config"]["conexao"] not in cx]
+            if sem:
+                add("fluxo_conexao", f"Fluxo sem conexão: {f['nome']}", f"Blocos sem conexão válida: {', '.join(sem[:5])}. Escolha uma em Rotinas → Conexões.",
+                    "media", "/rotinas?aba=fluxos", "fluxo", f["id"])
+
+    def zonas_orfas():   # zona salva de transmissor que não existe mais
+        hubs = {h["id"] for h in db.consultar("SELECT id FROM hubs")}
+        for z in db.cfg("zonas") or []:
+            if isinstance(z, dict) and z.get("hub_id") not in hubs:
+                add("zona_orfa", f"Zona de transmissor removido: {z.get('nome')}", "A zona aponta para um transmissor que saiu do cadastro. Apague em Transmissores.",
+                    "baixa", "/transmissores", "transmissor", z.get("id"))
+
+    def ar_sem_botao():   # ar com transmissor mas sem o Desligar gravado: o painel não consegue desligar
+        for a in db.consultar("SELECT a.id, a.nome FROM aparelhos a WHERE a.hub_id IS NOT NULL AND NOT EXISTS "
+                              "(SELECT 1 FROM codigos c WHERE c.aparelho_id = a.id AND c.chave = 'desligar')"):
+            add("ar_sem_desligar", f"{a['nome']} sem o botão Desligar", "O ar tem transmissor, mas o Desligar não foi gravado: nenhum comando funciona.",
+                "alta", f"/aparelhos/{a['id']}", "transmissor", a["id"])
+
+    for f in (cron, fila, automacoes, emails, desempenho, banco, backup, agentes, transmissores, fluxos_falhando, fluxos_conexao, zonas_orfas, ar_sem_botao):
         tenta(f)
     return achados
 

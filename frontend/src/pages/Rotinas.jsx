@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { CalendarClock, CheckCircle2, Clock3, History, LayoutDashboard, Network, Play, Search, Sparkles, Timer, Workflow, XCircle, Zap } from 'lucide-react'
+import { CalendarClock, CalendarDays, Plug, Variable, CheckCircle2, Clock3, History, LayoutDashboard, Network, Play, Search, Sparkles, Timer, Workflow, XCircle, Zap } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Botao, CabecalhoSecundario, Cabecalho, Carregando, FaixaMetricas, Vazio, useDados, useToast } from '../components/ui'
@@ -11,6 +11,10 @@ const Cenas = lazy(() => import('./Cenas'))
 const Automacoes = lazy(() => import('./Automacoes'))
 const Agendamentos = lazy(() => import('./Agendamentos'))
 const Fluxos = lazy(() => import('../components/rotinas/Fluxos'))
+const Execucoes = lazy(() => import('../components/rotinas/Extras').then((m) => ({ default: m.Execucoes })))
+const Conexoes = lazy(() => import('../components/rotinas/Extras').then((m) => ({ default: m.Conexoes })))
+const Variaveis = lazy(() => import('../components/rotinas/Extras').then((m) => ({ default: m.Variaveis })))
+const Calendario = lazy(() => import('../components/rotinas/Extras').then((m) => ({ default: m.Calendario })))
 
 const ABAS = [
   ['geral', 'Visão geral', LayoutDashboard],
@@ -18,6 +22,10 @@ const ABAS = [
   ['automacoes', 'Automações', Workflow],
   ['agenda', 'Agenda', CalendarClock],
   ['fluxos', 'Fluxos', Network],
+  ['execucoes', 'Execuções', Play],
+  ['conexoes', 'Conexões', Plug],
+  ['variaveis', 'Variáveis', Variable],
+  ['calendario', 'Calendário', CalendarDays],
   ['historico', 'Histórico', History],
 ]
 const ORIGEM = { cena: ['Cena', Sparkles], automacao: ['Automação', Workflow], agenda: ['Agenda', CalendarClock] }
@@ -183,6 +191,10 @@ export default function Rotinas() {
           {aba === 'automacoes' && <Automacoes />}
           {aba === 'agenda' && <Agendamentos />}
           {aba === 'fluxos' && <Fluxos />}
+          {aba === 'execucoes' && <Execucoes />}
+          {aba === 'conexoes' && <Conexoes />}
+          {aba === 'variaveis' && <Variaveis />}
+          {aba === 'calendario' && <Calendario />}
           {aba === 'historico' && <Historico />}
         </Suspense>
       </CabecalhoSecundario.Provider>

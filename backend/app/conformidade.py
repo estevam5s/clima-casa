@@ -369,6 +369,44 @@ def verificar(max_dias: int = 90) -> dict:
             "ultimo": selos[-1] if selos else None, "ok": not problemas, "em": _agora()}
 
 
+def reselar(motivo: str, quem: str) -> dict:
+    """Reconhece alterações encontradas (ex.: limpeza autorizada de eventos de teste) e refaz a cadeia a partir do primeiro dia
+    alterado. Nada fica escondido: os valores antigos de cada dia, quem fez e o motivo vão para "integridade_reselos" (só cresce)
+    e para a Atividade. Sem alteração, não faz nada."""
+    v = verificar(400)
+    if v["ok"]:
+        return {"reselados": 0, **v}
+    selos = _lista("integridade_selos")
+    primeiro = min(p["dia"] for p in v["problemas"])
+    mudancas = []
+    for i, s in enumerate(selos):
+        if s["dia"] < primeiro:
+            continue
+        ha, na = _hash_dia("atividade", s["dia"], s["dia"] + 86400)
+        he, ne = _hash_dia("eventos", s["dia"], s["dia"] + 86400)
+        anterior = selos[i - 1]["selo"] if i else "0" * 64
+        novo = hashlib.sha256(f"{anterior}|{s['dia']}|{ha}|{he}".encode()).hexdigest()
+        if (ha, he) != (s["atividade"], s["eventos"]):
+            mudancas.append({"dia": s["dia"], "antes": {"n_atividade": s["n_atividade"], "n_eventos": s["n_eventos"], "selo": s["selo"]},
+                             "depois": {"n_atividade": na, "n_eventos": ne}})
+        selos[i] = {**s, "atividade": ha, "eventos": he, "n_atividade": na, "n_eventos": ne, "anterior": anterior, "selo": novo}
+    db.set_cfg("integridade_selos", selos[-400:])
+    hist = _lista("integridade_reselos")
+    hist.append({"em": _agora(), "quem": quem, "motivo": motivo[:300], "dias": mudancas})
+    db.set_cfg("integridade_reselos", hist[-200:])
+    db.registrar("seguranca", "Selos de integridade refeitos", detalhe=f"{len(mudancas)} dia(s) · por {quem} · {motivo[:160]}")
+    return {"reselados": len(mudancas), **verificar()}
+
+
+def expurgar_testes(ip: str, quem: str = "teste local") -> int:
+    """Limpeza de eventos gerados por testes locais (ex.: 127.0.0.1), registrada na cadeia de integridade em vez de quebrá-la."""
+    n = len(db.consultar("DELETE FROM seguranca_eventos WHERE ip = ? RETURNING id", (ip,)))
+    db.executar("DELETE FROM seguranca_ips WHERE alvo = ?", (ip,))
+    if n:
+        reselar(f"limpeza de {n} evento(s) de teste do IP {ip}", quem)
+    return n
+
+
 # ---------------------------------------------------------------- verificações automáticas
 def _verificacoes() -> dict:
     """Cada chave → (status, detalhe). status: implementado | parcial | pendente."""

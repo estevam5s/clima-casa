@@ -21,6 +21,9 @@ let envio = 0
 let espera = 0
 const ouvintes = new Set()
 const orig = new WeakMap()        // nó de texto -> { pt, tr }
+const emGrupo = new WeakSet()     // nós de texto traduzidos junto com a frase inteira (ver traduzirGrupo)
+const INLINE = new Set(['B', 'STRONG', 'EM', 'I', 'A', 'CODE', 'SPAN', 'KBD', 'SMALL', 'MARK', 'U'])
+const LETRAS = 'abcdefgh'
 const origAtr = new WeakMap()     // elemento -> { [atributo]: { pt, tr } }
 
 const ler = (k) => { try { return localStorage.getItem(k) } catch { return null } }
@@ -51,9 +54,54 @@ function traduzir(texto) {
   return ini + aplicar(tr, nums) + fim
 }
 
+// Frase com palavra em destaque ("Use o <b>Wi-Fi</b> do escritório"): traduz a frase inteira com marcadores <a>…</a> e devolve
+// cada pedaço ao seu nó, sem mudar a estrutura (o React continua dono dos nós). Se a tradução trocar a ordem dos destaques,
+// desiste e cada nó é traduzido sozinho.
+function ptDe(n) { const r = orig.get(n); return r && n.nodeValue === r.tr ? r.pt : n.nodeValue }
+function traduzirGrupo(el) {
+  if (!el || el.nodeType !== 1 || el.closest(PULAR)) return false
+  const filhos = [...el.childNodes].filter((n) => !(n.nodeType === 3 && !n.nodeValue.trim()) && n.nodeType !== 8)
+  if (filhos.length < 2) return false
+  let texto = false, destaques = 0
+  for (const n of filhos) {
+    if (n.nodeType === 3) { if (/[A-Za-zÀ-ÿ]{2}/.test(n.nodeValue)) texto = true; continue }
+    if (n.nodeType !== 1 || !INLINE.has(n.tagName) || n.childNodes.length !== 1 || n.firstChild.nodeType !== 3 || destaques >= LETRAS.length) return false
+    destaques++
+  }
+  if (!texto || !destaques) return false
+  let k = 0
+  const partes = filhos.map((n) => (n.nodeType === 3 ? { no: n, pt: ptDe(n) } : { no: n.firstChild, pt: ptDe(n.firstChild), tag: LETRAS[k++] }))
+  const modelo = normalizar(partes.map((p) => (p.tag ? `<${p.tag}>${p.pt.trim()}</${p.tag}>` : p.pt)).join(''))
+  if (!util(modelo.replace(/<\/?[a-h]>/g, ''))) return false
+  if (idioma === 'pt') { partes.forEach((p) => { if (p.no.nodeValue !== p.pt) p.no.nodeValue = p.pt; orig.delete(p.no); emGrupo.delete(p.no) }); return true }
+  const { chave, nums } = molde(modelo)
+  const tr = dic[chave]
+  if (tr == null) { if (!pedindo.has(chave)) faltando.add(chave); return false }
+  const tags = partes.filter((p) => p.tag).map((p) => p.tag)
+  const rx = new RegExp('^' + tags.map((t) => `([\\s\\S]*?)<${t}>([\\s\\S]*?)</${t}>`).join('') + '([\\s\\S]*)$')
+  const m = aplicar(tr, nums).match(rx)
+  if (!m) return false
+  // segs = [antes de a, dentro de a, entre a e b, dentro de b, …, depois do último]; cada trecho de texto recebe o do seu intervalo
+  const segs = m.slice(1)
+  const valores = []
+  let lacuna = 0, usada = false, j = 0
+  for (const p of partes) {
+    if (p.tag) { valores.push(segs[2 * j + 1]); lacuna = 2 * j + 2; usada = false; j++ } else { valores.push(usada ? '' : segs[lacuna]); usada = true }
+  }
+  partes.forEach((p, i) => {
+    const ini = p.pt.match(/^\s*/)[0], fim = p.pt.match(/\s*$/)[0]
+    const v = (valores[i] ?? '').trim()
+    const final = v ? ini + v + fim : (p.tag ? p.pt : ini || fim ? ' ' : '')
+    orig.set(p.no, { pt: p.pt, tr: final }); emGrupo.add(p.no)
+    if (p.no.nodeValue !== final) p.no.nodeValue = final
+  })
+  return true
+}
+
 function noTexto(n) {
   const el = n.parentElement
   if (!el || el.closest(PULAR)) return
+  if (emGrupo.has(n)) { if (n.nodeValue === orig.get(n)?.tr) return; emGrupo.delete(n); if (traduzirGrupo(el) || traduzirGrupo(el.parentElement)) return }
   const atual = n.nodeValue
   const reg = orig.get(n)
   const pt = reg && atual === reg.tr ? reg.pt : atual   // se não é o que a gente pôs, o React trocou: é o original novo
@@ -84,6 +132,9 @@ function varrer(raiz) {
   if (!raiz) return
   if (raiz.nodeType === 3) { noTexto(raiz); return }
   if (raiz.nodeType !== 1) return
+  // primeiro as frases com destaque (marcam os nós delas), depois o resto nó a nó
+  traduzirGrupo(raiz)
+  raiz.querySelectorAll('p,li,label,dd,dt,td,th,h1,h2,h3,h4,h5,h6,span,div,button,a').forEach((el) => { if (el.childElementCount && el.childElementCount <= LETRAS.length) traduzirGrupo(el) })
   noElemento(raiz)
   const w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
   let n = w.nextNode()

@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { usePreferencias } from '../preferencias'
 import { motion } from 'framer-motion'
-import { Cookie, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users } from 'lucide-react'
+import { Cookie, KeyRound, Laptop, LogOut, Moon, Paintbrush, Palette, Server, ShieldCheck, Sliders, Sun, UserRound, Users, Stethoscope, Accessibility, Keyboard } from 'lucide-react'
 import { useTema } from '../tema'
 import WhiteLabel from '../components/config/WhiteLabel'
 import ConfigCursor from '../components/config/ConfigCursor'
 import Perfil from '../components/config/Perfil'
 import Geral from '../components/config/Geral'
+import { Acessibilidade, Atalhos, Diagnostico } from '../components/config/Ferramentas'
 import Usuarios from '../components/config/Usuarios'
 import SegurancaConta from '../components/config/SegurancaConta'
 import { useProjeto } from '../contexto'
@@ -123,6 +124,9 @@ export default function Configuracoes() {
     ['contas', 'Contas', KeyRound, 'integracoes.gerenciar', 'Sistema', 'Smart Life e contas ligadas'],
     ['cookies', 'Cookies do site', Cookie, 'configuracoes.gerenciar', 'Sistema', 'Aviso e consentimentos do site'],
     ['sistema', 'Sistema', Server, 'configuracoes.gerenciar', 'Sistema', 'Agente e endereços do sistema'],
+    ['diagnostico', 'Diagnóstico', Stethoscope, 'configuracoes.gerenciar', 'Sistema', 'Confere ao vivo banco, agente, transmissores, e-mail e backup'],
+    ['acessibilidade', 'Acessibilidade', Accessibility, null, 'Você', 'Tamanho do texto, contraste, animações e foco'],
+    ['atalhos', 'Atalhos de teclado', Keyboard, null, 'Você', 'Todos os atalhos e como desligar'],
   ].filter((a) => pode(a[3]))
   const pedida = params.get('aba') === 'aparencia' ? 'marca' : params.get('aba')   // a antiga aba Aparência virou parte desta
   const aba = ABAS.some((a) => a[0] === pedida) ? pedida : (pode('configuracoes.gerenciar') ? 'geral' : 'perfil')
@@ -189,6 +193,9 @@ export default function Configuracoes() {
         </div>
       )}
       {aba === 'usuarios' && <Usuarios />}
+      {aba === 'diagnostico' && <Diagnostico />}
+      {aba === 'acessibilidade' && <Acessibilidade />}
+      {aba === 'atalhos' && <Atalhos />}
       {aba === 'cookies' && <CookiesSite />}
       {aba === 'seguranca' && (
         <div className="space-y-8">

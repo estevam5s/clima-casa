@@ -902,3 +902,26 @@ create table if not exists public.ia_agendados (
 );
 create index if not exists ia_agendados_usuario on public.ia_agendados (usuario_id);
 alter table public.ia_agendados enable row level security;
+
+-- Tarefas (0.7.9): recorrência (ao concluir, cria a próxima) e Metas no estilo do Asana
+alter table public.tarefas add column if not exists recorrencia text not null default '';
+create table if not exists public.tarefas_metas (
+  id bigint generated always as identity primary key,
+  titulo text not null,
+  descricao text not null default '',
+  dono_id text,
+  prazo text,
+  projetos jsonb not null default '[]'::jsonb,
+  criado_em bigint,
+  atualizado_em bigint
+);
+alter table public.tarefas_metas enable row level security;
+
+-- 0.7.9: versões dos fluxos (as 30 mais novas por fluxo)
+create table if not exists fluxos_versoes (
+  id bigint generated always as identity primary key,
+  fluxo_id bigint not null references fluxos(id) on delete cascade,
+  nome text, grafo jsonb not null, autor text, criado_em bigint not null
+);
+create index if not exists fluxos_versoes_fluxo on fluxos_versoes (fluxo_id, id desc);
+alter table fluxos_versoes enable row level security;

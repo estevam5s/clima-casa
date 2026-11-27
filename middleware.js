@@ -74,6 +74,14 @@ export default async function middleware(request) {
   const url = new URL(request.url)
   return new Response(paginaPortao({ host: url.hostname, chave, endpoint: '/api/verificacao', volta: url.pathname + url.search }), {
     status: 200,
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' },
+    // a resposta do middleware não recebe os cabeçalhos do vercel.json: o portão leva os de segurança aqui mesmo
+    // (Segurança → Testes ao vivo acusava COOP/CORP ausentes em toda página vista por quem ainda não passou no portão)
+    headers: {
+      'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex',
+      'strict-transport-security': 'max-age=63072000; includeSubDomains; preload', 'x-content-type-options': 'nosniff',
+      'x-frame-options': 'DENY', 'referrer-policy': 'same-origin', 'cross-origin-opener-policy': 'same-origin',
+      'cross-origin-resource-policy': 'same-origin', 'origin-agent-cluster': '?1', 'x-permitted-cross-domain-policies': 'none',
+      'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+    },
   })
 }

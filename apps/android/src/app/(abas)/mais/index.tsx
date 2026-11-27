@@ -34,6 +34,8 @@ const ITENS: [string, string, string][] = [
   ['Bugs', 'Problemas encontrados, procurar e autoteste dos cadastros', '/mais/bugs'],
   ['Uso da IA', 'Limite da sessão de 5 horas e da semana', '/mais/uso-ia'],
   ['Uso do sistema', 'Tempo de cada pessoa em cada tela (quem gerencia usuários)', '/mais/uso-sistema'],
+  ['Fluxos', 'Ligar, desligar e executar os fluxos; últimas execuções', '/mais/fluxos'],
+  ['Diagnóstico', 'Banco, agente, transmissores, e-mail e backup conferidos agora', '/mais/diagnostico'],
 ];
 
 export default function Mais() {

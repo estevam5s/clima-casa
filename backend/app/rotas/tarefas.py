@@ -283,6 +283,7 @@ class TarefaParcialIn(BaseModel):
     concluida: bool | None = None
     estimativa_h: float | None = Field(None, ge=0, le=10000)
     ordem: float | None = None
+    recorrencia: str | None = Field(None, pattern=r"^(|diaria|dias_uteis|semanal|quinzenal|mensal)$")   # ao concluir, cria a próxima
 
 
 def _pessoa_valida(uid: str | None) -> str | None:
@@ -395,9 +396,87 @@ def editar(tid: int, d: TarefaParcialIn):
         sets.append(f"{k} = ?"); vals.append(v)
     sets.append("atualizado_em = ?"); vals.append(db.agora())
     db.executar(f"UPDATE tarefas SET {', '.join(sets)} WHERE id = ?", (*vals, tid))   # nomes vêm do modelo (lista fechada)
+    if mud.get("concluida") is True and not t["concluida"]:
+        prox = _proxima_recorrencia(tid)
+        if prox:
+            eventos.append(f"Próxima repetição criada (#{prox})")
     for e in eventos:
         _ev(tid, e)
     return detalhe(tid)
+
+
+def _proxima_recorrencia(tid: int) -> int | None:
+    """Tarefa recorrente concluída: cria a próxima igual, com prazo avançado (diária, dias úteis, semanal, quinzenal, mensal)."""
+    import datetime as dt
+    t = db.um("SELECT * FROM tarefas WHERE id = ?", (tid,))
+    rec = (t or {}).get("recorrencia") or ""
+    if not rec:
+        return None
+    base = dt.date.fromisoformat(t["prazo"]) if t.get("prazo") else dt.date.today()
+    if rec == "diaria":
+        prox = base + dt.timedelta(days=1)
+    elif rec == "dias_uteis":
+        prox = base + dt.timedelta(days=1)
+        while prox.weekday() >= 5:
+            prox += dt.timedelta(days=1)
+    elif rec == "semanal":
+        prox = base + dt.timedelta(days=7)
+    elif rec == "quinzenal":
+        prox = base + dt.timedelta(days=14)
+    else:
+        m = base.month % 12 + 1
+        a = base.year + (1 if base.month == 12 else 0)
+        import calendar
+        prox = dt.date(a, m, min(base.day, calendar.monthrange(a, m)[1]))
+    novo = db.um("INSERT INTO tarefas (projeto_id, secao_id, pai_id, titulo, descricao, responsavel_id, prazo, prioridade, etiquetas, ordem, estimativa_h, "
+                 "criado_por, criado_em, atualizado_em, recorrencia, concluida) SELECT projeto_id, secao_id, pai_id, titulo, descricao, responsavel_id, ?, prioridade, "
+                 "etiquetas, ordem + 0.001, estimativa_h, criado_por, ?, ?, recorrencia, false FROM tarefas WHERE id = ? RETURNING id",
+                 (prox.isoformat(), db.agora(), db.agora(), tid))
+    return novo["id"] if novo else None
+
+
+# ---------------- Metas (estilo Asana): progresso pelas tarefas concluídas dos projetos ligados ----------------
+class MetaIn(BaseModel):
+    titulo: str = Field(min_length=2, max_length=160)
+    descricao: str = Field("", max_length=2000)
+    dono_id: str | None = Field(None, max_length=40)
+    prazo: str | None = Field(None, pattern=r"^(\d{4}-\d{2}-\d{2})?$")
+    projetos: list[int] = Field(default_factory=list, max_length=40)
+
+
+@rotas_tarefas.get("/tarefas-metas")
+def metas():
+    lista = db.consultar("SELECT * FROM tarefas_metas ORDER BY prazo NULLS LAST, id")
+    for m in lista:
+        ids = [int(x) for x in (m["projetos"] or [])] or [-1]
+        r = db.um(f"SELECT COUNT(*) FILTER (WHERE pai_id IS NULL) AS total, COUNT(*) FILTER (WHERE pai_id IS NULL AND concluida) AS feitas "
+                  f"FROM tarefas WHERE projeto_id IN ({','.join('?' * len(ids))})", tuple(ids)) or {}
+        m["total"], m["feitas"] = int(r.get("total") or 0), int(r.get("feitas") or 0)
+        m["progresso"] = round(m["feitas"] / m["total"] * 100) if m["total"] else 0
+    return lista
+
+
+@rotas_tarefas.post("/tarefas-metas")
+def criar_meta(d: MetaIn):
+    _editor()
+    agora = db.agora()
+    return db.um("INSERT INTO tarefas_metas (titulo, descricao, dono_id, prazo, projetos, criado_em, atualizado_em) VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?, ?) RETURNING *",
+                 (d.titulo.strip(), d.descricao, _pessoa_valida(d.dono_id), d.prazo or None, json.dumps(d.projetos), agora, agora))
+
+
+@rotas_tarefas.put("/tarefas-metas/{mid}")
+def editar_meta(mid: int, d: MetaIn):
+    _editor()
+    db.executar("UPDATE tarefas_metas SET titulo = ?, descricao = ?, dono_id = ?, prazo = ?, projetos = CAST(? AS jsonb), atualizado_em = ? WHERE id = ?",
+                (d.titulo.strip(), d.descricao, _pessoa_valida(d.dono_id), d.prazo or None, json.dumps(d.projetos), db.agora(), mid))
+    return {"ok": True}
+
+
+@rotas_tarefas.delete("/tarefas-metas/{mid}")
+def apagar_meta(mid: int):
+    _editor()
+    db.executar("DELETE FROM tarefas_metas WHERE id = ?", (mid,))
+    return {"ok": True}
 
 
 class MoverIn(BaseModel):

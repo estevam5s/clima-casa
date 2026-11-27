@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   AirVent, Bug, ClipboardList, Clock3, FolderClosed, House, Inbox, LayoutDashboard, LifeBuoy, NotebookPen, Rocket, Users, UsersRound,
   Archive, BarChart3, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Columns3, ExternalLink, Filter,
-  GanttChart, Github, List, MessageSquare, MoreHorizontal, Plus, RefreshCw, Search, Trash2, User, UserRound, X,
+  GanttChart, Github, List, Target, MessageSquare, MoreHorizontal, Plus, RefreshCw, Search, Trash2, User, UserRound, X,
 } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
@@ -312,6 +312,10 @@ function Detalhe({ id, pessoas, secoes, pode, aoFechar, aoMudou, abrir }) {
               <dd><select className="campo h-8" disabled={!pode} value={t.secao_id || ''} onChange={(e) => salvar({ secao_id: +e.target.value })}>{secoes.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</select></dd></>}
             <dt className="text-muted-foreground">Prioridade</dt>
             <dd className="flex flex-wrap gap-1">{Object.entries(PRIO).map(([k, [r, c]]) => <button key={k} disabled={!pode} onClick={() => salvar({ prioridade: k })} className={`h-7 rounded-md border px-2 text-xs ${t.prioridade === k ? `border-primary bg-primary/10 font-medium ${c}` : 'border-border hover:bg-muted'}`}>{r}</button>)}</dd>
+            <dt className="text-muted-foreground">Repetir</dt>
+            <dd><select className="campo h-8 w-auto" disabled={!pode} value={t.recorrencia || ''} onChange={(e) => salvar({ recorrencia: e.target.value })} aria-label="Repetir a tarefa">
+              {[['', 'Não repete'], ['diaria', 'Todo dia'], ['dias_uteis', 'Dias úteis'], ['semanal', 'Toda semana'], ['quinzenal', 'A cada 15 dias'], ['mensal', 'Todo mês']].map(([k, r]) => <option key={k} value={k}>{r}</option>)}
+            </select>{t.recorrencia && <span className="ml-2 text-xs text-muted-foreground">ao concluir, a próxima é criada</span>}</dd>
             <dt className="text-muted-foreground">Estimativa</dt>
             <dd className="flex items-center gap-2"><input type="number" min="0" step="0.5" className="campo h-8 w-24" disabled={!pode} defaultValue={t.estimativa_h ?? ''} key={`e${t.id}`} onBlur={(e) => salvar({ estimativa_h: e.target.value === '' ? null : +e.target.value })} /><span className="text-xs text-muted-foreground">horas</span></dd>
             <dt className="text-muted-foreground">Etiquetas</dt>
@@ -742,7 +746,7 @@ function Minhas({ abrir, mudar, versao }) {
   )
 }
 
-const PAGINAS = [['inicio', 'Página inicial', House], ['caixa', 'Caixa de entrada', Inbox], ['minhas', 'Minhas tarefas', CircleCheck], ['projetos', 'Projetos', ClipboardList], ['portfolios', 'Portfólios', FolderClosed]]
+const PAGINAS = [['inicio', 'Página inicial', House], ['caixa', 'Caixa de entrada', Inbox], ['minhas', 'Minhas tarefas', CircleCheck], ['projetos', 'Projetos', ClipboardList], ['portfolios', 'Portfólios', FolderClosed], ['metas', 'Metas', Target]]
 
 export default function Tarefas() {
   const toast = useToast()
@@ -797,6 +801,11 @@ export default function Tarefas() {
     if (filtro.prio && t.prioridade !== filtro.prio) return false
     return true
   }), [dados, filtro, eu])
+  // atalho Q: nova tarefa rápida (como no Asana), fora de campos de texto
+  useEffect(() => {
+    const f = (e) => { if (e.key.toLowerCase() === 'q' && !e.metaKey && !e.ctrlKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && !e.target.isContentEditable && pode) { e.preventDefault(); setTarefaRapida(true) } }
+    window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f)
+  }, [pode])
   const ativos = (geral?.projetos || []).filter((p) => !p.arquivado)
   const meuNome = (pessoas.find((p) => p.id === eu)?.nome || '').split(' ')[0]
   const irPagina = (k) => { set({ projeto: k, tarefa: null, visao: null }); setMenuProj(false) }
@@ -805,9 +814,9 @@ export default function Tarefas() {
   if (erro && !geral) return <Aviso>{erro}</Aviso>
   const titulo = pid ? projeto?.nome : PAGINAS.find(([k]) => k === pagina)?.[1]
   return (
-    <div className="w-full min-w-0">
+    <div className="tela-asana w-full min-w-0">
       <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <nav className="min-w-0 lg:border-r lg:border-border lg:pr-4" aria-label="Tarefas">
+        <nav className="asana-lateral min-w-0 rounded-xl p-3 lg:self-start" aria-label="Tarefas">
           <div className="relative mb-3">
             <button disabled={!pode} onClick={() => setCriar((c) => !c)} className="flex h-9 items-center gap-2 rounded-full border border-border bg-card pl-1.5 pr-4 text-sm font-medium hover:bg-muted disabled:opacity-50">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground"><Plus className="h-4 w-4" /></span>Criar
@@ -849,6 +858,7 @@ export default function Tarefas() {
               {pagina === 'minhas' && <Minhas abrir={abrirTarefa} mudar={async (t, c) => { await api.put(`/api/tarefas/${t.id}`, c); recarregar() }} versao={versao} />}
               {pagina === 'projetos' && <ProjetosLista geral={geral} pessoas={pessoas} eu={eu} abrirProjeto={irProjeto} criarProjeto={(m) => setNovo(m || '')} />}
               {pagina === 'portfolios' && <Portfolios geral={geral} pessoas={pessoas} abrirProjeto={irProjeto} />}
+              {pagina === 'metas' && <Metas geral={geral} pessoas={pessoas} pode={pode} abrirProjeto={irProjeto} />}
             </>
           ) : !dados ? (erro ? <Aviso>{erro}</Aviso> : <Esqueleto className="h-72" />) : (
             <>
@@ -949,3 +959,67 @@ function MenuProjeto({ projeto, aoArquivar, aoApagar }) {
   )
 }
 
+
+
+// Metas (como as Goals do Asana): cada meta junta projetos e mostra o progresso pelas tarefas concluídas deles
+function Metas({ geral, pessoas, pode, abrirProjeto }) {
+  const toast = useToast()
+  const [lista, setLista] = useState(null)
+  const [f, setF] = useState(null)
+  const carregar = () => api.get('/api/tarefas-metas').then(setLista).catch((e) => toast(e.message, 'erro'))
+  useEffect(() => { carregar() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  const projetos = (geral?.projetos || []).filter((p) => !p.arquivado)
+  const salvar = async () => {
+    try { f.id ? await api.put(`/api/tarefas-metas/${f.id}`, f) : await api.post('/api/tarefas-metas', f); setF(null); carregar(); toast('Meta salva.') } catch (e) { toast(e.message, 'erro') }
+  }
+  const apagar = async (m) => { await api.del(`/api/tarefas-metas/${m.id}`); carregar() }
+  if (!lista) return <Esqueleto className="h-48" />
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">Objetivos da equipe. O progresso sai das tarefas concluídas nos projetos ligados a cada meta.</p>
+        {pode && <Botao tamanho="sm" icone={Plus} onClick={() => setF({ titulo: '', descricao: '', dono_id: '', prazo: '', projetos: [] })}>Nova meta</Botao>}
+      </div>
+      {!lista.length ? <Vazio icone={Target} titulo="Nenhuma meta ainda" texto="Ex.: “Reduzir 20% do gasto com ar até março”, ligada ao projeto Plano de melhorias." /> : (
+        <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">{lista.map((m, i) => {
+          const dono = pessoas.find((p) => p.id === m.dono_id)
+          const atraso = m.prazo && m.prazo < new Date().toISOString().slice(0, 10) && m.progresso < 100
+          return (
+            <motion.li key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="cartao p-4">
+              <div className="flex items-start justify-between gap-2">
+                <button onClick={() => pode && setF({ ...m, dono_id: m.dono_id || '', prazo: m.prazo || '', projetos: (m.projetos || []).map(Number) })} className="min-w-0 text-left">
+                  <p className="flex items-center gap-2 font-medium"><Target className="h-4 w-4 shrink-0 text-primary" />{m.titulo}</p>
+                  {m.descricao && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{m.descricao}</p>}
+                </button>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${m.progresso >= 100 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : atraso ? 'bg-red-500/15 text-red-700 dark:text-red-300' : 'bg-primary/15 text-primary'}`}>{m.progresso >= 100 ? 'Concluída' : atraso ? 'Atrasada' : 'No caminho'}</span>
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><motion.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${m.progresso}%` }} transition={{ duration: 0.8, delay: i * 0.05 }} /></div>
+                <span className="w-10 text-right text-sm font-semibold tabular">{m.progresso}%</span>
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">{m.feitas} de {m.total} tarefa(s){dono ? ` · ${dono.nome}` : ''}{m.prazo ? ` · até ${new Date(`${m.prazo}T12:00`).toLocaleDateString('pt-BR')}` : ''}</p>
+              <div className="mt-2 flex flex-wrap gap-1">{(m.projetos || []).map((pid) => { const p = projetos.find((x) => x.id === Number(pid)); return p ? <button key={pid} onClick={() => abrirProjeto(p.id)} className="rounded-md bg-muted px-2 py-0.5 text-xs hover:bg-muted/70">{p.nome}</button> : null })}</div>
+              {pode && <button onClick={() => apagar(m)} className="mt-2 text-xs text-muted-foreground hover:text-red-600">Apagar meta</button>}
+            </motion.li>)
+        })}</ul>
+      )}
+      <Modal aberto={!!f} titulo={f?.id ? 'Editar meta' : 'Nova meta'} onFechar={() => setF(null)}>
+        {f && (
+          <div className="space-y-3">
+            <input autoFocus className="campo" placeholder="Nome da meta" maxLength={160} value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} />
+            <textarea className="campo min-h-[4rem] py-2" placeholder="Por que esta meta importa (opcional)" maxLength={2000} value={f.descricao} onChange={(e) => setF({ ...f, descricao: e.target.value })} />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs text-muted-foreground">Dono<select className="campo mt-1 h-9" value={f.dono_id} onChange={(e) => setF({ ...f, dono_id: e.target.value })}><option value="">Ninguém</option>{pessoas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></label>
+              <label className="text-xs text-muted-foreground">Prazo<input type="date" className="campo mt-1 h-9" value={f.prazo} onChange={(e) => setF({ ...f, prazo: e.target.value })} /></label>
+            </div>
+            <div><p className="text-xs text-muted-foreground">Projetos que contam para a meta</p>
+              <div className="mt-1 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">{projetos.map((p) => { const on = f.projetos.includes(p.id); return (
+                <button key={p.id} type="button" aria-pressed={on} onClick={() => setF({ ...f, projetos: on ? f.projetos.filter((x) => x !== p.id) : [...f.projetos, p.id] })}
+                  className={`rounded-md border px-2 py-1 text-xs ${on ? 'border-primary bg-primary/10 font-medium' : 'border-border hover:bg-muted'}`}>{p.nome}</button>) })}</div></div>
+            <div className="flex justify-end gap-2"><Botao variante="secundario" onClick={() => setF(null)}>Cancelar</Botao><Botao disabled={f.titulo.trim().length < 2} onClick={salvar}>Salvar</Botao></div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}

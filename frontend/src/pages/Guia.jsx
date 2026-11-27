@@ -329,6 +329,27 @@ const CAPITULOS = [
       { t: 'Use valores entre blocos', d: 'Escreva {{...}} nos campos: {{evento.nome}} (o ar do gatilho), {{fora.temperatura}}, {{ia.texto}}, {{http.status}}, {{webhook.campo}}, {{var.nome}}. A lista completa aparece no painel do bloco.' },
       { t: 'Teste e ligue', d: 'Executar roda agora e acende bloco por bloco o caminho percorrido (verde deu certo, vermelho falhou). Ligado, os gatilhos rodam sozinhos no agente do escritório; o histórico guarda o resultado de cada bloco.' },
       { t: 'Webhook', d: 'O bloco Webhook gera um endereço secreto ao salvar. Outro sistema faz POST com JSON e o fluxo roda (só com o fluxo ligado). Trate o endereço como senha; "Gerar outro" troca.' },
+      { t: 'Ache o bloco certo', d: 'São mais de 360 blocos em grupos (Ares, Segurança, Bugs e tarefas, Tempo lá fora, Matemática, Texto, Mensagens e avisos…). Abra o grupo ou procure pelo nome. Blocos de lógica guardam o resultado em {{var.nome}}.' },
+      { t: 'Editor como uma IDE', d: 'Ctrl+Z desfaz, Ctrl+C e Ctrl+V copiam e colam, Ctrl+D duplica, Ctrl+Enter executa. Embaixo: Problemas (blocos soltos, campos faltando), Contexto (o que cada bloco produziu), Dados de teste (simula o gatilho), JSON e Versões (volta a uma versão salva).' },
+    ],
+  },
+  {
+    id: 'conexoes', icone: Workflow, titulo: 'Conexões, execuções, variáveis e calendário',
+    resumo: 'Rotinas → Conexões liga os fluxos a Slack, WhatsApp, GitHub, Home Assistant e outros 25 serviços.',
+    passos: [
+      { t: 'Crie a conexão', d: 'Rotinas → Conexões → Nova conexão: escolha o serviço e cole a chave ou o endereço que ele dá. Fica cifrado e aparece mascarado. Só o dono e os administradores mexem.', link: ['/rotinas?aba=conexoes', 'Abrir Conexões'] },
+      { t: 'Use no fluxo', d: 'Nos blocos de integração (ex.: "Slack: mensagem", "WhatsApp: mandar mensagem", "GitHub: abrir issue"), escolha a conexão no campo Conexão.' },
+      { t: 'Rede do escritório', d: 'Home Assistant, Node-RED e n8n podem ficar na rede local (http://192.168…): só o dono marca, e esses blocos só rodam no agente, pelos gatilhos automáticos.' },
+      { t: 'Acompanhe', d: 'Execuções mostra tudo que os fluxos rodaram, com cada bloco; Variáveis guarda valores que todos os fluxos leem; Calendário mostra a agenda e os fluxos de horário de cada dia, com os feriados.', link: ['/rotinas?aba=execucoes', 'Abrir Execuções'] },
+    ],
+  },
+  {
+    id: 'extensao', icone: Globe, titulo: 'Extensão do navegador',
+    resumo: 'Ligar e desligar os ares e ver os avisos sem abrir o painel (Chrome, Edge, Brave e Firefox).',
+    passos: [
+      { t: 'Instale', d: 'Baixe a extensão em Apps e abra chrome://extensions (Edge: edge://extensions) → Modo do desenvolvedor → Carregar sem compactação → a pasta descompactada. No Firefox: about:debugging → Carregar extensão temporária.', link: ['/apps', 'Abrir Apps'] },
+      { t: 'Entre no painel', d: 'A extensão usa a mesma sessão do painel neste navegador: entre em app.zynio.com.br uma vez e abra a extensão.' },
+      { t: 'Use', d: 'Clique no ícone: ares com o botão Ligado/Desligado, cenas com Rodar, e o número de avisos não lidos no próprio ícone. Se o painel ficar fechado por mais de 1 hora, abra de novo para renovar a sessão.' },
     ],
   },
   {

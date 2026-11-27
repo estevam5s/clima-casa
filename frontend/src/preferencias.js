@@ -6,6 +6,7 @@ export const PADRAO = {
   cursor: false, cursor_estilo: 'anel_ponto', cursor_cor: 'marca', cursor_cor_hex: '#14b8a6', cursor_tamanho: 36,
   cursor_ponto_tamanho: 6, cursor_espessura: 1.5, cursor_suavidade: 20, cursor_esconder_seta: false, cursor_efeitos: [],
   cursor_modelo: 'sistema', cursor_modelo_tamanho: 32, atalhos: true, som_clique: true, som_clique_volume: 35,
+  fonte_pct: 100, alto_contraste: false, reduzir_movimento: false, compacto: false, sublinhar_links: false, foco_forte: false,
 }
 // a empresa pode definir um padrão para quem nunca mexeu (White label → Cursor padrão)
 let padraoEmpresa = {}
@@ -45,4 +46,19 @@ export function lerCursores() {
 export function salvarCursores(lista) {
   localStorage.setItem(CHAVE_CURSORES, JSON.stringify(lista.slice(0, MAX_CURSORES)))
   window.dispatchEvent(new CustomEvent('clima:preferencias', { detail: lerPreferencias() }))
+}
+
+// acessibilidade (Configurações → Acessibilidade): aplica no <html> e acompanha cada mudança
+export function aplicarAcessibilidade(p = lerPreferencias()) {
+  const h = document.documentElement
+  h.style.fontSize = p.fonte_pct && p.fonte_pct !== 100 ? `${p.fonte_pct}%` : ''
+  h.classList.toggle('alto-contraste', !!p.alto_contraste)
+  h.classList.toggle('reduzir-movimento', !!p.reduzir_movimento)
+  h.classList.toggle('densidade-compacta', !!p.compacto)
+  h.classList.toggle('sublinhar-links', !!p.sublinhar_links)
+  h.classList.toggle('foco-forte', !!p.foco_forte)
+}
+if (typeof window !== 'undefined') {
+  aplicarAcessibilidade()
+  window.addEventListener('clima:preferencias', (e) => aplicarAcessibilidade(e.detail || lerPreferencias()))
 }

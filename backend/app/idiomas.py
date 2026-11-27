@@ -207,6 +207,7 @@ def _prompt(idioma: str, escopo: str = "site") -> str:
                 "Spotify music, Alexa/Google Home, Telegram bot, an AI assistant, tasks, bugs, reports, security and infrastructure.\n"
                 "Rules:\n- Return ONLY a JSON array of strings, same length and same order as the input. No comments.\n"
                 "- Tokens like {0}, {1} are placeholders for numbers: keep every one of them, exactly once, and move them where the grammar needs.\n"
+                "- Inline tags like <a>…</a>, <b>…</b> mark highlighted words: keep every tag, in the SAME order, and translate the text inside.\n"
                 "- Keep these names exactly as they are: " + ", ".join(FIXOS) + ".\n"
                 "- Proper names of people, rooms, devices and projects (e.g. 'Ar do Deison', 'Sala Fabio') stay as they are unless they are a generic label.\n"
                 "- Keep URLs, e-mail addresses, file names, code, keyboard keys, units (°C, kWh, ms, MB) and punctuation style.\n"

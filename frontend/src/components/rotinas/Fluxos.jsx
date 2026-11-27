@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
-  AirVent, ArrowLeft, Bell, Bot, CalendarClock, CalendarOff, CheckCircle2, Clock, CloudSun, Copy, Gauge, GitBranch, Globe, History,
-  Hourglass, Lightbulb, Mail, Maximize2, Play, Plus, PowerOff, Repeat, Save, ScrollText, Search, Send, Sparkles, Thermometer, Timer,
-  Trash2, Variable, Webhook, Workflow, XCircle, ZoomIn, ZoomOut,
+  AirVent, AlertTriangle, ArrowLeft, Bell, Bot, Braces, CalendarClock, CalendarOff, CheckCircle2, ChevronDown, ChevronRight, Clock, CloudSun, Copy, Download, Gauge, GitBranch, Globe, History,
+  Hourglass, Lightbulb, Mail, Maximize2, Play, Plus, PowerOff, Redo2, Repeat, Save, ScrollText, Search, Send, Sparkles, Thermometer, Timer,
+  Trash2, Undo2, Upload, Variable, Webhook, Workflow, XCircle, ZoomIn, ZoomOut, Plug, Calculator, Type, List, ShieldAlert, Music, Bug, ListTodo, MessageSquare, Blinds, Coffee, Lock, Sun,
 } from 'lucide-react'
 import { api, haQuanto } from '../../api'
 import { useProjeto } from '../../contexto'
@@ -28,7 +28,19 @@ const COR = {
 }
 const L = 232                 // largura do bloco
 const Y_ENTRADA = 30          // altura da bolinha de entrada
-const Y_PORTA = { saida: 30, sim: 30, nao: 58 }
+const ROT_PORTA = { saida: 'saída', sim: 'Sim', nao: 'Não', caso1: 'Caso 1', caso2: 'Caso 2', caso3: 'Caso 3', outro: 'Outro', fim: 'Fim' }
+const COR_PORTA = { nao: 'bg-red-500', sim: 'bg-emerald-500', outro: 'bg-zinc-400', fim: 'bg-zinc-400' }
+const yPorta = (b, p) => 30 + Math.max(0, (b?.portas || ['saida']).indexOf(p)) * 28
+// ícone por grupo (os blocos novos não têm ícone próprio)
+const ICONE_GRUPO = {
+  'Ares e comandos': AirVent, Ares: AirVent, Rotinas: Workflow, 'Pessoas e contas': Bell, Sistema: Gauge, Segurança: ShieldAlert, Avisos: Bell,
+  'Bugs e tarefas': ListTodo, Escritório: Lightbulb, 'Site e e-mail': Mail, 'Tempo lá fora': CloudSun, Gasto: Gauge, 'Tempo e calendário': Clock,
+  'Comparar e decidir': GitBranch, Matemática: Calculator, Texto: Type, 'Data e hora': CalendarClock, 'Listas e JSON': Braces, Controle: Timer,
+  'Dados do sistema': Gauge, Música: Music, 'Inteligência artificial': Bot, 'Mensagens e avisos': MessageSquare, 'Automação externa': Plug,
+  'Casa e escritório': Lightbulb, 'Projetos e tarefas': ListTodo, Monitoramento: AlertTriangle, HTTP: Globe, Básicos: Play,
+}
+const iconeDe = (tipo, b) => ICONES[tipo] || (tipo.startsWith('persiana') ? Blinds : tipo.startsWith('cafeteira') ? Coffee : tipo.startsWith('fechadura') ? Lock : tipo.includes('sol') ? Sun : tipo.includes('bug') ? Bug : ICONE_GRUPO[b?.grupo]) || Workflow
+const SELECTS = ['ar', 'ar_ou_evento', 'cena', 'dispositivo', 'projeto', 'fluxo', 'automacao', 'tarefa_projeto', 'modelo', 'conexao']
 const DIAS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 const NOME_DIA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 const novoId = () => Math.random().toString(36).slice(2, 9)
@@ -82,7 +94,7 @@ function padraoConfig(def) {
 // modelos prontos: só usam blocos do catálogo; o primeiro ar da lista entra onde precisa de um ar
 function modelos(cat) {
   const ar = cat?.opcoes?.ar?.[0]?.id ?? ''
-  const n = (id, tipo, x, y, config) => ({ id, tipo, x, y, config: { ...padraoConfig(cat.blocos[tipo]), ...config } })
+  const n = (id, tipo, x, y, config) => ({ id, tipo, x, y, config: { ...(cat.blocos[tipo] ? padraoConfig(cat.blocos[tipo]) : {}), ...config } })
   return [
     { nome: 'Ligar o ar antes do expediente', descricao: 'Dias úteis às 7h55, sem rodar em feriado ou férias.', icone: Clock,
       grafo: { nos: [n('g', 'gatilho_horario', 40, 80, { hora: '07:55', pular_feriado: true }), n('a', 'ar', 340, 80, { aparelho_id: ar, acao: 'ligar', modo: 'frio', temperatura: 23 }),
@@ -106,7 +118,28 @@ function modelos(cat) {
       grafo: { nos: [n('g', 'gatilho_webhook', 40, 80, {}), n('c', 'condicao', 340, 80, { campo: '{{webhook.acao}}', operador: '=', valor: 'desligar' }),
         n('d', 'desligar_todos', 640, 40, {}), n('s', 'notificacao', 640, 220, { titulo: 'Chegou: {{webhook.titulo}}', texto: '{{webhook}}' })],
       ligacoes: [{ de: 'g', porta: 'saida', para: 'c' }, { de: 'c', porta: 'sim', para: 'd' }, { de: 'c', porta: 'nao', para: 's' }] } },
-  ]
+    { nome: 'IP bloqueado vira aviso', descricao: 'Quando o firewall bloqueia um IP, avisa no sino uma vez a cada 30 min.', icone: ShieldAlert,
+      grafo: { nos: [n('g', 'ev_ip_bloqueado', 40, 80, {}), n('i', 'ctl_intervalo', 340, 80, { minutos: 30 }),
+        n('s', 'sis_aviso_alto', 640, 60, { titulo: 'IP bloqueado: {{evento.ip}}', texto: '{{evento.detalhe}}' })],
+      ligacoes: [{ de: 'g', porta: 'saida', para: 'i' }, { de: 'i', porta: 'sim', para: 's' }] } },
+    { nome: 'Bug crítico vira tarefa', descricao: 'Bug alto ou crítico abre uma tarefa urgente e avisa no Telegram.', icone: Bug,
+      grafo: { nos: [n('g', 'ev_bug_critico', 40, 80, {}), n('t', 'sis_criar_tarefa', 340, 80, { titulo: 'Bug #{{evento.id}}: {{evento.titulo}}', descricao: '{{evento.descricao}}', prioridade: 'urgente' }),
+        n('m', 'sis_telegram_admins', 640, 80, { texto: 'Bug {{evento.gravidade}}: {{evento.titulo}} (tarefa #{{var.tarefa_id}})' })],
+      ligacoes: [{ de: 'g', porta: 'saida', para: 't' }, { de: 't', porta: 'saida', para: 'm' }] } },
+    { nome: 'Fim do expediente', descricao: 'Na hora de sair: desliga os ares, apaga as luzes e fecha as persianas.', icone: PowerOff,
+      grafo: { nos: [n('g', 'ev_fim_expediente', 40, 120, {}), n('a', 'desligar_todos', 340, 20, {}), n('l', 'luzes_apagar_todas', 340, 140, {}), n('p', 'persianas_fechar_todas', 340, 260, {})],
+      ligacoes: [{ de: 'g', porta: 'saida', para: 'a' }, { de: 'g', porta: 'saida', para: 'l' }, { de: 'g', porta: 'saida', para: 'p' }] } },
+    { nome: 'Começou a chover', descricao: 'Chuva lá fora: fecha as persianas e avisa a equipe.', icone: CloudSun,
+      grafo: { nos: [n('g', 'ev_comecou_chover', 40, 80, {}), n('p', 'persianas_fechar_todas', 340, 40, {}), n('s', 'notificacao', 340, 180, { titulo: 'Começou a chover', texto: 'As persianas foram fechadas.' })],
+      ligacoes: [{ de: 'g', porta: 'saida', para: 'p' }, { de: 'g', porta: 'saida', para: 's' }] } },
+    { nome: 'Gasto do mês passou da meta', descricao: 'Custo do mês acima de R$ 500: e-mail com o relatório em PDF.', icone: Gauge,
+      grafo: { nos: [n('g', 'ev_gasto_mes', 40, 80, { sentido: 'acima', valor: 500 }), n('r', 'sis_relatorio_email', 340, 80, { dias: 30 })],
+      ligacoes: [{ de: 'g', porta: 'saida', para: 'r' }] } },
+    { nome: 'Mensagem do site resumida pela IA', descricao: 'Mensagem nova pelo site: a IA resume e classifica; vira aviso no sino.', icone: MessageSquare,
+      grafo: { nos: [n('g', 'ev_mensagem_site', 40, 80, {}), n('i', 'ia_classificar', 340, 80, { valor: '{{evento.mensagem}}', categorias: 'orçamento, suporte, elogio, reclamação, outro' }),
+        n('s', 'notificacao', 640, 80, { titulo: 'Site ({{var.ia}}): {{evento.assunto}}', texto: '{{evento.nome}}: {{evento.mensagem}}' })],
+      ligacoes: [{ de: 'g', porta: 'saida', para: 'i' }, { de: 'i', porta: 'saida', para: 's' }] } },
+  ].filter((m) => m.grafo.nos.every((x) => cat.blocos[x.tipo]))
 }
 
 // ---------------- lista ----------------
@@ -131,15 +164,16 @@ export default function Fluxos() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Fluxos</h2>
-          <p className="text-sm text-muted-foreground">Automações em blocos ligados por setas: um gatilho, condições e ações em sequência, com e-mail, Telegram, IA e chamadas a outros sistemas.</p>
+          <p className="text-sm text-muted-foreground">Automações em blocos ligados por setas: gatilhos, lógica e ações em sequência, com IA, conexões externas (Slack, WhatsApp, GitHub, Home Assistant e outros) e histórico de cada execução.</p>
         </div>
         {pode && <Botao icone={Plus} onClick={() => setAberto({ modelo: null })}>Novo fluxo</Botao>}
       </div>
+      {cat.contagem && <p className="text-xs text-muted-foreground">{cat.contagem.gatilho} gatilhos · {cat.contagem.logica} blocos de lógica e dados · {(cat.contagem.acao || 0) + (cat.contagem.integracao || 0)} ações e integrações</p>}
 
       {pode && (
         <section>
           <h3 className="mb-2 text-sm font-medium text-muted-foreground">Começar de um modelo</h3>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {modelos(cat).map((m, i) => {
               const I = m.icone
               return (
@@ -199,7 +233,7 @@ function MiniGrafo({ grafo, cat }) {
   const pos = Object.fromEntries(nos.map((n) => [n.id, n]))
   return (
     <svg viewBox={`${x0 - 10} ${y0 - 10} ${w + 20} ${h + 20}`} className="mt-1 h-12 w-full" aria-hidden>
-      {grafo.ligacoes.map((l, i) => { const a = pos[l.de], b = pos[l.para]; return a && b && <path key={i} d={curva(a.x + L, a.y + (Y_PORTA[l.porta] || 30), b.x, b.y + Y_ENTRADA)} className="fill-none stroke-muted-foreground/50" strokeWidth="6" /> })}
+      {grafo.ligacoes.map((l, i) => { const a = pos[l.de], b = pos[l.para]; return a && b && <path key={i} d={curva(a.x + L, a.y + (yPorta(cat.blocos[a.tipo], l.porta)), b.x, b.y + Y_ENTRADA)} className="fill-none stroke-muted-foreground/50" strokeWidth="6" /> })}
       {nos.map((n) => <rect key={n.id} x={n.x} y={n.y} width={L} height={60} rx="12" className={`${cat.blocos[n.tipo]?.cat === 'gatilho' ? 'fill-emerald-500/60' : cat.blocos[n.tipo]?.cat === 'logica' ? 'fill-amber-500/60' : cat.blocos[n.tipo]?.cat === 'integracao' ? 'fill-sky-500/60' : 'fill-primary/60'}`} />)}
     </svg>
   )
@@ -233,6 +267,12 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
   const [painel, setPainel] = useState('blocos')    // celular: blocos | ajustes
   const tela = useRef(null)
   const arrasto = useRef(null)
+  const desfazer = useRef([])          // pilha de { nos, ligacoes } para Ctrl+Z
+  const refazer = useRef([])
+  const area = useRef(null)            // blocos copiados (Ctrl+C)
+  const [aberta, setAberta] = useState({})          // grupos abertos na lista de blocos
+  const [inferior, setInferior] = useState(null)    // painel de baixo: problemas | contexto | json | teste | versoes
+  const [teste, setTeste] = useState('{\n  "evento": {"aparelho_id": 1, "nome": "Ar de teste"}\n}')
 
   useEffect(() => {
     if (!id) return
@@ -241,7 +281,57 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
     }).catch((e) => { toast(e.message, 'erro'); aoFechar() })
   }, [id])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const mudar = (fn) => { fn(); setSujo(true) }
+  const foto = () => { desfazer.current = [...desfazer.current.slice(-49), { nos, ligacoes }]; refazer.current = [] }
+  const mudar = (fn) => { foto(); fn(); setSujo(true) }
+  const voltar = (de, para) => {
+    const ultimo = de.current.pop()
+    if (!ultimo) return
+    para.current.push({ nos, ligacoes })
+    setNos(ultimo.nos); setLigacoes(ultimo.ligacoes); setSujo(true); setSel(null)
+  }
+  const copiar = () => {
+    const n = sel?.tipo === 'no' && no(sel.id)
+    if (n) { area.current = n; toast('Bloco copiado. Ctrl+V cola.') }
+  }
+  const colar = (base = area.current) => {
+    if (!base || !pode) return
+    const n = { ...base, id: novoId(), x: base.x + 40, y: base.y + 40, config: { ...base.config, ...(base.tipo === 'gatilho_webhook' ? { token: '' } : {}) } }
+    mudar(() => setNos((v) => [...v, n])); setSel({ tipo: 'no', id: n.id })
+  }
+  const exportar = () => {
+    const blob = new Blob([JSON.stringify({ nome, descricao, grafo: { nos, ligacoes } }, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `fluxo-${(nome || 'fluxo').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`; a.click(); URL.revokeObjectURL(a.href)
+  }
+  const importar = (arquivo) => {
+    if (!arquivo) return
+    arquivo.text().then((t) => {
+      const j = JSON.parse(t)
+      const g = j.grafo || j
+      if (!Array.isArray(g.nos)) throw new Error('Arquivo sem blocos')
+      const fora = g.nos.filter((n) => !cat.blocos[n.tipo]).length
+      mudar(() => { setNos(g.nos.filter((n) => cat.blocos[n.tipo])); setLigacoes(g.ligacoes || []); if (j.nome) setNome(j.nome); if (j.descricao) setDescricao(j.descricao) })
+      toast(fora ? `Importado; ${fora} bloco(s) desconhecido(s) ficaram de fora.` : 'Fluxo importado. Salve para guardar.')
+      requestAnimationFrame(ajustar)
+    }).catch((e) => toast(`Não deu para importar: ${e.message}`, 'erro'))
+  }
+  // problemas que a tela já sabe apontar antes de salvar
+  const problemas = useMemo(() => {
+    const out = []
+    if (!nos.some((n) => cat.blocos[n.tipo]?.cat === 'gatilho')) out.push({ txt: 'O fluxo não tem gatilho: só roda pelo botão Executar.' })
+    for (const n of nos) {
+      const b = cat.blocos[n.tipo]
+      if (!b) continue
+      const entra = ligacoes.some((l) => l.para === n.id), sai = ligacoes.some((l) => l.de === n.id)
+      if (b.cat !== 'gatilho' && !entra) out.push({ no: n.id, txt: `${n.nome || b.rotulo}: nada chega neste bloco.` })
+      if (b.cat === 'gatilho' && !sai) out.push({ no: n.id, txt: `${n.nome || b.rotulo}: o gatilho não leva a nenhum bloco.` })
+      for (const f of b.campos) {
+        if (['conexao', 'cena', 'fluxo', 'automacao'].includes(f.tipo) && !n.config?.[f.nome]) out.push({ no: n.id, txt: `${n.nome || b.rotulo}: escolha ${f.rotulo.toLowerCase()}.` })
+        if (f.tipo === 'texto' && /url/i.test(f.nome) && n.config?.[f.nome] && !String(n.config[f.nome]).startsWith('https://') && !String(n.config[f.nome]).includes('{{')) out.push({ no: n.id, txt: `${n.nome || b.rotulo}: a URL precisa começar com https://.` })
+      }
+    }
+    return out
+  }, [nos, ligacoes, cat])
+
   const no = (nid) => nos.find((n) => n.id === nid)
   const def = (n) => cat.blocos[n?.tipo]
 
@@ -271,7 +361,7 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
     e.stopPropagation()
     setSel({ tipo: 'no', id: n.id }); setPainel('ajustes')
     if (!pode) return
-    arrasto.current = { tipo: 'no', id: n.id, cx: e.clientX, cy: e.clientY, x: n.x, y: n.y, moveu: false }
+    arrasto.current = { tipo: 'no', id: n.id, cx: e.clientX, cy: e.clientY, x: n.x, y: n.y, moveu: false, antes: { nos, ligacoes } }
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }
   const inicioFundo = (e) => {
@@ -301,7 +391,7 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
   const soltar = (e) => {
     const a = arrasto.current
     arrasto.current = null
-    if (a?.tipo === 'no' && a.moveu) setSujo(true)
+    if (a?.tipo === 'no' && a.moveu) { desfazer.current = [...desfazer.current.slice(-49), a.antes]; refazer.current = []; setSujo(true) }
     if (a?.tipo === 'ligar' && ligando) {
       const alvo = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-entrada]')?.dataset.entrada
       const destino = alvo && no(alvo)
@@ -345,7 +435,14 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
       if (e.target.closest('input,textarea,select,[contenteditable]')) return
       if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); remover() }
       if (e.key === 'Escape') setSel(null)
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); salvar() }
+      const ctrl = e.metaKey || e.ctrlKey, k = e.key.toLowerCase()
+      if (ctrl && k === 's') { e.preventDefault(); salvar() }
+      if (ctrl && k === 'z' && !e.shiftKey) { e.preventDefault(); voltar(desfazer, refazer) }
+      if (ctrl && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); voltar(refazer, desfazer) }
+      if (ctrl && k === 'c') copiar()
+      if (ctrl && k === 'v') { e.preventDefault(); colar() }
+      if (ctrl && k === 'd' && sel?.tipo === 'no') { e.preventDefault(); colar(no(sel.id)) }
+      if (ctrl && k === 'enter') { e.preventDefault(); executar() }
     }
     window.addEventListener('keydown', f)
     return () => window.removeEventListener('keydown', f)
@@ -368,8 +465,11 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
     if (!alvo || sujo) { const r = await salvar(); if (!r) return; alvo = r.id }
     setRodando(true); setExecucao(null); setMostrados(0)
     try {
-      const r = await api.post(`/api/fluxos/${alvo}/executar`, { dados: {} })
+      let dados = {}
+      if (inferior === 'teste') { try { dados = JSON.parse(teste || '{}') } catch { toast('Os dados de teste não são um JSON válido.', 'erro'); setRodando(false); return } }
+      const r = await api.post(`/api/fluxos/${alvo}/executar`, { dados })
       setExecucao(r)
+      if (r.contexto && inferior !== 'teste') setInferior('contexto')
       if (r.estado === 'ignorada') toast(r.erro, 'erro')
       else toast(r.estado === 'ok' ? `Fluxo rodou: ${r.passos.length} bloco(s).` : `Rodou com erro: ${r.erro}`, r.estado === 'ok' ? 'ok' : 'erro')
     } catch (e) { toast(e.message, 'erro') } finally { setRodando(false) }
@@ -400,7 +500,7 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
 
   if (!carregado) return <Carregando />
   const selecionado = sel?.tipo === 'no' ? no(sel.id) : null
-  const blocosFiltrados = Object.entries(cat.blocos).filter(([, b]) => !busca || `${b.rotulo} ${b.desc}`.toLowerCase().includes(busca.toLowerCase()))
+  const blocosFiltrados = Object.entries(cat.blocos).filter(([, b]) => !busca || `${b.rotulo} ${b.desc} ${b.grupo || ''}`.toLowerCase().includes(busca.toLowerCase()))
   const pos = Object.fromEntries(nos.map((n) => [n.id, n]))
 
   return (
@@ -411,6 +511,12 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
         <input value={nome} onChange={(e) => mudar(() => setNome(e.target.value))} disabled={!pode} aria-label="Nome do fluxo"
           className="campo h-9 min-w-0 flex-1 font-medium sm:max-w-sm" />
         {sujo && <Selo cor="ambar">não salvo</Selo>}
+        <div className="flex items-center gap-0.5 rounded-lg border border-border p-0.5">
+          <button className="rounded p-1.5 hover:bg-muted disabled:opacity-40" disabled={!pode} onClick={() => voltar(desfazer, refazer)} title="Desfazer (Ctrl+Z)" aria-label="Desfazer"><Undo2 className="h-4 w-4" /></button>
+          <button className="rounded p-1.5 hover:bg-muted disabled:opacity-40" disabled={!pode} onClick={() => voltar(refazer, desfazer)} title="Refazer (Ctrl+Shift+Z)" aria-label="Refazer"><Redo2 className="h-4 w-4" /></button>
+          <button className="rounded p-1.5 hover:bg-muted" onClick={exportar} title="Exportar JSON" aria-label="Exportar JSON"><Download className="h-4 w-4" /></button>
+          {pode && <label className="cursor-pointer rounded p-1.5 hover:bg-muted" title="Importar JSON" aria-label="Importar JSON"><Upload className="h-4 w-4" /><input type="file" accept="application/json,.json" className="hidden" onChange={(e) => { importar(e.target.files?.[0]); e.target.value = '' }} /></label>}
+        </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-sm"><Interruptor ligado={ativo} disabled={!pode} onChange={alternarAtivo} rotulo="Fluxo ligado" />{ativo ? 'Ligado' : 'Desligado'}</label>
           <Botao variante="secundario" icone={Play} carregando={rodando} onClick={executar}>Executar</Botao>
@@ -423,23 +529,37 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
         <aside className={`cartao flex max-h-[70dvh] flex-col overflow-hidden ${painel === 'blocos' ? '' : 'hidden lg:flex'}`}>
           <div className="border-b border-border p-2">
             <label className="relative block"><Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <input type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Procurar bloco" className="campo h-9 pl-8" /></label>
+              <input type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={`Procurar entre ${Object.keys(cat.blocos).length} blocos`} className="campo h-9 pl-8" /></label>
           </div>
           <div className="flex-1 space-y-3 overflow-y-auto p-2">
             {cat.categorias.map(([k, rot]) => {
               const itens = blocosFiltrados.filter(([, b]) => b.cat === k)
               if (!itens.length) return null
+              const grupos = {}
+              itens.forEach((it) => { (grupos[it[1].grupo || 'Outros'] ||= []).push(it) })
               return (
                 <div key={k}>
-                  <p className={`px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide ${COR[k].texto}`}>{rot}</p>
-                  {itens.map(([tipo, b]) => {
-                    const I = ICONES[tipo] || Workflow
+                  <p className={`flex items-center justify-between px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide ${COR[k].texto}`}>{rot}<span className="font-normal tabular">{itens.length}</span></p>
+                  {Object.entries(grupos).map(([g, lista]) => {
+                    const chave = `${k}:${g}`
+                    const aberto = busca || aberta[chave]
                     return (
-                      <button key={tipo} draggable={pode} disabled={!pode} onDragStart={(e) => e.dataTransfer.setData('text/fluxo-bloco', tipo)} onClick={() => adicionar(tipo)} title={b.desc}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-60">
-                        <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${COR[k].fundo} ${COR[k].texto}`}><I className="h-3.5 w-3.5" /></span>
-                        <span className="truncate">{b.rotulo}</span>
-                      </button>
+                      <div key={g}>
+                        <button type="button" onClick={() => setAberta((v) => ({ ...v, [chave]: !v[chave] }))} aria-expanded={!!aberto}
+                          className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-medium text-muted-foreground hover:bg-muted">
+                          {aberto ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}<span className="flex-1 truncate">{g}</span><span className="tabular">{lista.length}</span>
+                        </button>
+                        {aberto && lista.map(([tipo, b]) => {
+                          const I = iconeDe(tipo, b)
+                          return (
+                            <button key={tipo} draggable={pode} disabled={!pode} onDragStart={(e) => e.dataTransfer.setData('text/fluxo-bloco', tipo)} onClick={() => adicionar(tipo)} title={b.desc}
+                              className="flex w-full items-center gap-2 rounded-md py-1.5 pl-5 pr-2 text-left text-sm hover:bg-muted disabled:opacity-60">
+                              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${COR[k].fundo} ${COR[k].texto}`}><I className="h-3.5 w-3.5" /></span>
+                              <span className="truncate">{b.rotulo}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
                     )
                   })}
                 </div>
@@ -461,7 +581,7 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
                   const a = pos[l.de], b = pos[l.para]
                   if (!a || !b) return null
                   const k = `${l.de}|${l.porta}|${l.para}`
-                  const d = curva(a.x + L, a.y + (Y_PORTA[l.porta] || 30), b.x, b.y + Y_ENTRADA)
+                  const d = curva(a.x + L, a.y + (yPorta(def(a), l.porta)), b.x, b.y + Y_ENTRADA)
                   const acesa = ligacaoAcesa(l)
                   const escolhida = sel?.tipo === 'lig' && sel.id === k
                   return (
@@ -472,12 +592,12 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
                     </g>
                   )
                 })}
-                {ligando && <path d={curva(pos[ligando.de].x + L, pos[ligando.de].y + (Y_PORTA[ligando.porta] || 30), ligando.x, ligando.y)} className="fill-none stroke-primary" strokeWidth="2" strokeDasharray="5 5" />}
+                {ligando && <path d={curva(pos[ligando.de].x + L, pos[ligando.de].y + (yPorta(def(pos[ligando.de]), ligando.porta)), ligando.x, ligando.y)} className="fill-none stroke-primary" strokeWidth="2" strokeDasharray="5 5" />}
               </svg>
               {nos.map((n) => {
                 const b = def(n)
                 if (!b) return null
-                const I = ICONES[n.tipo] || Workflow
+                const I = iconeDe(n.tipo, b)
                 const st = estadoNo[n.id]
                 const ativoSel = sel?.tipo === 'no' && sel.id === n.id
                 return (
@@ -494,14 +614,14 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
                       </div>
                       {st && (st.ok ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <XCircle className="h-4 w-4 shrink-0 text-red-600" />)}
                     </div>
-                    {b.portas.length > 1 && <div className="pb-2 pr-6 text-right text-[11px] leading-[28px] text-muted-foreground"><p>Sim</p><p>Não</p></div>}
+                    {b.portas.length > 1 && <div className="pb-2 pr-6 text-right text-[11px] leading-[28px] text-muted-foreground">{b.portas.map((p) => <p key={p}>{ROT_PORTA[p] || p}</p>)}</div>}
                     {/* entrada (esquerda) */}
                     {b.cat !== 'gatilho' && <span data-entrada={n.id} title="Entrada" className="absolute -left-[7px] h-3.5 w-3.5 rounded-full border-2 border-card bg-muted-foreground/70" style={{ top: Y_ENTRADA - 7 }} />}
                     {/* saídas (direita) */}
                     {b.portas.map((p) => (
-                      <span key={p} data-porta={p} title={`Arraste para ligar (${p === 'saida' ? 'saída' : p === 'sim' ? 'Sim' : 'Não'})`} onPointerDown={(e) => inicioPorta(e, n, p)}
-                        className={`absolute -right-[8px] h-4 w-4 cursor-crosshair rounded-full border-2 border-card ${p === 'nao' ? 'bg-red-500' : p === 'sim' ? 'bg-emerald-500' : 'bg-primary'} transition-transform hover:scale-125`}
-                        style={{ top: (Y_PORTA[p] || 30) - 8 }} />
+                      <span key={p} data-porta={p} title={`Arraste para ligar (${ROT_PORTA[p] || p})`} onPointerDown={(e) => inicioPorta(e, n, p)}
+                        className={`absolute -right-[8px] h-4 w-4 cursor-crosshair rounded-full border-2 border-card ${COR_PORTA[p] || 'bg-primary'} transition-transform hover:scale-125`}
+                        style={{ top: yPorta(b, p) - 8 }} />
                     ))}
                   </motion.div>
                 )
@@ -547,7 +667,56 @@ function Editor({ cat, id, modelo, pode, aoFechar }) {
           </AnimatePresence>
         </aside>
       </div>
+
+      {/* painel de baixo, como numa IDE */}
+      <div className="cartao overflow-hidden">
+        <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5 text-xs">
+          {[['problemas', `Problemas (${problemas.length})`, AlertTriangle], ['contexto', 'Contexto da execução', Braces], ['teste', 'Dados de teste', Play], ['json', 'JSON', Braces], ...(fid ? [['versoes', 'Versões', History]] : [])].map(([k, r, I]) => (
+            <button key={k} onClick={() => setInferior((v) => (v === k ? null : k))} aria-pressed={inferior === k}
+              className={`flex items-center gap-1.5 rounded-md px-2 py-1 ${inferior === k ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60'}`}>
+              <I className={`h-3.5 w-3.5 ${k === 'problemas' && problemas.length ? 'text-amber-500' : ''}`} />{r}
+            </button>
+          ))}
+          <span className="ml-auto hidden text-muted-foreground lg:inline">Ctrl+Z desfaz · Ctrl+C/V copia e cola · Ctrl+D duplica · Ctrl+Enter executa · Ctrl+S salva</span>
+        </div>
+        {inferior && (
+          <div className="max-h-72 overflow-auto p-3 text-xs">
+            {inferior === 'problemas' && (problemas.length ? (
+              <ul className="space-y-1">{problemas.map((p, i) => (
+                <li key={i}><button className="flex items-start gap-2 text-left hover:text-primary" onClick={() => p.no && setSel({ tipo: 'no', id: p.no })}><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />{p.txt}</button></li>
+              ))}</ul>) : <p className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" />Nada a apontar.</p>)}
+            {inferior === 'contexto' && (execucao?.contexto ? <pre className="whitespace-pre-wrap break-all font-mono" translate="no">{JSON.stringify(execucao.contexto, null, 2)}</pre> : <p className="text-muted-foreground">Execute o fluxo para ver os valores que cada bloco produziu.</p>)}
+            {inferior === 'teste' && (
+              <div className="space-y-1.5">
+                <p className="text-muted-foreground">Com este painel aberto, Executar usa estes valores como se viessem do gatilho ({'{{evento.…}}'}, {'{{webhook.…}}'}, {'{{var.…}}'}).</p>
+                <textarea rows={6} value={teste} onChange={(e) => setTeste(e.target.value)} className="campo w-full py-1.5 font-mono text-xs" spellCheck={false} aria-label="Dados de teste (JSON)" />
+              </div>)}
+            {inferior === 'json' && <pre className="whitespace-pre-wrap break-all font-mono" translate="no">{JSON.stringify({ nos, ligacoes }, null, 2)}</pre>}
+            {inferior === 'versoes' && fid && <Versoes fid={fid} pode={pode} aoRestaurar={(r) => { foto(); setNos(r.grafo.nos); setLigacoes(r.grafo.ligacoes); setSujo(false); toast('Versão restaurada (a atual foi guardada nas versões).') }} />}
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+function Versoes({ fid, pode, aoRestaurar }) {
+  const toast = useToast()
+  const [lista, setLista] = useState(null)
+  useEffect(() => { api.get(`/api/fluxos/${fid}/versoes`).then(setLista).catch(() => setLista([])) }, [fid])
+  const restaurar = async (v) => {
+    if (!(await confirmar(`Voltar o fluxo para a versão de ${new Date(v.criado_em * 1000).toLocaleString('pt-BR')}?`, { titulo: 'Restaurar versão', ok: 'Restaurar' }))) return
+    try { aoRestaurar(await api.post(`/api/fluxos/${fid}/versoes/${v.id}/restaurar`)) } catch (e) { toast(e.message, 'erro') }
+  }
+  if (!lista) return <Carregando />
+  if (!lista.length) return <p className="text-muted-foreground">Cada vez que você salva uma mudança, a versão anterior fica guardada aqui (as 30 mais novas).</p>
+  return (
+    <ul className="divide-y divide-border">{lista.map((v) => (
+      <li key={v.id} className="flex items-center gap-3 py-1.5">
+        <History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate">{new Date(v.criado_em * 1000).toLocaleString('pt-BR')} · {v.blocos} bloco(s){v.autor ? ` · antes da mudança de ${v.autor}` : ''}</span>
+        {pode && <Botao tamanho="sm" variante="secundario" onClick={() => restaurar(v)}>Restaurar</Botao>}
+      </li>))}</ul>
   )
 }
 
@@ -582,12 +751,18 @@ function Ajustes({ n, b, cat, fid, pode, mudar }) {
               return <button key={i} type="button" aria-pressed={on} title={NOME_DIA[i]} onClick={() => set(f.nome, on ? v.filter((x) => x !== i) : [...(v || []), i].sort())}
                 className={`h-8 w-8 rounded-md text-xs font-medium ${on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{d}</button>
             })}</div></div>)
-          if (['ar', 'ar_ou_evento', 'cena', 'dispositivo', 'projeto'].includes(f.tipo)) return (
-            <label key={f.nome} className="block">{rotulo}<select className="campo h-9" value={v ?? ''} onChange={(e) => set(f.nome, e.target.value === '' ? '' : e.target.value === 'evento' ? 'evento' : Number(e.target.value))}>
-              <option value="">{f.tipo === 'ar' || f.tipo === 'projeto' ? 'Qualquer / todos' : 'Escolha'}</option>
-              {f.tipo === 'ar_ou_evento' && <option value="evento">O ar do gatilho</option>}
-              {opcoes(f.tipo).map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-            </select></label>)
+          if (SELECTS.includes(f.tipo)) {
+            const texto = ['modelo', 'conexao'].includes(f.tipo)
+            const lista = f.tipo === 'conexao' ? opcoes('conexao').filter((o) => o.servico === f.extra) : opcoes(f.tipo)
+            return (
+              <label key={f.nome} className="block">{rotulo}<select className="campo h-9" value={v ?? ''} onChange={(e) => set(f.nome, e.target.value === '' ? '' : e.target.value === 'evento' || texto ? e.target.value : Number(e.target.value))}>
+                <option value="">{f.tipo === 'modelo' ? 'Padrão do sistema' : f.tipo === 'ar' || f.tipo === 'projeto' ? 'Qualquer / todos' : 'Escolha'}</option>
+                {f.tipo === 'ar_ou_evento' && <option value="evento">O ar do gatilho</option>}
+                {lista.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </select>
+              {f.tipo === 'conexao' && !lista.length && <span className="mt-1 block text-[11px] text-muted-foreground">Nenhuma conexão deste serviço. Crie em <a className="text-primary underline" href="/rotinas?aba=conexoes">Rotinas → Conexões</a>.</span>}
+              </label>)
+          }
           if (f.tipo === 'pessoas') return (
             <div key={f.nome}>{rotulo}<div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">{opcoes('pessoas').map((p) => {
               const on = (v || []).includes(p.id)
@@ -610,7 +785,7 @@ function Ajustes({ n, b, cat, fid, pode, mudar }) {
       <details className="rounded-md border border-border p-2 text-xs text-muted-foreground">
         <summary className="cursor-pointer text-foreground">Valores que dá para usar ({'{{...}}'})</summary>
         <ul className="mt-1.5 space-y-0.5" translate="no">
-          {['{{agora}}', '{{fluxo.nome}}', '{{evento.nome}}', '{{evento.aparelho_id}}', '{{evento.minutos}}', '{{ar.temperatura}}', '{{ar.ligado}}', '{{fora.temperatura}}', '{{fora.tipo}}', '{{webhook.campo}}', '{{http.status}}', '{{http.json.campo}}', '{{ia.texto}}', '{{var.nome}}'].map((x) => <li key={x}><code>{x}</code></li>)}
+          {['{{agora}}', '{{fluxo.nome}}', '{{evento.nome}}', '{{evento.aparelho_id}}', '{{evento.minutos}}', '{{ar.temperatura}}', '{{ar.ligado}}', '{{fora.temperatura}}', '{{fora.tipo}}', '{{webhook.campo}}', '{{http.status}}', '{{http.json.campo}}', '{{ia.texto}}', '{{var.nome}}', '{{evento.id}}', '{{evento.valor}}', '{{integracao.status}}', '{{integracao.resposta}}'].map((x) => <li key={x}><code>{x}</code></li>)}
         </ul>
       </details>
     </div>

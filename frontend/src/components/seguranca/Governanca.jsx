@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertTriangle, BadgeCheck, CheckCircle2, CircleDashed, ClipboardCheck, Download, FileSpreadsheet, Fingerprint, Globe2, Link2, Lock, MinusCircle, Pencil, Play, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, UserX, XCircle } from 'lucide-react'
 import { api, dataHora, haQuanto } from '../../api'
+import { useProjeto } from '../../contexto'
 import { Aviso, Botao, Esqueleto, Interruptor, Modal, Secao, useDados, useToast, confirmar } from '../ui'
 
 // ---------------------------------------------------------------- comum
@@ -564,8 +565,17 @@ export function Integridade() {
   const toast = useToast()
   const { dados, setDados } = useDados(() => api.get('/api/seguranca/integridade'))
   const [selando, setSelando] = useState(false)
+  const [reconhecer, setReconhecer] = useState(false)
+  const [motivo, setMotivo] = useState('')
+  const [versao, setVersao] = useState(0)
+  const { sessao } = useProjeto()
+  const { dados: reselos } = useDados(() => api.get('/api/seguranca/integridade/reselos'), [versao])
   if (!dados) return <Esqueleto className="h-80" />
   const selar = async () => { setSelando(true); try { setDados(await api.post('/api/seguranca/integridade/selar')); toast('Registros selados e conferidos.') } catch (e) { toast(e.message, 'erro') } finally { setSelando(false) } }
+  const refazer = async () => {
+    setSelando(true)
+    try { const r = await api.post('/api/seguranca/integridade/reselar', { motivo }); setDados(r); setReconhecer(false); setMotivo(''); toast(`${r.reselados} dia(s) reconhecido(s); a cadeia foi refeita.`); setVersao((v) => v + 1) } catch (e) { toast(e.message, 'erro') } finally { setSelando(false) }
+  }
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <Secao titulo="Selos de integridade" contexto="Cadeia de hashes SHA-256 por dia sobre a atividade e os eventos de segurança">
@@ -578,9 +588,21 @@ export function Integridade() {
           {dados.problemas.map((p, k) => <p key={k} className="flex items-center gap-2 text-sm text-red-600"><XCircle className="h-4 w-4" />{new Date(p.dia * 1000).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}: {p.motivo}</p>)}
           {dados.removidos.length > 0 && <p className="text-xs text-muted-foreground">{dados.removidos.length} dia(s) com registros apagados pela rotina de retenção (esperado).</p>}
           {dados.ultimo && <p className="flex items-start gap-2 break-all font-mono text-[11px] text-muted-foreground"><Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />{dados.ultimo.selo}</p>}
-          <Botao icone={Lock} carregando={selando} onClick={selar}>Selar dias pendentes e conferir</Botao>
+          <div className="flex flex-wrap gap-2">
+            <Botao icone={Lock} carregando={selando} onClick={selar}>Selar dias pendentes e conferir</Botao>
+            {!dados.ok && sessao?.papel === 'dono' && <Botao variante="secundario" onClick={() => setReconhecer(true)}>Reconhecer e refazer os selos</Botao>}
+          </div>
+          {!dados.ok && <p className="text-xs text-muted-foreground">Se a alteração foi uma limpeza autorizada (ex.: eventos de testes locais), o dono reconhece com o motivo: a cadeia é refeita dali em diante e os números antigos ficam no histórico ao lado. Se ninguém autorizou, trate como incidente.</p>}
         </div>
       </Secao>
+      {reconhecer && (
+        <Modal aberto titulo="Reconhecer alterações nos registros" onFechar={() => setReconhecer(false)}>
+          <p className="text-sm text-muted-foreground">Os selos dos dias alterados serão refeitos. O motivo, você e os valores antigos de cada dia ficam no histórico (não dá para apagar) e na Atividade.</p>
+          <textarea className="campo mt-3 w-full py-2 text-sm" rows={3} maxLength={300} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: limpeza autorizada dos eventos de testes locais (127.0.0.1)" />
+          <div className="mt-3 flex justify-end gap-2"><Botao variante="secundario" onClick={() => setReconhecer(false)}>Cancelar</Botao>
+            <Botao disabled={motivo.trim().length < 10} carregando={selando} onClick={refazer}>Refazer os selos</Botao></div>
+        </Modal>
+      )}
       <Secao titulo="Como funciona" contexto="Evidência que resiste a adulteração">
         <ul className="space-y-2 p-5 text-xs text-muted-foreground">
           <li>Cada dia fechado vira um resumo SHA-256 de todas as linhas de atividade e de eventos de segurança.</li>
@@ -588,6 +610,17 @@ export function Integridade() {
           <li>Ao abrir esta aba os dias novos são selados e os últimos 90 são conferidos de novo.</li>
           <li>Linhas apagadas pela retenção configurada aparecem separadas, sem alarme.</li>
         </ul>
+        {reselos?.length > 0 && (
+          <div className="border-t border-border p-5">
+            <p className="text-sm font-medium">Reconhecimentos</p>
+            <ul className="mt-2 space-y-2 text-xs">{reselos.map((r, i) => (
+              <li key={i} className="rounded-md border border-border p-2">
+                <p className="font-medium">{new Date(r.em * 1000).toLocaleString('pt-BR')} · {r.quem}</p>
+                <p className="text-muted-foreground">{r.motivo}</p>
+                <p className="mt-1 text-muted-foreground">{r.dias.length} dia(s): {r.dias.slice(0, 6).map((d) => `${new Date(d.dia * 1000).toLocaleDateString('pt-BR', { timeZone: 'UTC' })} (${d.antes.n_eventos}→${d.depois.n_eventos} eventos)`).join(', ')}{r.dias.length > 6 ? '…' : ''}</p>
+              </li>))}</ul>
+          </div>
+        )}
       </Secao>
     </div>
   )

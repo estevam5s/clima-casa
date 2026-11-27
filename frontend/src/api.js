@@ -23,9 +23,11 @@ async function chamar(metodo, caminho, corpo) {
     r = await fetch(caminho, opcoes)
   } catch {
     medirApi(caminho, metodo, performance.now() - t0, 0)
+    window.dispatchEvent(new CustomEvent('clima:api', { detail: { metodo, caminho: caminho.split('?')[0], status: 0, ms: Math.round(performance.now() - t0) } }))
     throw new ErroApi(0, 'Sem conexão com o servidor do Clima Escritório.')
   }
   medirApi(caminho, metodo, performance.now() - t0, r.status)
+  if (!r.ok || performance.now() - t0 > 8000) window.dispatchEvent(new CustomEvent('clima:api', { detail: { metodo, caminho: caminho.split('?')[0], status: r.status, ms: Math.round(performance.now() - t0) } }))
   const texto = await r.text()
   let dados = null
   try { dados = texto ? JSON.parse(texto) : null } catch { /* resposta não-JSON */ }

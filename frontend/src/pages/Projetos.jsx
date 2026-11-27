@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { useProjeto } from '../contexto'
-import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Vazio, useDados, useToast } from '../components/ui'
+import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, NumeroAnimado, Vazio, useDados, useToast } from '../components/ui'
 import { devePuxar } from '../ocioso'
 
 const CORES = ['#0f766a', '#2563a8', '#c2410c', '#7c3aed', '#be123c', '#4d7c0f', '#0e7490', '#52525b']
@@ -182,7 +182,22 @@ function MapaCalor({ dados, aoAbrir }) {
   )
 }
 
+// estado agora: climatizando (média das temperaturas dos ligados, com ondas) ou tudo desligado
+function EstadoAgora({ p, ligados, reduzir }) {
+  if (!p.aparelhos.length) return null
+  const lig = p.aparelhos.filter((a) => a.ligado && a.temperatura)
+  const media = lig.length ? Math.round(lig.reduce((s, a) => s + a.temperatura, 0) / lig.length) : null
+  if (!ligados) return <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"><Power className="h-3 w-3" />Tudo desligado</span>
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">
+      <span className="flex h-3 items-end gap-[2px]" aria-hidden>{[0, 1, 2].map((k) => <motion.span key={k} className="w-[2px] rounded-full bg-current" animate={reduzir ? { height: 8 } : { height: [4, 11, 4] }} transition={{ repeat: Infinity, duration: 1.1, delay: k * 0.18 }} />)}</span>
+      Climatizando{media ? ` · média ${media}°` : ''}
+    </span>
+  )
+}
+
 function Cartao({ p, i, atual, acoes }) {
+  const reduzir = useReducedMotion()
   const [menu, setMenu] = useState(false)
   const [todos, setTodos] = useState(false)
   const ligados = p.aparelhos.filter((a) => a.ligado).length
@@ -190,10 +205,11 @@ function Cartao({ p, i, atual, acoes }) {
   const [tipoRot, TipoI] = TIPOS[p.tipo] || TIPOS.outro
   const temSerie = p.serie.some((s) => s.comandos)
   return (
-    <motion.article layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ delay: i * 0.03 }}
-      className={`cartao group relative flex flex-col overflow-hidden ${atual ? 'ring-2 ring-primary/50' : ''}`}>
+    <motion.article layout initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ delay: i * 0.04, type: 'spring', stiffness: 260, damping: 26 }}
+      whileHover={reduzir ? undefined : { y: -3 }}
+      className={`cartao group relative flex flex-col overflow-hidden transition-shadow hover:shadow-lg ${atual ? 'ring-2 ring-primary/50' : ''}`}>{/* marca: cartão sobe ao passar o mouse */}
       <div className="relative px-5 pb-4 pt-5">
-        <span className="absolute inset-x-0 top-0 h-1" style={{ background: p.cor }} />
+        <motion.span className="absolute inset-x-0 top-0 h-1 origin-left" style={{ background: p.cor }} initial={{ scaleX: reduzir ? 1 : 0 }} animate={{ scaleX: 1 }} transition={{ delay: 0.1 + i * 0.04, duration: 0.6, ease: 'easeOut' }} />
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white" style={{ background: p.cor }}><TipoI className="h-5 w-5" /></span>
           <div className="min-w-0 flex-1">
@@ -215,7 +231,7 @@ function Cartao({ p, i, atual, acoes }) {
             ]} />}
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-1.5"><SeloTx p={p} /></div>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5"><SeloTx p={p} /><EstadoAgora p={p} ligados={ligados} reduzir={reduzir} /></div>
         {p.descricao && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>}
       </div>
 
@@ -245,7 +261,7 @@ function Cartao({ p, i, atual, acoes }) {
 
       <div className="border-t border-border px-5 py-3">
         <div className="flex items-end justify-between gap-3">
-          <div><p className="text-[11px] text-muted-foreground">Comandos em 14 dias</p><p className="text-lg font-semibold tabular leading-tight">{p.comandos_14d}{p.falhas_14d > 0 && <span className="ml-1.5 text-xs font-normal text-red-600">{p.falhas_14d} falha(s)</span>}</p></div>
+          <div><p className="text-[11px] text-muted-foreground">Comandos em 14 dias</p><p className="text-lg font-semibold tabular leading-tight"><NumeroAnimado valor={p.comandos_14d} />{p.falhas_14d > 0 && <span className="ml-1.5 text-xs font-normal text-red-600">{p.falhas_14d} falha(s)</span>}</p></div>
           <div className="h-10 w-32">
             {temSerie ? (
               <ResponsiveContainer><AreaChart data={p.serie} margin={{ top: 2, bottom: 0, left: 0, right: 0 }}>
@@ -261,11 +277,18 @@ function Cartao({ p, i, atual, acoes }) {
         {[[AirVent, 'Ares', `${ligados}/${p.aparelhos.length}`], [Radio, 'IR', `${p.transmissores.length - offline.length}/${p.transmissores.length}`], [Sparkles, 'Cenas', p.cenas],
           [Workflow, 'Autom.', p.automacoes], [CalendarClock, 'Agenda', p.agendamentos], [Users, 'Pessoas', p.pessoas]].map(([I, r, v]) => (
           <div key={r} className="border-border px-1 py-2.5 [&:not(:last-child)]:border-r max-sm:[&:nth-child(3)]:border-r-0 max-sm:[&:nth-child(n+4)]:border-t">
-            <dt className="flex items-center justify-center gap-1 text-muted-foreground"><I className="h-3 w-3" />{r}</dt><dd className="mt-0.5 text-sm font-semibold tabular">{v}</dd>
+            <dt className="flex items-center justify-center gap-1 text-muted-foreground"><I className="h-3 w-3" />{r}</dt><dd className="mt-0.5 text-sm font-semibold tabular">{typeof v === 'number' ? <NumeroAnimado valor={v} /> : v}</dd>
           </div>
         ))}
       </dl>
-      {offline.length > 0 && <p className="flex items-center gap-1.5 border-t border-amber-500/30 bg-amber-500/10 px-5 py-2 text-xs text-amber-700 dark:text-amber-300"><WifiOff className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{offline[0].nome}: {offline[0].problema || 'transmissor offline'}</span></p>}
+      {offline.length > 0 && (
+        <motion.button onClick={() => acoes.transmissores?.()} initial={reduzir ? false : { opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.04 }}
+          className="flex w-full items-center gap-1.5 border-t border-amber-500/30 bg-amber-500/10 px-5 py-2 text-left text-xs text-amber-700 hover:bg-amber-500/15 dark:text-amber-300" title="Abrir Transmissores">
+          <motion.span animate={reduzir ? undefined : { opacity: [1, 0.35, 1] }} transition={{ repeat: Infinity, duration: 1.8 }}><WifiOff className="h-3.5 w-3.5 shrink-0" /></motion.span>
+          <span className="min-w-0 flex-1 truncate">{offline[0].nome}: {offline[0].problema || 'transmissor offline'}{offline.length > 1 ? ` (+${offline.length - 1})` : ''}</span>
+          <span className="shrink-0 font-medium">Ver →</span>
+        </motion.button>
+      )}
 
       <div className="mt-auto flex gap-2 border-t border-border p-3">
         <Botao className="flex-1" variante={atual ? 'secundario' : 'primario'} onClick={() => acoes.abrir(p)}>{atual ? 'Abrir painel' : 'Usar este projeto'}</Botao>
@@ -307,6 +330,7 @@ export default function Projetos() {
   if (erro) return <Aviso>{erro}</Aviso>
   const atualizar = () => { recarregar(); recarregarCtx() }
   const acoes = {
+    transmissores: () => navegar('/transmissores'),
     editar: (p) => setModal(p), remover: (p) => setModal({ ...p, apagar: true }),
     abrir: (p) => { setAtual(p.id); navegar('/') },
     mapa: () => navegar('/mapa'),

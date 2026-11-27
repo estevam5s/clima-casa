@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Clima Escritório",
+  "short_name": "Clima",
+  "version": "1.0.0",
+  "description": "Liga e desliga os ares do escritório, roda cenas e mostra os avisos do painel, sem abrir o sistema.",
+  "icons": { "16": "icones/16.png", "32": "icones/32.png", "48": "icones/48.png", "128": "icones/128.png" },
+  "action": { "default_popup": "popup.html", "default_title": "Clima Escritório" },
+  "background": { "service_worker": "fundo.js", "scripts": ["fundo.js"] },
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://app.zynio.com.br/*"],
+  "content_scripts": [{ "matches": ["https://app.zynio.com.br/*"], "js": ["sessao.js"], "run_at": "document_idle" }],
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'; connect-src https://app.zynio.com.br" },
+  "browser_specific_settings": { "gecko": { "id": "extensao@zynio.com.br", "strict_min_version": "121.0" } }
+}
