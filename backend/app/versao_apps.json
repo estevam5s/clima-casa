@@ -1,20 +1,21 @@
 {
   "notas": [
-    "Tela Logs no Android e no iPhone (quem ligou, desligou e mudou a temperatura de cada ar); atalho no computador",
-    "A Atividade do Android mostra quem fez cada ação",
-    "Acompanha a versão 0.6.9 do sistema"
+    "Fluxos no Android e no iPhone: ligar, desligar, executar e ver as últimas execuções",
+    "Diagnóstico do sistema nos apps (banco, agente, transmissores, e-mail e backup)",
+    "Extensão para Chrome, Edge, Brave e Firefox",
+    "Acompanha a versão 0.7.9 do sistema"
   ],
-  "publicado_em": "2026-11-25",
+  "publicado_em": "2026-11-27",
   "android": {
-    "versao": "1.8.1",
+    "versao": "1.8.2",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "desktop": {
-    "versao": "1.8.1",
+    "versao": "1.8.2",
     "pagina": "https://app.zynio.com.br/apps"
   },
   "ios": {
-    "versao": "1.8.1",
+    "versao": "1.8.2",
     "pagina": "https://app.zynio.com.br/apps"
   }
 }
