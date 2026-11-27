@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Lock, ArchiveRestore, CheckCircle2, Database, DatabaseBackup, Download, FileArchive, FileSearch, GitCompare, PenLine, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react'
 import { Agenda, Comparar, Conferir, Procurar, Uso, fmtData, fmtMB } from '../components/backup/Avancado'
+import PainelBackup from '../components/backup/Painel'
 import { BaixarCifrado, CopiaLocal, PedirSenha, SaudeBackup, decifrar, ehCifrado } from '../components/backup/Saude'
 import { gerarCodigo } from '../components/dispositivos/Placa'
 import { api } from '../api'
@@ -229,6 +230,7 @@ export default function Backup() {
       {!dados.arquivos.length || (Date.now() - new Date(dados.arquivos[0].criado_em).getTime()) > 7 * 86400000
         ? <div className="mt-4"><Aviso tipo="alerta">{dados.arquivos.length ? 'O backup completo mais novo tem mais de 7 dias.' : 'Ainda não há backup completo.'} Gere um agora ou ligue o backup agendado.</Aviso></div> : null}
       <div className="mt-6"><SaudeBackup saude={saude} recarregar={lerSaude} /></div>
+      <div className="mt-6"><PainelBackup versao={`${dados.arquivos.length}-${saude?.teste?.em || ''}`} /></div>
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Gerar tabelas={tb.tabelas} grupos={tb.grupos} aoGerar={() => { recarregar(); lerSaude() }} />
         <Restaurar tabelas={tb.tabelas} aoMudar={recarregar} preArquivo={preArquivo} setPreArquivo={setPreArquivo} />

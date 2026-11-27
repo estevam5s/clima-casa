@@ -148,7 +148,9 @@ def registrar_formulario(rota: str, metodo: str, campos: list, u: dict):
 
 
 def varrer() -> dict:
-    """Procura problemas no próprio sistema e transforma em bugs (sem duplicar)."""
+    """Procura problemas no próprio sistema e transforma em bugs (sem duplicar). Devolve também o relatório por etapa."""
+    etapas = []
+    t0 = time.time()
     achados = 0
     desde = db.agora() - 86400
     # falha porque nenhum agente estava no escritório já vira o bug "agente parado" (abaixo): não repete por ação
@@ -209,17 +211,29 @@ def varrer() -> dict:
         registrar_auto(_chave("cadastro", c["codigo"], c.get("alvo", "")), c["titulo"], c["descricao"], pagina=c.get("pagina", ""),
                        gravidade=c["gravidade"], categoria="cadastro", contexto={"erros": [c["descricao"][:200]]})
         achados += 1
-    for c in checar_profundo():
-        registrar_auto(_chave("profundo", c["codigo"], c.get("alvo", "")), c["titulo"], c["descricao"], pagina=c.get("pagina", ""),
-                       gravidade=c["gravidade"], categoria=c["categoria"], contexto={"erros": [c["descricao"][:200]]}, ultimo=c.get("ultimo"))
-        achados += 1
+    etapas.append({"etapa": "Falhas repetidas, fila, permissões, agentes e cadastros", "ms": int((time.time() - t0) * 1000), "achados": achados, "itens": []})
+    for nome, fn, prefixo in (("Rotinas do banco, fila parada, automações e agenda órfãs, e-mails, telas lentas, banco e backup diário", checar_profundo, "profundo"),
+                              ("Segurança (RLS, segredos, 2FA, contas paradas), certificado, versões dos agentes, fluxos, backup completo, API e banco",
+                               checar_ampliado, "ampliado")):
+        t1 = time.time()
+        try:
+            lista = fn()
+        except Exception as e:  # noqa: BLE001
+            lista = []
+            log.warning("varredura %s: %s", prefixo, e)
+        for c in lista:
+            registrar_auto(_chave(prefixo, c["codigo"], c.get("alvo", "")), c["titulo"], c["descricao"], pagina=c.get("pagina", ""),
+                           gravidade=c["gravidade"], categoria=c["categoria"], contexto={"erros": [c["descricao"][:200]]}, ultimo=c.get("ultimo"))
+        achados += len(lista)
+        etapas.append({"etapa": nome, "ms": int((time.time() - t1) * 1000), "achados": len(lista),
+                       "itens": [{"titulo": c["titulo"], "gravidade": c["gravidade"], "pagina": c.get("pagina", "")} for c in lista][:30]})
     try:
         tarefas_r = sincronizar_tarefas()
     except Exception as e:  # noqa: BLE001
         log.warning("bugs → tarefas: %s", e)
         tarefas_r = {"erro": str(e)[:200]}
     db.set_cfg("bugs_ultima_varredura", db.agora())
-    return {"achados": achados, "em": db.agora(), "tarefas": tarefas_r}
+    return {"achados": achados, "em": db.agora(), "tarefas": tarefas_r, "etapas": etapas, "ms": int((time.time() - t0) * 1000)}
 
 
 # ---------------- cadastros inconsistentes (ares, transmissores, botões, zonas) ----------------
@@ -450,6 +464,121 @@ PROJETO_TAREFAS = "Plano de melhorias"
 SECAO_TAREFAS = "Bugs e qualidade"
 PRIO_DO_BUG = {"critica": "urgente", "alta": "alta", "media": "media", "baixa": "baixa"}
 ABERTOS = ("aberto", "analisando")
+
+
+# ---------------- varredura ampliada (0.7.8): segurança, integrações, rotinas novas e infraestrutura ----------------
+def checar_ampliado() -> list[dict]:
+    """Mais fundo: tabelas sem RLS, segredo gravado sem cifra, certificado do domínio, agentes em versão antiga, fluxos e
+    agendados da IA falhando ou apontando para itens apagados, contas administradoras sem 2FA, contas paradas, backup completo
+    atrasado, erros 5xx e chamadas lentas da API, consultas pesadas no banco e tabelas crescendo sem limpeza."""
+    achados = []
+
+    def add(codigo, titulo, descricao, gravidade="media", pagina="", categoria="sistema", alvo="", ultimo=None):
+        achados.append({"codigo": codigo, "titulo": titulo, "descricao": descricao, "gravidade": gravidade, "pagina": pagina,
+                        "categoria": categoria, "alvo": str(alvo), "ultimo": ultimo})
+
+    def tenta(fn):
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            log.warning("checagem ampliada %s: %s", getattr(fn, "__name__", "?"), e)
+
+    def rls():
+        sem = [r["tablename"] for r in db.consultar("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND NOT rowsecurity")]
+        if sem:
+            add("rls", f"{len(sem)} tabela(s) sem RLS no banco", "Sem RLS, a chave pública do Supabase pode ler essas tabelas: " + ", ".join(sem[:20])
+                + ". Rode 'alter table … enable row level security'.", "critica", "/supabase", "segurança")
+
+    def segredos():
+        abertos = [r["chave"] for r in db.consultar(f"SELECT chave, valor FROM config WHERE chave IN ({','.join('?' * len(db.CHAVES_SENSIVEIS))})", tuple(db.CHAVES_SENSIVEIS))
+                   if not str(json.loads(r["valor"]) if r["valor"] else "").startswith("enc:v1:")]
+        if abertos:
+            add("segredo_aberto", "Configuração com segredo gravada sem cifra", "Chaves: " + ", ".join(abertos) + ". Salve de novo pela tela (ela cifra) ou rode db.set_cfg.",
+                "critica", "/seguranca", "segurança")
+
+    def certificado():
+        import socket
+        import ssl
+        for host in ("app.zynio.com.br", "zynio.com.br"):
+            with socket.create_connection((host, 443), timeout=6) as sk:
+                with ssl.create_default_context().wrap_socket(sk, server_hostname=host) as t:
+                    vence = ssl.cert_time_to_seconds(t.getpeercert()["notAfter"])
+            dias = int((vence - time.time()) / 86400)
+            if dias < 14:
+                add("certificado", f"Certificado de {host} vence em {dias} dia(s)", "A Vercel renova sozinha; se não renovou, confira os registros DNS (Infra → Visão geral).",
+                    "alta" if dias < 5 else "media", "/infra", "infra", host)
+
+    def agentes():
+        from . import atualizar_agente, coordenador
+        atual = atualizar_agente.versao_publicada()
+        for m in coordenador.maquinas():
+            if m.get("online") and m.get("versao") and m["versao"] != atual:
+                add("agente_versao", f"Agente {m.get('nome')} na versão {m['versao']} (a atual é {atual})",
+                    "Ele se atualiza sozinho em até 10 min; se continuar, use Infra → Agentes → Atualizar agente.", "baixa", "/infra?aba=agentes", "agente", m.get("nome"))
+            if m.get("online") and not m.get("versao"):
+                add("agente_antigo", f"Agente {m.get('nome')} roda código de antes da atualização automática",
+                    "Rode o instalador do agente uma vez nesse computador (Infra → Agentes → Instalar).", "media", "/infra?aba=agentes", "agente", m.get("nome"))
+
+    def fluxos():
+        existe = {t: {r["id"] for r in db.consultar(f"SELECT id FROM {t}")} for t in ("aparelhos", "cenas", "dispositivos", "projetos")}
+        campo = {"aparelho_id": "aparelhos", "cena_id": "cenas", "dispositivo_id": "dispositivos", "projeto_id": "projetos"}
+        for f in db.consultar("SELECT id, nome, ativo, grafo, ultimo_estado FROM fluxos"):
+            if f["ativo"] and f["ultimo_estado"] == "erro":
+                e = db.um("SELECT erro, inicio FROM fluxos_execucoes WHERE fluxo_id = ? ORDER BY id DESC LIMIT 1", (f["id"],)) or {}
+                add("fluxo_erro", f"Fluxo {f['nome']} terminou com erro", (e.get("erro") or "Veja o histórico do fluxo.")[:300], "media", "/rotinas?aba=fluxos", "rotinas", f["id"], ultimo=e.get("inicio"))
+            for n in (f["grafo"] or {}).get("nos", []):
+                for k, tab in campo.items():
+                    v = (n.get("config") or {}).get(k)
+                    if isinstance(v, int) and v not in existe[tab]:
+                        add("fluxo_orfao", f"Fluxo {f['nome']} usa um item apagado", f"Um bloco aponta para {tab[:-1]} {v}, que não existe mais. Abra o fluxo e escolha outro.",
+                            "media" if f["ativo"] else "baixa", "/rotinas?aba=fluxos", "rotinas", f"{f['id']}:{n.get('id')}")
+        for a in db.consultar("SELECT id, titulo, ultimo_resultado, ultima_exec FROM ia_agendados WHERE ativo AND ultimo_resultado LIKE 'Erro:%'"):
+            add("ia_agendado_erro", f"Pedido agendado da IA falhando: {a['titulo']}", a["ultimo_resultado"][:300], "baixa", "/ia", "rotinas", a["id"], ultimo=a["ultima_exec"])
+
+    def contas():
+        # direto das tabelas do Auth: a listagem em massa da API admin não traz os fatores de 2FA nem o último login
+        for u in db.consultar("SELECT u.id::text AS id, u.email, u.nome, u.papel, "
+                              "extract(epoch FROM a.last_sign_in_at)::bigint AS ultimo, "
+                              "EXISTS (SELECT 1 FROM auth.mfa_factors f WHERE f.user_id = a.id AND f.status = 'verified') AS tem_2fa "
+                              "FROM usuarios u JOIN auth.users a ON a.id::text = u.id::text WHERE u.ativo"):
+            if u["papel"] in ("dono", "admin") and not u["tem_2fa"]:
+                add("admin_sem_2fa", f"{u['nome'] or u['email']} ({u['papel']}) sem verificação em duas etapas",
+                    "Conta com acesso total sem 2FA: uma senha vazada basta. Configurações → Segurança → Verificação em duas etapas.", "media", "/configuracoes?aba=seguranca", "segurança", u["id"])
+            if u["ultimo"] and db.agora() - u["ultimo"] > 90 * 86400:
+                add("conta_parada", f"Conta de {u['nome'] or u['email']} sem uso há {int((db.agora() - u['ultimo']) / 86400)} dias",
+                    "Conta ativa que ninguém usa é porta aberta: desative em Configurações → Usuários se a pessoa saiu.", "baixa", "/configuracoes?aba=contas", "segurança", u["id"])
+
+    def backup():
+        from . import backup_sistema
+        sd = backup_sistema.saude()
+        h = sd.get("horas_desde")
+        if h is None:
+            add("backup_nunca", "Nenhum backup completo do sistema", "Gere um em Backup (ou ligue o agendamento): sem ele não dá para voltar atrás.", "alta", "/backup", "banco")
+        elif h > 72:
+            add("backup_completo_atrasado", f"Último backup completo há {int(h // 24)} dia(s)", "Ligue o backup agendado em Backup → Agendamento (o agente precisa estar ligado).", "media", "/backup", "banco")
+
+    def api_erros():
+        desde = db.agora() - 86400
+        for r in db.consultar("SELECT rota, count(*) AS n FROM analise_eventos WHERE tipo = 'api' AND quando > ? AND (dados->>'status')::int >= 500 GROUP BY rota HAVING count(*) >= 3", (desde,)):
+            add("api_5xx", f"{r['n']} erro(s) 5xx em {r['rota']} nas últimas 24 h", "O servidor falhou ao responder. Veja os bugs de 'Erro interno' e o log da Vercel (Infra).", "alta", "/analise", "desempenho", r["rota"])
+        for r in db.consultar("SELECT rota, count(*) AS n, percentile_cont(0.9) WITHIN GROUP (ORDER BY valor) AS p90 FROM analise_eventos "
+                              "WHERE tipo = 'api' AND quando > ? AND rota NOT LIKE '%/infra/%' GROUP BY rota HAVING count(*) >= 10", (db.agora() - 7 * 86400,)):
+            if r["p90"] and r["p90"] > 6000:
+                add("api_lenta", f"Chamada lenta: {r['rota']}", f"90% das {r['n']} chamadas em 7 dias levaram até {r['p90'] / 1000:.1f} s. Veja Acessos e SEO → API do sistema.",
+                    "baixa", "/analise", "desempenho", r["rota"])
+
+    def banco():
+        for r in db.consultar("SELECT left(query, 160) AS q, calls, round(mean_exec_time::numeric, 0) AS ms FROM extensions.pg_stat_statements "
+                              "WHERE calls > 20 AND mean_exec_time > 800 AND query NOT ILIKE '%pg_stat%' ORDER BY mean_exec_time DESC LIMIT 5"):
+            add("consulta_lenta", f"Consulta lenta no banco ({r['ms']} ms em média)", f"{r['calls']} chamadas: {r['q']}…  Talvez falte um índice.", "baixa", "/supabase", "banco", r["q"][:60])
+        for t, limite in (("atividade", 400_000), ("seguranca_eventos", 400_000), ("analise_eventos", 600_000), ("fila_comandos", 50_000)):
+            n = (db.um(f"SELECT reltuples::bigint AS n FROM pg_class WHERE relname = '{t}'") or {}).get("n") or 0
+            if n > limite:
+                add("tabela_grande", f"Tabela {t} com {n:,} linhas".replace(",", "."), "Ela cresce sem limpar: confira a rotina clima_limpar_atividade (pg_cron).", "baixa", "/supabase", "banco", t)
+
+    for fn in (rls, segredos, certificado, agentes, fluxos, contas, backup, api_erros, banco):
+        tenta(fn)
+    return achados
 
 
 def _destino_tarefas() -> tuple[int, int, dict]:

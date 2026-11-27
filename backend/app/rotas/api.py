@@ -3042,15 +3042,15 @@ def _visibilidade_notificacoes():
     from .. import acesso
     eu = str((acesso.atual.get() or {}).get("id") or "")
 
-    def de_outra_pessoa(n):   # aviso de tarefa ("tarefa:<id>:<pessoa>") é só de quem recebeu a tarefa
+    def de_outra_pessoa(n):   # aviso de tarefa ("tarefa:<id>:<pessoa>") ou pessoal ("pessoal:…:<pessoa>") é só dessa pessoa
         c = n.get("chave") or ""
-        return c.startswith("tarefa:") and not c.endswith(":" + eu)
+        return c.startswith(("tarefa:", "pessoal:")) and not c.endswith(":" + eu)
     if acesso.projetos_permitidos() is None and acesso.pode("configuracoes.gerenciar"):
         return lambda n: not de_outra_pessoa(n)
     permitidos = _ids_aparelhos_permitidos()
 
     def visivel(n):
-        if (n.get("chave") or "").startswith("tarefa:"):
+        if (n.get("chave") or "").startswith(("tarefa:", "pessoal:")):
             return not de_outra_pessoa(n)
         m = re.search(r"/aparelhos/(\d+)", n.get("link") or "")
         if m:

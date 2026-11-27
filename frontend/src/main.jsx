@@ -48,7 +48,6 @@ const Cafeteira = lazy(() => import('./pages/Cafeteira'))
 const Persianas = lazy(() => import('./pages/Persianas'))
 const Fechadura = lazy(() => import('./pages/Fechadura'))
 const Avatares = lazy(() => import('./pages/Avatares'))
-const Treinamento = lazy(() => import('./pages/Treinamento'))
 const Emails = lazy(() => import('./pages/Emails'))
 const Analise = lazy(() => import('./pages/Analise'))
 const Idiomas = lazy(() => import('./pages/Idiomas'))
@@ -174,7 +173,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="persianas" element={<Persianas />} />
             <Route path="fechadura" element={<Fechadura />} />
             <Route path="avatares" element={<Avatares />} />
-            <Route path="treinamento" element={<Treinamento />} />
+            <Route path="treinamento" element={<Navigate to="/seguranca?aba=treinamento" replace />} />
             <Route path="emails" element={<Emails />} />
             <Route path="analise" element={<Analise />} />
             <Route path="idiomas" element={<Idiomas />} />

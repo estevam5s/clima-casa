@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Activity, AlertTriangle, Cloud, Cpu, Plug, Gauge, Globe, Link2, KeyRound, LayoutDashboard, Laptop, Mail, Rocket, Settings, ShieldCheck, ShieldHalf, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, LineChart, Workflow, Cloud, Cpu, Plug, Gauge, Globe, Link2, KeyRound, LayoutDashboard, Laptop, Mail, Rocket, Settings, ShieldCheck, ShieldHalf, Zap } from 'lucide-react'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
 import { Aviso, Cabecalho } from '../components/ui'
@@ -9,11 +9,15 @@ import { Config, Publicacoes, Uso, VercelGeral } from '../components/infra/Verce
 import { CfDNS, CfEmail, CfSeguranca, CfToken, CfTurnstile } from '../components/infra/Cloudflare'
 import { CfVisao, PlacasIoT, VercelDominios } from '../components/infra/Novos'
 import { Portas, Servicos } from '../components/infra/Servicos'
+import { Integracoes, Limites, MonitorApi } from '../components/infra/Observar'
 
 // Infra: o domínio de ponta a ponta. Vercel (site e app), Cloudflare (DNS, e-mails, DNSSEC, Turnstile) e os computadores
 // com o agente. Vercel e Cloudflare são operadas PELO AGENTE do escritório: os tokens têm acesso amplo e não ficam na nuvem.
 const GRUPOS = [
   ['geral', 'Visão geral', Activity, []],
+  ['monitor', 'Monitor da API', LineChart, []],
+  ['integracoes', 'Integrações', Workflow, []],
+  ['limites', 'Limites e cotas', Gauge, []],
   ['vercel', 'Vercel', Cloud, [['painel', 'Painel', LayoutDashboard], ['uso', 'Uso', Zap], ['publicacoes', 'Publicações', Rocket], ['dominios', 'Domínios', Link2], ['config', 'Configurações', Settings]]],
   ['cloudflare', 'Cloudflare', Globe, [['visao', 'Visão geral', Gauge], ['dns', 'DNS', Globe], ['email', 'E-mails', Mail], ['turnstile', 'Turnstile', ShieldHalf], ['seguranca', 'Segurança', ShieldCheck], ['token', 'Token', KeyRound]]],
   ['agentes', 'Agentes', Laptop, []],
@@ -82,6 +86,9 @@ export default function Infra() {
     'cloudflare/token': <CfToken />,
     iot: <PlacasIoT />,
     servicos: <Servicos />,
+    monitor: <MonitorApi />,
+    integracoes: <Integracoes />,
+    limites: <Limites />,
     portas: <Portas />,
     agentes: <Agentes dono={dono} admin={sessao?.papel === 'admin'} />,
   }[subAtiva ? `${def[0]}/${subAtiva}` : def[0]]

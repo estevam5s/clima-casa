@@ -480,7 +480,7 @@ cmd("apps_versao", "apps", "Versão atual dos apps")(lambda ctx, a: ctx.enviar(f
 @cmd("treino_status", "apps", "Seu treinamento de segurança: provas e notas")
 def c_treino(ctx, a):
     lst = db.consultar("SELECT curso, nota, aprovado, criado_em FROM treinamentos WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT 8", (str(ctx.u["id"]),)) if db.um("SELECT to_regclass('public.treinamentos') AS t")["t"] else []
-    ctx.enviar("<b>Treinamento</b>\n" + ("\n".join(f"• {_e(x['curso'])}: {x['nota']}% {'(aprovado)' if x['aprovado'] else ''} · {quando(x['criado_em'])}" for x in lst) or "Nenhuma prova ainda."), _link("Abrir Treinamento", "/treinamento"))
+    ctx.enviar("<b>Treinamento</b>\n" + ("\n".join(f"• {_e(x['curso'])}: {x['nota']}% {'(aprovado)' if x['aprovado'] else ''} · {quando(x['criado_em'])}" for x in lst) or "Nenhuma prova ainda."), _link("Abrir Treinamento", "/seguranca?aba=treinamento"))
 
 
 @cmd("certificado", "apps", "Confere um certificado do treinamento", "/certificado CE-XXXX-XXXX-XXXX", arg="texto")

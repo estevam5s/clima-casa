@@ -883,3 +883,22 @@ create table if not exists public.fluxos_execucoes (
 create index if not exists fluxos_execucoes_fluxo on public.fluxos_execucoes (fluxo_id, id desc);
 alter table public.fluxos enable row level security;
 alter table public.fluxos_execucoes enable row level security;
+
+-- Assistente de IA: pedidos agendados (0.7.8, backend/app/ia_extras.py): rodam no agente, só leitura, como quem criou
+create table if not exists public.ia_agendados (
+  id bigint generated always as identity primary key,
+  usuario_id text not null,
+  titulo text not null,
+  pedido text not null,
+  hora text not null,
+  dias jsonb not null default '[1,2,3,4,5]'::jsonb,
+  ativo boolean not null default true,
+  entregar jsonb not null default '["sino"]'::jsonb,
+  criado_em bigint,
+  ultima_exec bigint,
+  ultimo_dia text,
+  ultimo_resultado text,
+  ultima_conversa bigint
+);
+create index if not exists ia_agendados_usuario on public.ia_agendados (usuario_id);
+alter table public.ia_agendados enable row level security;

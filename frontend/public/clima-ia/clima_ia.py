@@ -58,7 +58,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-VERSAO = "1.8.0"
+VERSAO = "1.8.1"
 API = os.environ.get("CLIMA_URL", "https://app.zynio.com.br")
 PASTA = Path.home() / ".clima-ia"
 SESSAO = PASTA / "sessao.json"
@@ -1341,7 +1341,8 @@ def main():
 
     exemplos = ["liga o ar do diretor em 23", "quais ares estão ligados?", "por que os comandos não chegam?", "resumo do uso desta semana", "/seguranca"]
     sess = PromptSession(history=FileHistory(str(PASTA / "historico")), completer=Completa(), complete_while_typing=True, key_bindings=kb,
-                         bottom_toolbar=rodape, style=estilo_prompt(), complete_style=CompleteStyle.COLUMN, reserve_space_for_menu=10)
+                         bottom_toolbar=rodape, style=estilo_prompt(), complete_style=CompleteStyle.COLUMN, reserve_space_for_menu=10,
+                         erase_when_done=True)   # apaga a linha digitada ao enviar: só fica o eco com a faixa (antes a pergunta aparecia duas vezes)
     while True:
         try:
             con.print()

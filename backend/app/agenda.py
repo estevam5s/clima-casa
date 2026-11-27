@@ -42,6 +42,11 @@ async def laco():
             except Exception as e:  # noqa: BLE001
                 log.warning("rotinas de música: %s", e)
             try:
+                from . import ia_extras
+                await asyncio.to_thread(ia_extras.ciclo)   # pedidos agendados do Assistente de IA (só leitura)
+            except Exception as e:  # noqa: BLE001
+                log.warning("ia agendados: %s", e)
+            try:
                 from . import fluxos
                 await asyncio.to_thread(fluxos.ciclo)   # fluxos (Rotinas → Fluxos): horário, intervalo, ligado há, rua
             except Exception as e:  # noqa: BLE001

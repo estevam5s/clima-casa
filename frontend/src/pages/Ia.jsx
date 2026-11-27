@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
-  ArrowUp, AudioLines, Brain, Check, ChevronDown, Columns3, Copy, Download, Image as ImagemIcone, KeyRound, Menu, MessageSquare, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
+  ArrowUp, AudioLines, Brain, CalendarClock, Check, FileCode2, Ghost, Plug, ChevronDown, Columns3, Copy, Download, Image as ImagemIcone, KeyRound, Menu, MessageSquare, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen,
   FolderOpen, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Settings, SlidersHorizontal, Slash, Sparkles, Square, Terminal, ThumbsDown, ThumbsUp, Trash2, Volume2, VolumeX, X,
 } from 'lucide-react'
 import { api } from '../api'
@@ -8,7 +9,8 @@ import { useProjeto } from '../contexto'
 import MiniMarkdown from '../components/MiniMarkdown'
 import IconeIA, { EMPRESAS } from '../components/IconeIA'
 import { Aviso, Botao, Carregando, Interruptor, Modal, useDados, useToast } from '../components/ui'
-import { MAX_SEGUNDOS, imagemReduzida, iniciarGravacao } from '../gravadorVoz'
+import { MAX_SEGUNDOS, gravarMicrofone, imagemReduzida, iniciarGravacao, lerMicrofone, microfones } from '../gravadorVoz'
+import { Agendados, Artefatos, Plugins, Procurar } from '../components/ia/Painel'
 import { ConfiguracoesIA, ProjetosIA, SeletorModelo as SeletorClaude, SeletorProjeto } from '../components/ia/Extras'
 
 // Assistente de IA (NVIDIA) no formato de chat com histórico: conversas salvas por pessoa (fixar, renomear, apagar,
@@ -65,8 +67,9 @@ function Acoes({ m }) {
   )
 }
 
-function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fechar, configurar, sessao, executar, recolher, personalizar, comparar, projetos, configuracoes }) {
+function Lateral({ lista, atual, abrir, nova, recarregar, fechar, configurar, sessao, executar, recolher, personalizar, comparar, projetos, configuracoes, painel, perfil }) {
   const [menuConta, setMenuConta] = useState(false)
+  const [verRecentes, setVerRecentes] = useState(() => { try { return localStorage.getItem('ia-recentes') !== '0' } catch { return true } })
   const toast = useToast()
   const [menu, setMenu] = useState(null)
   const [renomear, setRenomear] = useState(null)
@@ -109,18 +112,20 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
         {recolher && <button onClick={recolher} className="rounded-lg p-1.5 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]" aria-label="Esconder conversas" title="Esconder conversas"><PanelLeftClose className="h-4 w-4" /></button>}
       </div>
       <div className="space-y-0.5 p-2">
-        <button onClick={() => { nova(); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium hover:bg-[var(--ia-realce)]"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--ia-acento)] text-[var(--ia-acento-texto)]"><Plus className="h-3.5 w-3.5" /></span>Nova conversa</button>
-        <button onClick={() => { projetos?.(); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-[var(--ia-realce)]"><FolderOpen className="ml-1 h-4 w-4 text-[var(--ia-suave)]" /><span className="ml-0.5">Projetos</span></button>
-        <button onClick={() => { executar?.('comandos'); fechar?.() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-[var(--ia-realce)]"><Slash className="ml-1 h-4 w-4 text-[var(--ia-suave)]" /><span className="ml-0.5">Comandos</span></button>
-        <label className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm focus-within:bg-[var(--ia-realce)]">
-          <Search className="ml-1 h-4 w-4 shrink-0 text-[var(--ia-suave)]" />
-          <input id="ia-busca" type="search" autoComplete="off" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Procurar" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[var(--ia-texto)]" />
-        </label>
+        {[
+          ['Criar', Plus, () => nova(), true], ['Procurar', Search, () => painel('procurar')], ['Projetos', FolderOpen, () => projetos?.()],
+          ['Artefatos', FileCode2, () => painel('artefatos')], ['Agendados', CalendarClock, () => painel('agendados')], ['Plugins', Plug, () => painel('plugins')],
+        ].map(([rot, I, f, destaque]) => (
+          <button key={rot} onClick={() => { f(); fechar?.() }} className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[var(--ia-realce)] ${destaque ? 'font-medium' : ''}`}>
+            <I className="h-4 w-4 shrink-0 text-[var(--ia-suave)]" />{rot}{rot === 'Procurar' && <kbd className="ml-auto text-[10px] text-[var(--ia-suave)]">⌘K</kbd>}
+          </button>))}
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2" aria-label="Conversas">
         {fixadas.length > 0 && <><p className="px-2.5 pb-1 pt-3 text-xs font-medium text-[var(--ia-suave)]">Fixadas</p><ul className="space-y-0.5">{fixadas.map(item)}</ul></>}
-        <p className="px-2.5 pb-1 pt-3 text-xs font-medium text-[var(--ia-suave)]">Recentes</p>
-        {recentes.length ? <ul className="space-y-0.5">{recentes.map(item)}</ul> : <p className="px-2.5 text-xs text-muted-foreground">{busca ? 'Nada com esse texto.' : 'As conversas ficam aqui.'}</p>}
+        <button onClick={() => setVerRecentes((v) => { try { localStorage.setItem('ia-recentes', v ? '0' : '1') } catch { /* sem armazenamento */ } return !v })} aria-expanded={verRecentes}
+          className="flex items-center gap-1 px-2.5 pb-1 pt-3 text-xs font-medium text-[var(--ia-suave)] hover:text-[var(--ia-texto)]">Recentes<ChevronDown className={`h-3 w-3 transition-transform ${verRecentes ? '' : '-rotate-90'}`} /></button>
+        {verRecentes && (recentes.length ? <ul className="space-y-0.5">{recentes.slice(0, 30).map(item)}</ul> : <p className="px-2.5 text-xs text-muted-foreground">As conversas ficam aqui.</p>)}
+        {verRecentes && recentes.length > 0 && <button onClick={() => painel('procurar')} className="px-2.5 py-1.5 text-xs text-[var(--ia-suave)] hover:text-[var(--ia-texto)]">Ver todos</button>}
       </nav>
       <div className="relative p-2">
         {menuConta && (
@@ -135,8 +140,9 @@ function Lateral({ lista, atual, abrir, nova, busca, setBusca, recarregar, fecha
           </div>
         )}
         <button onClick={() => setMenuConta((v) => !v)} aria-expanded={menuConta} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-[var(--ia-realce)]">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--ia-acento)] text-sm font-semibold text-[var(--ia-acento-texto)]">{(sessao?.nome || sessao?.email || '?').slice(0, 1).toUpperCase()}</span>
-          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{(sessao?.nome || '').split(' ')[0] || 'Você'}</span><span className="block truncate text-xs text-[var(--ia-suave)]">{({ dono: 'Dono', admin: 'Administrador' })[sessao?.papel] || sessao?.papel}</span></span>
+          {perfil?.avatar ? <img src={perfil.avatar} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+            : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--ia-acento)] text-sm font-semibold text-[var(--ia-acento-texto)]">{(perfil?.nome || sessao?.nome || sessao?.email || '?').slice(0, 1).toUpperCase()}</span>}
+          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{(perfil?.nome || sessao?.nome || '').split(' ')[0] || sessao?.email?.split('@')[0] || 'Você'}</span><span className="block truncate text-xs text-[var(--ia-suave)]">{({ dono: 'Dono', admin: 'Administrador' })[sessao?.papel] || sessao?.papel}</span></span>
           <ChevronDown className="h-4 w-4 text-[var(--ia-suave)]" />
         </button>
       </div>
@@ -368,23 +374,24 @@ function falar(texto) {
   } catch { return false }
 }
 
-function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, setModelo, modelos, executar, grande, escopo, prefs, mudarPrefs, extras }) {
+function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, setModelo, modelos, executar, grande, prefs, mudarPrefs, extras, anonimo }) {
   const toast = useToast()
   const ta = useRef(null), arq = useRef(null)
   const [anexo, setAnexo] = useState(null)
   const [imagens, setImagens] = useState([])
   const [gravacao, setGravacao] = useState(null)   // { rec, seg, nivel, transcrevendo }
   const gravRef = useRef(null)
-  const [ouvindo, setOuvindo] = useState(false)
-  const temDitado = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  const [menuMic, setMenuMic] = useState(null)   // lista de microfones aberta
+  const [micAtual, setMicAtual] = useState(lerMicrofone)
   useEffect(() => () => { gravRef.current?.rec?.cancelar() }, [])
   // mensagem de voz: grava, transcreve no servidor e envia (a gravação fica tocável na conversa)
-  const gravar = async () => {
+  // modo "mensagem": transcreve e envia (onda); "ditado": transcreve e põe o texto na caixa (microfone)
+  const gravar = async (modo = 'mensagem') => {
     if (gravRef.current) return
     try {
       const rec = await iniciarGravacao((nivel) => setGravacao((g) => (g ? { ...g, nivel } : g)))
-      gravRef.current = { rec }
-      setGravacao({ seg: 0, nivel: 0 })
+      gravRef.current = { rec, modo }
+      setGravacao({ seg: 0, nivel: 0, modo })
       gravRef.current.t = setInterval(() => { const seg = rec.segundos(); setGravacao((g) => (g ? { ...g, seg } : g)); if (seg >= MAX_SEGUNDOS) terminarGravacao(true) }, 200)
     } catch (e) { toast(e.name === 'NotAllowedError' ? 'Permita o microfone para este site (cadeado na barra de endereço).' : e.message, 'erro') }
   }
@@ -399,15 +406,15 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
       if (a.duracao < 0.6) { setGravacao(null); return toast('Gravação curta demais.', 'erro') }
       const r = await api.post('/api/ia/transcrever', { audio: a.base64, formato: 'wav' })
       setGravacao(null)
-      enviar(r.texto, { voz: { url: a.url, segundos: a.segundos } })
+      if (g.modo === 'ditado') { setTexto((t) => `${t ? `${t} ` : ''}${r.texto}`); setTimeout(() => ta.current?.focus(), 30) }
+      else enviar(r.texto, { voz: { url: a.url, segundos: a.segundos } })
     } catch (e) { setGravacao(null); toast(e.message, 'erro') }
   }
   useEffect(() => {
-    const tecla = (e) => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'v' && ativo) { e.preventDefault(); if (gravRef.current) terminarGravacao(true); else gravar() } }
+    const tecla = (e) => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'v' && ativo) { e.preventDefault(); if (gravRef.current) terminarGravacao(true); else gravar('mensagem') } }
     window.addEventListener('keydown', tecla); return () => window.removeEventListener('keydown', tecla)
   }, [ativo]) // eslint-disable-line react-hooks/exhaustive-deps
   const [sel, setSel] = useState(0)
-  const reconhecer = useRef(null)
   useEffect(() => { const t = ta.current; if (!t) return; t.style.height = 'auto'; t.style.height = `${Math.min(240, t.scrollHeight)}px` }, [texto])
   const barra = texto.startsWith('/') && !texto.includes(' ') ? COMANDOS.filter((c) => c.c.startsWith(texto.toLowerCase())) : []
   useEffect(() => { setSel(0) }, [texto])
@@ -430,14 +437,15 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
     const conteudo = (await f.text()).slice(0, 3000)
     setAnexo({ nome: f.name, conteudo }); toast(`${f.name} anexado (até 3 mil caracteres vão para a IA).`)
   }
-  const ditar = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) return toast('Este navegador não tem ditado por voz.', 'erro')
-    if (ouvindo) { reconhecer.current?.stop(); return }
-    const r = new SR(); r.lang = 'pt-BR'; r.interimResults = false; r.continuous = false
-    r.onresult = (ev) => setTexto((t) => `${t ? `${t} ` : ''}${ev.results[0][0].transcript}`)
-    r.onend = () => setOuvindo(false); r.onerror = () => setOuvindo(false)
-    reconhecer.current = r; setOuvindo(true); r.start()
+  const abrirMicrofones = async () => {
+    if (menuMic) return setMenuMic(null)
+    try {
+      let l = await microfones()
+      if (l.length && !l[0].label) {   // sem permissão ainda, o navegador não diz os nomes: pede uma vez
+        const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach((t) => t.stop()); l = await microfones()
+      }
+      setMenuMic(l)
+    } catch (e) { toast(e.name === 'NotAllowedError' ? 'Permita o microfone para este site (cadeado na barra de endereço).' : e.message, 'erro') }
   }
   const seletor = <SeletorClaude modelo={modelo} setModelo={setModelo} modelos={modelos} esforco={prefs?.esforco} setEsforco={(v) => mudarPrefs?.({ esforco: v })} IconeIA={IconeIA} />
   return (
@@ -451,7 +459,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
           ))}
         </ul>
       )}
-      <div className="rounded-[20px] border border-[var(--ia-borda)] bg-[var(--ia-caixa)] shadow-[0_2px_10px_rgba(0,0,0,0.05)] transition-[border-color,box-shadow] focus-within:border-[var(--ia-suave)] focus-within:shadow-[0_2px_14px_rgba(0,0,0,0.09)]">{/* marca: caixa de mensagem flutua */}
+      <div className={`rounded-[20px] border ${anonimo ? 'border-dashed border-[var(--ia-suave)]' : 'border-[var(--ia-borda)]'} bg-[var(--ia-caixa)] shadow-[0_2px_10px_rgba(0,0,0,0.05)] transition-[border-color,box-shadow] focus-within:border-[var(--ia-suave)] focus-within:shadow-[0_2px_14px_rgba(0,0,0,0.09)]`}>{/* marca: caixa de mensagem flutua */}
         {imagens.length > 0 && (
           <div className="flex gap-2 px-4 pt-3">{imagens.map((u, i) => (
             <span key={i} className="relative"><img src={u} alt="" className="h-14 w-14 rounded-lg border border-border object-cover" />
@@ -463,7 +471,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
             <span className={`h-2.5 w-2.5 rounded-full ${gravacao.transcrevendo ? 'bg-[var(--ia-suave)]' : 'animate-pulse bg-red-500'}`} />
             <span className="w-12 text-sm tabular">{Math.floor((gravacao.seg || 0) / 60)}:{String(Math.floor((gravacao.seg || 0) % 60)).padStart(2, '0')}</span>
             <span className="flex h-6 flex-1 items-center gap-[3px]" aria-hidden="true">{Array.from({ length: 28 }, (_, i) => <span key={i} className="w-[3px] rounded-full bg-[var(--ia-acento)]" style={{ height: `${Math.max(12, Math.min(100, (gravacao.nivel || 0) * 100 * (0.5 + Math.abs(Math.sin(i * 1.7 + (gravacao.seg || 0) * 6)))))}%` }} />)}</span>
-            <span className="text-xs text-[var(--ia-suave)]">{gravacao.transcrevendo ? 'Transcrevendo…' : `até ${MAX_SEGUNDOS} s`}</span>
+            <span className="text-xs text-[var(--ia-suave)]">{gravacao.transcrevendo ? 'Transcrevendo…' : gravacao.modo === 'ditado' ? 'Ditando: o texto vai para a caixa' : `Mensagem de voz · até ${MAX_SEGUNDOS} s`}</span>
           </div>
         )}
         {anexo && (
@@ -482,17 +490,28 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
           <input ref={arq} type="file" accept="image/*,.txt,.md,.csv,.json,.log,.py,.js,.jsx,.ts,.sql,.yml,.yaml,.xml,.html" className="hidden" onChange={anexar} />
           {gravacao ? (
             <><button onClick={() => terminarGravacao(false)} disabled={gravacao.transcrevendo} className="rounded-lg px-2.5 py-1.5 text-sm text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]">Cancelar</button><div className="flex-1" />
-              <button onClick={() => terminarGravacao(true)} disabled={gravacao.transcrevendo} aria-label="Enviar a mensagem de voz" title="Enviar a mensagem de voz" className="rounded-xl bg-[var(--ia-acento)] p-2 text-[var(--ia-acento-texto)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button></>
+              <button onClick={() => terminarGravacao(true)} disabled={gravacao.transcrevendo} aria-label={gravacao.modo === 'ditado' ? 'Parar e transcrever' : 'Enviar a mensagem de voz'} title={gravacao.modo === 'ditado' ? 'Parar e transcrever' : 'Enviar a mensagem de voz'} className="rounded-xl bg-[var(--ia-acento)] p-2 text-[var(--ia-acento-texto)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button></>
           ) : (<>
           <button onClick={() => arq.current?.click()} disabled={!ativo} title="Anexar imagem ou arquivo de texto" aria-label="Anexar imagem ou arquivo de texto" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Plus className="h-4 w-4" /></button>
           <button onClick={() => { setTexto('/'); ta.current?.focus() }} disabled={!ativo} title="Comandos" aria-label="Comandos" className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Slash className="h-4 w-4" /></button>
           <select value={prefs?.estilo || 'normal'} onChange={(e) => mudarPrefs?.({ estilo: e.target.value })} disabled={!ativo} aria-label="Estilo da resposta" title="Estilo da resposta"
             className="h-8 rounded-lg border-0 bg-transparent px-1.5 text-xs text-[var(--ia-suave)] outline-none hover:bg-[var(--ia-realce)]">{ESTILOS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
-          {extras && <SeletorProjeto {...extras} />}
+          {extras && !grande && <SeletorProjeto {...extras} />}
           <div className="flex-1" />
           {!grande && seletor}
-          {temDitado && <button onClick={ditar} disabled={!ativo} title={ouvindo ? 'Parar o ditado' : 'Ditar (vira texto na caixa)'} aria-label="Ditar por voz" className={`rounded-lg p-2 hover:bg-[var(--ia-realce)] ${ouvindo ? 'text-red-500' : 'text-[var(--ia-suave)]'}`}><Mic className="h-4 w-4" /></button>}
-          <button onClick={gravar} disabled={!ativo || pensando} title="Mensagem de voz (Ctrl/⌘+Shift+V)" aria-label="Gravar mensagem de voz" className="rounded-lg p-2 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]"><AudioLines className="h-4 w-4" /></button>
+          <span className="relative flex items-center">
+            <button onClick={() => gravar('ditado')} disabled={!ativo || pensando} title="Ditar: fale e o texto aparece na caixa" aria-label="Ditar por voz" className="rounded-lg p-2 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]"><Mic className="h-4 w-4" /></button>
+            <button onClick={abrirMicrofones} disabled={!ativo} title="Escolher o microfone" aria-label="Escolher o microfone" aria-expanded={!!menuMic} className="-ml-1.5 rounded p-0.5 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]"><ChevronDown className="h-3 w-3" /></button>
+            {menuMic && (
+              <div className="absolute bottom-full right-0 z-30 mb-2 w-64 rounded-xl border border-[var(--ia-borda)] bg-[var(--ia-caixa)] p-1 text-sm shadow-lg">{/* marca: menu flutua */}
+                <p className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--ia-suave)]">Microfone</p>
+                {[{ deviceId: '', label: 'Padrão do sistema' }, ...menuMic.filter((d) => d.deviceId && d.deviceId !== 'default')].map((d) => (
+                  <button key={d.deviceId || 'padrao'} onClick={() => { gravarMicrofone(d.deviceId); setMicAtual(d.deviceId); setMenuMic(null) }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--ia-realce)]"><span className="min-w-0 flex-1 truncate">{d.label || 'Microfone'}</span>{micAtual === d.deviceId && <Check className="h-3.5 w-3.5 text-[var(--ia-acento)]" />}</button>))}
+              </div>
+            )}
+          </span>
+          <button onClick={() => gravar('mensagem')} disabled={!ativo || pensando} title="Mensagem de voz: grava e envia (Ctrl/⌘+Shift+V)" aria-label="Gravar mensagem de voz" className="rounded-lg p-2 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]"><AudioLines className="h-4 w-4" /></button>
           {pensando
             ? <button onClick={parar} aria-label="Parar" title="Parar (Esc)" className="rounded-xl bg-[var(--ia-texto)] p-2 text-[var(--ia-fundo)]"><Square className="h-4 w-4" /></button>
             : <button onClick={mandar} disabled={!ativo || (!texto.trim() && !anexo && !imagens.length)} aria-label="Enviar" title="Enviar (Enter)" className="rounded-xl bg-[var(--ia-acento)] p-2 text-[var(--ia-acento-texto)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>}
@@ -501,7 +520,7 @@ function Compositor({ texto, setTexto, enviar, parar, pensando, ativo, modelo, s
       </div>
       {grande && (
         <div className="mt-2 flex items-center justify-between gap-2 px-2 text-sm text-[var(--ia-suave)]">
-          <span className="truncate">{escopo}</span>
+          {extras && !anonimo ? <SeletorProjeto {...extras} /> : <span />}
           {seletor}
         </div>
       )}
@@ -586,6 +605,10 @@ export default function Ia() {
   const [projModal, setProjModal] = useState(null)   // null fechado; undefined lista; 'novo'; id
   const [projetosIA, setProjetosIA] = useState([])
   const [projetoId, setProjetoId] = useState(null)
+  const [anonimo, setAnonimo] = useState(false)      // modo anônimo: nada salvo (nem conversa nem a pergunta na Atividade)
+  const [painel, setPainel] = useState(null)         // procurar | artefatos | agendados | plugins
+  const [perfil, setPerfil] = useState(null)
+  useEffect(() => { api.get('/api/perfil').then(setPerfil).catch(() => {}) }, [])
   const carregarProjetos = () => api.get('/api/ia/projetos').then(setProjetosIA).catch(() => {})
   useEffect(() => { carregarProjetos() }, [])
   useEffect(() => { api.get('/api/ia/preferencias').then(setPrefs).catch(() => {}) }, [])
@@ -602,7 +625,7 @@ export default function Ia() {
   useEffect(() => { fim.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }) }, [msgs, pensando])
   useEffect(() => {
     const tecla = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setLateral(true); setTimeout(() => document.getElementById('ia-busca')?.focus(), 30) }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPainel('procurar') }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); pedido.current++; setPensando(false); setAtual(null); setMsgs([]); setTexto('') }
     }
     window.addEventListener('keydown', tecla); return () => window.removeEventListener('keydown', tecla)
@@ -621,13 +644,13 @@ export default function Ia() {
     const meu = ++pedido.current
     try {
       const r = await api.post('/api/ia/conversar', { mensagens: hist.filter((m) => m.role === 'user' || m.role === 'assistant').map(({ role, content }) => ({ role, content: String(content).slice(0, 4000) })).slice(-20), conversa_id: atual, modelo,
-        estilo: prefs.estilo, pensar: !!prefs.pensar, esforco: prefs.esforco || 'medio', projeto_id: projetoId, imagens: extra?.imagens || [] })
+        estilo: prefs.estilo, pensar: !!prefs.pensar, esforco: prefs.esforco || 'medio', projeto_id: anonimo ? null : projetoId, imagens: extra?.imagens || [], anonimo, ...(anonimo ? { conversa_id: null } : {}) })
       if (meu !== pedido.current) return   // parou ou trocou de conversa
       setMsgs([...hist, { role: 'assistant', content: r.texto, acoes: r.acoes, confirmacoes: r.confirmacoes, modelo: r.modelo }])
       if (prefs.voz) { falar(r.texto); setFalando(hist.length) }
       if (prefs.notificar && document.hidden && 'Notification' in window && Notification.permission === 'granted') { try { new Notification('Resposta do assistente', { body: r.texto.slice(0, 140) }) } catch { /* sem aviso */ } }
-      if (r.conversa_id && r.conversa_id !== atual) { pedido.current++; setAtual(r.conversa_id); pedido.current-- }
-      carregarLista()
+      if (!anonimo && r.conversa_id && r.conversa_id !== atual) { pedido.current++; setAtual(r.conversa_id); pedido.current-- }
+      if (!anonimo) carregarLista()
     } catch (e) {
       if (meu === pedido.current) setMsgs([...hist, { role: 'assistant', content: e.message, erro: true }])
     } finally { if (meu === pedido.current) setPensando(false) }
@@ -656,42 +679,51 @@ export default function Ia() {
   const avaliar = async (i, valor) => {
     const novo = msgs[i].feedback === valor ? 0 : valor
     setMsgs((l) => l.map((x, j) => (j === i ? { ...x, feedback: novo } : x)))
-    if (atual) { try { await api.put(`/api/ia/conversas/${atual}/feedback`, { conteudo: msgs[i].content.slice(0, 200), valor: novo }); if (novo) toast(novo > 0 ? 'Obrigado pela avaliação.' : 'Anotado: isso ajuda a melhorar o assistente.') } catch { /* sem conversa salva */ } }
+    if (atual && !anonimo) { try { await api.put(`/api/ia/conversas/${atual}/feedback`, { conteudo: msgs[i].content.slice(0, 200), valor: novo }); if (novo) toast(novo > 0 ? 'Obrigado pela avaliação.' : 'Anotado: isso ajuda a melhorar o assistente.') } catch { /* sem conversa salva */ } }
   }
   const ouvir = (i) => { if (falando === i && window.speechSynthesis?.speaking) { window.speechSynthesis.cancel(); setFalando(null); return } if (falar(msgs[i].content)) setFalando(i) }
   const titulo = lista.find((c) => c.id === atual)?.titulo
-  const escopo = projeto ? `Contexto: ${projeto.nome}` : 'Contexto: todos os projetos'
-  const compositor = (grande) => <Compositor texto={texto} setTexto={setTexto} enviar={(q, extra) => enviar(q, extra)} parar={parar} pensando={pensando} ativo={ativo} modelo={modelo} setModelo={setModelo} modelos={dados.modelos} executar={executar} grande={grande} escopo={escopo} prefs={prefs} mudarPrefs={mudarPrefs} extras={{ projetoId, setProjetoId, projetos: projetosIA, abrirProjetos: () => setProjModal(undefined), novoProjeto: () => setProjModal('novo') }} />
+  const alternarAnonimo = () => { pedido.current++; setPensando(false); setAtual(null); setMsgs([]); setTexto(''); setProjetoId(null); setAnonimo((v) => !v) }
+  const compositor = (grande) => <Compositor texto={texto} setTexto={setTexto} enviar={(q, extra) => enviar(q, extra)} parar={parar} pensando={pensando} ativo={ativo} modelo={modelo} setModelo={setModelo} modelos={dados.modelos} executar={executar} grande={grande} anonimo={anonimo} prefs={prefs} mudarPrefs={mudarPrefs} extras={{ projetoId, setProjetoId, projetos: projetosIA, abrirProjetos: () => setProjModal(undefined), novoProjeto: () => setProjModal('novo') }} />
 
   return (
     <div className="tela-ia -mx-4 -mb-16 -mt-6 flex h-[calc(100dvh-4rem)] min-h-[32rem] overflow-hidden bg-[var(--ia-fundo)] text-[var(--ia-texto)] sm:-mx-6 lg:-mx-8 2xl:-mx-10">
-      {lateral && (
+      {lateral && !anonimo && (
         <aside className="hidden w-72 shrink-0 border-r border-[var(--ia-borda)] bg-[var(--ia-lateral)] md:block">
-          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} personalizar={() => setPersonalizar(true)} comparar={() => setComparar(true)} projetos={() => setProjModal(undefined)} configuracoes={() => setCfgIA(true)} />
+          <Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} painel={setPainel} perfil={perfil} recarregar={carregarLista} configurar={() => setConfig(true)} sessao={sessao} executar={executar} recolher={() => setLateral(false)} personalizar={() => setPersonalizar(true)} comparar={() => setComparar(true)} projetos={() => setProjModal(undefined)} configuracoes={() => setCfgIA(true)} />
         </aside>
       )}
       {gaveta && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button className="absolute inset-0 bg-black/40" aria-label="Fechar a lista" onClick={() => setGaveta(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} busca={busca} setBusca={setBusca} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} personalizar={() => { setGaveta(false); setPersonalizar(true) }} comparar={() => { setGaveta(false); setComparar(true) }} projetos={() => setProjModal(undefined)} configuracoes={() => setCfgIA(true)} /></aside>
+          <aside className="absolute inset-y-0 left-0 w-72 bg-[var(--ia-lateral)] text-[var(--ia-texto)] shadow-xl"><Lateral lista={lista} atual={atual} abrir={setAtual} nova={nova} painel={setPainel} perfil={perfil} recarregar={carregarLista} fechar={() => setGaveta(false)} configurar={() => { setGaveta(false); setConfig(true) }} sessao={sessao} executar={executar} personalizar={() => { setGaveta(false); setPersonalizar(true) }} comparar={() => { setGaveta(false); setComparar(true) }} projetos={() => setProjModal(undefined)} configuracoes={() => setCfgIA(true)} /></aside>
         </div>
       )}
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-2 px-3">
+        {anonimo && (
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--ia-borda)] px-4 text-sm">
+            <Ghost className="h-4 w-4" /><span className="font-medium">Anônimo</span>
+            <button onClick={alternarAnonimo} className="ml-auto rounded-md p-1.5 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)]" aria-label="Sair do modo anônimo" title="Sair do modo anônimo"><X className="h-4 w-4" /></button>
+          </div>
+        )}
+        <header className={`flex h-12 shrink-0 items-center gap-2 px-3 ${anonimo ? 'hidden' : ''}`}>
           <button onClick={() => setGaveta(true)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted md:hidden" aria-label="Conversas"><Menu className="h-4 w-4" /></button>
           {!lateral && <button onClick={() => setLateral(true)} className="hidden rounded-md p-1.5 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] md:block" aria-label="Mostrar conversas" title="Mostrar conversas"><PanelLeftOpen className="h-4 w-4" /></button>}
           <p className="min-w-0 flex-1 truncate text-sm font-medium">{projetoId && <button onClick={() => setProjModal(projetoId)} className="mr-1.5 inline-flex items-center gap-1 rounded-md bg-[var(--ia-realce)] px-1.5 py-0.5 text-xs font-normal"><FolderOpen className="h-3 w-3" />{projetosIA.find((p) => p.id === projetoId)?.nome || 'Projeto'}</button>}{titulo || (msgs.length ? 'Nova conversa' : '')}</p>
           {msgs.length > 0 && <button onClick={() => executar('exportar')} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Baixar a conversa" title="Baixar em Markdown"><Download className="h-4 w-4" /></button>}
           {msgs.length > 0 && <button onClick={nova} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Nova conversa" title="Nova conversa"><MessageSquare className="h-4 w-4" /></button>}
+          <button onClick={alternarAnonimo} className="rounded-md p-1.5 text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] hover:text-[var(--ia-texto)]" aria-label="Conversa anônima" title="Conversa anônima: não fica no histórico"><Ghost className="h-4 w-4" /></button>
         </header>
         {!dados.configurada && <div className="px-4"><Aviso tipo="alerta">Falta a chave da NVIDIA. {sessao.papel === 'dono' ? 'Abra Terminal, capacidades e configuração, embaixo à esquerda.' : 'Peça ao dono do sistema.'}</Aviso></div>}
         {msgs.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-16">
-            <h1 className="flex items-center gap-3 text-center font-serif text-[2rem] font-normal leading-tight tracking-tight sm:text-[2.6rem]"><Sparkles className="h-8 w-8 shrink-0 text-[var(--ia-acento)] sm:h-9 sm:w-9" />{saudacao(nome)}</h1>
-            <p className="mt-2 text-center text-sm text-[var(--ia-suave)]">Pergunte ou peça: ele vê o estado real dos ares e só faz o que o seu usuário pode.</p>
+            <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex items-center gap-3 text-center font-serif text-[2rem] font-normal leading-tight tracking-tight sm:text-[2.5rem]">
+              <Sparkles className="h-8 w-8 shrink-0 text-[var(--ia-acento)] sm:h-9 sm:w-9" />{anonimo ? 'Você está no modo anônimo' : saudacao(nome)}</motion.h1>
+            {!anonimo && <p className="mt-2 text-center text-sm text-[var(--ia-suave)]">Pergunte ou peça: ele vê o estado real dos ares e só faz o que o seu usuário pode.</p>}
             <div className="mt-6 w-full max-w-3xl">{compositor(true)}</div>
             <div className="mt-4 flex max-w-3xl flex-wrap justify-center gap-2">
-              {prefs.sugestoes !== false && SUGESTOES.map(([r, s]) => <button key={s} onClick={() => enviar(s)} disabled={!ativo} className="rounded-xl border border-[var(--ia-borda)] px-3 py-1.5 text-xs text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] hover:text-[var(--ia-texto)] disabled:opacity-50"><b className="font-medium text-[var(--ia-texto)]">{r}</b> · {s}</button>)}
+              {anonimo && <p className="max-w-sm text-center text-xs leading-relaxed text-[var(--ia-suave)]">As conversas anônimas ficam fora do seu histórico e da pesquisa, e a pergunta não vai para a Atividade. Ao sair, a conversa some.</p>}
+              {!anonimo && prefs.sugestoes !== false && SUGESTOES.map(([r, s]) => <button key={s} onClick={() => enviar(s)} disabled={!ativo} className="rounded-xl border border-[var(--ia-borda)] px-3 py-1.5 text-xs text-[var(--ia-suave)] hover:bg-[var(--ia-realce)] hover:text-[var(--ia-texto)] disabled:opacity-50"><b className="font-medium text-[var(--ia-texto)]">{r}</b> · {s}</button>)}
             </div>
           </div>
         ) : (
@@ -746,6 +778,10 @@ export default function Ia() {
       {comparar && <CompararModelos fechar={() => setComparar(false)} />}
       {cfgIA && <ConfiguracoesIA prefs={prefs} mudarPrefs={mudarPrefs} sessao={sessao} dono={sessao.papel === 'dono'} UsoIA={<UsoIA dono={sessao.papel === 'dono'} />} abrirChave={() => { setCfgIA(false); setConfig(true) }} fechar={(apagou) => { setCfgIA(false); if (apagou === true) { nova(); carregarLista() } }} />}
       {projModal !== null && <ProjetosIA inicial={projModal} projetos={projetosIA} recarregar={carregarProjetos} fechar={() => setProjModal(null)} usar={(id) => { nova(); setProjetoId(id) }} abrirConversa={(cid, pid) => { setAtual(cid); setProjetoId(pid) }} />}
+      {painel === 'procurar' && <Procurar fechar={() => setPainel(null)} abrir={(id) => { setAnonimo(false); setAtual(id) }} />}
+      {painel === 'artefatos' && <Artefatos fechar={() => setPainel(null)} abrir={(id) => { setAnonimo(false); setAtual(id) }} />}
+      {painel === 'agendados' && <Agendados fechar={() => setPainel(null)} abrir={(id) => { setAnonimo(false); setAtual(id); carregarLista() }} />}
+      {painel === 'plugins' && <Plugins fechar={() => setPainel(null)} prefs={prefs} mudarPrefs={mudarPrefs} />}
       {personalizar && <Personalizar prefs={prefs} fechar={() => setPersonalizar(false)} salvar={async (p) => { try { setPrefs(await api.put('/api/ia/preferencias', p)); toast('Preferências salvas.'); setPersonalizar(false) } catch (e) { toast(e.message, 'erro') } }} />}
     </div>
   )

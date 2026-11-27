@@ -20,35 +20,55 @@ const PESO = { critica: 4, alta: 3, media: 2, baixa: 1 }
 const CATEGORIAS = { cadastro: 'Cadastros', tela: 'Telas', servidor: 'Servidor', atividade: 'Comandos', agente: 'Agente', transmissor: 'Transmissores', 'segurança': 'Segurança' }
 const COR_GRAV = { critica: 'bg-red-600', alta: 'bg-red-400', media: 'bg-amber-400', baixa: 'bg-zinc-400' }
 // o que a procura confere (mostrado passo a passo enquanto roda)
-const PASSOS_VARREDURA = ['Falhas repetidas nos comandos (24 h)', 'Pedidos com erro na fila do agente', 'Rotas que mudam dados sem regra de permissão',
-  'Agente no escritório e transmissores', 'Cadastros: ares, salas, transmissores, botões, Alexa e zonas']
+const PASSOS_VARREDURA = ['Falhas repetidas nos comandos e na fila do agente', 'Rotas que mudam dados sem regra de permissão', 'Agente no escritório, transmissores e cadastros',
+  'Rotinas do banco, automações e agenda órfãs, e-mails e backup diário', 'Telas e chamadas da API lentas ou com erro 5xx', 'Tabelas sem RLS e segredos gravados sem cifra',
+  'Contas administradoras sem 2FA e contas paradas', 'Certificado do domínio e versão dos agentes', 'Fluxos e pedidos agendados da IA', 'Backup completo, consultas lentas e tabelas sem limpeza']
+const TEXTO_GRAV = { critica: 'text-red-600 dark:text-red-400', alta: 'text-orange-600 dark:text-orange-400', media: 'text-amber-600 dark:text-amber-400', baixa: 'text-muted-foreground' }
 
-// Radar enquanto o sistema procura: cada conferência acende em sequência
+// Radar enquanto o sistema procura (cada conferência acende em sequência); no fim, o relatório real de cada etapa
 function Varredura({ rodando, resultado }) {
   const reduzir = useReducedMotion()
   if (!rodando && !resultado) return null
   return (
-    <motion.section initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="cartao mb-6 flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
-      <div className="relative mx-auto h-28 w-28 shrink-0" aria-hidden>
-        <div className="absolute inset-0 rounded-full border border-primary/30" />
-        <div className="absolute inset-4 rounded-full border border-primary/20" />
-        <div className="absolute inset-9 rounded-full border border-primary/15" />
-        {rodando && !reduzir && <motion.div className="absolute inset-0 rounded-full" style={{ background: 'conic-gradient(from 0deg, hsl(var(--primary) / 0.35), transparent 30%)' }}
-          animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.6, ease: 'linear' }} />}
-        <div className="absolute inset-0 flex items-center justify-center">{rodando ? <Radar className="h-6 w-6 text-primary" /> : <Check className="h-7 w-7 text-emerald-600" />}</div>
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">{rodando ? 'Procurando problemas no sistema…' : resultado.achados ? `${resultado.achados} ponto(s) encontrados ou atualizados` : 'Procura concluída: nada novo'}</p>
-        <ul className="mt-2 space-y-1 text-sm">
-          {PASSOS_VARREDURA.map((p, i) => (
-            <motion.li key={p} className="flex items-center gap-2" initial={{ opacity: 0.35 }} animate={{ opacity: 1 }} transition={{ delay: reduzir ? 0 : (rodando ? i * 0.45 : 0) }}>
-              <motion.span initial={{ scale: 0.6 }} animate={{ scale: 1 }} transition={{ delay: reduzir ? 0 : (rodando ? i * 0.45 + 0.2 : 0) }}>
-                {rodando ? <span className="block h-2 w-2 rounded-full bg-primary/60" /> : <Check className="h-3.5 w-3.5 text-emerald-600" />}
-              </motion.span>
-              <span className={rodando ? 'text-muted-foreground' : ''}>{p}</span>
-            </motion.li>
-          ))}
-        </ul>
+    <motion.section initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="cartao mb-6 p-5">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+        <div className="relative mx-auto h-28 w-28 shrink-0" aria-hidden>
+          <div className="absolute inset-0 rounded-full border border-primary/30" />
+          <div className="absolute inset-4 rounded-full border border-primary/20" />
+          <div className="absolute inset-9 rounded-full border border-primary/15" />
+          {rodando && !reduzir && <motion.div className="absolute inset-0 rounded-full" style={{ background: 'conic-gradient(from 0deg, hsl(var(--primary) / 0.35), transparent 30%)' }}
+            animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.6, ease: 'linear' }} />}
+          <div className="absolute inset-0 flex items-center justify-center">{rodando ? <Radar className="h-6 w-6 text-primary" /> : <Check className="h-7 w-7 text-emerald-600" />}</div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{rodando ? 'Procurando problemas no sistema…' : resultado.achados ? `${resultado.achados} ponto(s) encontrados ou atualizados` : 'Procura concluída: nada novo'}
+            {!rodando && resultado?.ms ? <span className="ml-2 text-xs font-normal text-muted-foreground">em {(resultado.ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s</span> : null}</p>
+          {rodando ? (
+            <ul className="mt-2 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
+              {PASSOS_VARREDURA.map((p, i) => (
+                <motion.li key={p} className="flex items-center gap-2" initial={{ opacity: 0.3 }} animate={{ opacity: 1 }} transition={{ delay: reduzir ? 0 : i * 0.5 }}>
+                  <motion.span className="block h-2 w-2 shrink-0 rounded-full bg-primary/60" animate={reduzir ? undefined : { scale: [1, 1.5, 1] }} transition={{ delay: i * 0.5, duration: 0.6 }} />
+                  <span className="text-muted-foreground">{p}</span>
+                </motion.li>))}
+            </ul>
+          ) : (
+            <ul className="mt-3 space-y-2 text-sm">
+              {(resultado.etapas || []).map((e, i) => (
+                <motion.li key={e.etapa} initial={reduzir ? false : { opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }} className="rounded-lg border border-border p-2.5">
+                  <div className="flex items-start gap-2">
+                    {e.achados ? <span className="mt-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">{e.achados}</span> : <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />}
+                    <span className="min-w-0 flex-1">{e.etapa}</span>
+                    <span className="shrink-0 text-xs tabular text-muted-foreground">{(e.ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s</span>
+                  </div>
+                  {e.itens?.length > 0 && (
+                    <ul className="ml-7 mt-1.5 space-y-0.5 text-xs">{e.itens.map((it, k) => (
+                      <li key={k} className="flex gap-2"><span className={`w-12 shrink-0 font-medium ${TEXTO_GRAV[it.gravidade] || ''}`}>{it.gravidade}</span>
+                        {it.pagina ? <a href={it.pagina} className="min-w-0 truncate hover:underline">{it.titulo}</a> : <span className="min-w-0 truncate">{it.titulo}</span>}</li>))}</ul>
+                  )}
+                </motion.li>))}
+            </ul>
+          )}
+        </div>
       </div>
     </motion.section>
   )

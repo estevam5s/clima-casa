@@ -231,8 +231,8 @@ def montar(tipo: str, d: dict) -> tuple[str, str, str]:
                   _caixa([("Nota", f"{d.get('nota')}% ({d.get('acertos')} de {d.get('total')})"), ("Resultado", "Aprovado (mínimo 70%)" if ok else "Abaixo de 70%: vale refazer"),
                           *[(str(a), str(b)) for a, b in (d.get("por_trilha") or [])][:6], ("Concluído em", _quando())]),
                   _p("O gabarito comentado fica na própria tela, logo depois da correção. A aprovação vale 12 meses e conta na conformidade (ISO/IEC 27001, controle 6.3)."),
-                  _botao("Abrir o treinamento", f"{APP}/treinamento", cor)]
-        texto = f"{ola}\n\nProva {d.get('trilha')}: {d.get('nota')}% ({d.get('acertos')}/{d.get('total')}) · {'aprovado' if ok else 'refazer'}.\n{APP}/treinamento"
+                  _botao("Abrir o treinamento", f"{APP}/seguranca?aba=treinamento", cor)]
+        texto = f"{ola}\n\nProva {d.get('trilha')}: {d.get('nota')}% ({d.get('acertos')}/{d.get('total')}) · {'aprovado' if ok else 'refazer'}.\n{APP}/seguranca?aba=treinamento"
         motivo = "Você recebeu este e-mail porque concluiu uma prova do treinamento de segurança."
         previa = f"Nota {d.get('nota')}% na prova {d.get('trilha')}."
     else:   # teste

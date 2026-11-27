@@ -545,11 +545,13 @@ def _reter_gfs(prefixo: str, dias: int = 7, semanas: int = 4, meses: int = 12) -
 
 # ---------- teste de restauração (simulação, nada é gravado) ----------
 def testar_restauracao(nome: str) -> dict:
+    t0 = time.time()
     try:
         r = restaurar(nome, "simular", None, "teste automático", seguranca=False)
         tabs = r.get("tabelas") or []
         erros = [t for t in tabs if isinstance(t, dict) and t.get("erro")]
-        res = {"em": int(time.time()), "arquivo": nome, "ok": not erros, "tabelas": len(tabs), "erros": [f"{t.get('tabela')}: {t.get('erro')}" for t in erros][:5]}
+        res = {"em": int(time.time()), "arquivo": nome, "ok": not erros, "tabelas": len(tabs), "erros": [f"{t.get('tabela')}: {t.get('erro')}" for t in erros][:5],
+               "ms": int((time.time() - t0) * 1000)}   # tempo da simulação: a melhor estimativa do tempo para restaurar
     except Exception as e:  # noqa: BLE001
         res = {"em": int(time.time()), "arquivo": nome, "ok": False, "tabelas": 0, "erros": [str(e)[:200]]}
     if not res["ok"]:
@@ -622,3 +624,48 @@ def saude() -> dict:
             "local_estado": db.cfg("backup_local_estado"), "historico": [{"arquivo": x["arquivo"], "tipo": x["tipo"], "tamanho": x["tamanho"], "criado_em": _epoch(x.get("criado_em"))}
                                                                        for x in reversed(lista[:60])],
             "total_bytes": sum(x.get("tamanho") or 0 for x in lista), "quantidade": len(lista)}
+
+
+
+# ---------- painel (0.7.8): linha do tempo, retenção prevista, recuperação, maiores tabelas e histórico ----------
+def previa_retencao(dias: int = 7, semanas: int = 4, meses: int = 12) -> list[dict]:
+    """O que a regra 7/4/12 faria hoje com cada cópia automática (auto-), sem apagar nada. Manuais (backup-) não saem sozinhas."""
+    saida = []
+    for prefixo in ("auto", "antes"):
+        lista = [a for a in listar() if a["arquivo"].startswith(prefixo + "-")]
+        vistos = {"d": set(), "s": set(), "m": set()}
+        for i, a in enumerate(lista):
+            t = time.gmtime(_epoch(a.get("criado_em")) - 3 * 3600)
+            motivos = []
+            for k, v, lim, rot in (("d", time.strftime("%Y-%m-%d", t), dias, "diário"), ("s", time.strftime("%G-%V", t), semanas, "semanal"),
+                                   ("m", time.strftime("%Y-%m", t), meses, "mensal")):
+                if v not in vistos[k] and len(vistos[k]) < lim:
+                    vistos[k].add(v); motivos.append(rot)
+            if i == 0:
+                motivos.append("mais novo")
+            saida.append({"arquivo": a["arquivo"], "criado_em": a["criado_em"], "fica": bool(motivos), "motivos": motivos})
+    return saida
+
+
+def painel() -> dict:
+    lista = listar()
+    agora = int(time.time())
+    ultimo = lista[0] if lista else None
+    teste = db.cfg("backup_teste") or {}
+    tabs = sorted(tabelas(), key=lambda t: -(t.get("linhas") or 0))
+    historico = db.consultar("SELECT quando, acao, origem, usuario, ok, detalhe FROM atividade WHERE acao ILIKE '%backup%' OR acao ILIKE '%restaura%' "
+                             "ORDER BY quando DESC LIMIT 40")
+    por_grupo = {}
+    for t in tabs:
+        g = por_grupo.setdefault(t.get("grupo") or "outros", {"grupo": t.get("grupo") or "outros", "tabelas": 0, "linhas": 0})
+        g["tabelas"] += 1; g["linhas"] += t.get("linhas") or 0
+    return {
+        "linha_tempo": [{"arquivo": a["arquivo"], "criado_em": a["criado_em"], "tamanho": a.get("tamanho") or 0, "tipo": a.get("tipo"), "rotulo": a.get("rotulo")} for a in reversed(lista)],
+        "retencao": previa_retencao(),
+        "recuperacao": {"rpo_horas": round((agora - _epoch(ultimo["criado_em"])) / 3600, 1) if ultimo else None,
+                        "ultimo": ultimo, "teste": teste, "rto_segundos": round(teste["ms"] / 1000, 1) if teste.get("ms") else None,
+                        "agenda": agenda()},
+        "maiores_tabelas": [{"tabela": t["nome"], "linhas": t.get("linhas") or 0, "grupo": t.get("grupo"), "restauravel": t.get("restauravel")} for t in tabs[:12]],
+        "por_grupo": sorted(por_grupo.values(), key=lambda g: -g["linhas"]),
+        "historico": historico,
+    }

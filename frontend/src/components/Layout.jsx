@@ -59,14 +59,13 @@ export const GRUPOS = [
     { para: '/notificacoes', rotulo: 'Notificações', icone: Bell, contador: 'notificacoes' },
     { para: '/bugs', rotulo: 'Bugs', icone: Bug, contador: 'bugs' },
     { para: '/atividade', rotulo: 'Atividade', icone: Activity, perm: 'atividade.ver' },
-    { para: '/seguranca', rotulo: 'Segurança', icone: ShieldCheck, perm: 'seguranca.gerenciar' },
+    { para: '/seguranca', rotulo: 'Segurança', icone: ShieldCheck },   // todos veem: sem seguranca.gerenciar, a tela mostra só o Treinamento
     { para: '/mensagens', rotulo: 'Mensagens do site', icone: Inbox, contador: 'mensagens_nao_lidas', perm: 'mensagens.ver' },
     { para: '/analise', rotulo: 'Acessos e SEO', icone: LineChart, perm: 'configuracoes.gerenciar' },
     { para: '/idiomas', rotulo: 'Idiomas do site', icone: Languages, perm: 'configuracoes.gerenciar' },
     { para: '/configuracoes', rotulo: 'Configurações', icone: Settings },
     { para: '/apps', rotulo: 'Baixar apps', icone: Download },
     { para: '/guia', rotulo: 'Passo a passo', icone: BookOpen },
-    { para: '/treinamento', rotulo: 'Treinamento e segurança', icone: GraduationCap },
     { para: '/novidades', rotulo: 'Novidades', icone: Megaphone },
   ] },
 ]
@@ -80,7 +79,7 @@ const CHAVES = {
   '/alexa': 'skill', '/supabase': 'banco dados tabelas sql backup', '/infra': 'vercel cloudflare dns agentes raspberry pi computador servidor',
   '/atividade': 'historico log eventos', '/seguranca': 'firewall conformidade iso 27001 ips ataques', '/mensagens': 'contato site', '/analise': 'seo visitantes analytics desempenho performance cliques rotas web vitals pagespeed', '/idiomas': 'traducao ingles espanhol frances russo coreano idioma lingua', '/emails': 'resend correio newsletter campanha inscritos',
   '/configuracoes': 'usuarios contas perfil marca senha 2fa', '/apps': 'android desktop windows mac download', '/guia': 'ajuda manual tutorial',
-  '/novidades': 'versoes changelog atualizacoes', '/rede': 'speedtest velocidade internet wifi download upload ping latencia jitter', '/cafeteira': 'cafe capsula copa tomada dolce', '/persianas': 'cortina janela sol', '/fechadura': 'porta tranca chave entrada', '/avatares': 'personagem boneco glb modelo 3d animacao sims', '/treinamento': 'curso prova conscientizacao iso phishing',
+  '/novidades': 'versoes changelog atualizacoes', '/rede': 'speedtest velocidade internet wifi download upload ping latencia jitter', '/cafeteira': 'cafe capsula copa tomada dolce', '/persianas': 'cortina janela sol', '/fechadura': 'porta tranca chave entrada', '/avatares': 'personagem boneco glb modelo 3d animacao sims', 
 }
 const semAcento = (t) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 function lerFechados() { try { return JSON.parse(localStorage.getItem('clima-menu-fechados') || '[]') } catch { return [] } }

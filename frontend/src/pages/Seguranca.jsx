@@ -1,17 +1,19 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Activity, AlertOctagon, Bot, Mail, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, ScrollText, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
+import { Activity, AlertOctagon, Bot, GraduationCap, Mail, Ban, ChevronDown, ClipboardList, FileLock2, Radar, Scale, ScrollText, Users, ShieldAlert, Download, FileCode2, FileJson, FileSpreadsheet, FileText, FileType2, Globe2, MapPin, Pause, Play, RefreshCw, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react'
 import { avisoEmail } from '../emailAviso'
 import { api, dataHora, haQuanto } from '../api'
-import { Aviso, Botao, Cabecalho, Esqueleto, FaixaMetricas, Modal, Secao, useDados, useToast, confirmar } from '../components/ui'
+import { Aviso, Botao, Cabecalho, CabecalhoSecundario, Esqueleto, FaixaMetricas, Modal, Secao, useDados, useToast, confirmar } from '../components/ui'
 import PainelSeguranca from '../components/config/PainelSeguranca'
 import { useSearchParams } from 'react-router-dom'
+import { useProjeto } from '../contexto'
 import { Acessos, Conformidade, Incidentes, Integridade, Riscos, TestesAoVivo } from '../components/seguranca/Governanca'
 import TelegramSeg from '../components/seguranca/TelegramSeg'
 import Fisico from '../components/seguranca/Fisico'
 import { devePuxar } from '../ocioso'
 const LogsSeg = lazy(() => import('../components/seguranca/Logs'))
+const Treinamento = lazy(() => import('./Treinamento'))
 
 const Globo3D = lazy(() => import('../components/Globo3D'))
 
@@ -273,14 +275,18 @@ function Checklist() {
 }
 
 const ABAS = [['monitoramento', 'Monitoramento', Activity], ['logs', 'Logs', ScrollText], ['conformidade', 'Conformidade ISO', Scale], ['riscos', 'Riscos', ClipboardList], ['incidentes', 'Incidentes', AlertOctagon],
-  ['fisico', 'Comandos físicos', ShieldCheck], ['acessos', 'Acessos', Users], ['telegram', 'Telegram', Bot], ['testes', 'Testes ao vivo', Radar], ['integridade', 'Integridade', FileLock2]]
+  ['fisico', 'Comandos físicos', ShieldCheck], ['acessos', 'Acessos', Users], ['telegram', 'Telegram', Bot], ['testes', 'Testes ao vivo', Radar], ['integridade', 'Integridade', FileLock2], ['treinamento', 'Treinamento', GraduationCap]]
 
 export default function Seguranca() {
   const [params, setParams] = useSearchParams()
-  const aba = ABAS.some(([k]) => k === params.get('aba')) ? params.get('aba') : 'monitoramento'
+  const { sessao } = useProjeto()
+  // quem não gerencia a segurança só vê o Treinamento (a prova é para toda a equipe); o servidor protege o resto de qualquer jeito
+  const gestor = !sessao || sessao.permissoes?.includes('seguranca.gerenciar')
+  const abas = gestor ? ABAS : ABAS.filter(([k]) => k === 'treinamento')
+  const aba = abas.some(([k]) => k === params.get('aba')) ? params.get('aba') : (gestor ? 'monitoramento' : 'treinamento')
   const barra = (
     <nav className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-border px-1" aria-label="Seções da segurança">
-      {ABAS.map(([k, r, I]) => (
+      {abas.map(([k, r, I]) => (
         <button key={k} onClick={() => setParams(k === 'monitoramento' ? {} : { aba: k }, { replace: true })} className={`relative flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-sm ${aba === k ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
           <I className="h-4 w-4" />{r}
           {aba === k && <motion.span layoutId="aba-seg" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
@@ -289,18 +295,19 @@ export default function Seguranca() {
     </nav>
   )
   if (aba !== 'monitoramento') {
-    const Comp = { logs: LogsSeg, conformidade: Conformidade, riscos: Riscos, incidentes: Incidentes, fisico: Fisico, acessos: Acessos, telegram: TelegramSeg, testes: TestesAoVivo, integridade: Integridade }[aba]
+    const Comp = { logs: LogsSeg, conformidade: Conformidade, riscos: Riscos, incidentes: Incidentes, fisico: Fisico, acessos: Acessos, telegram: TelegramSeg, testes: TestesAoVivo, integridade: Integridade, treinamento: Treinamento }[aba]
     const desc = { logs: 'Tudo o que acontece no sistema: quem ligou, desligou e mudou a temperatura de cada ar em cada sala, ações administrativas, logins, bloqueios, Telegram, dispositivos e e-mails. Filtros, ao vivo e exportação.',
       conformidade: 'ISO/IEC 27001:2022 e 27002 com ligação para 27005, 27017, 27018, 27701, 27035, 22301 e LGPD. O que dá para conferir sozinho é conferido na hora.',
       riscos: 'Avaliação e tratamento de riscos (ISO 27005, cláusula 6.1 da 27001).', incidentes: 'Registro, resposta e lições de incidentes (ISO 27035 e LGPD).',
       fisico: 'Travas que valem para todo comando que mexe em equipamento real, aparelhos isolados e comandos recusados.',
       acessos: 'Quem tem acesso a quê, duas etapas e revisão periódica (A.5.15 a A.5.18).', telegram: 'Auditoria do bot do Telegram: cada interação, quem fez, o resultado, os IPs que entregaram, vínculos, PINs e bloqueios.', testes: 'Conferência externa de HTTPS, certificado, cabeçalhos, arquivos expostos e CORS.',
-      integridade: 'Selos SHA-256 encadeados que mostram se algum registro foi alterado.' }[aba]
+      integridade: 'Selos SHA-256 encadeados que mostram se algum registro foi alterado.',
+      treinamento: 'Treinamento de segurança da equipe (ISO 27001 A.6.3): provas sorteadas, revisão do que errou e certificado.' }[aba]
     return (
       <>
         <Cabecalho titulo="Segurança" descricao={desc} />
         {barra}
-        <Suspense fallback={<Esqueleto className="h-96" />}><Comp /></Suspense>
+        <CabecalhoSecundario.Provider value={aba === 'treinamento'}><Suspense fallback={<Esqueleto className="h-96" />}><Comp /></Suspense></CabecalhoSecundario.Provider>
       </>
     )
   }

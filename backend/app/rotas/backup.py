@@ -89,6 +89,13 @@ def listar(request: Request):
     return {"arquivos": arquivos, "automaticos": auto, "agenda": bs.agenda(), "uso": uso}
 
 
+@rotas_backup.get("/painel")
+def painel(request: Request):
+    """Linha do tempo, retenção prevista (sem apagar), RPO/RTO, maiores tabelas e histórico de operações."""
+    _quem(request)
+    return bs.painel()
+
+
 @rotas_backup.post("/gerar")
 def gerar(d: GerarRotuloIn, request: Request):
     quem = _quem(request)

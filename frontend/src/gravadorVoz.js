@@ -1,11 +1,26 @@
 // Mensagem de voz do Assistente de IA: grava pelo microfone (MediaRecorder, funciona em qualquer navegador, inclusive no
 // Brave, que não tem o reconhecimento de voz do Chrome), converte para WAV 16 kHz mono (o formato que a IA da NVIDIA
 // entende) e devolve o base64 + um endereço local para tocar a gravação na conversa.
-export const MAX_SEGUNDOS = 90
+export const MAX_SEGUNDOS = 90   // 90 s de WAV 16 kHz ≈ 3,8 MB em base64 (o servidor aceita até 4,2 MB)
+
+// microfone escolhido na setinha ao lado do microfone (guardado neste navegador); vazio = o padrão do sistema
+export const lerMicrofone = () => { try { return localStorage.getItem('ia-microfone') || '' } catch { return '' } }
+export const gravarMicrofone = (id) => { try { if (id) localStorage.setItem('ia-microfone', id); else localStorage.removeItem('ia-microfone') } catch { /* sem armazenamento */ } }
+export async function microfones() {
+  if (!navigator.mediaDevices?.enumerateDevices) return []
+  return (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput')
+}
 
 export async function iniciarGravacao(aoNivel) {
-  if (!navigator.mediaDevices?.getUserMedia) throw new Error('Este navegador não grava áudio.')
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error('Este navegador não grava áudio (ou a página não está em https).')
+  if (typeof MediaRecorder === 'undefined') throw new Error('Este navegador não grava áudio. Use o Chrome, o Edge, o Firefox ou o Safari atualizados.')
+  const id = lerMicrofone()
+  let stream
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, ...(id ? { deviceId: { exact: id } } : {}) } })
+  } catch (e) {
+    if (id && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')) { gravarMicrofone(''); stream = await navigator.mediaDevices.getUserMedia({ audio: true }) } else throw e
+  }
   const rec = new MediaRecorder(stream)
   const pedacos = []
   rec.ondataavailable = (e) => { if (e.data.size) pedacos.push(e.data) }

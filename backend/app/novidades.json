@@ -2,6 +2,31 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.7.8",
+   "data": "2026-11-26",
+   "titulo": "Assistente no jeito do Claude, modo anônimo, Backup e Infra mais completos e varredura de bugs mais funda",
+   "resumo": "O Assistente ganhou Procurar, Artefatos, Agendados, Plugins e modo anônimo; o microfone passou a funcionar em qualquer navegador; Backup e Infra ganharam painéis novos; e o Treinamento foi para Segurança.",
+   "novo": [
+    "Assistente: barra lateral com Criar, Procurar, Projetos, Artefatos, Agendados e Plugins, e a sua foto embaixo.",
+    "Assistente: modo anônimo (botão no canto superior direito): a conversa não fica no histórico e a pergunta não vai para a Atividade.",
+    "Assistente: Agendados, pedidos que rodam sozinhos no horário e chegam no sino, no e-mail ou no Telegram (só consultam, nada mudam).",
+    "Assistente: Artefatos reúne o código e as tabelas das respostas para copiar ou baixar; Plugins liga e desliga grupos de ferramentas.",
+    "Infra: Monitor da API (tempo de resposta e erros por hora), Integrações testadas ao vivo e Limites e cotas de cada plano.",
+    "Backup: perda máxima hoje (RPO), tempo para restaurar (RTO), linha do tempo, retenção prevista, maiores tabelas e histórico.",
+    "Bugs: a procura confere também RLS, segredos sem cifra, 2FA dos administradores, certificado, versões dos agentes, fluxos, backup, API e banco, e mostra o resultado de cada etapa."
+   ],
+   "melhorias": [
+    "Treinamento agora fica em Segurança → Treinamento (o endereço antigo leva para lá); quem não gerencia a segurança vê só o Treinamento.",
+    "Assistente: escolher o microfone na setinha ao lado dele."
+   ],
+   "seguranca": [],
+   "correcoes": [
+    "Assistente: o microfone (ditado) não funcionava no Brave e no app de computador; agora transcreve pelo servidor em qualquer navegador.",
+    "Assistente: mensagens de voz de mais de 70 segundos falhavam ao enviar.",
+    "clima-ia 1.8.1: a pergunta não aparece mais duas vezes no terminal."
+   ]
+  },
+  {
    "versao": "0.7.7",
    "data": "2026-11-26",
    "titulo": "Fluxos em blocos, painel em 6 idiomas, relatórios mais completos e clima-ia que mexe em arquivos",

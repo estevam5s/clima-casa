@@ -601,6 +601,27 @@ FERRAMENTAS_LOCAIS = [
         {"formato": {"type": "string", "enum": ["pdf", "docx", "xlsx", "csv", "html", "md", "json"]}, "dias": {"type": "integer"}, "caminho": {"type": "string"}}, ["formato"]),
 ]
 NOMES_LOCAIS = {f["function"]["name"] for f in FERRAMENTAS_LOCAIS}
+
+# Plugins (tela /ia → Plugins): grupos de ferramentas que cada pessoa liga ou desliga (prefs "plugins_off").
+# Grupo desligado nem é oferecido ao modelo. As permissões de cada ferramenta continuam valendo por cima disto.
+PLUGINS = [
+    {"id": "ares", "nome": "Ares e cenas", "descricao": "Ver e comandar os ares, temporizadores, cenas, salas e zonas.",
+     "ferramentas": ["estado_geral", "listar_ares", "transmissores", "comandar_ar", "temporizador", "desligar_todos", "executar_cena", "listar_cenas", "listar_salas", "zonas"]},
+    {"id": "sistema", "nome": "Sistema e relatórios", "descricao": "Atividade, relatórios de uso e custo, agentes do escritório, notificações, agenda e tempo lá fora.",
+     "ferramentas": ["atividade", "relatorio", "agentes", "notificacoes", "agendamentos", "clima_externo"]},
+    {"id": "escritorio", "nome": "Escritório inteligente", "descricao": "Luzes, persianas, cafeteira e fechadura.", "ferramentas": ["dispositivos"]},
+    {"id": "contas", "nome": "Contas e acessos", "descricao": "Listar, convidar, mudar papel, desativar e derrubar sessões (quem gerencia usuários).",
+     "ferramentas": ["listar_usuarios", "convidar_usuario", "mudar_usuario", "encerrar_sessoes"]},
+    {"id": "fluxos", "nome": "Fluxos", "descricao": "Listar, rodar, ligar e desligar fluxos de Rotinas.", "ferramentas": ["listar_fluxos", "executar_fluxo", "ligar_fluxo"]},
+    {"id": "bugs", "nome": "Bugs", "descricao": "Consultar os bugs registrados no sistema.", "ferramentas": ["listar_bugs"]},
+    {"id": "terminal", "nome": "Computador (clima-ia)", "descricao": "No terminal: ler, criar e editar arquivos, rodar comandos e salvar relatórios.",
+     "ferramentas": sorted(NOMES_LOCAIS)},
+]
+
+
+def ferramentas_fora(prefs: dict) -> set[str]:
+    off = set(prefs.get("plugins_off") or [])
+    return {f for p in PLUGINS if p["id"] in off for f in p["ferramentas"]}
 LOCAIS_MUDAM = {"escrever_arquivo", "editar_arquivo", "executar_comando", "baixar_relatorio"}
 
 
@@ -629,7 +650,7 @@ ACOES_IA = {"comandar_ar", "temporizador", "desligar_todos", "executar_cena", "c
             "executar_fluxo", "ligar_fluxo", *LOCAIS_MUDAM}   # o que muda algo (fora no modo plano)
 
 
-def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False, pensar: bool = False, locais: list[str] | None = None) -> dict:
+def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False, pensar: bool = False, locais: list[str] | None = None, fora: set | None = None) -> dict:
     k = chave()
     if not k:
         raise RuntimeError("O assistente de IA não está configurado (falta a chave da NVIDIA em IA → Configuração).")
@@ -641,7 +662,7 @@ def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False, pensar:
                  "chat_template_kwargs": {"enable_thinking": bool(pensar)}}
         if m in COM_FERRAMENTAS:   # modelo sem function calling recusa "tools" (400): responde só em texto
             corpo["tools"] = [f for f in FERRAMENTAS + [x for x in FERRAMENTAS_LOCAIS if x["function"]["name"] in (locais or [])]
-                              if not (leitura and f["function"]["name"] in ACOES_IA)]
+                              if not (leitura and f["function"]["name"] in ACOES_IA) and f["function"]["name"] not in (fora or ())]
         try:
             r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, json=corpo, timeout=50)
             if r.status_code == 400 and "chat_template" in r.text:   # modelo que não aceita o ajuste: manda sem ele
@@ -667,9 +688,10 @@ def preferencias(uid: str) -> dict:
 
 def salvar_preferencias(uid: str, d: dict) -> dict:
     p = preferencias(uid)
-    for k in ("estilo", "instrucoes", "pensar", "voz", "chamar", "trabalho", "esforco", "fonte", "largura", "notificar", "agir", "sugestoes"):
+    for k in ("estilo", "instrucoes", "pensar", "voz", "chamar", "trabalho", "esforco", "fonte", "largura", "notificar", "agir", "sugestoes", "plugins_off"):
         if d.get(k) is not None:
             p[k] = d[k]
+    p["plugins_off"] = [x for x in (p.get("plugins_off") or []) if x in {g["id"] for g in PLUGINS}]
     if p["estilo"] not in ESTILOS:
         p["estilo"] = "normal"
     p["instrucoes"] = str(p.get("instrucoes") or "")[:1500]
@@ -754,7 +776,7 @@ def msg_lista_txt(msgs: list[dict]) -> list[str]:
 
 def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None, leitura: bool = False,
               estilo: str | None = None, pensar: bool = False, imagens: list[str] | None = None, projeto: dict | None = None,
-              esforco: str | None = None, locais: list[str] | None = None) -> dict:
+              esforco: str | None = None, locais: list[str] | None = None, anonimo: bool = False) -> dict:
     """Uma rodada de conversa. `historico` = [{role: user|assistant, content}] (o último é a pergunta).
     Devolve {texto, acoes: [...feitas], confirmacoes: [{confirmacao, descricao}]}."""
     u = _u()
@@ -809,21 +831,22 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", 
     acoes, confirmacoes = [], []
     gasto = {"tokens": 0}
     try:
-        return _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar, locais)
+        return _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar, locais, ferramentas_fora(prefs), anonimo)
     finally:
         ia_uso.registrar(u, gasto["tokens"], modelo, canal)
 
 
-def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar=False, locais=None) -> dict:
+def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar=False, locais=None, fora=None, anonimo=False) -> dict:
     for _ in range(RODADAS):
-        m = _chamar_modelo(msgs, modelo, leitura, pensar, locais)
+        m = _chamar_modelo(msgs, modelo, leitura, pensar, locais, fora)
         gasto["tokens"] += int(m.pop("_tokens", 0) or 0)
         m.pop("_modelo", None)
         chamadas = m.get("tool_calls") or []
         if not chamadas:
             texto = (m.get("content") or "").strip() or "Feito."
             pergunta = next((h["content"] for h in reversed(historico) if h.get("role") == "user"), "")
-            db.registrar(origem, "Conversa com a IA", detalhe=f"{u.get('nome') or u.get('email') or '-'}: {pergunta[:120]}")
+            # modo anônimo: a pergunta não vai para a Atividade (só que houve uma conversa)
+            db.registrar(origem, "Conversa com a IA" + (" (anônima)" if anonimo else ""), detalhe=f"{u.get('nome') or u.get('email') or '-'}" + ("" if anonimo else f": {pergunta[:120]}"))
             return {"texto": texto, "acoes": acoes, "confirmacoes": confirmacoes, "modelo": modelo, "tokens": gasto["tokens"]}
         msgs.append({"role": "assistant", "content": m.get("content") or "", "tool_calls": chamadas})
         pendentes = []
@@ -855,7 +878,7 @@ def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, g
             est = db.cfg("ia_cli_estado") or {}
             agora = time.time()
             est = {k: v for k, v in est.items() if v.get("expira", 0) > agora}
-            est[token] = {"usuario_id": str(u.get("id")), "msgs": msgs, "modelo": modelo, "leitura": leitura, "pensar": pensar, "locais": locais,
+            est[token] = {"usuario_id": str(u.get("id")), "msgs": msgs, "modelo": modelo, "leitura": leitura, "pensar": pensar, "locais": locais, "fora": sorted(fora or []),
                           "origem": origem, "pergunta": next((h["content"] for h in reversed(historico) if h.get("role") == "user"), "")[:500],
                           "pendentes": [p["id"] for p in pendentes], "expira": agora + 900}
             db.set_cfg("ia_cli_estado", est)
@@ -884,6 +907,6 @@ def continuar(token: str, resultados: list[dict]) -> dict:
     acoes, confirmacoes, gasto = [], [], {"tokens": 0}
     try:
         return _rodadas(msgs, e["modelo"], e["leitura"], [{"role": "user", "content": e.get("pergunta") or ""}], e["origem"], u, acoes, confirmacoes, gasto,
-                        e.get("pensar", False), e.get("locais") or [])
+                        e.get("pensar", False), e.get("locais") or [], set(e.get("fora") or []))
     finally:
         ia_uso.registrar(u, gasto["tokens"], e["modelo"], "terminal")

@@ -150,6 +150,28 @@ def retencao(d: Retencao):
 
 
 # ---------- Cloudflare (zynio.com.br) — também pelo agente, com o CLOUDFLARE_API_TOKEN dele ----------
+# ---------- 0.7.8: Monitor da API, Integrações ao vivo e Limites e cotas (na nuvem, sem agente) ----------
+@rotas_infra.get("/infra/monitor")
+def monitor_api(horas: int = 24):
+    _papel("dono", "admin")
+    from .. import infra_extra
+    return infra_extra.monitor(horas)
+
+
+@rotas_infra.get("/infra/integracoes")
+def integracoes():
+    _papel("dono", "admin")
+    from .. import infra_extra
+    return {"lido_em": db.agora(), "itens": infra_extra.integracoes()}
+
+
+@rotas_infra.get("/infra/limites")
+def limites():
+    _papel("dono", "admin")
+    from .. import infra_extra
+    return {"lido_em": db.agora(), "itens": infra_extra.limites()}
+
+
 @rotas_infra.get("/infra/portas")
 def portas():
     _papel("dono", "admin")

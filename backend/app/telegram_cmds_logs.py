@@ -707,13 +707,13 @@ _reg("termos_meu", "termos", "Os termos que você aceitou",
          "SELECT documento, versao, aceito_em FROM aceites WHERE usuario_id::text = ? ORDER BY aceito_em DESC", (str(ctx.u["id"]),))], None, "Você ainda não aceitou nenhum termo."))
 _reg("treino_notas", "treino", "Notas do treinamento de cada pessoa",
      lambda ctx, a: _resp(ctx, "Notas do treinamento", [f"• <b>{_e(r['nome'] or r['email'])}</b>: {num(r['nota'], 0)}" + (" · aprovado" if r["aprovado"] else "") + f" ({quando(r['concluido_em'])})" for r in db.consultar(
-         "SELECT u.nome, u.email, t.nota, t.aprovado, t.concluido_em FROM treinamentos t JOIN usuarios u ON u.id::text = t.usuario_id::text ORDER BY t.concluido_em DESC LIMIT 20")], "/treinamento", "Ninguém fez a prova ainda."), papel=ADM)
+         "SELECT u.nome, u.email, t.nota, t.aprovado, t.concluido_em FROM treinamentos t JOIN usuarios u ON u.id::text = t.usuario_id::text ORDER BY t.concluido_em DESC LIMIT 20")], "/seguranca?aba=treinamento", "Ninguém fez a prova ainda."), papel=ADM)
 _reg("treino_faltam", "treino", "Quem ainda não fez o treinamento",
      lambda ctx, a: _resp(ctx, "Sem treinamento", [f"• {_e(r['nome'] or r['email'])}" for r in db.consultar(
-         "SELECT nome, email FROM usuarios u WHERE ativo AND NOT EXISTS (SELECT 1 FROM treinamentos t WHERE t.usuario_id::text = u.id::text) ORDER BY nome")], "/treinamento", "Todos fizeram."), papel=ADM)
+         "SELECT nome, email FROM usuarios u WHERE ativo AND NOT EXISTS (SELECT 1 FROM treinamentos t WHERE t.usuario_id::text = u.id::text) ORDER BY nome")], "/seguranca?aba=treinamento", "Todos fizeram."), papel=ADM)
 _reg("treino_meu", "treino", "Suas provas do treinamento",
      lambda ctx, a: _resp(ctx, "Suas provas", [f"• nota {num(r['nota'], 0)}" + (" · aprovado" if r["aprovado"] else "") + f" ({quando(r['concluido_em'])})" for r in db.consultar(
-         "SELECT nota, aprovado, concluido_em FROM treinamentos WHERE usuario_id::text = ? ORDER BY concluido_em DESC", (str(ctx.u["id"]),))], "/treinamento", "Você ainda não fez a prova."))
+         "SELECT nota, aprovado, concluido_em FROM treinamentos WHERE usuario_id::text = ? ORDER BY concluido_em DESC", (str(ctx.u["id"]),))], "/seguranca?aba=treinamento", "Você ainda não fez a prova."))
 
 
 # =====================================================================================================================

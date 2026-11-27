@@ -29,6 +29,7 @@ class ConversaIn(BaseModel):
     imagens: list[str] = Field(default_factory=list, max_length=2)   # data:image/… (prints, foto do controle)
     terminal: bool = False              # clima-ia: canal "terminal" (formato e ferramentas locais)
     locais: list[str] = Field(default_factory=list, max_length=12)   # ferramentas que o terminal executa no computador da pessoa
+    anonimo: bool = False               # modo anônimo: a conversa não é salva e a pergunta não vai para a Atividade
 
 
 class ContinuarIn(BaseModel):
@@ -94,9 +95,13 @@ def conversar(d: ConversaIn):
     try:
         proj = _projeto(d.projeto_id) if d.projeto_id else None
         r = ia.conversar([m.model_dump() for m in d.mensagens], "terminal" if d.terminal else "painel", modelo=d.modelo, leitura=d.leitura, estilo=d.estilo,
-                         pensar=d.pensar or d.esforco in ("alto", "maximo"), imagens=d.imagens, projeto=proj, esforco=d.esforco, locais=d.locais)
+                         pensar=d.pensar or d.esforco in ("alto", "maximo"), imagens=d.imagens, projeto=proj, esforco=d.esforco, locais=d.locais,
+                         anonimo=d.anonimo)
     except (PermissionError, RuntimeError) as e:
         _erro(e)
+    if d.anonimo:   # nada salvo: nem a conversa nem a pergunta
+        r["anonimo"] = True
+        return r
     # salva a conversa (nova ou existente) com a resposta; o título nasce da primeira pergunta
     uid = _uid()
     msgs = [m.model_dump() for m in d.mensagens] + [{"role": "assistant", "content": r["texto"], "acoes": r.get("acoes") or [], "modelo": r.get("modelo")}]
@@ -110,6 +115,74 @@ def conversar(d: ConversaIn):
                                  (uid, titulo, json.dumps(msgs[-80:], ensure_ascii=False), agora, agora, d.projeto_id))["id"]
         r["titulo"] = titulo
     return r
+
+
+# ---------------- Plugins, Artefatos e Agendados (tela /ia) ----------------
+@rotas_ia.get("/plugins")
+def plugins():
+    p = ia.preferencias(_uid())
+    off = set(p.get("plugins_off") or [])
+    return [{**{k: v for k, v in g.items() if k != "ferramentas"}, "ferramentas": len(g["ferramentas"]), "ligado": g["id"] not in off} for g in ia.PLUGINS]
+
+
+@rotas_ia.get("/artefatos")
+def artefatos():
+    from .. import ia_extras
+    return ia_extras.artefatos(_uid())
+
+
+class AgendadoIn(BaseModel):
+    titulo: str = Field(min_length=1, max_length=80)
+    pedido: str = Field(min_length=5, max_length=2000)
+    hora: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    dias: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5], max_length=7)
+    ativo: bool = True
+    entregar: list[str] = Field(default_factory=lambda: ["sino"], max_length=3)
+
+
+@rotas_ia.get("/agendados")
+def agendados():
+    from .. import ia_extras
+    return ia_extras.listar(_uid())
+
+
+@rotas_ia.post("/agendados")
+def criar_agendado(d: AgendadoIn):
+    from .. import ia_extras
+    try:
+        return ia_extras.salvar(_uid(), d.model_dump())
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@rotas_ia.put("/agendados/{aid}")
+def editar_agendado(aid: int, d: AgendadoIn):
+    from .. import ia_extras
+    try:
+        return ia_extras.salvar(_uid(), d.model_dump(), aid)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+@rotas_ia.delete("/agendados/{aid}")
+def apagar_agendado(aid: int):
+    db.executar("DELETE FROM ia_agendados WHERE id = ? AND usuario_id = ?", (aid, _uid()))
+    return {"ok": True}
+
+
+@rotas_ia.post("/agendados/{aid}/rodar")
+def rodar_agendado(aid: int):
+    """Testar agora: roda o pedido (só leitura) e devolve a conversa criada."""
+    from .. import ia_extras
+    ag = db.um("SELECT * FROM ia_agendados WHERE id = ? AND usuario_id = ?", (aid, _uid()))
+    if not ag:
+        raise HTTPException(404, "Agendado não encontrado.")
+    try:
+        return ia_extras.rodar(ag, "agendado (teste)")
+    except (PermissionError, RuntimeError) as e:
+        _erro(e)
 
 
 @rotas_ia.post("/continuar")
@@ -127,7 +200,7 @@ def _uid() -> str:
 
 
 class AudioIn(BaseModel):
-    audio: str = Field(min_length=100, max_length=3_000_000)   # base64 do WAV (até ~90 s em 16 kHz mono)
+    audio: str = Field(min_length=100, max_length=4_200_000)   # base64 do WAV (até ~90 s em 16 kHz mono; a Vercel aceita até 4,5 MB)
     formato: str = Field("wav", pattern="^(wav|mp3)$")
 
 
@@ -157,6 +230,7 @@ class PrefIn(BaseModel):
     notificar: bool | None = None                          # aviso do navegador quando a resposta chega com a aba escondida
     agir: bool | None = None                               # pode mudar ares (desligado = sempre modo plano, só leitura)
     sugestoes: bool | None = None                          # mostrar as sugestões na tela inicial
+    plugins_off: list[str] | None = Field(None, max_length=20)   # grupos de ferramentas desligados (tela Plugins)
 
 
 @rotas_ia.get("/preferencias")

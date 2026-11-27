@@ -2895,7 +2895,7 @@ _TELAS = [("painel", "/", "Painel"), ("projetos", "/projetos", "Projetos e salas
           ("atividade", "/atividade", "Atividade"), ("seguranca", "/seguranca", "Segurança"), ("mensagens", "/mensagens", "Mensagens do site"), ("configuracoes", "/configuracoes", "Configurações"),
           ("apps", "/apps", "Baixar apps"), ("guia", "/guia", "Passo a passo"), ("novidades", "/novidades", "Novidades"), ("ia", "/ia", "Assistente de IA"),
           ("telegram", "/telegram", "Bot do Telegram"), ("bugs", "/bugs", "Bugs"), ("notificacoes", "/notificacoes", "Notificações"), ("backup", "/backup", "Backup"),
-          ("treinamento", "/treinamento", "Treinamento"), ("avatares", "/avatares", "Avatares")]
+          ("treinamento", "/seguranca?aba=treinamento", "Treinamento"), ("avatares", "/avatares", "Avatares")]
 for _k, _rota, _t in _TELAS:
     cmd(f"abrir_{_k}", "guia", f"Abrir a tela {_t} no painel")(
         lambda ctx, a, _rota=_rota, _t=_t: ctx.enviar(f"<b>{_e(_t)}</b>", [[{"text": f"Abrir {_t}", "url": f"{APP}{_rota}"}], [{"text": "Menu", "callback_data": "m:menu"}]]))
