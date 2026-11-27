@@ -4,7 +4,7 @@ import { Archive, Blocks, Braces, CalendarClock, ChevronsUpDown, Database, Exter
 import { siSupabase } from 'simple-icons'
 import { api } from '../api'
 import { useProjeto } from '../contexto'
-import { useDados } from '../components/ui'
+import { Aviso, useDados } from '../components/ui'
 import Visao from '../components/supabase/Visao'
 import UsoCota from '../components/supabase/UsoCota'
 import Tabelas from '../components/supabase/Tabelas'
@@ -31,7 +31,9 @@ export default function Supabase() {
   const secao = params.get('secao') || 'visao'
   const tabela = params.get('tabela') || undefined
   const { sessao } = useProjeto()
-  const { dados: avisos } = useDados(() => api.get('/api/supabase/avisos'))
+  // o servidor exige configuracoes.gerenciar e acesso a todos os projetos: sem isso, a tela avisa em vez de ficar carregando
+  const liberado = !sessao || (sessao.permissoes?.includes('configuracoes.gerenciar') && (sessao.projetos === undefined || sessao.projetos === '*'))
+  const { dados: avisos } = useDados(() => (liberado ? api.get('/api/supabase/avisos') : Promise.resolve([])))
   const nAvisos = (avisos || []).filter((a) => a.nivel !== 'info').length
   const irPara = (s, t) => setParams(t ? { secao: s, tabela: t } : { secao: s })
   const [fechado, setFechado] = useState(lerMenu)
@@ -41,6 +43,7 @@ export default function Supabase() {
   const atual = GRUPOS.flatMap(([t, i]) => i.map((x) => [t, ...x])).find((x) => x[1] === secao)
 
   const ref = 'elyqjdcsbfdvlsxomxen'
+  if (!liberado) return <Aviso>O painel do Supabase é só para quem gerencia as configurações e vê todos os projetos.</Aviso>
   return (
     <div className="tela-supa -mx-4 -mb-16 -mt-6 bg-background text-foreground sm:-mx-6 lg:-mx-8 2xl:-mx-10">
       {/* barra do projeto, como no dashboard do Supabase: organização / projeto / ramo e o selo do ambiente */}

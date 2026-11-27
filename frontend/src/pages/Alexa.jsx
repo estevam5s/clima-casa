@@ -126,7 +126,7 @@ export default function Alexa() {
               <h2 className="text-sm font-semibold">Segurança</h2>
               <p className="text-sm text-muted-foreground">Revogue o acesso ou gere chaves novas se suspeitar de vazamento.</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Botao variante="secundario" disabled={!dados.vinculada} onClick={() => setConfirmar('revogar')}>Revogar vinculação</Botao>
               <Botao variante="secundario" icone={KeyRound} onClick={() => setConfirmar('chaves')}>Gerar chaves novas</Botao>
             </div>

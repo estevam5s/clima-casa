@@ -3798,7 +3798,7 @@ def ver_perfil():
 @api.put("/perfil")
 def salvar_perfil(d: PerfilIn):
     from .. import perfil
-    p = perfil.salvar(d.model_dump())
+    p = perfil.salvar(d.model_dump(exclude_unset=True))   # campo que não veio continua como estava
     db.registrar("painel", "Perfil do administrador atualizado")
     return p
 

@@ -822,4 +822,5 @@ def meus_dados(request: Request):
         "uso_das_telas": db.consultar("SELECT dia, rota, ms, visitas FROM uso_telas WHERE usuario_id = ? ORDER BY dia DESC, ms DESC LIMIT 2000", (u["id"],)),
     }
     db.registrar("painel", "Cópia dos dados pessoais baixada", detalhe=email)
-    return JSONResponse(dados, headers={"Content-Disposition": 'attachment; filename="meus-dados-clima-escritorio.json"'})
+    from fastapi.encoders import jsonable_encoder   # id da conta vem como UUID do banco
+    return JSONResponse(jsonable_encoder(dados), headers={"Content-Disposition": 'attachment; filename="meus-dados-clima-escritorio.json"'})

@@ -2,6 +2,21 @@
  "_leia": "Fonte única do 'O que há de novo'. Versão nova = entrada NOVA no topo de 'versoes' (mais nova primeiro). Numeração em sequência (20/11/2026): 0.0.0, 0.0.1 … 0.0.9, 0.1.0 … 0.9.9, 1.0.0; a próxima é sempre a seguinte (o último dígito vai de 0 a 9). 'antes' guarda o número antigo (1.x) das versões publicadas até 20/11. Só fatos que entraram de verdade; seções vazias como []. Ver CLAUDE.md §16.",
  "versoes": [
   {
+   "versao": "0.7.6",
+   "data": "2026-11-26",
+   "titulo": "Correções encontradas no teste de todas as telas",
+   "resumo": "Revisamos todas as rotas e telas do sistema com uma conta de visualizador e com a do dono. Estas são as correções que saíram dessa revisão.",
+   "novo": [],
+   "melhorias": [],
+   "seguranca": [],
+   "correcoes": [
+    "Configurações: baixar \"Meus dados\" voltou a funcionar (dava erro).",
+    "Perfil: salvar só um campo não apaga mais os outros (nome, cargo, telefone e bio).",
+    "Painel do Supabase: quem não tem permissão vê um aviso em vez de uma tela carregando sem fim.",
+    "Alexa: no celular, os botões de segurança quebram de linha e não passam mais da tela."
+   ]
+  },
+  {
    "versao": "0.7.5",
    "data": "2026-11-26",
    "titulo": "Rotinas numa tela só, bugs viram tarefas e login da Prefeitura",
