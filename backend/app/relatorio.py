@@ -98,7 +98,7 @@ def montar(inicio: int, fim: int, projeto_id: int | None = None, aparelho_id: in
     ids = [a["id"] for a in aparelhos] or [-1]
     marcas = ",".join("?" * len(ids))
     duracao = max(fim - inicio, 1)
-    eventos = db.consultar(f"SELECT aparelho_id, quando, acao, origem, ok, detalhe FROM atividade WHERE aparelho_id IN ({marcas}) "
+    eventos = db.consultar(f"SELECT aparelho_id, quando, acao, origem, ok, detalhe, usuario FROM atividade WHERE aparelho_id IN ({marcas}) "
                            f"AND quando BETWEEN ? AND ? ORDER BY quando", (*ids, inicio, fim))
     anteriores = db.consultar(f"SELECT aparelho_id, quando, acao, origem, ok, detalhe FROM atividade WHERE aparelho_id IN ({marcas}) "
                               f"AND quando BETWEEN ? AND ? ORDER BY quando", (*ids, inicio - duracao, inicio))
@@ -168,9 +168,10 @@ def montar(inicio: int, fim: int, projeto_id: int | None = None, aparelho_id: in
         h["sucesso_pct"] = round((h["comandos"] - h["falhas"]) / h["comandos"] * 100, 1) if h["comandos"] else 100.0
     rotinas = {}
     for e in eventos:
-        if e["origem"].startswith(("automacao:", "cena:")):
+        if e["origem"].startswith(("automacao:", "cena:", "fluxo:", "agenda:")):
             k = e["origem"]
-            r_ = rotinas.setdefault(k, {"tipo": "Automação" if k.startswith("automacao") else "Cena", "nome": k.split(":", 1)[1], "execucoes": 0, "falhas": 0})
+            tipo_r = {"automacao": "Automação", "cena": "Cena", "fluxo": "Fluxo", "agenda": "Agenda"}[k.split(":", 1)[0]]
+            r_ = rotinas.setdefault(k, {"tipo": tipo_r, "nome": k.split(":", 1)[1], "execucoes": 0, "falhas": 0})
             r_["execucoes"] += 1; r_["falhas"] += 0 if e["ok"] else 1
 
     total, falhas = len(eventos), sum(1 for e in eventos if not e["ok"])
@@ -245,8 +246,116 @@ def montar(inicio: int, fim: int, projeto_id: int | None = None, aparelho_id: in
         "motivos_falha": sorted(motivos.values(), key=lambda x: -x["vezes"]),
         "sucesso_por_origem": sorted(sucesso_origem.values(), key=lambda x: -x["comandos"]),
     }
+    d.update(_analises(aparelhos, atual, eventos, inicio, fim, tarifa, d))
     d["conclusoes"] = _conclusoes(d)
     return d
+
+
+def _analises(aparelhos, atual, eventos, inicio, fim, tarifa, d):
+    """Análises da 0.7.6: por pessoa, meta de gasto por projeto, custo por semana, ares que viraram a noite ligados,
+    dia mais caro e aparelhos do escritório (luzes, cafeteira, persianas). Só com o que está registrado."""
+    from . import acesso
+    pot = {a["id"]: (a["potencia_w"] or 1000) for a in aparelhos}
+    nomes = {a["id"]: a["nome"] for a in aparelhos}
+    # por pessoa (quem mandou o comando; sem pessoa = automático: agenda, Alexa, automações, fluxos)
+    pessoas = {}
+    # nome do cadastro no lugar do e-mail; sem pessoa: origem automática, ou painel de antes da 0.6.9 (quando não se gravava quem fez)
+    nome_de = {(u["email"] or "").lower(): (u["nome"] or u["email"]) for u in db.consultar("SELECT email, nome FROM usuarios")}
+    AUTO = {"alexa": "Alexa / Google", "sinric": "Alexa / Google", "agenda": "Agenda", "automacao": "Automações", "fluxo": "Fluxos",
+            "cena": "Cenas", "temporizador": "Temporizador"}
+    for e in eventos:
+        quem = e.get("usuario") or None
+        base = (e.get("origem") or "").split(":")[0]
+        rot = nome_de.get(quem.lower(), quem) if quem else AUTO.get(base, f"{_origem(base) or 'Sem origem'} (sem registro de quem fez)")
+        x = pessoas.setdefault(rot, {"pessoa": rot, "automatico": not quem and base in AUTO, "sem_registro": not quem and base not in AUTO, "comandos": 0, "ligou": 0, "desligou": 0, "ajustou": 0, "falhas": 0, "fora_expediente": 0, "ultimo": 0})
+        x["comandos"] += 1
+        acao = e.get("acao") or ""
+        if not e["ok"]:
+            x["falhas"] += 1
+        elif acao.startswith("Ligar"):
+            x["ligou"] += 1
+        elif acao.startswith("Desligar"):
+            x["desligou"] += 1
+        else:
+            x["ajustou"] += 1
+        dt = _data(e["quando"])
+        if dt.weekday() >= 5 or not (EXPEDIENTE[0] <= dt.hour < EXPEDIENTE[1]):
+            x["fora_expediente"] += 1
+        x["ultimo"] = max(x["ultimo"], e["quando"])
+    # meta de gasto mensal por projeto (projetos.meta_custo_mes) contra a projeção de 30 dias
+    dias = max(1, round(max(fim - inicio, 1) / 86400))
+    metas = []
+    ids_proj = sorted({a["projeto_id"] for a in aparelhos if a["projeto_id"]})
+    if ids_proj:
+        meta_de = {r["id"]: r for r in db.consultar(f"SELECT id, nome, meta_custo_mes FROM projetos WHERE id IN ({','.join('?' * len(ids_proj))})", tuple(ids_proj))}
+        for pj in d["por_projeto"]:
+            m = meta_de.get(pj.get("projeto_id"))
+            if not m or not m.get("meta_custo_mes"):
+                continue
+            proj = round(pj["custo"] / dias * 30, 2)
+            metas.append({"projeto": pj["projeto"], "meta": float(m["meta_custo_mes"]), "gasto": pj["custo"], "projecao_mes": proj,
+                          "uso_meta_pct": round(proj / float(m["meta_custo_mes"]) * 100, 1)})
+    # custo por semana, dia mais caro e noites com ar ligado (pelas sessões de cada ar)
+    semanas, custo_dia, noites = {}, {}, []
+    for aid, c in atual.items():
+        for x in c["sessoes"]:
+            custo = x["horas"] * pot.get(aid, 1000) / 1000 * tarifa
+            ini = _data(x["inicio"])
+            ano, sem, _ = ini.isocalendar()
+            k = f"{ano}-S{sem:02d}"
+            w = semanas.setdefault(k, {"semana": k, "comeca": (ini - datetime.timedelta(days=ini.weekday())).strftime("%d/%m"), "horas": 0.0, "custo": 0.0, "sessoes": 0})
+            w["horas"] += x["horas"]; w["custo"] += custo; w["sessoes"] += 1
+            custo_dia[ini.strftime("%Y-%m-%d")] = custo_dia.get(ini.strftime("%Y-%m-%d"), 0) + custo
+            fimd = _data(x["fim"])
+            if fimd.date() != ini.date():
+                noites.append({"aparelho": nomes.get(aid, ""), "inicio": x["inicio"], "fim": x["fim"], "horas": round(x["horas"], 1),
+                               "custo": round(custo, 2), "ligou_por": _origem(x["origem"]), "desligou_por": _origem(x["origem_fim"])})
+    for dia in d["por_dia"]:
+        dia["custo"] = round(custo_dia.get(dia["dia"], 0), 2)
+    mais_caro = max(custo_dia.items(), key=lambda kv: kv[1]) if custo_dia else None
+    # aparelhos do escritório (luzes, cafeteira, persianas, fechadura): só para quem vê todos os projetos
+    escritorio = []
+    if acesso.projetos_permitidos() is None and acesso.aparelhos_permitidos() is None:
+        for r in db.consultar("SELECT d.nome, d.tipo, count(*) AS acoes, count(*) FILTER (WHERE e.ok = 0) AS falhas, max(e.quando) AS ultimo "
+                              "FROM dispositivos_eventos e JOIN dispositivos d ON d.id = e.dispositivo_id WHERE e.quando BETWEEN ? AND ? "
+                              "GROUP BY d.nome, d.tipo ORDER BY count(*) DESC", (inicio, fim)):
+            escritorio.append({"aparelho": r["nome"], "tipo": r["tipo"], "acoes": r["acoes"], "falhas": r["falhas"], "ultimo": r["ultimo"]})
+    return {
+        "por_pessoa": sorted(pessoas.values(), key=lambda x: (x["sem_registro"], x["automatico"], -x["comandos"])),
+        "metas": sorted(metas, key=lambda x: -x["uso_meta_pct"]),
+        "por_semana": [{**w, "horas": round(w["horas"], 1), "custo": round(w["custo"], 2), "completa": _semana_completa(w["semana"], inicio, fim)} for w in (semanas[k] for k in sorted(semanas))],
+        "noites": sorted(noites, key=lambda x: -x["horas"])[:40],
+        "dia_mais_caro": {"dia": mais_caro[0], "custo": round(mais_caro[1], 2)} if mais_caro else None,
+        "escritorio": escritorio,
+    }
+
+
+def _semana_completa(chave: str, inicio: int, fim: int) -> bool:
+    """A semana (seg a dom) cabe inteira no período? Comparar uma semana pela metade com uma inteira engana."""
+    ano, sem = int(chave[:4]), int(chave[6:])
+    seg = datetime.date.fromisocalendar(ano, sem, 1)
+    return _data(inicio).date() <= seg and seg + datetime.timedelta(days=6) <= _data(fim).date()
+
+
+def _extras(d) -> list[tuple[str, list, list]]:
+    """Tabelas da 0.7.6, iguais em todos os formatos: (título, cabeçalho, linhas)."""
+    out = []
+    if d.get("por_pessoa"):
+        out.append(("Quem usou os ares", ["Pessoa ou origem", "Comandos", "Ligou", "Desligou", "Ajustou", "Falhas", "Fora do expediente", "Último"],
+                    [[x["pessoa"], x["comandos"], x["ligou"], x["desligou"], x["ajustou"], x["falhas"], x["fora_expediente"], f"{_data(x['ultimo']):%d/%m %H:%M}" if x["ultimo"] else ""] for x in d["por_pessoa"]]))
+    if d.get("metas"):
+        out.append(("Meta de gasto por projeto", ["Projeto", "Meta mensal", "Gasto no período", "Projeção 30 dias", "Da meta"],
+                    [[x["projeto"], _brl(x["meta"]), _brl(x["gasto"]), _brl(x["projecao_mes"]), f"{_n(x['uso_meta_pct'])}%"] for x in d["metas"]]))
+    if d.get("por_semana"):
+        out.append(("Custo por semana", ["Semana", "Começa em", "Sessões", "Horas ligado", "Custo estimado"],
+                    [[x["semana"] + ("" if x.get("completa") else " (parcial)"), x["comeca"], x["sessoes"], _n(x["horas"]), _brl(x["custo"])] for x in d["por_semana"]]))
+    if d.get("noites"):
+        out.append(("Ares que viraram a noite ligados", ["Aparelho", "Ligou", "Desligou", "Horas", "Custo", "Ligado por", "Desligado por"],
+                    [[x["aparelho"], f"{_data(x['inicio']):%d/%m %H:%M}", f"{_data(x['fim']):%d/%m %H:%M}", _n(x["horas"]), _brl(x["custo"]), x["ligou_por"], x["desligou_por"]] for x in d["noites"]]))
+    if d.get("escritorio"):
+        out.append(("Aparelhos do escritório (luzes, cafeteira, persianas)", ["Aparelho", "Tipo", "Ações", "Falhas", "Última"],
+                    [[x["aparelho"], x["tipo"], x["acoes"], x["falhas"], f"{_data(x['ultimo']):%d/%m %H:%M}" if x["ultimo"] else ""] for x in d["escritorio"]]))
+    return out
 
 
 def _conclusoes(d):
@@ -283,6 +392,30 @@ def _conclusoes(d):
         c.append({"tipo": "info", "texto": f"{top['nome']} responde por {round(top['custo'] / r['custo'] * 100)}% do custo estimado."})
     if r["temperatura_media"] and r["temperatura_media"] < 22:
         c.append({"tipo": "alerta", "texto": f"Temperatura média escolhida de {_n(r['temperatura_media'])}°C. Cada grau a mais no frio economiza perto de 8% de energia; 23°C a 24°C costuma ser confortável."})
+    for mt in d.get("metas", []):
+        if mt["uso_meta_pct"] >= 100:
+            c.append({"tipo": "alerta", "texto": f"{mt['projeto']} deve passar da meta de gasto: projeção de {_brl(mt['projecao_mes'])} para uma meta de {_brl(mt['meta'])} por mês ({_n(mt['uso_meta_pct'])}%)."})
+        elif mt["uso_meta_pct"] >= 80:
+            c.append({"tipo": "info", "texto": f"{mt['projeto']} está perto da meta de gasto ({_n(mt['uso_meta_pct'])}% da meta de {_brl(mt['meta'])} na projeção de 30 dias)."})
+    if d.get("noites"):
+        n = d["noites"]
+        c.append({"tipo": "alerta", "texto": f"{len(n)} vez(es) um ar passou da meia-noite ligado, somando {_n(sum(x['horas'] for x in n))} h e cerca de {_brl(sum(x['custo'] for x in n))}. A maior foi {n[0]['aparelho']} ({_n(n[0]['horas'])} h)."})
+    if d.get("dia_mais_caro") and d["dia_mais_caro"]["custo"]:
+        dm = d["dia_mais_caro"]
+        c.append({"tipo": "info", "texto": f"O dia mais caro foi {dm['dia'][8:10]}/{dm['dia'][5:7]}, com {_brl(dm['custo'])} estimados."})
+    completas = [w for w in d.get("por_semana") or [] if w.get("completa")]
+    if len(completas) >= 2:
+        a, b = completas[-2]["custo"], completas[-1]["custo"]
+        if a and abs(b - a) / a >= 0.15:
+            c.append({"tipo": "alerta" if b > a else "bom", "texto": f"Na última semana o custo {'subiu' if b > a else 'caiu'} {_n(abs(b - a) / a * 100)}% em relação à anterior ({_brl(a)} → {_brl(b)})."})
+    pessoas = [x for x in d.get("por_pessoa", []) if not x["automatico"] and not x["sem_registro"]]
+    if pessoas:
+        p0 = pessoas[0]
+        auto = sum(x["comandos"] for x in d["por_pessoa"] if x["automatico"])
+        sem = sum(x["comandos"] for x in d["por_pessoa"] if x["sem_registro"])
+        c.append({"tipo": "info", "texto": f"Entre os comandos com a pessoa registrada, quem mais usou foi {p0['pessoa']} ({p0['comandos']}). "
+                                           f"{round(auto / r['comandos'] * 100)}% vieram da Alexa ou de rotinas automáticas"
+                                           + (f"; {sem} são de antes do sistema registrar quem fez." if sem else ".")})
     if d.get("motivos_falha"):
         m = d["motivos_falha"][0]
         if m["vezes"] >= 3:
@@ -449,6 +582,7 @@ def _tabelas_planas(d):
         ("falhas", [["quando", "aparelho", "acao", "origem", "detalhe"]] + [[_data(x["quando"]).isoformat(), x["aparelho"], x["acao"], _origem(x["origem"]), x["detalhe"]] for x in d["falhas"]]),
         ("motivos_falha", [["motivo", "vezes", "o_que_fazer"]] + [[x["motivo"], x["vezes"], x["dica"]] for x in d.get("motivos_falha", [])]),
         ("sucesso_por_origem", [["origem", "comandos", "falhas", "sucesso_pct"]] + [[_origem(x["origem"]), x["comandos"], x["falhas"], x["sucesso_pct"]] for x in d.get("sucesso_por_origem", [])]),
+        *[(re.sub(r"[^a-z0-9]+", "_", t.lower()).strip("_")[:40], [cab, *linhas]) for t, cab, linhas in _extras(d)],
     ]
 
 
@@ -580,7 +714,8 @@ def exportar_html(d):
         ("6. Confiabilidade", '<h3>Transmissores</h3>' + (tabela(["Transmissor", "Aparelhos", "Comandos", "Falhas", "Sucesso"], [[x["transmissor"], x["aparelhos"], x["comandos"], x["falhas"], f"{_n(x['sucesso_pct'])}%"] for x in d["por_transmissor"]]) if d["por_transmissor"] else '<p class="sub">Sem dados.</p>')
          + '<h3>Automações e cenas</h3>' + (tabela(["Tipo", "Nome", "Execuções", "Falhas"], [[x["tipo"], x["nome"], x["execucoes"], x["falhas"]] for x in d["rotinas"]], 2) if d["rotinas"] else '<p class="sub">Nenhuma automação ou cena rodou no período.</p>')
          + '<h3>Falhas</h3>' + (tabela(["Quando", "Aparelho", "Ação", "Origem", "Detalhe"], [[f"{_data(x['quando']):%d/%m %H:%M}", x["aparelho"], x["acao"], _origem(x["origem"]), x["detalhe"]] for x in reversed(d["falhas"])], 9) if d["falhas"] else '<p class="sub">Nenhuma falha.</p>')),
-        ("7. Metodologia", '<dl>' + ''.join(f'<dt>{e(a)}</dt><dd>{e(b)}</dd>' for a, b in METODOLOGIA) + '</dl>'),
+        *([("7. Pessoas, metas e escritório", ''.join(f'<h3>{e(t)}</h3>' + tabela(cab, linhas) for t, cab, linhas in _extras(d)))] if _extras(d) else []),
+        (f"{8 if _extras(d) else 7}. Metodologia", '<dl>' + ''.join(f'<dt>{e(a)}</dt><dd>{e(b)}</dd>' for a, b in METODOLOGIA) + '</dl>'),
     ]
     filtros = " · ".join(x for x in (d["filtros"]["projeto"] and f"Projeto {d['filtros']['projeto']}", d["filtros"]["aparelho"] and f"Aparelho {d['filtros']['aparelho']}") if x) or "Todos os projetos e aparelhos"
     pagina = f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>{e(d['titulo'])}</title><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -702,6 +837,8 @@ def exportar_xlsx(d):
     folha("Automações e cenas", ["Tipo", "Nome", "Execuções", "Falhas"], [[x["tipo"], x["nome"], x["execucoes"], x["falhas"]] for x in d["rotinas"]], [12, 28, 11, 9])
     folha("Falhas", ["Quando", "Aparelho", "Ação", "Origem", "Detalhe"],
           [[_data(x["quando"]).strftime("%d/%m/%Y %H:%M"), x["aparelho"], x["acao"], _origem(x["origem"]), x["detalhe"]] for x in d["falhas"]], [17, 20, 26, 16, 60])
+    for t, cab, linhas in _extras(d):
+        folha(t[:31], cab, linhas, [max(12, min(40, len(str(c)) + 6)) for c in cab])
     wmet = folha("Metodologia", ["Termo", "Como é calculado"], METODOLOGIA, [22, 110])
     for row in wmet.iter_rows(min_row=2):
         row[1].alignment = Alignment(wrap_text=True, vertical="top")
@@ -857,6 +994,11 @@ def _corpo_docx(doc, d, cor, sec, sub, tabela, trecho, pmf):
     if d["falhas"]:
         sub("Falhas")
         tabela(["Quando", "Aparelho", "Ação", "Origem", "Detalhe"], [[f"{_data(x['quando']):%d/%m %H:%M}", x["aparelho"], x["acao"], _origem(x["origem"]), x["detalhe"][:140]] for x in reversed(d["falhas"])])
+    if _extras(d):
+        sec("Pessoas, metas e escritório")
+        for t, cab, linhas in _extras(d):
+            sub(t)
+            tabela(cab, linhas)
     sec("Metodologia")
     for a, b in METODOLOGIA:
         doc.paragrafo(trecho(f"{a}. ", negrito=True), b)
@@ -1157,6 +1299,10 @@ def exportar_pdf(d, modelo="pmf"):
                                              *[[f"{_data(x['quando']):%d/%m %H:%M}", x["aparelho"], x["acao"], _origem(x["origem"]), Paragraph(html.escape(x["detalhe"][:160]), cel)] for x in reversed(d["falhas"])]],
                                             [larg * w for w in (0.12, 0.17, 0.18, 0.13, 0.4)], num_a_partir=9)]
     # 7. metodologia
+    if _extras(d):
+        el += [CondPageBreak(90 * mm), S("Pessoas, metas e escritório")]
+        for t, cab, linhas in _extras(d):
+            el += [KeepTogether([SS(t), tab([cab, *linhas], [larg / len(cab)] * len(cab))])] if len(linhas) <= 12 else [SS(t), tab([cab, *linhas], [larg / len(cab)] * len(cab))]
     el += [CondPageBreak(70 * mm), S("Metodologia")]
     for a, b in METODOLOGIA:
         el.append(Paragraph(f"<b>{html.escape(a)}.</b> {html.escape(b)}", corpo)); el.append(Spacer(1, 4))

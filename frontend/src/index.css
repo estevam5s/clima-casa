@@ -224,3 +224,9 @@ header[data-cabecalho-app] { container: topo / inline-size; }
 @keyframes sino-onda { 0% { transform: scale(1); opacity: 0.55 } 100% { transform: scale(2.4); opacity: 0 } }
 .sino-onda { animation: sino-onda 3s ease-out infinite; animation-delay: 1.9s; }
 @media (prefers-reduced-motion: reduce) { .sino-tocando, .sino-onda { animation: none; } }
+
+/* Fluxos (Rotinas → Fluxos): fundo pontilhado que acompanha o arrastar/zoom e setas com o sinal "correndo" */
+.fluxo-tela { background-image: radial-gradient(circle, hsl(var(--border)) 1.2px, transparent 1.3px); }
+@keyframes fluxo-correr { to { stroke-dashoffset: -26; } }
+.fluxo-correndo { animation: fluxo-correr 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .fluxo-correndo { animation: none; } }

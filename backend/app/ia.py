@@ -343,7 +343,8 @@ def confirmar(nonce: str, origem: str = "ia") -> dict:
     db.set_cfg("ia_pendentes", pend)
     if not p or p.get("expira", 0) < time.time() or p.get("usuario_id") != str(u.get("id")):
         raise PermissionError("Esta confirmação venceu ou não é sua. Peça de novo.")
-    _checar_permissao()
+    if p["acao"] in ("desligar_todos", "cena"):
+        _checar_permissao()
     if p["acao"] == "desligar_todos":
         from . import clima
         feitos, falhas, ja = [], [], set()
@@ -360,6 +361,43 @@ def confirmar(nonce: str, origem: str = "ia") -> dict:
         r = rapi.executar_cena(int(p["valor"]))
         f = [x for x in r.get("resultados", []) if not x.get("ok")]
         return {"ok": not f, "texto": "Cena executada." if not f else f"Cena executada com {len(f)} falha(s): {f[0].get('erro', '')[:160]}"}
+    if p["acao"] in ("criar_usuario", "editar_usuario", "encerrar_sessoes"):
+        _exigir("usuarios.gerenciar", "Seu usuário não gerencia contas.")
+        from fastapi import HTTPException
+        from .rotas import contas
+        try:
+            if p["acao"] == "criar_usuario":
+                v = p["valor"]
+                contas.criar_usuario(contas.UsuarioIn(nome=v["nome"], email=v["email"], papel=v["papel"], acesso="todos", convite=True), _req())
+                return {"ok": True, "texto": f"Conta criada para {v['email']}. O convite foi enviado por e-mail."}
+            if p["acao"] == "encerrar_sessoes":
+                n = contas.encerrar_sessoes_usuario(p["valor"], _req())
+                return {"ok": True, "texto": f"{n.get('encerradas', 0)} sessão(ões) encerrada(s)."}
+            v = p["valor"]
+            alvo = db.um("SELECT * FROM usuarios WHERE id = ?", (v["id"],))
+            from . import acesso
+            proj = acesso._json(alvo["projetos"], "*")
+            papel = v.get("papel") or alvo["papel"]
+            contas.editar_usuario(v["id"], contas.UsuarioEdit(
+                nome=alvo["nome"] or alvo["email"], cargo=alvo.get("cargo") or "", papel=papel,
+                permissoes=acesso.PAPEIS[papel]["permissoes"] if v.get("papel") else (acesso._json(alvo["permissoes"], []) or []),
+                acesso="todos" if proj == "*" else "escolher", projetos=[] if proj == "*" else proj,
+                ativo=alvo["ativo"] if v.get("ativo") is None else bool(v["ativo"])), _req())
+            return {"ok": True, "texto": "Conta atualizada."}
+        except HTTPException as e:
+            raise PermissionError(str(e.detail))
+    if p["acao"] == "executar_fluxo":
+        from . import fluxos, transmissor
+        f = db.um("SELECT * FROM fluxos WHERE id = ?", (int(p["valor"]),))
+        if not f:
+            raise ValueError("Fluxo não encontrado.")
+        r = fluxos.executar(f, None, f"assistente de IA · {u.get('nome') or u.get('email')}", None, nuvem=transmissor.PAPEL == "nuvem")
+        return {"ok": r.get("estado") == "ok", "texto": f"Fluxo rodou: {len(r.get('passos') or [])} bloco(s)." + (f" Erro: {r['erro']}" if r.get("erro") else "")}
+    if p["acao"] == "ligar_fluxo":
+        _exigir("automacoes.gerenciar", "Seu usuário não gerencia fluxos.")
+        from .rotas import fluxos as rf
+        rf.ligar(int(p["valor"]["id"]), rf.AtivoIn(ativo=bool(p["valor"]["ativo"])))
+        return {"ok": True, "texto": "Fluxo " + ("ligado." if p["valor"]["ativo"] else "desligado.")}
     raise ValueError("Ação desconhecida.")
 
 
@@ -443,6 +481,129 @@ EXECUTORES = {"relatorio": t_relatorio, "listar_salas": t_listar_salas, "agentes
               "desligar_todos": t_desligar_todos, "executar_cena": t_executar_cena}
 
 
+# ================= 0.7.6: usuários, fluxos e bugs (com as permissões de quem pergunta) =================
+def _req():
+    """Pedido 'falso' para reaproveitar as rotas de contas (elas leem request.state.u) com as checagens de papel delas."""
+    from types import SimpleNamespace
+    from . import acesso
+    return SimpleNamespace(state=SimpleNamespace(u=acesso.atual.get() or {}, usuario={}))
+
+
+def _exigir(perm: str, texto: str):
+    from . import acesso
+    if not acesso.pode(perm):
+        raise PermissionError(texto)
+
+
+def _usuario_por_email(email: str) -> dict:
+    u = db.um("SELECT * FROM usuarios WHERE lower(email) = lower(?)", ((email or "").strip(),))
+    if not u:
+        raise ValueError(f"Nenhum usuário com o e-mail {email}.")
+    return u
+
+
+def t_listar_usuarios() -> list[dict]:
+    _exigir("usuarios.gerenciar", "Seu usuário não gerencia contas.")
+    from .rotas import contas
+    r = contas.listar_usuarios(_req())
+    return [{k: x.get(k) for k in ("nome", "email", "papel", "ativo", "ultimo_login", "dois_fatores", "pode_editar")} for x in r["itens"]][:80]
+
+
+def t_convidar_usuario(nome: str, email: str, papel: str = "visualizador") -> dict:
+    _exigir("usuarios.gerenciar", "Seu usuário não gerencia contas.")
+    from . import acesso
+    if papel not in acesso.PAPEIS or papel == "dono":
+        return {"ok": False, "erro": f"Papel inválido. Use: {', '.join(k for k in acesso.PAPEIS if k != 'dono')}."}
+    if not acesso.email_permitido(email):
+        return {"ok": False, "erro": f"Só e-mails @{acesso.DOMINIO_LOGIN} entram no sistema."}
+    return _pendente("criar_usuario", {"nome": nome[:80], "email": email.strip().lower(), "papel": papel},
+                     f"Convidar {nome} ({email}) como {acesso.PAPEIS[papel]['rotulo']}: ele recebe um e-mail para criar a senha")
+
+
+def t_mudar_usuario(email: str, papel: str | None = None, ativo: bool | None = None) -> dict:
+    _exigir("usuarios.gerenciar", "Seu usuário não gerencia contas.")
+    from . import acesso
+    u = _usuario_por_email(email)
+    if papel and papel not in acesso.PAPEIS:
+        return {"ok": False, "erro": "Papel inválido."}
+    partes = ([f"papel {acesso.PAPEIS[papel]['rotulo']}"] if papel else []) + (["reativar" if ativo else "desativar"] if ativo is not None else [])
+    if not partes:
+        return {"ok": False, "erro": "Diga o que mudar: papel ou ativo."}
+    return _pendente("editar_usuario", {"id": str(u["id"]), "papel": papel, "ativo": ativo}, f"{u['nome'] or u['email']}: " + " e ".join(partes))
+
+
+def t_encerrar_sessoes(email: str) -> dict:
+    _exigir("usuarios.gerenciar", "Seu usuário não gerencia contas.")
+    u = _usuario_por_email(email)
+    return _pendente("encerrar_sessoes", str(u["id"]), f"Encerrar todas as sessões de {u['nome'] or u['email']} (ele precisa entrar de novo)")
+
+
+def t_listar_fluxos() -> list[dict]:
+    from .rotas import fluxos as rf
+    return [{k: f[k] for k in ("id", "nome", "ativo", "gatilhos", "blocos", "ultimo_estado", "execucoes")} for f in rf.listar()][:50]
+
+
+def t_executar_fluxo(id: int) -> dict:
+    _exigir("aparelhos.controlar", "Seu usuário não roda fluxos.")
+    f = db.um("SELECT id, nome FROM fluxos WHERE id = ?", (int(id),))
+    if not f:
+        return {"ok": False, "erro": "Fluxo não encontrado."}
+    return _pendente("executar_fluxo", int(id), f"Executar agora o fluxo {f['nome']}")
+
+
+def t_ligar_fluxo(id: int, ativo: bool) -> dict:
+    _exigir("automacoes.gerenciar", "Seu usuário não gerencia fluxos.")
+    f = db.um("SELECT id, nome FROM fluxos WHERE id = ?", (int(id),))
+    if not f:
+        return {"ok": False, "erro": "Fluxo não encontrado."}
+    return _pendente("ligar_fluxo", {"id": int(id), "ativo": bool(ativo)}, f"{'Ligar' if ativo else 'Desligar'} o fluxo {f['nome']}")
+
+
+def t_listar_bugs(estado: str = "aberto") -> list[dict]:
+    rows = db.consultar("SELECT id, titulo, gravidade, estado, ocorrencias, atualizado_em FROM bugs WHERE (? = 'todos' OR estado = ?) ORDER BY atualizado_em DESC LIMIT 30",
+                        (estado, estado))
+    return rows
+
+
+def t_agendamentos() -> list[dict]:
+    from . import acesso
+    f, p = acesso.filtro_sql("a.projeto_id")
+    return db.consultar(f"SELECT g.id, g.nome, g.hora, g.dias, g.ativo, a.nome AS ar FROM agendamentos g JOIN aparelhos a ON a.id = g.aparelho_id WHERE true{f} ORDER BY g.hora", p)[:60]
+
+
+FERRAMENTAS += [
+    _fn("listar_usuarios", "Contas do sistema (nome, e-mail, papel, ativo, último login). Só quem gerencia usuários."),
+    _fn("convidar_usuario", "Pede para criar uma conta e mandar o convite por e-mail. Não executa: a pessoa confirma.",
+        {"nome": {"type": "string"}, "email": {"type": "string"}, "papel": {"type": "string", "enum": ["admin", "subadmin", "operador", "visualizador"]}}, ["nome", "email"]),
+    _fn("mudar_usuario", "Pede para mudar o papel de uma conta ou desativar/reativar. Não executa: a pessoa confirma.",
+        {"email": {"type": "string"}, "papel": {"type": "string", "enum": ["admin", "subadmin", "operador", "visualizador"]}, "ativo": {"type": "boolean"}}, ["email"]),
+    _fn("encerrar_sessoes", "Pede para derrubar todas as sessões de uma conta (celular perdido, desligamento). A pessoa confirma.", {"email": {"type": "string"}}, ["email"]),
+    _fn("listar_fluxos", "Fluxos de Rotinas → Fluxos (blocos estilo N8N): id, nome, ligado, gatilhos e última execução."),
+    _fn("executar_fluxo", "Pede para rodar um fluxo agora. A pessoa confirma.", {"id": {"type": "integer"}}, ["id"]),
+    _fn("ligar_fluxo", "Pede para ligar ou desligar um fluxo. A pessoa confirma.", {"id": {"type": "integer"}, "ativo": {"type": "boolean"}}, ["id", "ativo"]),
+    _fn("listar_bugs", "Bugs registrados no sistema.", {"estado": {"type": "string", "enum": ["aberto", "corrigido", "descartado", "todos"]}}),
+    _fn("agendamentos", "Agendamentos (horário, dias, ar, ligado)."),
+]
+EXECUTORES.update({"listar_usuarios": t_listar_usuarios, "convidar_usuario": t_convidar_usuario, "mudar_usuario": t_mudar_usuario,
+                   "encerrar_sessoes": t_encerrar_sessoes, "listar_fluxos": t_listar_fluxos, "executar_fluxo": t_executar_fluxo,
+                   "ligar_fluxo": t_ligar_fluxo, "listar_bugs": t_listar_bugs, "agendamentos": t_agendamentos})
+
+# Ferramentas que rodam no COMPUTADOR de quem usa o clima-ia (terminal): o servidor só repassa o pedido; o terminal executa,
+# pede o "sim" da pessoa quando muda algo e devolve o resultado (POST /api/ia/continuar). Nunca rodam no servidor.
+FERRAMENTAS_LOCAIS = [
+    _fn("ler_arquivo", "Lê um arquivo de texto no computador de quem usa o terminal.", {"caminho": {"type": "string"}, "inicio": {"type": "integer"}, "fim": {"type": "integer"}}, ["caminho"]),
+    _fn("listar_pasta", "Lista arquivos e pastas.", {"caminho": {"type": "string"}}),
+    _fn("buscar_texto", "Procura um texto (ou expressão regular) nos arquivos de uma pasta.", {"padrao": {"type": "string"}, "pasta": {"type": "string"}}, ["padrao"]),
+    _fn("escrever_arquivo", "Cria ou substitui um arquivo inteiro. A pessoa aprova antes (menos no modo aceitar ações).", {"caminho": {"type": "string"}, "conteudo": {"type": "string"}}, ["caminho", "conteudo"]),
+    _fn("editar_arquivo", "Troca um trecho exato de um arquivo por outro. A pessoa aprova antes.", {"caminho": {"type": "string"}, "procurar": {"type": "string"}, "trocar": {"type": "string"}}, ["caminho", "procurar", "trocar"]),
+    _fn("executar_comando", "Roda um comando no terminal da pessoa (bash/PowerShell). Sempre pede o sim dela antes.", {"comando": {"type": "string"}, "pasta": {"type": "string"}}, ["comando"]),
+    _fn("baixar_relatorio", "Salva o relatório do sistema num arquivo no computador (pdf, docx, xlsx, csv, html, md, json).",
+        {"formato": {"type": "string", "enum": ["pdf", "docx", "xlsx", "csv", "html", "md", "json"]}, "dias": {"type": "integer"}, "caminho": {"type": "string"}}, ["formato"]),
+]
+NOMES_LOCAIS = {f["function"]["name"] for f in FERRAMENTAS_LOCAIS}
+LOCAIS_MUDAM = {"escrever_arquivo", "editar_arquivo", "executar_comando", "baixar_relatorio"}
+
+
 def _sistema(canal: str) -> str:
     u = _u()
     return (
@@ -464,10 +625,11 @@ def _sistema(canal: str) -> str:
     )
 
 
-ACOES_IA = {"comandar_ar", "temporizador", "desligar_todos", "executar_cena"}   # o que muda algo (fora no modo plano)
+ACOES_IA = {"comandar_ar", "temporizador", "desligar_todos", "executar_cena", "convidar_usuario", "mudar_usuario", "encerrar_sessoes",
+            "executar_fluxo", "ligar_fluxo", *LOCAIS_MUDAM}   # o que muda algo (fora no modo plano)
 
 
-def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False, pensar: bool = False) -> dict:
+def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False, pensar: bool = False, locais: list[str] | None = None) -> dict:
     k = chave()
     if not k:
         raise RuntimeError("O assistente de IA não está configurado (falta a chave da NVIDIA em IA → Configuração).")
@@ -478,7 +640,8 @@ def _chamar_modelo(msgs: list[dict], modelo: str, leitura: bool = False, pensar:
         corpo = {"model": m, "messages": msgs, "temperature": 0.2, "max_tokens": 3500 if pensar else 1200,
                  "chat_template_kwargs": {"enable_thinking": bool(pensar)}}
         if m in COM_FERRAMENTAS:   # modelo sem function calling recusa "tools" (400): responde só em texto
-            corpo["tools"] = [f for f in FERRAMENTAS if not (leitura and f["function"]["name"] in ACOES_IA)]
+            corpo["tools"] = [f for f in FERRAMENTAS + [x for x in FERRAMENTAS_LOCAIS if x["function"]["name"] in (locais or [])]
+                              if not (leitura and f["function"]["name"] in ACOES_IA)]
         try:
             r = httpx.post(URL, headers={"Authorization": f"Bearer {k}", "Accept": "application/json"}, json=corpo, timeout=50)
             if r.status_code == 400 and "chat_template" in r.text:   # modelo que não aceita o ajuste: manda sem ele
@@ -591,7 +754,7 @@ def msg_lista_txt(msgs: list[dict]) -> list[str]:
 
 def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", modelo: str | None = None, leitura: bool = False,
               estilo: str | None = None, pensar: bool = False, imagens: list[str] | None = None, projeto: dict | None = None,
-              esforco: str | None = None) -> dict:
+              esforco: str | None = None, locais: list[str] | None = None) -> dict:
     """Uma rodada de conversa. `historico` = [{role: user|assistant, content}] (o último é a pergunta).
     Devolve {texto, acoes: [...feitas], confirmacoes: [{confirmacao, descricao}]}."""
     u = _u()
@@ -628,6 +791,11 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", 
     if projeto:
         from . import ia_projetos
         extra += "\n\n" + ia_projetos.contexto(projeto, pergunta, 90_000 if esforco == "maximo" else 60_000)
+    locais = [x for x in (locais or []) if x in NOMES_LOCAIS] if canal == "terminal" else []
+    if locais:
+        extra += ("\n\nTERMINAL (clima-ia): você também pode usar ferramentas no computador da pessoa: " + ", ".join(locais) + ". "
+                  "Caminhos relativos são da pasta onde ela abriu o terminal. Escrever, editar, rodar comando e baixar pedem o sim dela; "
+                  "diga o que vai fazer antes. Nunca apague nada sem ela pedir com todas as letras. Mostre só o essencial das saídas.")
     msgs = [{"role": "system", "content": _sistema(canal) + ("\n- MODO PLANO (só leitura): você NÃO pode mudar nada; consulte, explique e proponha um plano passo a passo." if leitura else "") + extra}]
     for h in historico[-(30 if esforco == "maximo" else 16):]:
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
@@ -641,14 +809,14 @@ def conversar(historico: list[dict], canal: str = "painel", origem: str = "ia", 
     acoes, confirmacoes = [], []
     gasto = {"tokens": 0}
     try:
-        return _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar)
+        return _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar, locais)
     finally:
         ia_uso.registrar(u, gasto["tokens"], modelo, canal)
 
 
-def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar=False) -> dict:
+def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, gasto, pensar=False, locais=None) -> dict:
     for _ in range(RODADAS):
-        m = _chamar_modelo(msgs, modelo, leitura, pensar)
+        m = _chamar_modelo(msgs, modelo, leitura, pensar, locais)
         gasto["tokens"] += int(m.pop("_tokens", 0) or 0)
         m.pop("_modelo", None)
         chamadas = m.get("tool_calls") or []
@@ -658,12 +826,16 @@ def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, g
             db.registrar(origem, "Conversa com a IA", detalhe=f"{u.get('nome') or u.get('email') or '-'}: {pergunta[:120]}")
             return {"texto": texto, "acoes": acoes, "confirmacoes": confirmacoes, "modelo": modelo, "tokens": gasto["tokens"]}
         msgs.append({"role": "assistant", "content": m.get("content") or "", "tool_calls": chamadas})
+        pendentes = []
         for ch in chamadas:
             nome = ch["function"]["name"]
             try:
                 args = json.loads(ch["function"].get("arguments") or "{}")
             except json.JSONDecodeError:
                 args = {}
+            if nome in (locais or []):   # roda no terminal: devolve o pedido e espera o resultado
+                pendentes.append({"id": ch.get("id"), "nome": nome, "args": args})
+                continue
             fn = EXECUTORES.get(nome)
             try:
                 if not fn:
@@ -678,5 +850,40 @@ def _rodadas(msgs, modelo, leitura, historico, origem, u, acoes, confirmacoes, g
             if isinstance(res, dict) and res.get("aguardando_confirmacao"):
                 confirmacoes.append({"confirmacao": res["confirmacao"], "descricao": res["descricao"]})
             msgs.append({"role": "tool", "tool_call_id": ch.get("id"), "content": json.dumps(res, ensure_ascii=False, default=str)[:6000]})
+        if pendentes:
+            token = secrets.token_urlsafe(16)
+            est = db.cfg("ia_cli_estado") or {}
+            agora = time.time()
+            est = {k: v for k, v in est.items() if v.get("expira", 0) > agora}
+            est[token] = {"usuario_id": str(u.get("id")), "msgs": msgs, "modelo": modelo, "leitura": leitura, "pensar": pensar, "locais": locais,
+                          "origem": origem, "pergunta": next((h["content"] for h in reversed(historico) if h.get("role") == "user"), "")[:500],
+                          "pendentes": [p["id"] for p in pendentes], "expira": agora + 900}
+            db.set_cfg("ia_cli_estado", est)
+            return {"texto": (m.get("content") or "").strip(), "pendentes_locais": pendentes, "continuar": token, "acoes": acoes,
+                    "confirmacoes": confirmacoes, "modelo": modelo, "tokens": gasto["tokens"]}
     return {"texto": "Precisei de muitas consultas para responder. Pergunte de um jeito mais direto.", "acoes": acoes,
             "confirmacoes": confirmacoes, "modelo": modelo}
+
+
+
+def continuar(token: str, resultados: list[dict]) -> dict:
+    """Volta de uma pausa por ferramentas locais: junta o que o terminal devolveu e segue a conversa."""
+    u = _u()
+    est = db.cfg("ia_cli_estado") or {}
+    e = est.pop(token, None)
+    db.set_cfg("ia_cli_estado", est)
+    if not e or e.get("expira", 0) < time.time() or e.get("usuario_id") != str(u.get("id")):
+        raise PermissionError("Esta etapa venceu ou não é sua. Pergunte de novo.")
+    from . import ia_uso
+    ia_uso.checar(u)
+    por_id = {str(r.get("id")): r for r in resultados}
+    msgs = e["msgs"]
+    for pid in e["pendentes"]:
+        r = por_id.get(str(pid)) or {"conteudo": "A pessoa não executou (sem resultado)."}
+        msgs.append({"role": "tool", "tool_call_id": pid, "content": str(r.get("conteudo") or "")[:12000]})
+    acoes, confirmacoes, gasto = [], [], {"tokens": 0}
+    try:
+        return _rodadas(msgs, e["modelo"], e["leitura"], [{"role": "user", "content": e.get("pergunta") or ""}], e["origem"], u, acoes, confirmacoes, gasto,
+                        e.get("pensar", False), e.get("locais") or [])
+    finally:
+        ia_uso.registrar(u, gasto["tokens"], e["modelo"], "terminal")

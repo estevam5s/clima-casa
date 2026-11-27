@@ -12,6 +12,12 @@ Login: `clima-ia login` abre o navegador; o site mostra um código de uso único
 que só este terminal tem). Limites de uso: sessão de 5 horas e semana, definidos pelo dono (/uso).
 Segurança: /seguranca, /ataques, /ips, /ip, /bloquear, /desbloquear, /escudo, /sessoes, /telegram, /analisar,
 /diagnostico (TLS, permissões, relógio, versão), /atualizar, /auditoria. Segredos colados na pergunta são ocultados.
+
+1.8.0: a IA também trabalha NESTE computador (ler, listar e procurar arquivos; criar e editar arquivos; rodar comandos; salvar
+relatórios), sempre na pasta onde o clima-ia foi aberto (ou em qualquer lugar com /liberdade total). Criar, editar, rodar e
+salvar mostram o que vai acontecer e pedem o seu sim; rodar comando pede SEMPRE, até no modo aceitar ações. No sistema:
+contas (listar, convidar, mudar papel, desativar, derrubar sessões), fluxos (listar, rodar, ligar) e bugs, com as suas
+permissões e com confirmação no que muda algo. /usuarios e /fluxos mostram direto.
 """
 from __future__ import annotations
 
@@ -29,6 +35,9 @@ import sys
 import threading
 import time
 import webbrowser
+import difflib
+import fnmatch
+import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -49,7 +58,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-VERSAO = "1.7.0"
+VERSAO = "1.8.0"
 API = os.environ.get("CLIMA_URL", "https://app.zynio.com.br")
 PASTA = Path.home() / ".clima-ia"
 SESSAO = PASTA / "sessao.json"
@@ -79,6 +88,8 @@ COMANDOS = [
     ("/auditoria", "O que você fez por aqui (registro local)"), ("/novidades", "O que mudou na última versão"),
     ("/config", "Cores, tema do código, modo padrão, dicas e som"), ("/tema", "Tema e cor de destaque"),
     ("/retomar", "Voltar a uma conversa anterior"), ("/atalhos", "Teclas e atalhos"),
+    ("/usuarios", "Contas do sistema (quem gerencia usuários)"), ("/fluxos", "Fluxos de Rotinas → Fluxos e a última execução"),
+    ("/liberdade", "Onde a IA mexe em arquivos: /liberdade pasta | total"), ("/ferramentas", "Ligar/desligar ferramentas neste computador"),
     ("/limpar", "Começa uma conversa nova"), ("/conta", "Quem está logado"), ("/login", "Entrar com a sua conta"),
     ("/logout", "Sair desta conta neste computador"), ("/sair", "Fechar o clima-ia"),
 ]
@@ -107,7 +118,8 @@ CORES = {"verde": ("#2fbf9b", "#0f766a"), "laranja": ("#d77757", "#9a4a2f"), "az
          "rosa": ("#f7768e", "#a3364c"), "ciano": ("#7dcfff", "#2a7fa6"), "amarelo": ("#e0af68", "#9a7337"), "branco": ("#e6e6e6", "#8a8a8a")}
 TEMAS_CODIGO = {"monokai": "Monokai", "dracula": "Dracula", "one-dark": "One Dark", "github-dark": "GitHub escuro", "nord": "Nord",
                 "gruvbox-dark": "Gruvbox escuro", "solarized-dark": "Solarized escuro", "solarized-light": "Solarized claro", "vs": "Visual Studio claro", "friendly": "Claro suave"}
-PADRAO_CFG = {"tema": "escuro", "cor": "verde", "codigo": "monokai", "modo": 0, "dicas": True, "som": False, "tokens": True}
+PADRAO_CFG = {"tema": "escuro", "cor": "verde", "codigo": "monokai", "modo": 0, "dicas": True, "som": False, "tokens": True,
+              "liberdade": "pasta", "locais": True, "comandos": True}
 
 
 def ler_config() -> dict:
@@ -518,7 +530,7 @@ def perguntar(q: str):
     q = limpar_segredos(q)
     EST["hist"].append({"role": "user", "content": q[:4000]})
     modo = MODOS[EST["modo"]][0]
-    corpo = {"mensagens": EST["hist"][-20:], "modelo": EST["modelo"] or None, "leitura": modo == "plano"}
+    corpo = {"mensagens": EST["hist"][-20:], "modelo": EST["modelo"] or None, "leitura": modo == "plano", "terminal": True, "locais": ferramentas_ligadas()}
     if EST["conversa"]:
         corpo["conversa_id"] = EST["conversa"]
     estimado = sum(len(m["content"]) for m in corpo["mensagens"]) // 4 + 2500
@@ -537,6 +549,20 @@ def perguntar(q: str):
         return
     EST["conversa"] = r.get("conversa_id") or EST["conversa"]
     mostrar_acoes(r.get("acoes"))
+    # ferramentas neste computador: executa, devolve o resultado e a IA continua (pode repetir algumas vezes)
+    voltas = 0
+    while r.get("pendentes_locais") and voltas < 12:
+        voltas += 1
+        if (r.get("texto") or "").strip():
+            con.print(Text("● ", style=LAVANDA), end=""); con.print(Markdown(r["texto"], code_theme=CFG.get("codigo") or "monokai"))
+        resultados = [{"id": p.get("id"), "conteudo": executar_local(p.get("nome"), p.get("args") or {})} for p in r["pendentes_locais"]]
+        try:
+            with Pensando(2500):
+                r = chamar("POST", "/api/ia/continuar", {"continuar": r["continuar"], "resultados": resultados}, timeout=180)
+        except (RuntimeError, KeyboardInterrupt) as e:
+            con.print(f"[{ERRO}]  {e or 'Interrompido.'}[/]")
+            return
+        mostrar_acoes(r.get("acoes"))
     texto = r.get("texto") or ""
     con.print(Text("● ", style=LAVANDA), end="")
     con.print(Markdown(texto, code_theme=CFG.get("codigo") or "monokai"))
@@ -983,6 +1009,158 @@ def rodape():
     return HTML(f'<style fg="{REGUA}">{"─" * w}</style>\n<style fg="{cor}">{g} {rot}</style> <style fg="{CINZA}">{dica}</style>{extra}')
 
 
+# ---------------- ferramentas neste computador (pedidas pela IA, executadas aqui) ----------------
+LOCAIS = ["ler_arquivo", "listar_pasta", "buscar_texto", "escrever_arquivo", "editar_arquivo", "executar_comando", "baixar_relatorio"]
+IGNORAR = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", "dist", "build", ".cache", ".DS_Store"}
+# comandos que nunca rodam, nem com o sim (apagar o disco, formatar, desligar a máquina, bomba de processos)
+PROIBIDOS = re.compile(r"(rm\s+-[a-z]*r[a-z]*f?\s+(/|~|\$HOME)(\s|$)|mkfs|dd\s+if=.*of=/dev/|:\(\)\s*\{|shutdown|reboot|halt\b|format\s+[a-z]:|"
+                       r"Remove-Item\s+.*-Recurse.*\s+[A-Z]:\\\s*$|chmod\s+-R\s+777\s+/)", re.I)
+
+
+def ferramentas_ligadas() -> list[str]:
+    if not CFG.get("locais", True):
+        return []
+    return [f for f in LOCAIS if f != "executar_comando" or CFG.get("comandos", True)]
+
+
+def _caminho(c: str) -> Path:
+    base = Path.cwd().resolve()
+    p = (base / os.path.expanduser(c or ".")).resolve()
+    if CFG.get("liberdade", "pasta") != "total" and base != p and base not in p.parents:
+        raise PermissionError(f"Fora da pasta atual ({base}). Use /liberdade total para permitir.")
+    return p
+
+
+def _rel(p: Path) -> str:
+    try:
+        return str(p.relative_to(Path.cwd().resolve())) or "."
+    except ValueError:
+        return str(p)
+
+
+def _diff(antes: str, depois: str, nome: str) -> Text:
+    t = Text()
+    linhas = list(difflib.unified_diff(antes.splitlines(), depois.splitlines(), f"a/{nome}", f"b/{nome}", lineterm="", n=2))
+    for l in linhas[:80]:
+        t.append(l + "\n", style=OK if l.startswith("+") and not l.startswith("+++") else ERRO if l.startswith("-") and not l.startswith("---") else CINZA)
+    if len(linhas) > 80:
+        t.append(f"… mais {len(linhas) - 80} linha(s)\n", style=CINZA)
+    return t
+
+
+def executar_local(nome: str, a: dict) -> str:
+    """Roda uma ferramenta local e devolve o texto que volta para a IA (erros também voltam, para ela corrigir)."""
+    try:
+        if nome == "ler_arquivo":
+            p = _caminho(a.get("caminho"))
+            txt = p.read_text(encoding="utf-8", errors="replace")
+            linhas = txt.splitlines()
+            ini, fim = max(1, int(a.get("inicio") or 1)), int(a.get("fim") or min(len(linhas), 2000))
+            ferramenta("Ler", _rel(p), f"{len(linhas)} linha(s)" + (f", trecho {ini}-{fim}" if a.get("inicio") or a.get("fim") else ""))
+            return "\n".join(f"{i}\t{l}" for i, l in enumerate(linhas[ini - 1:fim], start=ini))[:60000]
+        if nome == "listar_pasta":
+            p = _caminho(a.get("caminho") or ".")
+            itens = sorted(p.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+            saida = [f"{'📁 ' if x.is_dir() else ''}{x.name}{'/' if x.is_dir() else f'  ({x.stat().st_size} B)'}" for x in itens if x.name not in IGNORAR][:400]
+            ferramenta("Listar", _rel(p), f"{len(saida)} item(ns)")
+            return "\n".join(saida) or "(vazia)"
+        if nome == "buscar_texto":
+            p = _caminho(a.get("pasta") or ".")
+            try:
+                rx = re.compile(a.get("padrao") or "", re.I)
+            except re.error:
+                rx = re.compile(re.escape(a.get("padrao") or ""), re.I)
+            achados = []
+            for raiz, pastas, arqs in os.walk(p):
+                pastas[:] = [d for d in pastas if d not in IGNORAR]
+                for f in arqs:
+                    fp = Path(raiz) / f
+                    if fp.stat().st_size > 2_000_000 or fnmatch.fnmatch(f, "*.min.*"):
+                        continue
+                    try:
+                        for i, l in enumerate(fp.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+                            if rx.search(l):
+                                achados.append(f"{_rel(fp)}:{i}: {l.strip()[:200]}")
+                    except OSError:
+                        continue
+                    if len(achados) >= 300:
+                        break
+            ferramenta("Buscar", a.get("padrao", "")[:40], f"{len(achados)} resultado(s)")
+            return "\n".join(achados[:300]) or "Nada encontrado."
+        if nome == "escrever_arquivo":
+            p = _caminho(a.get("caminho"))
+            novo = str(a.get("conteudo") or "")
+            antes = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+            con.print(Panel(_diff(antes, novo, _rel(p)) if antes else Text("\n".join(novo.splitlines()[:40]) + ("\n…" if novo.count("\n") > 40 else ""), style=LAVANDA),
+                            title=Text(f"{'Substituir' if p.exists() else 'Criar'} {_rel(p)}", style=AZUL), title_align="left", border_style=REGUA))
+            if not permissao(f"{'Substituir' if p.exists() else 'Criar'} {_rel(p)} ({len(novo.splitlines())} linha(s))?"):
+                return "A pessoa recusou. Pergunte o que fazer diferente."
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(novo, encoding="utf-8")
+            auditar("arquivo_escrito", _rel(p))
+            ferramenta("Escrever", _rel(p), f"{len(novo.splitlines())} linha(s) gravadas")
+            return f"Arquivo gravado: {_rel(p)}"
+        if nome == "editar_arquivo":
+            p = _caminho(a.get("caminho"))
+            antes = p.read_text(encoding="utf-8")
+            alvo, troca = str(a.get("procurar") or ""), str(a.get("trocar") or "")
+            n = antes.count(alvo) if alvo else 0
+            if n != 1:
+                ferramenta("Editar", _rel(p), "trecho não encontrado" if not n else f"trecho aparece {n} vezes", False)
+                return f"Não editei: o trecho aparece {n} vez(es) em {_rel(p)}. Mande um trecho único (com mais contexto)."
+            depois = antes.replace(alvo, troca, 1)
+            con.print(Panel(_diff(antes, depois, _rel(p)), title=Text(f"Editar {_rel(p)}", style=AZUL), title_align="left", border_style=REGUA))
+            if not permissao(f"Aplicar esta mudança em {_rel(p)}?"):
+                return "A pessoa recusou a edição."
+            p.write_text(depois, encoding="utf-8")
+            auditar("arquivo_editado", _rel(p))
+            ferramenta("Editar", _rel(p), "mudança aplicada")
+            return f"Editado: {_rel(p)}"
+        if nome == "executar_comando":
+            cmd = str(a.get("comando") or "").strip()
+            pasta = _caminho(a.get("pasta") or ".")
+            if not cmd:
+                return "Comando vazio."
+            if PROIBIDOS.search(cmd):
+                ferramenta("Comando", cmd[:60], "recusado: comando destrutivo", False)
+                auditar("comando_recusado", cmd[:200])
+                return "Recusado: esse comando pode destruir dados ou desligar a máquina. Não rodo, nem com permissão."
+            con.print(Panel(Text(f"$ {cmd}", style=LAVANDA), title=Text(f"Rodar em {_rel(pasta)}", style=AZUL), title_align="left", border_style=REGUA))
+            if not permissao("Rodar este comando neste computador?", sempre_perguntar=True):
+                return "A pessoa recusou o comando."
+            auditar("comando", cmd[:200])
+            t0 = time.time()
+            r = subprocess.run(cmd, shell=True, cwd=str(pasta), capture_output=True, text=True, timeout=180, errors="replace")
+            saida = ((r.stdout or "") + (("\n[stderr]\n" + r.stderr) if r.stderr else "")).strip()
+            ferramenta("Comando", cmd[:60], f"saiu com {r.returncode} em {time.time() - t0:.1f} s", r.returncode == 0)
+            for l in saida.splitlines()[:12]:
+                con.print(Text(f"     {l[:200]}", style=CINZA))
+            return f"código de saída {r.returncode}\n{saida[-12000:]}"
+        if nome == "baixar_relatorio":
+            fmt = a.get("formato") or "pdf"
+            dias = max(1, min(int(a.get("dias") or 30), 365))
+            p = _caminho(a.get("caminho") or f"relatorio-clima-{time.strftime('%Y%m%d')}.{'zip' if fmt == 'csv' else fmt}")
+            if not permissao(f"Salvar o relatório ({fmt.upper()}, {dias} dias) em {_rel(p)}?"):
+                return "A pessoa recusou."
+            s_ = _ler_sessao()
+            r = httpx.get(f"{API}/api/relatorios/exportar", params={"formato": fmt, "dias": dias}, timeout=180,
+                          headers={"Authorization": f"Bearer {s_['access']}", "User-Agent": f"clima-ia/{VERSAO}"})
+            if r.status_code >= 400:
+                raise RuntimeError(_detalhe(r))
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(r.content)
+            auditar("relatorio_salvo", _rel(p))
+            ferramenta("Relatório", _rel(p), f"{len(r.content) // 1024} KB salvos")
+            return f"Relatório salvo em {_rel(p)} ({len(r.content)} bytes)."
+        return f"Ferramenta desconhecida: {nome}"
+    except subprocess.TimeoutExpired:
+        ferramenta("Comando", str(a.get("comando"))[:60], "passou de 3 min: parei", False)
+        return "O comando passou de 3 minutos e foi parado."
+    except (OSError, PermissionError, ValueError, RuntimeError, UnicodeDecodeError) as e:
+        ferramenta(nome.replace("_", " ").capitalize(), str(a.get("caminho") or a.get("pasta") or "")[:50], str(e)[:160], False)
+        return f"Erro: {e}"
+
+
 def comando_local(q: str) -> bool:
     partes = q.split()
     c, args = partes[0].lower(), partes[1:]
@@ -1054,6 +1232,26 @@ def comando_local(q: str) -> bool:
             atualizar()
         elif c == "/auditoria":
             ver_auditoria()
+        elif c == "/usuarios":
+            r = chamar("GET", "/api/usuarios")
+            tabela("Contas", ["Nome", "E-mail", "Papel", "Ativo", "Último login"],
+                   [[u.get("nome") or "-", u.get("email"), u.get("papel_rotulo") or u.get("papel"), "sim" if u.get("ativo") else "não", (u.get("ultimo_login") or "")[:16].replace("T", " ")] for u in r.get("itens", [])])
+        elif c == "/fluxos":
+            r = chamar("GET", "/api/fluxos")
+            tabela("Fluxos", ["Id", "Nome", "Ligado", "Gatilhos", "Última"], [[f["id"], f["nome"], "sim" if f["ativo"] else "não", ", ".join(f["gatilhos"]) or "-",
+                                                                             (f.get("ultimo_estado") or "-") + (f" · {_quando(f['ultima_exec'])}" if f.get("ultima_exec") else "")] for f in r])
+        elif c == "/liberdade":
+            if args and args[0] in ("pasta", "total"):
+                CFG["liberdade"] = args[0]; gravar_config(CFG)
+            con.print(f"[{CINZA}]  Arquivos: {'só dentro de ' + str(Path.cwd()) if CFG.get('liberdade', 'pasta') == 'pasta' else 'qualquer pasta deste computador'} "
+                      f"(/liberdade pasta | total). Criar, editar e rodar comando sempre mostram o que vai acontecer.[/]")
+        elif c == "/ferramentas":
+            if args and args[0] in ("ligar", "desligar"):
+                CFG["locais"] = args[0] == "ligar"; gravar_config(CFG)
+            if len(args) > 1 and args[0] == "comandos" and args[1] in ("ligar", "desligar"):
+                CFG["comandos"] = args[1] == "ligar"; gravar_config(CFG)
+            con.print(f"[{CINZA}]  Ferramentas neste computador: {', '.join(ferramentas_ligadas()) or 'desligadas'}. "
+                      f"(/ferramentas ligar|desligar · /ferramentas comandos ligar|desligar)[/]")
         elif c in PERGUNTAS:
             perguntar(PERGUNTAS[c])
         else:

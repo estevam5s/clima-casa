@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CalendarOff, Plus, Trash2 } from 'lucide-react'
 import { api } from '../api'
-import { Aviso, Botao, Interruptor, useToast } from './ui'
+import { Aviso, Botao, Esqueleto, Interruptor, useToast } from './ui'
 
 // Feriados e férias: a agenda não liga os ares em feriado (se a opção estiver ligada) nem durante uma pausa. O agente
 // confere antes de cada disparo e registra na Atividade por que não ligou. Só dono e admin mudam (vale para todos).
@@ -15,7 +15,8 @@ export default function RegrasAgenda({ podeMudar }) {
   const [salvando, setSalvando] = useState(false)
   const carregar = () => api.get('/api/agendamentos/regras').then((r) => { setD(r); setF(r.regras) }).catch(() => {})
   useEffect(() => { carregar() }, [])
-  if (!d || !f) return null
+  // enquanto carrega, reserva o espaço do cartão: antes ele surgia do nada e empurrava a tela (CLS na Agenda e em Configurações)
+  if (!d || !f) return <section className="cartao min-h-[330px] space-y-3 p-5" aria-busy="true"><Esqueleto className="h-5 w-48" /><Esqueleto className="h-4 w-3/4" /><Esqueleto className="h-24 w-full" /></section>
   const salvar = async (mudanca = {}) => {
     const corpo = { ...f, ...mudanca }
     setSalvando(true)

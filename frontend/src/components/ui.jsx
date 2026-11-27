@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { motion } from 'framer-motion'
 import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react'
 import { simboloTemp, temp } from '../marcaAtual'
+import { gravarCache, lerCache } from '../cacheTela'
 
 const VARIANTES = {
   primario: 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50',
@@ -161,12 +162,16 @@ export function ToastProvider({ children }) {
   )
 }
 
-export function useDados(carregar, deps = []) {
-  const [dados, setDados] = useState(null)
+// cache (opcional): chave em cacheTela; a tela abre na hora com o que a pessoa viu da última vez e troca quando o
+// servidor responde. Melhora o LCP das telas cujo conteúdo principal depende da API (ex.: Novidades, Bugs).
+export function useDados(carregar, deps = [], { cache } = {}) {
+  const [dados, setDados] = useState(() => (cache ? lerCache(cache) : null))
   const [erro, setErro] = useState(null)
   const recarregar = useCallback(async () => {
     try {
-      setDados(await carregar())
+      const r = await carregar()
+      setDados(r)
+      if (cache) gravarCache(cache, r)
       setErro(null)
     } catch (e) {
       setErro(e.message)

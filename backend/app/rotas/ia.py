@@ -27,6 +27,13 @@ class ConversaIn(BaseModel):
     esforco: str | None = Field(None, pattern="^(baixo|medio|alto|maximo)$")   # como no Claude: alto/máximo = pensa antes
     projeto_id: int | None = None       # conversa dentro de um projeto (instruções + arquivos como contexto)
     imagens: list[str] = Field(default_factory=list, max_length=2)   # data:image/… (prints, foto do controle)
+    terminal: bool = False              # clima-ia: canal "terminal" (formato e ferramentas locais)
+    locais: list[str] = Field(default_factory=list, max_length=12)   # ferramentas que o terminal executa no computador da pessoa
+
+
+class ContinuarIn(BaseModel):
+    continuar: str = Field(min_length=10, max_length=64)
+    resultados: list[dict] = Field(default_factory=list, max_length=12)   # [{id, conteudo}] do que o terminal executou
 
 
 class ConversaEditIn(BaseModel):
@@ -86,8 +93,8 @@ def conversar(d: ConversaIn):
         raise HTTPException(400, "A última mensagem precisa ser a sua pergunta.")
     try:
         proj = _projeto(d.projeto_id) if d.projeto_id else None
-        r = ia.conversar([m.model_dump() for m in d.mensagens], "painel", modelo=d.modelo, leitura=d.leitura, estilo=d.estilo,
-                         pensar=d.pensar or d.esforco in ("alto", "maximo"), imagens=d.imagens, projeto=proj, esforco=d.esforco)
+        r = ia.conversar([m.model_dump() for m in d.mensagens], "terminal" if d.terminal else "painel", modelo=d.modelo, leitura=d.leitura, estilo=d.estilo,
+                         pensar=d.pensar or d.esforco in ("alto", "maximo"), imagens=d.imagens, projeto=proj, esforco=d.esforco, locais=d.locais)
     except (PermissionError, RuntimeError) as e:
         _erro(e)
     # salva a conversa (nova ou existente) com a resposta; o título nasce da primeira pergunta
@@ -103,6 +110,15 @@ def conversar(d: ConversaIn):
                                  (uid, titulo, json.dumps(msgs[-80:], ensure_ascii=False), agora, agora, d.projeto_id))["id"]
         r["titulo"] = titulo
     return r
+
+
+@rotas_ia.post("/continuar")
+def continuar(d: ContinuarIn):
+    """clima-ia: o terminal executou as ferramentas locais e devolve os resultados para a IA seguir."""
+    try:
+        return ia.continuar(d.continuar, [{"id": str(r.get("id"))[:80], "conteudo": str(r.get("conteudo") or "")[:12000]} for r in d.resultados])
+    except (PermissionError, RuntimeError) as e:
+        _erro(e)
 
 
 def _uid() -> str:

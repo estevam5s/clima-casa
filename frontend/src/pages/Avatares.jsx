@@ -330,9 +330,10 @@ export default function Avatares() {
           <aside className="space-y-3 xl:sticky xl:top-20 xl:self-start">
             <label className="relative block"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input className="campo pl-9" placeholder="Buscar" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar avatar" /></label>
             <p className="text-xs text-muted-foreground">{lista.length} modelo(s){pode && !busca && lista.length > 1 ? ' · arraste pela alça para mudar a ordem' : ''}</p>
+            {/* 1º desenho já com a lista (a ordem chega num efeito): antes a lista nascia vazia e empurrava o visualizador (CLS) */}
             {pode && !busca ? (
-              <Reorder.Group axis="y" values={ordem} onReorder={setOrdem} layoutScroll className="max-h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100dvh-15rem)]">
-                {ordem.map((id) => porId[id] && <ItemLista key={id} a={porId[id]} ativo={atual?.id === id} arrastavel aoEscolher={escolher} aoSoltar={gravarOrdem} />)}
+              <Reorder.Group axis="y" values={ordem.length ? ordem : lista.map((a) => a.id)} onReorder={setOrdem} layoutScroll className="max-h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100dvh-15rem)]">
+                {(ordem.length ? ordem : lista.map((a) => a.id)).map((id) => porId[id] && <ItemLista key={id} a={porId[id]} ativo={atual?.id === id} arrastavel aoEscolher={escolher} aoSoltar={gravarOrdem} />)}
               </Reorder.Group>
             ) : (
               <ul className="max-h-[22rem] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100dvh-15rem)]">

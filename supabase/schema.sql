@@ -834,3 +834,52 @@ create table if not exists public.bugs_historico (
 );
 create index if not exists ix_bugs_historico_bug on public.bugs_historico (bug_id, quando);
 alter table public.bugs_historico enable row level security;
+
+-- Tradução do painel (0.7.6): textos vistos na tela e traduções por idioma (backend/app/idiomas.py, escopo "painel")
+create table if not exists public.painel_textos (
+  texto text primary key,
+  rotas jsonb not null default '[]'::jsonb,
+  origem text not null default 'navegador',
+  ativo boolean not null default true,
+  visto_em bigint
+);
+create table if not exists public.painel_traducoes (
+  texto text not null references public.painel_textos(texto) on delete cascade,
+  idioma text not null,
+  traducao text not null,
+  origem text not null default 'ia',
+  revisada boolean not null default false,
+  atualizado_em bigint,
+  primary key (texto, idioma)
+);
+alter table public.painel_textos enable row level security;
+alter table public.painel_traducoes enable row level security;
+
+-- Fluxos (0.7.6): automações em blocos no estilo N8N (backend/app/fluxos.py) e o histórico de cada execução
+create table if not exists public.fluxos (
+  id bigint generated always as identity primary key,
+  nome text not null,
+  descricao text not null default '',
+  ativo boolean not null default false,
+  grafo jsonb not null default '{"nos":[],"ligacoes":[]}'::jsonb,
+  estado jsonb not null default '{}'::jsonb,
+  criado_por text,
+  criado_em bigint,
+  atualizado_em bigint,
+  ultima_exec bigint,
+  ultimo_estado text,
+  execucoes integer not null default 0
+);
+create table if not exists public.fluxos_execucoes (
+  id bigint generated always as identity primary key,
+  fluxo_id bigint not null references public.fluxos(id) on delete cascade,
+  inicio bigint,
+  fim bigint,
+  estado text,
+  origem text,
+  passos jsonb not null default '[]'::jsonb,
+  erro text
+);
+create index if not exists fluxos_execucoes_fluxo on public.fluxos_execucoes (fluxo_id, id desc);
+alter table public.fluxos enable row level security;
+alter table public.fluxos_execucoes enable row level security;

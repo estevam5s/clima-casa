@@ -89,6 +89,7 @@ import NaoEncontrado from './pages/NaoEncontrado'
 import Cursor from './components/Cursor'
 import { ligarSomDeClique } from './som'
 import { lerPreferencias } from './preferencias'
+import { iniciarTraducaoPainel } from './i18nPainel'
 
 // Volta do login do Spotify (/musica?code=…&state=…): troca o código na hora, antes da checagem de login do painel.
 // Funciona mesmo se o Spotify devolveu num navegador/app onde o painel não está logado; o resultado fica guardado
@@ -120,13 +121,15 @@ vigiarErros()
   window.addEventListener('load', () => setTimeout(() => ocioso(pre, { timeout: 8000 }), 4000), { once: true })
 })()
 ligarSomDeClique(lerPreferencias)   // som ao clicar (preferência de cada navegador)
+// idioma do painel escolhido antes (Português = nada a fazer)
+setTimeout(iniciarTraducaoPainel, 0)
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <TemaProvider>
     <MarcaProvider>
     <ToastProvider>
       <Cursor />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true }}>
         <ComProtecao>
         {/* cada tela é baixada só quando é aberta: o pacote inicial tinha 3 MB com todas as telas juntas */}
         <Suspense fallback={<Carregando />}>

@@ -9,7 +9,7 @@ import { Aviso, Botao, Cabecalho, Esqueleto, Interruptor, Secao, Selo, useToast 
 const SITE = 'https://zynio.com.br'
 const FILTROS = [['todos', 'Todos'], ['faltando', 'Sem tradução'], ['ia', 'Feitos pela IA'], ['revisadas', 'Revisados']]
 
-function Linha({ item, idioma, aoSalvar }) {
+function Linha({ item, idioma, escopo, aoSalvar }) {
   const [v, setV] = useState(item.traducao || '')
   const [estado, setEstado] = useState('')
   const ref = useRef(item.traducao || '')
@@ -17,7 +17,7 @@ function Linha({ item, idioma, aoSalvar }) {
   const salvar = async () => {
     if (v.trim() === ref.current.trim()) return
     setEstado('salvando')
-    try { await api.put('/api/idiomas/traducao', { texto: item.texto, idioma, traducao: v }); ref.current = v; setEstado('ok'); aoSalvar?.() } catch { setEstado('erro') }
+    try { await api.put('/api/idiomas/traducao', { texto: item.texto, idioma, traducao: v, escopo }); ref.current = v; setEstado('ok'); aoSalvar?.() } catch { setEstado('erro') }
   }
   return (
     <li className="grid grid-cols-1 gap-2 border-b border-border/60 py-3 md:grid-cols-2">
@@ -31,7 +31,7 @@ function Linha({ item, idioma, aoSalvar }) {
         <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
           {item.revisada || estado === 'ok' ? <Selo cor="verde">revisada</Selo> : item.origem === 'ia' ? <Selo cor="azul">IA</Selo> : !item.traducao ? <Selo cor="ambar">falta</Selo> : null}
           {estado === 'salvando' && 'salvando…'}{estado === 'erro' && <span className="text-red-600">não salvou</span>}
-          {item.origem === 'ia' && !item.revisada && estado !== 'ok' && item.traducao && <button className="hover:text-foreground" onClick={() => { setV(v); api.put('/api/idiomas/traducao', { texto: item.texto, idioma, traducao: v }).then(() => setEstado('ok')).catch(() => setEstado('erro')) }}>Marcar como revisada</button>}
+          {item.origem === 'ia' && !item.revisada && estado !== 'ok' && item.traducao && <button className="hover:text-foreground" onClick={() => { setV(v); api.put('/api/idiomas/traducao', { texto: item.texto, idioma, traducao: v, escopo }).then(() => setEstado('ok')).catch(() => setEstado('erro')) }}>Marcar como revisada</button>}
         </div>
       </div>
     </li>
@@ -52,15 +52,17 @@ export default function Idiomas() {
   const [lista, setLista] = useState(null)
   const [pagina, setPagina] = useState(0)
   const [pendentes, setPendentes] = useState(null)
+  const [escopo, setEscopo] = useState(() => (new URLSearchParams(location.search).get('escopo') === 'painel' ? 'painel' : 'site'))
+  const painel = escopo === 'painel'
   const pode = ['dono', 'admin'].includes(sessao?.papel)
-  const carregar = useCallback(() => api.get('/api/idiomas').then((r) => { setE(r); setErro(null) }).catch((x) => setErro(x.message)), [])
+  const carregar = useCallback(() => api.get(`/api/idiomas?escopo=${escopo}`).then((r) => { setE(r); setErro(null) }).catch((x) => setErro(x.message)), [escopo])
   const carregarLista = useCallback(() => {
-    const p = new URLSearchParams({ idioma, filtro, busca: q, limite: 60, depois: pagina * 60 })
+    const p = new URLSearchParams({ idioma, filtro, busca: q, limite: 60, depois: pagina * 60, escopo })
     api.get(`/api/idiomas/textos?${p}`).then(setLista).catch(() => setLista({ itens: [], total: 0 }))
-  }, [idioma, filtro, q, pagina])
+  }, [idioma, filtro, q, pagina, escopo])
   useEffect(() => { if (pode) carregar() }, [pode, carregar])
   useEffect(() => { if (pode) { const t = setTimeout(carregarLista, 250); return () => clearTimeout(t) } return undefined }, [pode, carregarLista])
-  useEffect(() => { if (pode && e?.pendentes) api.get('/api/idiomas/textos?filtro=pendentes&idioma=en&limite=100').then(setPendentes).catch(() => {}) }, [pode, e?.pendentes])
+  useEffect(() => { if (pode && !painel && e?.pendentes) api.get('/api/idiomas/textos?filtro=pendentes&idioma=en&limite=100').then(setPendentes).catch(() => {}) }, [pode, painel, e?.pendentes])
 
   const buscar = async () => {
     setBuscando(true)
@@ -72,7 +74,7 @@ export default function Idiomas() {
     let feitos = 0, erros = 0
     while (!parar.current) {
       try {
-        const r = await api.post('/api/idiomas/traduzir', { idioma: cod, lote: 30, refazer_ia: refazer })
+        const r = await api.post('/api/idiomas/traduzir', { idioma: cod, lote: 30, refazer_ia: refazer, escopo })
         feitos += r.traduzidos
         setTraduzindo({ idioma: cod, feitos, faltam: r.faltam })
         if (!r.traduzidos || (!refazer && !r.faltam)) break
@@ -92,18 +94,26 @@ export default function Idiomas() {
   }
 
   if (!sessao) return <Esqueleto className="h-64" />
-  if (!pode) return <Aviso>Só o dono e os administradores mexem nos idiomas do site.</Aviso>
+  if (!pode) return <Aviso>Só o dono e os administradores mexem nos idiomas do site e do painel.</Aviso>
   if (erro) return <Aviso>{erro}</Aviso>
   if (!e) return <Esqueleto className="h-72" />
   const atual = e.idiomas.find((x) => x.codigo === idioma)
   return (
     <>
-      <Cabecalho titulo="Idiomas do site" descricao={`O site zynio.com.br em português e mais ${e.idiomas.length - 1} idiomas. O seletor fica no topo do site, ao lado de Entrar. ${e.total} textos no site.`}
-        acoes={<>
+      <Cabecalho titulo={painel ? 'Idiomas do painel' : 'Idiomas do site'}
+        descricao={painel
+          ? `O painel em português e mais ${e.idiomas.length - 1} idiomas. Cada pessoa escolhe no botão de idioma, no canto superior direito. Os textos entram aqui conforme aparecem na tela de alguém e a IA traduz na hora. ${e.total} textos até agora.`
+          : `O site zynio.com.br em português e mais ${e.idiomas.length - 1} idiomas. O seletor fica no topo do site, ao lado de Entrar. ${e.total} textos no site.`}
+        acoes={painel ? null : <>
           <Botao variante="secundario" icone={CloudDownload} carregando={buscando} onClick={buscar}>Buscar textos do site</Botao>
           <a href={SITE} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm hover:bg-muted">Abrir o site<ExternalLink className="h-3.5 w-3.5" /></a>
         </>} />
-      {!e.total && <div className="mb-5"><Aviso tipo="alerta">Nenhum texto cadastrado ainda. Use “Buscar textos do site” depois de publicar o site (a publicação gera a lista).</Aviso></div>}
+      <div className="mb-5 flex w-fit rounded-lg border border-border p-0.5" role="tablist" aria-label="O que traduzir">
+        {[['site', 'Site zynio.com.br'], ['painel', 'Painel do sistema']].map(([k, r]) => (
+          <button key={k} role="tab" aria-selected={escopo === k} onClick={() => { setEscopo(k); setE(null); setLista(null); setPagina(0); setFiltro('todos') }}
+            className={`rounded-md px-3 py-1.5 text-sm ${escopo === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}>{r}</button>))}
+      </div>
+      {!e.total && <div className="mb-5"><Aviso tipo="alerta">{painel ? 'Nenhum texto do painel ainda. Escolha outro idioma no botão do topo e navegue pelas telas: os textos entram aqui e a IA traduz.' : 'Nenhum texto cadastrado ainda. Use “Buscar textos do site” depois de publicar o site (a publicação gera a lista).'}</Aviso></div>}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {e.idiomas.map((x) => {
@@ -113,9 +123,9 @@ export default function Idiomas() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 font-medium"><span className="rounded border border-border px-1.5 text-[11px] font-semibold uppercase tabular text-muted-foreground">{x.codigo}</span>{x.nome}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{x.codigo === 'pt' ? 'Idioma original do site' : `${x.feitas} de ${e.total} · ${x.revisadas} revisados`}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{x.codigo === 'pt' ? `Idioma original do ${painel ? 'painel' : 'site'}` : `${x.feitas} de ${e.total} · ${x.revisadas} revisados`}</p>
                 </div>
-                {x.codigo !== 'pt' && <Interruptor ligado={x.ativo} onChange={(v) => alternar(x.codigo, v)} rotulo={`Mostrar ${x.nome} no site`} />}
+                {x.codigo !== 'pt' && !painel && <Interruptor ligado={x.ativo} onChange={(v) => alternar(x.codigo, v)} rotulo={`Mostrar ${x.nome} no site`} />}
               </div>
               <div className="mt-3 h-1.5 rounded-full bg-muted"><div className="h-1.5 rounded-full bg-primary" style={{ width: `${x.cobertura}%` }} /></div>
               <p className="mt-1 text-[11px] text-muted-foreground">{x.cobertura}% traduzido{x.ultima ? ` · atualizado ${haQuanto(x.ultima)}` : ''}</p>
@@ -127,8 +137,8 @@ export default function Idiomas() {
                     <Botao tamanho="sm" icone={Sparkles} disabled={!!traduzindo || !x.faltam} onClick={() => traduzir(x.codigo)}>{x.faltam ? `Traduzir ${x.faltam} com IA` : 'Tudo traduzido'}</Botao>
                   )}
                   <Botao tamanho="sm" variante="secundario" onClick={() => { setIdioma(x.codigo); setPagina(0) }}>Revisar</Botao>
-                  <a href={`${SITE}/?lang=${x.codigo}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Ver<ExternalLink className="h-3 w-3" /></a>
-                  <button onClick={() => api.baixar(`/api/idiomas/exportar/${x.codigo}`).catch((y) => toast(y.message, 'erro'))} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"><Download className="h-3 w-3" />JSON</button>
+                  {!painel && <a href={`${SITE}/?lang=${x.codigo}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">Ver<ExternalLink className="h-3 w-3" /></a>}
+                  <button onClick={() => api.baixar(`/api/idiomas/exportar/${x.codigo}?escopo=${escopo}`).catch((y) => toast(y.message, 'erro'))} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"><Download className="h-3 w-3" />JSON</button>
                 </div>
               )}
             </div>
@@ -136,7 +146,7 @@ export default function Idiomas() {
         })}
       </div>
 
-      {!!e.pendentes && (
+      {!painel && !!e.pendentes && (
         <Secao className="mt-6" titulo={`Textos novos vistos no site (${e.pendentes})`} contexto="Apareceram para quem visitou em outro idioma (mensagens depois de enviar um formulário, avisos). Só valem depois de incluir."
           acao={<div className="flex gap-2"><Botao tamanho="sm" icone={Check} onClick={() => decidir(true)}>Incluir todos</Botao><Botao tamanho="sm" variante="secundario" onClick={() => decidir(false)}>Descartar todos</Botao></div>}>
           <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-1 text-sm">{(pendentes?.itens || []).map((p) => (
@@ -161,7 +171,7 @@ export default function Idiomas() {
           <p className="py-6 text-center text-sm text-muted-foreground"><Languages className="mx-auto mb-2 h-6 w-6" />Nada aqui com esse filtro.</p>
         ) : (
           <>
-            <ul>{lista.itens.map((it) => <Linha key={it.texto} item={it} idioma={idioma} />)}</ul>
+            <ul>{lista.itens.map((it) => <Linha key={it.texto} item={it} idioma={idioma} escopo={escopo} />)}</ul>
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
               <span>{pagina * 60 + 1} a {pagina * 60 + lista.itens.length} de {lista.total}</span>
               <div className="flex gap-2"><Botao tamanho="sm" variante="secundario" disabled={!pagina} onClick={() => setPagina(pagina - 1)}>Anterior</Botao><Botao tamanho="sm" variante="secundario" disabled={(pagina + 1) * 60 >= lista.total} onClick={() => setPagina(pagina + 1)}>Próxima</Botao></div>

@@ -84,6 +84,11 @@ def processar_evento(aparelho_id: int, origem: str, ligado: bool):
         musica.evento_ar(aparelho_id, ligado, origem)   # rotinas de música "quando o ar ligar/desligar"
     except Exception as e:  # noqa: BLE001
         log.warning("rotinas de música: %s", e)
+    try:
+        from . import fluxos
+        fluxos.evento_ar(aparelho_id, origem, ligado)   # fluxos com o gatilho "quando um ar ligar ou desligar"
+    except Exception as e:  # noqa: BLE001
+        log.warning("fluxos: %s", e)
     for auto in _ativas(tipo):
         g = auto["gatilho"]
         if g.get("aparelho_id") and int(g["aparelho_id"]) != aparelho_id:

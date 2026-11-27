@@ -87,9 +87,12 @@ REGRAS = [
     # a fechadura é conferida na rota (só dono/admin, e destrancar pede a senha)
     ("GET", r"^/api/avatares(/\{avid\}/(arquivo|receita))?$", None),
     ("*", r"^/api/telegram/", None),
+    ("*", r"^/api/painel-idiomas/", None),                                               # tradução do painel: qualquer pessoa logada (limite por pessoa na rota)
+    ("POST", r"^/api/fluxos/\{fid\}/executar$", "aparelhos.controlar"),                   # rodar um fluxo agora
+    ("POST|PUT|DELETE", r"^/api/fluxos", "automacoes.gerenciar"),                         # criar, editar, ligar, apagar fluxos
     ("*", r"^/api/bugs", None),
     ("*", r"^/api/tarefas", None),                                                     # cada rota confere (visualizador só vê; GitHub: dono/admin)
-    ("POST", r"^/api/ia/(conversar|confirmar)$", None),   # as ferramentas da IA checam as permissões de quem pergunta
+    ("POST", r"^/api/ia/(conversar|confirmar|continuar)$", None),   # as ferramentas da IA checam as permissões de quem pergunta
     ("POST", r"^/api/ia/transcrever$", None),             # mensagem de voz da própria pessoa
     ("POST", r"^/api/ia/comparar$", None),                # comparar modelos: só texto, sem ferramentas (não age nos ares)
     ("PUT", r"^/api/ia/preferencias$", None),             # estilo e instruções da própria pessoa

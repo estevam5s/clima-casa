@@ -42,6 +42,11 @@ async def laco():
             except Exception as e:  # noqa: BLE001
                 log.warning("rotinas de música: %s", e)
             try:
+                from . import fluxos
+                await asyncio.to_thread(fluxos.ciclo)   # fluxos (Rotinas → Fluxos): horário, intervalo, ligado há, rua
+            except Exception as e:  # noqa: BLE001
+                log.warning("fluxos: %s", e)
+            try:
                 from . import newsletter
                 await asyncio.to_thread(newsletter.ciclo)   # campanhas agendadas da newsletter
             except Exception as e:  # noqa: BLE001

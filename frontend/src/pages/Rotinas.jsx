@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { CalendarClock, CheckCircle2, Clock3, History, LayoutDashboard, Play, Search, Sparkles, Timer, Workflow, XCircle, Zap } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Clock3, History, LayoutDashboard, Network, Play, Search, Sparkles, Timer, Workflow, XCircle, Zap } from 'lucide-react'
 import { api, haQuanto } from '../api'
 import { comFiltro, useProjeto } from '../contexto'
 import { Botao, CabecalhoSecundario, Cabecalho, Carregando, FaixaMetricas, Vazio, useDados, useToast } from '../components/ui'
@@ -10,12 +10,14 @@ import { Botao, CabecalhoSecundario, Cabecalho, Carregando, FaixaMetricas, Vazio
 const Cenas = lazy(() => import('./Cenas'))
 const Automacoes = lazy(() => import('./Automacoes'))
 const Agendamentos = lazy(() => import('./Agendamentos'))
+const Fluxos = lazy(() => import('../components/rotinas/Fluxos'))
 
 const ABAS = [
   ['geral', 'Visão geral', LayoutDashboard],
   ['cenas', 'Cenas', Sparkles],
   ['automacoes', 'Automações', Workflow],
   ['agenda', 'Agenda', CalendarClock],
+  ['fluxos', 'Fluxos', Network],
   ['historico', 'Histórico', History],
 ]
 const ORIGEM = { cena: ['Cena', Sparkles], automacao: ['Automação', Workflow], agenda: ['Agenda', CalendarClock] }
@@ -165,7 +167,7 @@ export default function Rotinas() {
   const irPara = (k) => setParams((p) => { const n = new URLSearchParams(p); n.set('aba', k); return n })
   return (
     <div className="w-full">
-      <Cabecalho titulo="Rotinas" descricao="Cenas, automações e agenda num lugar só: o que roda com um toque, sozinho por regra ou no horário marcado." />
+      <Cabecalho titulo="Rotinas" descricao="Cenas, automações, agenda e fluxos num lugar só: o que roda com um toque, sozinho por regra, no horário marcado ou em blocos ligados." />
       <div role="tablist" aria-label="Rotinas" className="-mx-4 mb-6 flex gap-1 overflow-x-auto border-b border-border px-4 lg:mx-0 lg:px-0">
         {ABAS.map(([k, r, I]) => (
           <button key={k} role="tab" aria-selected={aba === k} onClick={() => irPara(k)}
@@ -180,6 +182,7 @@ export default function Rotinas() {
           {aba === 'cenas' && <Cenas />}
           {aba === 'automacoes' && <Automacoes />}
           {aba === 'agenda' && <Agendamentos />}
+          {aba === 'fluxos' && <Fluxos />}
           {aba === 'historico' && <Historico />}
         </Suspense>
       </CabecalhoSecundario.Provider>

@@ -18,6 +18,7 @@ import TermoAceite from './TermoAceite'
 import { siteComSessao } from '../site'
 import { Avatar } from './config/Perfil'
 import { useTema } from '../tema'
+import { IDIOMAS_PAINEL, aoMudarIdioma, idiomaAtual, mudarIdioma } from '../i18nPainel'
 import { useMarca, bannerNoAr, logoDaMarca } from '../marca'
 import { definirPagina } from '../favicon'
 
@@ -353,25 +354,64 @@ function BarraStatus({ status }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-[13px] text-muted-foreground">
       <span className="topo-projeto max-w-[14rem] truncate font-medium text-foreground">{projeto ? projeto.nome : 'Todos os projetos'}</span>
-      {status && (
-        <>
+      {/* os itens ficam sempre no lugar (com "–" até os dados chegarem): antes surgiam depois e empurravam o cabeçalho (CLS) */}
+      <>
           <span className="topo-projeto text-border">/</span>
-          <Link to="/configuracoes?aba=sistema" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Agente do Mac">
+          <Link to="/configuracoes?aba=sistema" className="flex min-w-[7.75rem] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Agente do Mac">
             <span className="relative flex h-2 w-2">
               {s.agente_online && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />} {/* marca: pulso indica que o agente está vivo */}
-              <span className={`relative inline-flex h-2 w-2 rounded-full ${s.agente_online ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${!status ? 'bg-muted-foreground/40' : s.agente_online ? 'bg-emerald-500' : 'bg-red-500'}`} />
             </span>
-            {s.agente_online ? 'Agente online' : 'Agente offline'}
+            {!status ? 'Agente…' : s.agente_online ? 'Agente online' : 'Agente offline'}
           </Link>
           <Link to="/aparelhos" className="topo-ligados shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Ares ligados agora">
-            <AirVent className="h-3.5 w-3.5" /><span className="tabular">{s.ligados}/{s.aparelhos}</span> ligados
+            <AirVent className="h-3.5 w-3.5" /><span className="tabular">{status ? `${s.ligados}/${s.aparelhos}` : '–/–'}</span> ligados
           </Link>
           <Link to="/transmissores" className="topo-transmissores shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 hover:bg-muted" title="Transmissores respondendo">
-            <Radio className="h-3.5 w-3.5" /><span className="tabular">{s.hubs_online}/{s.hubs}</span> transmissores
+            <Radio className="h-3.5 w-3.5" /><span className="tabular">{status ? `${s.hubs_online}/${s.hubs}` : '–/–'}</span> transmissores
           </Link>
-        </>
-      )}
+      </>
       <span className="topo-data shrink-0 whitespace-nowrap tabular">· {agora.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '')}, {agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+    </div>
+  )
+}
+
+// Idioma do painel: a tela troca na hora; o que ainda não tem tradução a IA traduz em segundos e fica guardado.
+function SeletorIdioma() {
+  const [aberto, setAberto] = useState(false)
+  const [atual, setAtual] = useState(idiomaAtual)
+  const [trocando, setTrocando] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => aoMudarIdioma(setAtual), [])
+  useEffect(() => {
+    if (!aberto) return undefined
+    const fora = (e) => { if (!ref.current?.contains(e.target)) setAberto(false) }
+    const esc = (e) => { if (e.key === 'Escape') setAberto(false) }
+    document.addEventListener('pointerdown', fora); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', fora); document.removeEventListener('keydown', esc) }
+  }, [aberto])
+  const escolher = async (c) => { setAberto(false); setTrocando(true); try { await mudarIdioma(c) } finally { setTrocando(false) } }
+  return (
+    <div ref={ref} className="relative" translate="no">
+      <button onClick={() => setAberto((a) => !a)} aria-haspopup="menu" aria-expanded={aberto} title="Idioma do painel"
+        className="flex items-center gap-1 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
+        <Languages className={`h-[18px] w-[18px] ${trocando ? 'animate-pulse' : ''}`} />
+        <span className="text-[11px] font-semibold uppercase tabular">{atual}</span>
+      </button>
+      <AnimatePresence>
+        {aberto && (
+          <motion.div role="menu" initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }} transition={{ duration: 0.14 }}
+            className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-border bg-card p-1.5 shadow-xl"> {/* marca: menu flutua */}
+            <p className="px-2 pb-1.5 pt-1 text-[11px] text-muted-foreground">Idioma do painel</p>
+            {IDIOMAS_PAINEL.map(([c, nome]) => (
+              <button key={c} role="menuitemradio" aria-checked={atual === c} onClick={() => escolher(c)}
+                className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted ${atual === c ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
+                <span className="w-6 text-[11px] font-semibold uppercase">{c}</span><span className="flex-1">{nome}</span>{atual === c && <Check className="h-4 w-4 text-primary" />}
+              </button>))}
+            <p className="border-t border-border px-2 pb-1 pt-2 text-[11px] leading-snug text-muted-foreground">Textos novos são traduzidos pela IA na primeira vez e ficam guardados. Para revisar: Idiomas → Painel.</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -549,7 +589,7 @@ export default function Layout() {
     <div className="min-h-screen">
       {/* Desktop: fica recolhida (só ícones) e abre ao passar o mouse; o alfinete deixa fixa */}
       <motion.aside
-        className="fixed inset-y-0 left-0 z-40 hidden border-r border-border bg-sidebar md:block"
+        className={`fixed inset-y-0 left-0 z-40 hidden border-r border-border bg-sidebar md:block ${hover && !fixada ? 'shadow-xl' : ''}`} /* marca: aberto pelo mouse, flutua sobre a tela */
         initial={false}
         animate={{ width: aberta || arrastando ? ABERTA : FECHADA }}
         transition={arrastando ? { duration: 0 } : MOLA}
@@ -580,7 +620,9 @@ export default function Layout() {
         )}
       </AnimatePresence>
 
-      <motion.div className="min-w-0" initial={false} animate={{ paddingLeft: desktop ? (aberta || arrastando ? ABERTA : FECHADA) : 0 }} transition={arrastando ? { duration: 0 } : MOLA}>
+      {/* só o menu FIXADO empurra o conteúdo; aberto pelo mouse ele passa por cima. Antes o hover mudava o paddingLeft da
+          tela inteira, e o navegador conta isso como deslocamento de layout (CLS) em todas as rotas: era a maior causa medida. */}
+      <motion.div className="min-w-0" initial={false} animate={{ paddingLeft: desktop ? (fixada ? ABERTA : FECHADA) : 0 }} transition={arrastando ? { duration: 0 } : MOLA}>
         <header data-cabecalho-app className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
           <button onClick={() => setMovel(true)} className="-ml-1 rounded-lg p-2 text-muted-foreground hover:bg-muted md:hidden" aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
           <BarraStatus status={central.dados?.status} />
@@ -602,6 +644,7 @@ export default function Layout() {
             </Link>
             <AcessoRapido />
             {marca.mostrar_ajuda && (marca.suporte_email || marca.suporte_telefone || marca.suporte_whatsapp || marca.site) && <Ajuda marca={marca} />}
+            <SeletorIdioma />
             <BotaoTema />
             <Notificacoes central={central} />
           </div>

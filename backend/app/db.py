@@ -169,6 +169,20 @@ def cfg(chave, padrao=None):
     return valor
 
 
+def cfgs(*chaves) -> dict:
+    """Várias chaves de config numa ida só ao banco (cada ida custa ~0,27 s do Brasil). Chave ausente não aparece."""
+    if not chaves:
+        return {}
+    saida = {}
+    for linha in consultar(f"SELECT chave, valor FROM config WHERE chave IN ({','.join('?' * len(chaves))})", tuple(chaves)):
+        valor = json.loads(linha["valor"])
+        if isinstance(valor, str) and valor.startswith("enc:v1:"):
+            from . import cripto
+            valor = json.loads(cripto.decifrar(valor, f"cfg:{linha['chave']}"))
+        saida[linha["chave"]] = valor
+    return saida
+
+
 def set_cfg(chave, valor):
     if valor is None:
         executar("DELETE FROM config WHERE chave = ?", (chave,))

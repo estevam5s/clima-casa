@@ -5,7 +5,7 @@ import time
 
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from typing import Annotated
 
 from pydantic import BaseModel, Field, field_validator
@@ -1325,11 +1325,12 @@ class ConfigIn(BaseModel):
 def ver_config():
     from .. import acesso
     # a conta do Smart Life só aparece para quem cuida das integrações
-    conta = db.cfg("tuya_conta") if acesso.pode("integracoes.gerenciar") else ({"usuario": ""} if db.cfg("tuya_conta") else None)
+    c = db.cfgs("tuya_conta", "modo_envio", "nome_casa", "tarifa_kwh")   # uma ida ao banco (eram 5 em sequência)
+    conta = c.get("tuya_conta") if acesso.pode("integracoes.gerenciar") else ({"usuario": ""} if c.get("tuya_conta") else None)
     return {
-        "modo_envio": db.cfg("modo_envio", "auto"),
-        "nome_casa": db.cfg("nome_casa", "Minha casa"),
-        "tarifa_kwh": float(db.cfg("tarifa_kwh", 0.85)),
+        "modo_envio": c.get("modo_envio", "auto"),
+        "nome_casa": c.get("nome_casa", "Minha casa"),
+        "tarifa_kwh": float(c.get("tarifa_kwh", 0.85)),
         "tuya": {"conectada": bool(conta), "usuario": (conta or {}).get("usuario", ""),
                  "user_code": (conta or {}).get("user_code", "")},
     }
@@ -2415,11 +2416,7 @@ def ver_exoplanetas():
         raise HTTPException(502, "O NASA Exoplanet Archive não respondeu agora. Tente de novo em alguns minutos.") from e
 
 
-@api.get("/satelites")
-def satelites():
-    cache = db.cfg("satelites_tle") or {}
-    if cache.get("lista") and db.agora() - int(cache.get("em", 0)) < 6 * 3600:
-        return {"atualizado_em": cache["em"], "fonte": "CelesTrak", "satelites": cache["lista"]}
+def _buscar_satelites() -> list:
     lista, vistos = [], set()
     try:
         with httpx.Client(timeout=12, headers={"User-Agent": "clima-escritorio/1.0"}) as cli:
@@ -2438,9 +2435,32 @@ def satelites():
         lista = []
     if lista:
         db.set_cfg("satelites_tle", {"em": db.agora(), "lista": lista})
-        return {"atualizado_em": db.agora(), "fonte": "CelesTrak", "satelites": lista}
+    return lista
+
+
+def _renovar_satelites():
+    # só um pedido por vez renova (marca de 2 min): os outros seguem com o cache
+    if db.agora() - int((db.cfg("satelites_renovando") or {}).get("em", 0)) < 120:
+        return
+    db.set_cfg("satelites_renovando", {"em": db.agora()})
+    try:
+        _buscar_satelites()
+    finally:
+        db.set_cfg("satelites_renovando", None)
+
+
+@api.get("/satelites")
+def satelites(tarefas: BackgroundTasks):
+    """Devolve o cache na hora e, se passou de 6 h, renova depois da resposta (antes a pessoa esperava a CelesTrak:
+    p95 de 13 s medido em Acessos e SEO). Só espera a busca quando ainda não há cache nenhum."""
+    cache = db.cfg("satelites_tle") or {}
     if cache.get("lista"):
-        return {"atualizado_em": cache["em"], "fonte": "CelesTrak (cache)", "satelites": cache["lista"]}
+        if db.agora() - int(cache.get("em", 0)) >= 6 * 3600:
+            tarefas.add_task(_renovar_satelites)
+        return {"atualizado_em": cache["em"], "fonte": "CelesTrak", "satelites": cache["lista"]}
+    lista = _buscar_satelites()
+    if lista:
+        return {"atualizado_em": db.agora(), "fonte": "CelesTrak", "satelites": lista}
     raise HTTPException(503, "Não consegui buscar os satélites agora. Tente de novo em alguns minutos.")
 
 

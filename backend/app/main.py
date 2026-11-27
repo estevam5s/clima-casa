@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import agenda, coordenador, cripto, db, firewall, sinric, transmissor
 from .rotas import alexa as rotas_alexa
+from .rotas import fluxos as rotas_fluxos
 from .rotas import api as rotas_api
 from .rotas import contas as rotas_contas
 from .rotas import musica as rotas_musica
@@ -196,6 +197,8 @@ app.include_router(rotas_bugs.rotas_bugs)
 app.include_router(rotas_tarefas.rotas_tarefas)
 app.include_router(rotas_ia.rotas_ia)
 app.include_router(rotas_backup.rotas_backup)
+app.include_router(rotas_fluxos.publico_fluxos)
+app.include_router(rotas_fluxos.rotas_fluxos)
 app.include_router(rotas_site.publico_site)
 app.include_router(rotas_site.gestao)
 

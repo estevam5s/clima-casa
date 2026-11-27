@@ -315,6 +315,29 @@ const CAPITULOS = [
       { t: 'Perguntar', d: 'Ex.: "quais ares estão ligados?", "por que o transmissor dos Devs falhou?", "onde fica a lógica do pôr do sol?". Ele consulta o estado real e o código.' },
       { t: 'Agir com confirmação', d: 'Ligar, desligar, executar cena, editar arquivo ou rodar comando: ele mostra o que vai fazer e só faz depois do seu "s".' },
       { t: 'Segurança', d: 'Segredos são mascarados antes de qualquer envio; ele não lê o .env nem as credenciais e o banco é só leitura.' },
+      { t: 'Cliente instalado (clima-ia 1.8)', d: 'Em qualquer computador: curl -fsSL https://app.zynio.com.br/instalar-ia.sh | bash (no Windows: irm https://app.zynio.com.br/instalar-ia.ps1 | iex). Entra com a sua conta e usa as suas permissões.' },
+      { t: 'Trabalhar com arquivos', d: 'Ele lê, procura, cria e edita arquivos da pasta onde você abriu o terminal, roda comandos e salva relatórios (PDF, Excel, Word…). Criar e editar mostram a diferença antes; rodar comando pede o seu sim sempre. /liberdade total deixa mexer fora da pasta; /ferramentas desliga tudo isso.' },
+      { t: 'Contas e fluxos', d: 'Quem gerencia usuários pode pedir "convide fulano@floripa.sc.gov.br como operador", mudar papel, desativar ou derrubar sessões; fluxos podem ser listados, rodados e ligados. Tudo que muda algo espera a sua confirmação. /usuarios e /fluxos mostram direto.' },
+    ],
+  },
+  {
+    id: 'fluxos', icone: Workflow, titulo: 'Fluxos: automações em blocos',
+    resumo: 'Rotinas → Fluxos: gatilho, condições e ações ligados por setas, com e-mail, Telegram, IA e webhook.',
+    passos: [
+      { t: 'Comece por um modelo', d: 'Em Rotinas → Fluxos há modelos prontos (ar antes do expediente, ar esquecido à noite, calor lá fora, bom dia com a previsão, webhook). Ou crie um do zero.', link: ['/rotinas?aba=fluxos', 'Abrir Fluxos'] },
+      { t: 'Monte o desenho', d: 'Arraste blocos da lista para a tela. Para ligar, arraste da bolinha da direita de um bloco até a bolinha da esquerda de outro. Condições têm duas saídas: verde (Sim) e vermelha (Não). Delete apaga o que está selecionado.' },
+      { t: 'Use valores entre blocos', d: 'Escreva {{...}} nos campos: {{evento.nome}} (o ar do gatilho), {{fora.temperatura}}, {{ia.texto}}, {{http.status}}, {{webhook.campo}}, {{var.nome}}. A lista completa aparece no painel do bloco.' },
+      { t: 'Teste e ligue', d: 'Executar roda agora e acende bloco por bloco o caminho percorrido (verde deu certo, vermelho falhou). Ligado, os gatilhos rodam sozinhos no agente do escritório; o histórico guarda o resultado de cada bloco.' },
+      { t: 'Webhook', d: 'O bloco Webhook gera um endereço secreto ao salvar. Outro sistema faz POST com JSON e o fluxo roda (só com o fluxo ligado). Trate o endereço como senha; "Gerar outro" troca.' },
+    ],
+  },
+  {
+    id: 'idioma-painel', icone: Globe, titulo: 'Painel em outro idioma',
+    resumo: 'Botão de idioma no topo: English, Español, Français, Русский e 한국어.',
+    passos: [
+      { t: 'Escolha o idioma', d: 'No canto superior direito, ao lado do tema, o botão com a sigla (PT). A tela troca na hora; textos que ainda não têm tradução a IA traduz em segundos e ficam guardados para todo mundo.' },
+      { t: 'Revise as traduções', d: 'Idiomas → Painel do sistema: lista os textos por idioma, corrige à mão (a IA não muda mais o que foi revisado) e traduz o que falta em lote.', link: ['/idiomas?escopo=painel', 'Abrir Idiomas'] },
+      { t: 'O que não é traduzido', d: 'Nomes nas listas de escolha (ares, salas), campos que você digita, códigos e endereços continuam como estão.' },
     ],
   },
   {

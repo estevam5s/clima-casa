@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Archive, BellRing, Building2, CalendarOff, Download, FileJson, Info, Power, RefreshCw, Thermometer } from 'lucide-react'
 import { api } from '../../api'
 import RegrasAgenda from '../RegrasAgenda'
-import { Aviso, Botao, Carregando, Interruptor, Secao, useDados, useToast } from '../ui'
+import { Aviso, Botao, Esqueleto, Interruptor, Secao, useDados, useToast } from '../ui'
 
 // Configurações → Geral: identificação, envio dos comandos, política de temperatura, proteções automáticas (o agente
 // desliga ou avisa), limpeza, feriados, atualização dos agentes, backup, exportação e resumo do sistema.
@@ -58,8 +58,9 @@ export default function Geral({ dados, salvar, sessao }) {
 
   return (
     <div className="space-y-6">
+      {!sis && <section className="cartao min-h-[430px] space-y-3 p-5 sm:min-h-[290px] lg:min-h-[200px]" aria-busy="true"><Esqueleto className="h-5 w-56" /><Esqueleto className="h-4 w-2/3" /><Esqueleto className="h-16 w-full" /></section>}
       {sis && (
-        <section className="cartao p-5">
+        <section className="cartao min-h-[430px] p-5 sm:min-h-[290px] lg:min-h-[200px]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><h2 className="titulo-secao flex items-center gap-2"><Info className="h-4 w-4" />Resumo do sistema</h2>
               <p className="mt-1 text-sm text-muted-foreground">Versão <b className="font-medium text-foreground">{sis.versao}</b> de {new Date(`${sis.versao_data}T12:00`).toLocaleDateString('pt-BR')} ({sis.versoes} versões) · apps {sis.apps || '-'} · banco {sis.banco_mb.toLocaleString('pt-BR')} MB de 500 MB · agente no comando: {sis.principal || 'nenhum'}</p></div>
@@ -93,7 +94,7 @@ export default function Geral({ dados, salvar, sessao }) {
         </section>
       </div>
 
-      {!f ? <Carregando /> : (
+      {!f ? <div className="cartao min-h-[620px] space-y-3 p-5" aria-busy="true"><Esqueleto className="h-5 w-56" /><Esqueleto className="h-40 w-full" /><Esqueleto className="h-40 w-full" /></div> : (
         <Secao titulo="Regras do escritório" contexto={gestor ? 'Valem para todos os ares e todas as pessoas. O agente do escritório confere a cada 5 minutos.' : 'Só o dono e os administradores mudam estas regras.'}>
           <fieldset disabled={!gestor} className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="space-y-3 rounded-xl border border-border p-4">

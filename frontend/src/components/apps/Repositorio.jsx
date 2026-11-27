@@ -1,7 +1,10 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, Suspense, lazy, useMemo, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { BookOpen, ChevronDown, ChevronRight, Copy, Download, File, FileArchive, Folder, GitBranch, GitCommitHorizontal, History, Lock, Package, Search, Tag } from 'lucide-react'
 import { api } from '../../api'
-import { Botao, Carregando, Selo, useDados, useToast } from '../ui'
+import { Botao, Carregando, NumeroAnimado, Selo, useDados, useToast } from '../ui'
+
+const HorizonteContribuicoes = lazy(() => import('./HorizonteContribuicoes'))
 
 // Código-fonte no formato do GitHub: cabeçalho do repositório (privado, ramo, versão, commits, releases, linguagens),
 // abas Código (lista da raiz com o último commit de cada item, navegação pelas pastas, README), Commits (por dia, com
@@ -142,67 +145,142 @@ function Codigo({ r }) {
   )
 }
 
+const chaveDia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const DIAS_HORIZONTE = 371   // 53 semanas, como no GitHub
+
 function Commits({ r }) {
   const [busca, setBusca] = useState('')
   const [aberto, setAberto] = useState(null)
+  const [medida, setMedida] = useState('commits')   // commits | linhas
+  const [dia, setDia] = useState(null)               // 'AAAA-MM-DD' escolhido no horizonte
+  const [mostrar, setMostrar] = useState(40)
+  const [semanas, setSemanas] = useState(12)
+  const reduzir = useReducedMotion()
   const tags = useMemo(() => Object.fromEntries((r.releases || []).filter((x) => x.sha).map((x) => [x.sha, x.tag])), [r])
-  const lista = r.commits.filter((c) => !busca || `${c.titulo} ${c.corpo} ${c.curto}`.toLowerCase().includes(busca.toLowerCase()))
+  const fim = useMemo(() => new Date(), [])
+  // série por dia (do mais antigo para hoje) a partir de todos os commits do repositorio.json
+  const { serie, numeros } = useMemo(() => {
+    const porDia = {}
+    let mais = 0, menos = 0
+    const autores = new Set()
+    for (const c of r.commits) {
+      const k = chaveDia(new Date(c.quando * 1000))
+      const v = medida === 'commits' ? 1 : (c.mais + c.menos)
+      porDia[k] = (porDia[k] || 0) + v
+      mais += c.mais; menos += c.menos
+      autores.add(c.autor); (c.coautores || []).forEach((a) => autores.add(a))
+    }
+    const lista = []
+    for (let i = DIAS_HORIZONTE - 1; i >= 0; i--) lista.push(porDia[chaveDia(new Date(fim.getTime() - i * 86400000))] || 0)
+    const ativos = Object.keys(porDia).length
+    return { serie: lista, numeros: { commits: r.commits.length, mais, menos, autores: autores.size, ativos, media: ativos ? r.commits.length / ativos : 0 } }
+  }, [r, medida, fim])
+  const lista = r.commits.filter((c) => (!busca || `${c.titulo} ${c.corpo} ${c.curto} ${c.autor}`.toLowerCase().includes(busca.toLowerCase()))
+    && (!dia || chaveDia(new Date(c.quando * 1000)) === dia))
   const dias = []
-  for (const c of lista) {
-    const d = new Date(c.quando * 1000).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
+  for (const c of lista.slice(0, mostrar)) {
+    const d = new Date(c.quando * 1000).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     if (!dias.length || dias[dias.length - 1][0] !== d) dias.push([d, []])
     dias[dias.length - 1][1].push(c)
   }
+  const escolherDia = (d, v) => { if (!v) return; const k = chaveDia(d); setDia((x) => (x === k ? null : k)); setMostrar(40) }
+  const NUMS = [['Commits', numeros.commits], ['Linhas adicionadas', numeros.mais, 'text-emerald-600 dark:text-emerald-400', '+'], ['Linhas removidas', numeros.menos, 'text-red-600 dark:text-red-400', '−'],
+    ['Autores', numeros.autores], ['Dias com commit', numeros.ativos], ['Commits por dia ativo', Math.round(numeros.media * 10) / 10]]
   return (
-    <div className="space-y-4">
-      <label className="relative block max-w-sm"><Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nos commits" className="campo h-9 pl-8" /></label>
-      {dias.map(([dia, cs]) => (
-        <div key={dia}>
-          <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"><GitCommitHorizontal className="h-4 w-4" />Commits em {dia}</p>
-          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-            {cs.map((c) => (
-              <li key={c.sha}>
-                <div className="flex items-start gap-3 px-3 py-2.5">
-                  <Avatar nome={c.autor} />
-                  <div className="min-w-0 flex-1">
-                    <button onClick={() => setAberto(aberto === c.sha ? null : c.sha)} className="text-left text-sm font-medium hover:text-primary hover:underline">{c.titulo}</button>
-                    {tags[c.sha] && <span className="ml-2 inline-block"><Selo cor="verde"><Tag className="mr-1 inline h-3 w-3" />{tags[c.sha]}</Selo></span>}
-                    <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                      <b className="font-medium text-foreground">{c.autor}</b>{c.coautores.length > 0 && <>e {c.coautores.join(', ')}</>} fez o commit {relativo(c.quando)}
-                      <span className="tabular text-emerald-600">+{c.mais}</span><span className="tabular text-red-600">−{c.menos}</span>
-                      <span>· {c.total_arquivos} arquivo(s)</span>
-                    </p>
-                  </div>
-                  <code className="hidden rounded border border-border px-1.5 py-0.5 text-xs sm:block">{c.curto}</code>
-                  <Copiar texto={c.sha} />
-                </div>
-                {aberto === c.sha && (
-                  <div className="border-t border-border bg-muted/30 px-4 py-3">
-                    {c.corpo && <pre className="mb-3 whitespace-pre-wrap font-sans text-xs text-muted-foreground">{c.corpo}</pre>}
-                    <p className="mb-1.5 text-xs text-muted-foreground">Commit <code>{c.sha}</code>{c.pais[0] && <> · pai <code>{c.pais[0].slice(0, 7)}</code></>}</p>
-                    <ul className="max-h-72 space-y-0.5 overflow-y-auto text-xs">
-                      {c.arquivos.map((f) => {
-                        const t = f.mais + f.menos || 1
-                        return (
-                          <li key={f.caminho} className="flex items-center gap-2">
-                            <span className="min-w-0 flex-1 truncate font-mono">{f.caminho}</span>
-                            {f.binario ? <span className="text-muted-foreground">binário</span> : <><span className="w-12 text-right tabular text-emerald-600">+{f.mais}</span><span className="w-12 text-right tabular text-red-600">−{f.menos}</span>
-                              <span className="flex w-16 gap-px" aria-hidden>{Array.from({ length: 5 }, (_, k) => <i key={k} className={`h-2 flex-1 ${k < Math.round((f.mais / t) * 5) ? 'bg-emerald-500' : k < Math.round((f.mais / t) * 5) + Math.round((f.menos / t) * 5) ? 'bg-red-500' : 'bg-muted-foreground/25'}`} />)}</span></>}
-                          </li>
-                        )
-                      })}
-                      {c.total_arquivos > c.arquivos.length && <li className="text-muted-foreground">+ {c.total_arquivos - c.arquivos.length} arquivo(s)</li>}
-                    </ul>
-                    <a href={`https://github.com/${r.repositorio}/commit/${c.sha}`} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-primary hover:underline">Ver no GitHub (precisa de acesso ao repositório)</a>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+    <div className="space-y-5">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {NUMS.map(([rot, v, cor, pre], i) => (
+          <motion.div key={rot} initial={reduzir ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.3 }} className="rounded-lg border border-border px-3 py-2.5">
+            <dt className="text-xs text-muted-foreground">{rot}</dt>
+            <dd className={`tabular text-xl font-semibold ${cor || ''}`}>{pre}<NumeroAnimado valor={v} casas={rot.includes('por dia') ? 1 : 0} /></dd>
+          </motion.div>))}
+      </dl>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex rounded-lg border border-border p-0.5" role="tablist" aria-label="O que medir">
+            {[['commits', 'Commits'], ['linhas', 'Linhas alteradas']].map(([k, rot]) => (
+              <button key={k} role="tab" aria-selected={medida === k} onClick={() => setMedida(k)} className={`rounded-md px-2.5 py-1 text-sm ${medida === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}>{rot}</button>))}
+          </div>
+          <div className="flex rounded-lg border border-border p-0.5" role="tablist" aria-label="Período">
+            {[[12, '12 semanas'], [26, '6 meses'], [53, '1 ano']].map(([k, rot]) => (
+              <button key={k} role="tab" aria-selected={semanas === k} onClick={() => setSemanas(k)} className={`rounded-md px-2.5 py-1 text-sm ${semanas === k ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`}>{rot}</button>))}
+          </div>
+          <p className="w-full text-xs text-muted-foreground">Clique num dia para ver só os commits dele. No horizonte, arraste para girar; as setas do teclado leem cada dia.</p>
         </div>
-      ))}
-      {!lista.length && <p className="text-sm text-muted-foreground">Nenhum commit com "{busca}".</p>}
+        <Suspense fallback={<div className="h-[300px] animate-pulse rounded-2xl bg-muted" />}>
+          <HorizonteContribuicoes key={`${medida}-${semanas}`} semanas={semanas} periodo={{ 12: 'nas últimas 12 semanas', 26: 'nos últimos 6 meses', 53: 'no último ano' }[semanas]} title={medida === 'commits' ? 'Commits no repositório' : 'Linhas alteradas por dia'} data={serie} endDate={fim}
+            noun={medida === 'commits' ? ['commit', 'commits'] : ['linha', 'linhas']} defaultSkyline sound={false} className="!max-w-none" onDia={escolherDia} />
+        </Suspense>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative block w-full max-w-sm"><Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <input value={busca} onChange={(e) => { setBusca(e.target.value); setMostrar(40) }} placeholder="Buscar nos commits (título, autor, código)" className="campo h-9 pl-8" type="search" autoComplete="off" /></label>
+        {dia && <button onClick={() => setDia(null)} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 text-xs text-primary hover:bg-primary/15">
+          Só {new Date(`${dia}T12:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })} · limpar</button>}
+        <span className="text-xs text-muted-foreground">{lista.length} commit(s)</span>
+      </div>
+      <div className="relative">
+        <span aria-hidden className="absolute bottom-2 left-[15px] top-2 w-px bg-border" />
+        {dias.map(([d, cs]) => (
+          <section key={d} className="relative mb-5 pl-10">
+            <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <span className="absolute left-[9px] grid h-[13px] w-[13px] place-items-center rounded-full border-2 border-primary bg-background" aria-hidden />
+              <GitCommitHorizontal className="h-4 w-4" />{d} · {cs.length} commit(s)</p>
+            <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+              {cs.map((c, i) => (
+                <motion.li key={c.sha} initial={reduzir ? false : { opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-20px' }}
+                  transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.035 }}>
+                  <div className="flex items-start gap-3 px-3 py-2.5">
+                    <Avatar nome={c.autor} />
+                    <div className="min-w-0 flex-1">
+                      <button onClick={() => setAberto(aberto === c.sha ? null : c.sha)} aria-expanded={aberto === c.sha} className="text-left text-sm font-medium hover:text-primary hover:underline">{c.titulo}</button>
+                      {tags[c.sha] && <span className="ml-2 inline-block"><Selo cor="verde"><Tag className="mr-1 inline h-3 w-3" />{tags[c.sha]}</Selo></span>}
+                      <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                        <b className="font-medium text-foreground">{c.autor}</b>{c.coautores.length > 0 && <>e {c.coautores.join(', ')}</>} fez o commit {relativo(c.quando)}
+                        <span className="tabular text-emerald-600">+{c.mais}</span><span className="tabular text-red-600">−{c.menos}</span>
+                        <span>· {c.total_arquivos} arquivo(s)</span>
+                      </p>
+                      {/* barra proporcional de linhas: cresce ao aparecer */}
+                      <div className="mt-1.5 flex h-1 max-w-[220px] overflow-hidden rounded-full bg-muted" aria-hidden>
+                        <motion.i className="block h-full bg-emerald-500" initial={{ width: 0 }} whileInView={{ width: `${(c.mais / Math.max(1, c.mais + c.menos)) * 100}%` }} viewport={{ once: true }} transition={{ duration: 0.6 }} />
+                        <motion.i className="block h-full bg-red-500" initial={{ width: 0 }} whileInView={{ width: `${(c.menos / Math.max(1, c.mais + c.menos)) * 100}%` }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.1 }} />
+                      </div>
+                    </div>
+                    <code className="hidden rounded border border-border px-1.5 py-0.5 text-xs sm:block" translate="no">{c.curto}</code>
+                    <Copiar texto={c.sha} />
+                  </div>
+                  <AnimatePresence initial={false}>
+                    {aberto === c.sha && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden">
+                        <div className="border-t border-border bg-muted/30 px-4 py-3">
+                          {c.corpo && <pre className="mb-3 whitespace-pre-wrap font-sans text-xs text-muted-foreground">{c.corpo}</pre>}
+                          <p className="mb-1.5 text-xs text-muted-foreground">Commit <code>{c.sha}</code>{c.pais[0] && <> · pai <code>{c.pais[0].slice(0, 7)}</code></>}</p>
+                          <ul className="max-h-72 space-y-0.5 overflow-y-auto text-xs">
+                            {c.arquivos.map((f) => {
+                              const t = f.mais + f.menos || 1
+                              return (
+                                <li key={f.caminho} className="flex items-center gap-2">
+                                  <span className="min-w-0 flex-1 truncate font-mono" translate="no">{f.caminho}</span>
+                                  {f.binario ? <span className="text-muted-foreground">binário</span> : <><span className="w-12 text-right tabular text-emerald-600">+{f.mais}</span><span className="w-12 text-right tabular text-red-600">−{f.menos}</span>
+                                    <span className="flex w-16 gap-px" aria-hidden>{Array.from({ length: 5 }, (_, k) => <i key={k} className={`h-2 flex-1 ${k < Math.round((f.mais / t) * 5) ? 'bg-emerald-500' : k < Math.round((f.mais / t) * 5) + Math.round((f.menos / t) * 5) ? 'bg-red-500' : 'bg-muted-foreground/25'}`} />)}</span></>}
+                                </li>
+                              )
+                            })}
+                            {c.total_arquivos > c.arquivos.length && <li className="text-muted-foreground">+ {c.total_arquivos - c.arquivos.length} arquivo(s)</li>}
+                          </ul>
+                          <a href={`https://github.com/${r.repositorio}/commit/${c.sha}`} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-primary hover:underline">Ver no GitHub (precisa de acesso ao repositório)</a>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+      {lista.length > mostrar && <div className="text-center"><Botao variante="secundario" onClick={() => setMostrar((m) => m + 60)}>Mostrar mais ({lista.length - mostrar} restantes)</Botao></div>}
+      {!lista.length && <p className="text-sm text-muted-foreground">Nenhum commit {busca ? `com "${busca}"` : 'nesse dia'}.</p>}
     </div>
   )
 }

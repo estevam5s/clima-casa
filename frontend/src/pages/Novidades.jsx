@@ -30,7 +30,7 @@ function Horario({ v }) {
 }
 
 export default function Novidades() {
-  const { dados, erro } = useDados(() => api.get('/api/novidades'))
+  const { dados, erro } = useDados(() => api.get('/api/novidades'), [], { cache: 'novidades' })
   const [tipo, setTipo] = useState('todos')
   const [busca, setBusca] = useState('')
   const [soNovas, setSoNovas] = useState(false)

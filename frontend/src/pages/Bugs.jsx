@@ -163,7 +163,7 @@ function Relatar({ aoFechar, aoSalvar }) {
 export default function Bugs() {
   const toast = useToast()
   const reduzir = useReducedMotion()
-  const { dados, erro, recarregar } = useDados(() => api.get('/api/bugs'))
+  const { dados, erro, recarregar } = useDados(() => api.get('/api/bugs'), [], { cache: 'bugs' })
   const [params, setParams] = useSearchParams()
   const [aba, setAba] = useState('abertos')
   const [cat, setCat] = useState('')

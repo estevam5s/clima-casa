@@ -173,9 +173,9 @@ def analise_config(d: SeoCfgIn):
 
 # ================= painel: idiomas =================
 @gestao.get("/idiomas")
-def idiomas_estado():
+def idiomas_estado(escopo: str = "site"):
     _papel()
-    return idiomas.estado()
+    return idiomas.estado(escopo)
 
 
 class IdiomasIn(BaseModel):
@@ -201,22 +201,23 @@ def idiomas_buscar():
 
 
 @gestao.get("/idiomas/textos")
-def idiomas_textos(idioma: str = "en", busca: str = "", filtro: str = "todos", limite: int = 100, depois: int = 0):
+def idiomas_textos(idioma: str = "en", busca: str = "", filtro: str = "todos", limite: int = 100, depois: int = 0, escopo: str = "site"):
     _papel()
-    return idiomas.listar(idioma, busca, filtro, limite, depois)
+    return idiomas.listar(idioma, busca, filtro, limite, depois, escopo)
 
 
 class TraducaoIn(BaseModel):
     texto: str = Field(max_length=1200)
     idioma: str = Field(max_length=5)
     traducao: str = Field("", max_length=2400)
+    escopo: str = Field("site", pattern="^(site|painel)$")
 
 
 @gestao.put("/idiomas/traducao")
 def idiomas_traducao(d: TraducaoIn):
     _papel()
     try:
-        return idiomas.editar(d.texto, d.idioma, d.traducao)
+        return idiomas.editar(d.texto, d.idioma, d.traducao, d.escopo)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -225,13 +226,14 @@ class TraduzirIn(BaseModel):
     idioma: str = Field(max_length=5)
     lote: int = Field(30, ge=5, le=60)
     refazer_ia: bool = False
+    escopo: str = Field("site", pattern="^(site|painel)$")
 
 
 @gestao.post("/idiomas/traduzir")
 def idiomas_traduzir(d: TraduzirIn):
     _papel()
     try:
-        return idiomas.traduzir_faltantes(d.idioma, d.lote, d.refazer_ia)
+        return idiomas.traduzir_faltantes(d.idioma, d.lote, d.refazer_ia, d.escopo)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except RuntimeError as e:
@@ -250,9 +252,40 @@ def idiomas_pendentes(d: PendentesIn):
 
 
 @gestao.get("/idiomas/exportar/{idioma}")
-def idiomas_exportar(idioma: str):
+def idiomas_exportar(idioma: str, escopo: str = "site"):
     _papel()
-    return JSONResponse(idiomas.exportar(idioma), headers={"Content-Disposition": f'attachment; filename="site-{idioma}.json"'})
+    return JSONResponse(idiomas.exportar(idioma, escopo), headers={"Content-Disposition": f'attachment; filename="{"painel" if escopo == "painel" else "site"}-{idioma}.json"'})
+
+
+# ================= painel traduzido (qualquer pessoa logada) =================
+_limite_traducao: dict = {}
+
+
+@gestao.get("/painel-idiomas/{idioma}")
+def painel_dicionario(idioma: str):
+    return idiomas.dicionario_painel(idioma)
+
+
+class PainelTraduzirIn(BaseModel):
+    textos: list[str] = Field(max_length=80)
+    rota: str = Field("", max_length=120)
+
+
+@gestao.post("/painel-idiomas/{idioma}/traduzir")
+def painel_traduzir(idioma: str, d: PainelTraduzirIn):
+    """Textos que a tela mostrou sem tradução: traduz agora pela IA e guarda. Até 12 pedidos por minuto por pessoa."""
+    import time as _t
+    from .. import acesso
+    u = acesso.atual.get() or {}
+    agora = _t.time()
+    hist = [x for x in _limite_traducao.get(u.get("id"), []) if agora - x < 60]
+    if len(hist) >= 12:
+        raise HTTPException(429, "Muitos pedidos de tradução. Espere um minuto.")
+    _limite_traducao[u.get("id")] = [*hist, agora]
+    try:
+        return idiomas.traduzir_painel(idioma, [t[:600] for t in d.textos], d.rota)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 # ================= painel: newsletter =================
