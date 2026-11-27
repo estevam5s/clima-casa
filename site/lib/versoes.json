@@ -1,5 +1,50 @@
 [
  {
+  "versao": "0.7.7",
+  "data": "2026-11-26",
+  "titulo": "Fluxos em blocos, painel em 6 idiomas, relatórios mais completos e clima-ia que mexe em arquivos",
+  "resumo": "Rotinas ganhou Fluxos (automações em blocos ligados por setas), o painel pode ser usado em inglês, espanhol, francês, russo e coreano, os relatórios ganharam análises por pessoa, meta e semana, e o clima-ia passou a trabalhar no seu computador.",
+  "novo": [
+   "Rotinas → Fluxos: monte automações arrastando blocos (gatilhos, condições, ações e integrações) e ligando por setas, com modelos prontos.",
+   "Fluxos com gatilho por horário, intervalo, ar ligou ou desligou, ar ligado há muito tempo, temperatura lá fora, webhook ou botão Executar.",
+   "Fluxos com condições Sim/Não, horário de trabalho, feriado, esperar, ler o ar, tempo lá fora, e-mail, Telegram, chamada a outro sistema (https) e IA.",
+   "Executar um fluxo acende bloco por bloco o caminho que ele fez; o histórico guarda o resultado de cada bloco.",
+   "Botão de idioma no topo do painel: English, Español, Français, Русский e 한국어. A IA traduz o que falta e guarda.",
+   "Idiomas → Painel do sistema: revisar e corrigir as traduções do painel.",
+   "Apps → Código → Commits: gráfico dos commits por dia em grade ou em 3D, por commits ou linhas alteradas, e linha do tempo animada; clicar num dia filtra a lista.",
+   "Relatórios: quem usou os ares, meta de gasto por projeto, custo por semana, ares que viraram a noite ligados e luzes, cafeteira e persianas do período (também no PDF, Word, Excel, HTML e CSV).",
+   "clima-ia 1.8: a IA lê, procura, cria e edita arquivos da pasta onde o terminal foi aberto, roda comandos e salva relatórios, sempre mostrando antes e pedindo o seu sim.",
+   "clima-ia 1.8: listar e convidar contas, mudar papel, desativar, derrubar sessões e rodar ou ligar fluxos, com confirmação."
+  ],
+  "melhorias": [
+   "As telas pulam menos enquanto carregam: o menu lateral aberto pelo mouse passa por cima da página e os cartões reservam o espaço antes dos dados chegarem.",
+   "Novidades e Bugs abrem na hora com o que você viu da última vez.",
+   "Trocar de tela pelo menu responde mais rápido ao clique.",
+   "Configurações do sistema carregam com uma consulta só; os satélites do Globo respondem na hora.",
+   "Relatórios: rotinas que rodaram agora incluem agenda e fluxos; a semana incompleta não entra na comparação."
+  ],
+  "seguranca": [
+   "Fluxos só chamam endereços https públicos (nada da rede interna) e o webhook usa endereço secreto, só com o fluxo ligado e com limite por minuto.",
+   "No clima-ia, comandos que apagariam o disco ou desligariam a máquina são recusados, mesmo com permissão."
+  ],
+  "correcoes": []
+ },
+ {
+  "versao": "0.7.6",
+  "data": "2026-11-26",
+  "titulo": "Correções encontradas no teste de todas as telas",
+  "resumo": "Revisamos todas as rotas e telas do sistema com uma conta de visualizador e com a do dono. Estas são as correções que saíram dessa revisão.",
+  "novo": [],
+  "melhorias": [],
+  "seguranca": [],
+  "correcoes": [
+   "Configurações: baixar \"Meus dados\" voltou a funcionar (dava erro).",
+   "Perfil: salvar só um campo não apaga mais os outros (nome, cargo, telefone e bio).",
+   "Painel do Supabase: quem não tem permissão vê um aviso em vez de uma tela carregando sem fim.",
+   "Alexa: no celular, os botões de segurança quebram de linha e não passam mais da tela."
+  ]
+ },
+ {
   "versao": "0.7.5",
   "data": "2026-11-26",
   "titulo": "Rotinas numa tela só, bugs viram tarefas e login da Prefeitura",
