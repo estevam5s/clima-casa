@@ -1,7 +1,10 @@
 {
  "0.7.9": {
   "commit": "c8f074e",
-  "commit_em": 1795750220
+  "commit_em": 1795750220,
+  "no_ar": 1795750359,
+  "deploy": "clima-casa-13tcyfgok-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
  },
  "0.7.8": {
   "commit": "6a8d5d6",
