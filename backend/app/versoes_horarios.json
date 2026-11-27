@@ -1,5 +1,134 @@
 {
- "0.6.1": {},
+ "0.7.9": {
+  "commit": "c8f074e",
+  "commit_em": 1795750220
+ },
+ "0.7.8": {
+  "commit": "6a8d5d6",
+  "commit_em": 1795746313,
+  "no_ar": 1795746449,
+  "deploy": "clima-casa-cg0cuouyc-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.7.7": {
+  "commit": "6483708",
+  "commit_em": 1795743863,
+  "no_ar": 1795743998,
+  "deploy": "clima-casa-ba1c01bfh-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.7.6": {
+  "commit": "12c175f",
+  "commit_em": 1795739618,
+  "no_ar": 1795739754,
+  "deploy": "clima-casa-p789llijv-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.7.5": {
+  "commit": "28a98ce",
+  "commit_em": 1795736778,
+  "no_ar": 1795736900,
+  "deploy": "clima-casa-paauhyhep-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.7.4": {
+  "commit": "3262e5f",
+  "commit_em": 1795725697,
+  "no_ar": 1795725848,
+  "deploy": "clima-casa-ep274iz2n-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.7.3": {
+  "commit": "f2aa396",
+  "commit_em": 1795722113,
+  "no_ar": 1795722250,
+  "deploy": "clima-casa-has4yzgf7-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.7.2": {
+  "commit": "a03365c",
+  "commit_em": 1795720943,
+  "no_ar": 1795721089,
+  "deploy": "clima-casa-87ixn0g0o-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.7.1": {
+  "commit": "eb1beda",
+  "commit_em": 1795706675,
+  "no_ar": 1795706827,
+  "deploy": "clima-casa-4ujgv7a1r-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.7.0": {
+  "commit": "8ebc3d7",
+  "commit_em": 1795699080,
+  "no_ar": 1795699219,
+  "deploy": "clima-casa-anmi78607-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.9": {
+  "commit": "5ed88ee",
+  "commit_em": 1795613567,
+  "no_ar": 1795613737,
+  "deploy": "clima-casa-55jiq8pez-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.8": {
+  "commit": "da9594c",
+  "commit_em": 1795574248,
+  "no_ar": 1795574913,
+  "deploy": "clima-casa-f3c74dzr5-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.7": {
+  "commit": "0ade148",
+  "commit_em": 1795566665,
+  "no_ar": 1795569926,
+  "deploy": "clima-casa-7s8uepzlj-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.6": {
+  "commit": "c914ba0",
+  "commit_em": 1795480966,
+  "no_ar": 1795481122,
+  "deploy": "clima-casa-qb11r6quy-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.5": {
+  "commit": "b93054e",
+  "commit_em": 1795441708,
+  "no_ar": 1795441887,
+  "deploy": "clima-casa-i4broyt40-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.4": {
+  "commit": "a0c3779",
+  "commit_em": 1795441249,
+  "no_ar": 1795441421,
+  "deploy": "clima-casa-ehjt8ph45-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.3": {
+  "commit": "4b54e5e",
+  "commit_em": 1795439717,
+  "no_ar": 1795439922,
+  "deploy": "clima-casa-jqdyy9m8r-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.2": {
+  "commit": "668b9d2",
+  "commit_em": 1795438652,
+  "no_ar": 1795438834,
+  "deploy": "clima-casa-jdcra0lsi-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
+ "0.6.1": {
+  "commit": "f2505ea",
+  "commit_em": 1795437588,
+  "no_ar": 1795437768,
+  "deploy": "clima-casa-pssk3e7ub-estevamsouzalaureth001s-projects.vercel.app",
+  "fonte": "vercel"
+ },
  "0.6.0": {
   "commit": "19ff48a",
   "commit_em": 1795434243,

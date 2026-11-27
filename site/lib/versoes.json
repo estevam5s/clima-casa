@@ -1,5 +1,64 @@
 [
  {
+  "versao": "0.7.9",
+  "data": "2026-11-27",
+  "titulo": "Fluxos com 366 blocos e conexões externas, busca com IA, Rotinas em nove abas e Configurações com diagnóstico",
+  "resumo": "Os Fluxos viraram um editor completo (desfazer, copiar, versões, dados de teste) com mais de 100 gatilhos, 100 blocos de lógica e 100 ações e integrações; a busca do topo responde com IA; Rotinas ganhou Execuções, Conexões, Variáveis e Calendário.",
+  "novo": [
+   "Fluxos: 107 gatilhos (comando que falhou, IP bloqueado, bug novo, tarefa criada, luz ligou, porta destrancada, começou a chover, pôr do sol, fim do expediente, expressão cron e outros).",
+   "Fluxos: 146 blocos de lógica e dados (comparar, matemática, texto, data e hora, listas e JSON, escolher por valor, só uma vez por dia, contador, leitura do gasto, da previsão e dos transmissores).",
+   "Fluxos: 113 ações e integrações, com escolha do modelo de IA e 30 serviços de fora: Slack, Discord, Teams, WhatsApp (Evolution), SMS, ntfy, GitHub, GitLab, Trello, Notion, Asana, Jira, Home Assistant, n8n, Zapier e outros.",
+   "Fluxos: editor no jeito de uma IDE, com desfazer e refazer, copiar, colar e duplicar bloco, exportar e importar JSON, painel de problemas, contexto da execução, dados de teste e versões guardadas a cada salvamento.",
+   "Rotinas: abas novas Execuções (todas as execuções dos fluxos com cada bloco), Conexões (chaves cifradas dos serviços de fora), Variáveis globais e Calendário do que roda em cada dia.",
+   "Busca do topo (⌘K): procura em ares, salas, transmissores, rotinas, tarefas, bugs, pessoas e versões, e responde perguntas com a IA apontando a tela certa.",
+   "Configurações: Diagnóstico (confere ao vivo banco, agente, transmissores, e-mail, backup e bugs), Acessibilidade (tamanho do texto, contraste, animações, foco) e Atalhos de teclado.",
+   "Extensão para Chrome, Edge, Brave e Firefox: liga e desliga os ares, roda cenas e mostra os avisos não lidos no ícone, usando a sessão do painel.",
+   "Tarefas: metas, tarefas que se repetem e as cores do Asana."
+  ],
+  "melhorias": [
+   "Menu de atalhos redesenhado: descrições, grupos, fixar os preferidos, recentes e navegação pelas setas.",
+   "Projetos: cartões com o que cada sala está fazendo agora, média de temperatura e números animados.",
+   "Tradução do painel: todos os textos das telas foram traduzidos antes, nos 5 idiomas, e frases com destaque mantêm a ordem certa.",
+   "Bugs: o relato leva os últimos passos da visita (telas abertas e botões clicados); o sistema também registra tela travada, tela em branco e API falhando seguido, e confere fluxos com erro, conexões apagadas e ares sem o botão Desligar.",
+   "Segurança: os selos de integridade podem ser refeitos pelo dono com um motivo, e o histórico fica registrado."
+  ],
+  "seguranca": [
+   "Páginas do sistema com os cabeçalhos de isolamento (COOP, CORP e outros) também na verificação de segurança.",
+   "Chaves dos serviços de fora ficam cifradas e aparecem mascaradas; só o dono e os administradores mexem, e chamadas só vão para endereços https públicos."
+  ],
+  "correcoes": [
+   "Teste ao vivo do security.txt dava erro porque a Vercel desafiava o próprio teste.",
+   "Dois relatos do mesmo erro ao mesmo tempo davam erro no servidor.",
+   "Zona antiga de um transmissor que saiu do cadastro continuava salva.",
+   "Aviso de transmissor fora da rede citava o Mac mesmo com o agente em outro computador."
+  ]
+ },
+ {
+  "versao": "0.7.8",
+  "data": "2026-11-26",
+  "titulo": "Assistente no jeito do Claude, modo anônimo, Backup e Infra mais completos e varredura de bugs mais funda",
+  "resumo": "O Assistente ganhou Procurar, Artefatos, Agendados, Plugins e modo anônimo; o microfone passou a funcionar em qualquer navegador; Backup e Infra ganharam painéis novos; e o Treinamento foi para Segurança.",
+  "novo": [
+   "Assistente: barra lateral com Criar, Procurar, Projetos, Artefatos, Agendados e Plugins, e a sua foto embaixo.",
+   "Assistente: modo anônimo (botão no canto superior direito): a conversa não fica no histórico e a pergunta não vai para a Atividade.",
+   "Assistente: Agendados, pedidos que rodam sozinhos no horário e chegam no sino, no e-mail ou no Telegram (só consultam, nada mudam).",
+   "Assistente: Artefatos reúne o código e as tabelas das respostas para copiar ou baixar; Plugins liga e desliga grupos de ferramentas.",
+   "Infra: Monitor da API (tempo de resposta e erros por hora), Integrações testadas ao vivo e Limites e cotas de cada plano.",
+   "Backup: perda máxima hoje (RPO), tempo para restaurar (RTO), linha do tempo, retenção prevista, maiores tabelas e histórico.",
+   "Bugs: a procura confere também RLS, segredos sem cifra, 2FA dos administradores, certificado, versões dos agentes, fluxos, backup, API e banco, e mostra o resultado de cada etapa."
+  ],
+  "melhorias": [
+   "Treinamento agora fica em Segurança → Treinamento (o endereço antigo leva para lá); quem não gerencia a segurança vê só o Treinamento.",
+   "Assistente: escolher o microfone na setinha ao lado dele."
+  ],
+  "seguranca": [],
+  "correcoes": [
+   "Assistente: o microfone (ditado) não funcionava no Brave e no app de computador; agora transcreve pelo servidor em qualquer navegador.",
+   "Assistente: mensagens de voz de mais de 70 segundos falhavam ao enviar.",
+   "clima-ia 1.8.1: a pergunta não aparece mais duas vezes no terminal."
+  ]
+ },
+ {
   "versao": "0.7.7",
   "data": "2026-11-26",
   "titulo": "Fluxos em blocos, painel em 6 idiomas, relatórios mais completos e clima-ia que mexe em arquivos",
